@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,15 +11,15 @@
 #endif
 
 #include "net.h"
-
+#include "main.h"
 #include "addrman.h"
 #include "chainparams.h"
 #include "clientversion.h"
 #include "miner.h"
-#include "obfuscation.h"
 #include "primitives/transaction.h"
 #include "scheduler.h"
 #include "guiinterface.h"
+#include "masternode-sync.h"
 
 #ifdef WIN32
 #include <string.h>
@@ -1705,7 +1705,7 @@ void static Discover(boost::thread_group& threadGroup)
         }
     }
 #else
-    // Get local host ip
+    // Get local host IP
     struct ifaddrs* myaddrs;
     if (getifaddrs(&myaddrs) == 0) {
         for (struct ifaddrs* ifa = myaddrs; ifa != NULL; ifa = ifa->ifa_next) {
@@ -1713,6 +1713,7 @@ void static Discover(boost::thread_group& threadGroup)
             if ((ifa->ifa_flags & IFF_UP) == 0) continue;
             if (strcmp(ifa->ifa_name, "lo") == 0) continue;
             if (strcmp(ifa->ifa_name, "lo0") == 0) continue;
+
             if (ifa->ifa_addr->sa_family == AF_INET) {
                 struct sockaddr_in* s4 = (struct sockaddr_in*)(ifa->ifa_addr);
                 CNetAddr addr(s4->sin_addr);
@@ -1728,6 +1729,12 @@ void static Discover(boost::thread_group& threadGroup)
         freeifaddrs(myaddrs);
     }
 #endif
+}
+
+// Masternode sync thread wrapper
+void ThreadMasternodeSync()
+{
+    masternodeSync.Process();
 }
 
 void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
@@ -1749,23 +1756,20 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
     CBanDB bandb;
     banmap_t banmap;
     if (bandb.Read(banmap)) {
-        CNode::SetBanned(banmap); // thread save setter
-        CNode::SetBannedSetDirty(false); // no need to write down, just read data
-        CNode::SweepBanned(); // sweep out unused entries
+        CNode::SetBanned(banmap);
+        CNode::SetBannedSetDirty(false);
+        CNode::SweepBanned();
 
         LogPrint("net", "Loaded %d banned node ips/subnets from banlist.dat  %dms\n",
-            banmap.size(), GetTimeMillis() - nStart);
-    } else
+                 banmap.size(), GetTimeMillis() - nStart);
+    } else {
         LogPrintf("Invalid or missing banlist.dat; recreating\n");
+    }
 
-    // Initialize random numbers. Even when rand() is only usable for trivial use-cases most nodes should have a different
-    // seed after all the file-IO done at this point. Should be good enough even when nodes are started via scripts.
     srand(time(NULL));
-
     fAddressesInitialized = true;
 
     if (semOutbound == NULL) {
-        // initialize semaphore
         int nMaxOutbound = std::min(MAX_OUTBOUND_CONNECTIONS, nMaxConnections);
         semOutbound = new CSemaphore(nMaxOutbound);
     }
@@ -1779,27 +1783,31 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
     // Start threads
     //
 
-    if (!GetBoolArg("-dnsseed", true))
+    if (!GetBoolArg("-dnsseed", true)) {
         LogPrintf("DNS seeding disabled\n");
-    else
-        threadGroup.create_thread(boost::bind(&TraceThread<void (*)()>, "dnsseed", &ThreadDNSAddressSeed));
+    } else {
+        threadGroup.create_thread(
+            boost::bind(&TraceThread<void (*)()>, "dnsseed", &ThreadDNSAddressSeed));
+    }
 
-    // Map ports with UPnP
     MapPort(GetBoolArg("-upnp", DEFAULT_UPNP));
 
-    // Send and receive from sockets, accept connections
-    threadGroup.create_thread(boost::bind(&TraceThread<void (*)()>, "net", &ThreadSocketHandler));
+    threadGroup.create_thread(
+        boost::bind(&TraceThread<void (*)()>, "net", &ThreadSocketHandler));
 
-    // Initiate outbound connections from -addnode
-    threadGroup.create_thread(boost::bind(&TraceThread<void (*)()>, "addcon", &ThreadOpenAddedConnections));
+    threadGroup.create_thread(
+        boost::bind(&TraceThread<void (*)()>, "addcon", &ThreadOpenAddedConnections));
 
-    // Initiate outbound connections
-    threadGroup.create_thread(boost::bind(&TraceThread<void (*)()>, "opencon", &ThreadOpenConnections));
+    threadGroup.create_thread(
+        boost::bind(&TraceThread<void (*)()>, "opencon", &ThreadOpenConnections));
 
-    // Process messages
-    threadGroup.create_thread(boost::bind(&TraceThread<void (*)()>, "msghand", &ThreadMessageHandler));
+    threadGroup.create_thread(
+        boost::bind(&TraceThread<void (*)()>, "msghand", &ThreadMessageHandler));
 
-    // Dump network addresses
+    // Masternode sync loop
+    threadGroup.create_thread(
+        boost::bind(&TraceThread<void (*)()>, "mnsync", &ThreadMasternodeSync));
+
     scheduler.scheduleEvery(&DumpData, DUMP_ADDRESSES_INTERVAL);
 }
 

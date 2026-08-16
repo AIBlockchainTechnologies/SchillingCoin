@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2013 The Bitcoin developers
 // Copyright (c) 2016-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,9 +13,7 @@
 #include "wallet/hdchain.h"
 #include "key.h"
 #include "keystore.h"
-#include "zsch/zerocoin.h"
-#include "libzerocoin/Accumulator.h"
-#include "libzerocoin/Denominations.h"
+#include "stubs/zerocoin_legacy_consensus.h"
 
 #include <list>
 #include <stdint.h>
@@ -163,7 +161,6 @@ public:
     bool EraseDeterministicMint(const uint256& hashPubcoin);
     bool WriteZerocoinMint(const CZerocoinMint& zerocoinMint);
     bool EraseZerocoinMint(const CZerocoinMint& zerocoinMint);
-    bool ReadZerocoinMint(const CBigNum &bnPubcoinValue, CZerocoinMint& zerocoinMint);
     bool ReadZerocoinMint(const uint256& hashPubcoin, CZerocoinMint& mint);
     bool ArchiveMintOrphan(const CZerocoinMint& zerocoinMint);
     bool ArchiveDeterministicOrphan(const CDeterministicMint& dMint);
@@ -172,12 +169,12 @@ public:
     std::list<CZerocoinMint> ListMintedCoins();
     std::list<CDeterministicMint> ListDeterministicMints();
     std::list<CZerocoinSpend> ListSpentCoins();
-    std::list<CBigNum> ListSpentCoinsSerial();
+    std::list<uint256> ListSpentCoinsSerial();
     std::list<CZerocoinMint> ListArchivedZerocoins();
     std::list<CDeterministicMint> ListArchivedDeterministicMints();
     bool WriteZerocoinSpendSerialEntry(const CZerocoinSpend& zerocoinSpend);
-    bool EraseZerocoinSpendSerialEntry(const CBigNum& serialEntry);
-    bool ReadZerocoinSpendSerialEntry(const CBigNum& bnSerial);
+    bool EraseZerocoinSpendSerialEntry(const uint256& serialEntry);
+    bool ReadZerocoinSpendSerialEntry(const uint256& bnSerial);
     bool WriteCurrentSeedHash(const uint256& hashSeed);
     bool ReadCurrentSeedHash(uint256& hashSeed);
     bool WriteZSCHSeed(const uint256& hashSeed, const std::vector<unsigned char>& seed);

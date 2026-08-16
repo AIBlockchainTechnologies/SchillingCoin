@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,8 +19,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "libzerocoin/Denominations.h"
-#include "libzerocoin/SpendType.h"
+#include "stubs/zerocoin_legacy_consensus.h"
 #include "sporkid.h"
 
 class CScript;

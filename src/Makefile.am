@@ -1,11 +1,16 @@
 # Copyright (c) 2013-2016 The Bitcoin Core developers
+# Copyright (c) 2026 The SchillingCoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 DIST_SUBDIRS = secp256k1 univalue
 
 AM_LDFLAGS = $(PTHREAD_CFLAGS) $(LIBTOOL_LDFLAGS) $(HARDENED_LDFLAGS) $(GPROF_LDFLAGS) $(SANITIZER_LDFLAGS)
-AM_CXXFLAGS = $(DEBUG_CXXFLAGS) $(HARDENED_CXXFLAGS) $(WARN_CXXFLAGS) $(NOWARN_CXXFLAGS) $(ERROR_CXXFLAGS) $(GPROF_CXXFLAGS) $(SANITIZER_CXXFLAGS)
+
+# Add the Qt compatibility flag here
+AM_CXXFLAGS = $(DEBUG_CXXFLAGS) $(HARDENED_CXXFLAGS) $(WARN_CXXFLAGS) $(NOWARN_CXXFLAGS) \
+  $(ERROR_CXXFLAGS) $(GPROF_CXXFLAGS) $(SANITIZER_CXXFLAGS) -Wno-deprecated-copy
+
 AM_CPPFLAGS = $(DEBUG_CPPFLAGS) $(HARDENED_CPPFLAGS)
 AM_LIBTOOLFLAGS = --preserve-dup-deps
 EXTRA_LIBRARIES =
@@ -19,29 +24,30 @@ else
 LIBUNIVALUE = $(UNIVALUE_LIBS)
 endif
 
-BITCOIN_CONFIG_INCLUDES=-I$(builddir)/config
-BITCOIN_INCLUDES=-I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
+BITCOIN_CONFIG_INCLUDES = -I$(builddir)/config
+BITCOIN_INCLUDES = -I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) \
+  $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
 
-LIBBITCOIN_SERVER=libbitcoin_server.a
-LIBBITCOIN_COMMON=libbitcoin_common.a
-LIBBITCOIN_CLI=libbitcoin_cli.a
-LIBBITCOIN_UTIL=libbitcoin_util.a
-LIBBITCOIN_CRYPTO=crypto/libbitcoin_crypto.a
-LIBBITCOIN_ZEROCOIN=libzerocoin/libbitcoin_zerocoin.a
-LIBBITCOINQT=qt/libbitcoinqt.a
-LIBSECP256K1=secp256k1/libsecp256k1.la
+LIBBITCOIN_SERVER = libbitcoin_server.a
+LIBBITCOIN_COMMON = libbitcoin_common.a
+LIBBITCOIN_CLI = libbitcoin_cli.a
+LIBBITCOIN_UTIL = libbitcoin_util.a
+LIBBITCOIN_CRYPTO = crypto/libbitcoin_crypto.a
+LIBBITCOIN_BIGNUM = libbignum.a
+LIBBITCOINQT = qt/libbitcoinqt.a
+LIBSECP256K1 = secp256k1/libsecp256k1.la
 
 if ENABLE_ZMQ
-LIBBITCOIN_ZMQ=libbitcoin_zmq.a
+LIBBITCOIN_ZMQ = libbitcoin_zmq.a
 endif
 if BUILD_BITCOIN_LIBS
-LIBBITCOINCONSENSUS=libbitcoinconsensus.la
+LIBBITCOINCONSENSUS = libbitcoinconsensus.la
 endif
 if ENABLE_WALLET
-LIBBITCOIN_WALLET=libbitcoin_wallet.a
+LIBBITCOIN_WALLET = libbitcoin_wallet.a
 endif
 
 $(LIBSECP256K1): $(wildcard secp256k1/src/*.h) $(wildcard secp256k1/src/*.c) $(wildcard secp256k1/include/*)
@@ -53,7 +59,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_ZEROCOIN) \
+  $(LIBBITCOIN_BIGNUM) \
   $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_CLI) \
   $(LIBBITCOIN_WALLET) \
@@ -113,8 +119,6 @@ BITCOIN_CORE_H = \
   crypter.h \
   pairresult.h \
   addressbook.h \
-  obfuscation.h \
-  obfuscation-relay.h \
   wallet/db.h \
   hash.h \
   wallet/hdchain.h \
@@ -166,6 +170,8 @@ BITCOIN_CORE_H = \
   sporkid.h \
   stakeinput.h \
   streams.h \
+  stubs/zerocoin_legacy_consensus.h \
+  stubs/zerocoin_legacy_types.h \
   support/cleanse.h \
   sync.h \
   threadsafety.h \
@@ -190,11 +196,6 @@ BITCOIN_CORE_H = \
   wallet/wallet.h \
   wallet/wallet_ismine.h \
   wallet/walletdb.h \
-  zschchain.h \
-  zsch/deterministicmint.h \
-  zsch/mintpool.h \
-  zsch/zerocoin.h \
-  zsch/zschmodule.h \
   zmq/zmqabstractnotifier.h \
   zmq/zmqconfig.h \
   zmq/zmqnotificationinterface.h \
@@ -243,7 +244,6 @@ libbitcoin_server_a_SOURCES = \
   txdb.cpp \
   txmempool.cpp \
   validationinterface.cpp \
-  zschchain.cpp \
   $(BITCOIN_CORE_H)
 
 if ENABLE_ZMQ
@@ -262,11 +262,8 @@ libbitcoin_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_wallet_a_SOURCES = \
   activemasternode.cpp \
   bip38.cpp \
-  obfuscation.cpp \
-  obfuscation-relay.cpp \
   addressbook.cpp \
   crypter.cpp \
-  swifttx.cpp \
   masternode.cpp \
   masternode-budget.cpp \
   masternode-payments.cpp \
@@ -284,11 +281,7 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/wallet.cpp \
   wallet/wallet_ismine.cpp \
   wallet/walletdb.cpp \
-  zsch/deterministicmint.cpp \
-  zsch/zerocoin.cpp \
-  zsch/mintpool.cpp \
   stakeinput.cpp \
-  zsch/zschmodule.cpp \
   $(BITCOIN_CORE_H)
 
 # crypto primitives library
@@ -355,32 +348,19 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sph_haval.h \
   crypto/sph_types.h
 
-# libzerocoin library
-libzerocoin_libbitcoin_zerocoin_a_CPPFLAGS = $(AM_CPPFLAGS) $(BOOST_CPPFLAGS)
-libzerocoin_libbitcoin_zerocoin_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libzerocoin_libbitcoin_zerocoin_a_SOURCES = \
-  libzerocoin/Accumulator.h \
-  libzerocoin/bignum.h \
-  libzerocoin/Coin.h \
-  libzerocoin/CoinSpend.h \
-  libzerocoin/Commitment.h \
-  libzerocoin/Denominations.h \
-  libzerocoin/ParamGeneration.h \
-  libzerocoin/Params.h \
-  libzerocoin/SpendType.h \
-  libzerocoin/ZerocoinDefines.h \
-  libzerocoin/bignum.cpp \
-  libzerocoin/Accumulator.cpp \
-  libzerocoin/Coin.cpp \
-  libzerocoin/CoinSpend.cpp \
-  libzerocoin/Denominations.cpp \
-  libzerocoin/ParamGeneration.cpp \
-  libzerocoin/Params.cpp
+# bignum library
+libbignum_a_CPPFLAGS = $(AM_CPPFLAGS) $(BOOST_CPPFLAGS)
+libbignum_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libbignum_a_SOURCES = \
+  bignum/bignum.h \
+  bignum/bignum.cpp
+
 if USE_NUM_GMP
-  libzerocoin_libbitcoin_zerocoin_a_SOURCES += libzerocoin/bignum_gmp.cpp
+  libbignum_a_SOURCES += bignum/bignum_gmp.cpp
 endif
+
 if USE_NUM_OPENSSL
-  libzerocoin_libbitcoin_zerocoin_a_SOURCES += libzerocoin/bignum_openssl.cpp
+  libbignum_a_SOURCES += bignum/bignum_openssl.cpp
 endif
 
 # common: shared between schillingcoind, and schillingcoin-qt and non-server tools
@@ -397,9 +377,7 @@ libbitcoin_common_a_SOURCES = \
   compressor.cpp \
   consensus/merkle.cpp \
   primitives/block.cpp \
-  zsch/deterministicmint.cpp \
   primitives/transaction.cpp \
-  zsch/zerocoin.cpp \
   core_read.cpp \
   core_write.cpp \
   hash.cpp \
@@ -472,7 +450,7 @@ schillingcoind_LDADD = \
   $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_COMMON) \
   $(LIBUNIVALUE) \
-  $(LIBBITCOIN_ZEROCOIN) \
+  $(LIBBITCOIN_BIGNUM) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_ZMQ) \
   $(LIBBITCOIN_CRYPTO) \
@@ -515,7 +493,7 @@ endif
 schillingcoin_tx_LDADD = \
   $(LIBUNIVALUE) \
   $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_ZEROCOIN) \
+  $(LIBBITCOIN_BIGNUM) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBSECP256K1)
@@ -561,7 +539,7 @@ CLEANFILES += *.gcda *.gcno
 CLEANFILES += compat/*.gcda compat/*.gcno
 CLEANFILES += consensus/*.gcda consensus/*.gcno
 CLEANFILES += crypto/*.gcda crypto/*.gcno
-CLEANFILES += libzerocoin/*.gcda libzerocoin/*.gcno
+CLEANFILES += bignum/*.gcda bignum/*.gcno
 CLEANFILES += primitives/*.gcda primitives/*.gcno
 CLEANFILES += rpc/*.gcda rpc/*.gcno
 CLEANFILES += script/*.gcda script/*.gcno

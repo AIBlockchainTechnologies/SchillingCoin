@@ -1,6 +1,6 @@
 // Copyright (c) 2014-2016 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,6 +12,10 @@
 #include "messagesigner.h"
 #include "protocol.h"
 #include "spork.h"
+#include "masternode-sync.h"
+#include "util.h"
+
+CActiveMasternode activeMasternode;
 
 //
 // Bootup the Masternode, look for a 15000 SCH input and register on the network
@@ -20,25 +24,28 @@ void CActiveMasternode::ManageStatus()
 {
     std::string errorMessage;
 
-    if (!fMasterNode) return;
+    if (!fMasterNode)
+        return;
 
-    if (fDebug) LogPrintf("CActiveMasternode::ManageStatus() - Begin\n");
+    if (fDebug)
+        LogPrintf("CActiveMasternode::ManageStatus() - Begin\n");
 
-    //need correct blocks to send ping
+    // need correct blocks to send ping
     if (!Params().IsRegTestNet() && !masternodeSync.IsBlockchainSynced()) {
         status = ACTIVE_MASTERNODE_SYNC_IN_PROCESS;
         LogPrintf("CActiveMasternode::ManageStatus() - %s\n", GetStatus());
         return;
     }
 
-    if (status == ACTIVE_MASTERNODE_SYNC_IN_PROCESS) status = ACTIVE_MASTERNODE_INITIAL;
+    if (status == ACTIVE_MASTERNODE_SYNC_IN_PROCESS)
+        status = ACTIVE_MASTERNODE_INITIAL;
 
     if (status == ACTIVE_MASTERNODE_INITIAL) {
-        CMasternode* pmn;
-        pmn = mnodeman.Find(pubKeyMasternode);
+        CMasternode* pmn = mnodeman.Find(pubKeyMasternode);
         if (pmn != NULL) {
             pmn->Check();
-            if (pmn->IsEnabled() && pmn->protocolVersion == PROTOCOL_VERSION) EnableHotColdMasterNode(pmn->vin, pmn->addr);
+            if (pmn->IsEnabled() && pmn->protocolVersion == PROTOCOL_VERSION)
+                EnableHotColdMasterNode(pmn->vin, pmn->addr);
         }
     }
 
@@ -70,10 +77,13 @@ void CActiveMasternode::ManageStatus()
         }
 
         // The service needs the correct default port to work properly
-        if(!CMasternodeBroadcast::CheckDefaultPort(strMasterNodeAddr, errorMessage, "CActiveMasternode::ManageStatus()"))
+        if (!CMasternodeBroadcast::CheckDefaultPort(strMasterNodeAddr,
+                                                    errorMessage,
+                                                    "CActiveMasternode::ManageStatus()"))
             return;
 
-        LogPrintf("CActiveMasternode::ManageStatus() - Checking inbound connection to '%s'\n", service.ToString());
+        LogPrintf("CActiveMasternode::ManageStatus() - Checking inbound connection to '%s'\n",
+                  service.ToString());
 
         CNode* pnode = ConnectNode((CAddress)service, NULL, false, true);
         if (!pnode) {
@@ -90,7 +100,8 @@ void CActiveMasternode::ManageStatus()
         if (GetMasterNodeVin(vin, pubKeyCollateralAddress, keyCollateralAddress)) {
             if (GetInputAge(vin) < MASTERNODE_MIN_CONFIRMATIONS) {
                 status = ACTIVE_MASTERNODE_INPUT_TOO_NEW;
-                notCapableReason = strprintf("%s - %d confirmations", GetStatus(), GetInputAge(vin));
+                notCapableReason = strprintf("%s - %d confirmations",
+                                             GetStatus(), GetInputAge(vin));
                 LogPrintf("CActiveMasternode::ManageStatus() - %s\n", notCapableReason);
                 return;
             }
@@ -102,25 +113,28 @@ void CActiveMasternode::ManageStatus()
             CPubKey pubKeyMasternode;
             CKey keyMasternode;
 
-            if (!CMessageSigner::GetKeysFromSecret(strMasterNodePrivKey, keyMasternode, pubKeyMasternode)) {
+            if (!CMessageSigner::GetKeysFromSecret(strMasterNodePrivKey,
+                                                   keyMasternode, pubKeyMasternode)) {
                 LogPrintf("%s : Invalid masternode key", __func__);
                 return;
             }
 
             CMasternodeBroadcast mnb;
-            if (!CreateBroadcast(vin, service, keyCollateralAddress, pubKeyCollateralAddress, keyMasternode, pubKeyMasternode, errorMessage, mnb)) {
+            if (!CreateBroadcast(vin, service, keyCollateralAddress,
+                                 pubKeyCollateralAddress, keyMasternode,
+                                 pubKeyMasternode, errorMessage, mnb)) {
                 notCapableReason = "Error on Register: " + errorMessage;
                 LogPrintf("CActiveMasternode::ManageStatus() - %s\n", notCapableReason);
                 return;
             }
 
-            //send to all peers
-            LogPrintf("CActiveMasternode::ManageStatus() - Relay broadcast vin = %s\n", vin.ToString());
+            // send to all peers
+            LogPrintf("CActiveMasternode::ManageStatus() - Relay broadcast vin = %s\n",
+                      vin.ToString());
             mnb.Relay();
 
             LogPrintf("CActiveMasternode::ManageStatus() - Is capable master node!\n");
             status = ACTIVE_MASTERNODE_STARTED;
-
             return;
         } else {
             notCapableReason = "Could not find suitable coins!";
@@ -129,7 +143,7 @@ void CActiveMasternode::ManageStatus()
         }
     }
 
-    //send to all peers
+    // send to all peers
     if (!SendMasternodePing(errorMessage)) {
         LogPrintf("CActiveMasternode::ManageStatus() - Error on Ping: %s\n", errorMessage);
     }
@@ -203,7 +217,7 @@ bool CActiveMasternode::SendMasternodePing(std::string& errorMessage)
         return true;
     } else {
         // Seems like we are trying to send a ping while the Masternode is not registered in the network
-        errorMessage = "Obfuscation Masternode List doesn't include our Masternode, shutting down Masternode pinging service! " + vin.ToString();
+        errorMessage = "Masternode List doesn't include our Masternode, shutting down Masternode pinging service! " + vin.ToString();
         status = ACTIVE_MASTERNODE_NOT_CAPABLE;
         notCapableReason = errorMessage;
         return false;

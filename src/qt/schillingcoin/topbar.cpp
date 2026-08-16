@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -23,6 +23,8 @@
 #include "guiinterface.h"
 
 #include "chainparams.h"
+
+#include "masternode-sync.h"
 
 #include <QPainter>
 #include <QSettings>

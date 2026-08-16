@@ -1,12 +1,12 @@
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #define BOOST_TEST_MODULE Zerocoin Test Suite
 #define BOOST_TEST_MAIN
 
-#include "libzerocoin/Denominations.h"
+#include "stubs/zerocoin_legacy_consensus.h"S
 #include "amount.h"
 #include "chainparams.h"
 #include "main.h"
@@ -26,4 +26,3 @@ struct ZeroSetup {
 };
 
 BOOST_GLOBAL_FIXTURE(ZeroSetup);
-

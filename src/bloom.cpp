@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,8 +9,7 @@
 
 #include "chainparams.h"
 #include "hash.h"
-#include "libzerocoin/bignum.h"
-#include "libzerocoin/CoinSpend.h"
+#include "bignum/bignum.h"
 #include "primitives/transaction.h"
 #include "script/script.h"
 #include "script/standard.h"
@@ -219,10 +218,8 @@ bool CBloomFilter::IsRelevantAndUpdate(const CTransaction& tx)
             if (!txin.scriptSig.GetOp(pc, opcode, data))
                 break;
             if (txin.IsZerocoinSpend()) {
-                CDataStream s(std::vector<unsigned char>(txin.scriptSig.begin() + 44, txin.scriptSig.end()),
-                        SER_NETWORK, PROTOCOL_VERSION);
-
-                data = libzerocoin::CoinSpend::ParseSerial(s);
+                // Zerocoin removed — bloom filter should not match serials
+                continue;
             }
             if (data.size() != 0 && contains(data)) {
                 return true;

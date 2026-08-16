@@ -1,18 +1,18 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2012 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "bignum.h"
+#include "bignum/bignum.h"
 
 #if defined(USE_NUM_GMP)
-#include "bignum_gmp.cpp"
+#include "bignum/bignum_gmp.cpp"
 #endif
 
 #if defined(USE_NUM_OPENSSL)
-#include "bignum_openssl.cpp"
+#include "bignum/bignum_openssl.cpp"
 #endif
 
 std::string CBigNum::GetHex() const

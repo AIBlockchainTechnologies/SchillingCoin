@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -28,6 +28,9 @@
 #include <QWindowStateChangeEvent>
 
 #include "util.h"
+
+#include "init.h"
+#include "wallet/wallet.h"
 
 #define BASE_WINDOW_WIDTH 1200
 #define BASE_WINDOW_HEIGHT 740
@@ -621,7 +624,7 @@ void SchillingCoinGUI::incomingTransaction(const QString& date, int unit, const 
     // Only send notifications when not disabled
     if(!bdisableSystemnotifications){
         // On new transaction, make an info balloon
-        message((amount) < 0 ? (pwalletMain->fMultiSendNotify == true ? tr("Sent MultiSend transaction") : tr("Sent transaction")) : tr("Incoming transaction"),
+        message((amount) < 0 ? tr("Sent transaction") : tr("Incoming transaction"),
             tr("Date: %1\n"
                "Amount: %2\n"
                "Type: %3\n"

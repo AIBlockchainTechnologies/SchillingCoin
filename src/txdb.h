@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2016-2018 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,7 +10,6 @@
 
 #include "leveldbwrapper.h"
 #include "main.h"
-#include "zsch/zerocoin.h"
 
 #include <map>
 #include <string>
@@ -97,7 +96,8 @@ public:
     bool LoadBlockIndexGuts();
 };
 
-/** Zerocoin database (zerocoin/) */
+/** Zerocoin database (zerocoin/)*/
+
 class CZerocoinDB : public CLevelDBWrapper
 {
 public:
@@ -108,22 +108,60 @@ private:
     void operator=(const CZerocoinDB&);
 
 public:
-    /** Write zSCH mints to the zerocoinDB in a batch */
-    bool WriteCoinMintBatch(const std::vector<std::pair<libzerocoin::PublicCoin, uint256> >& mintInfo);
+
+    /** --------------------------------------------------------------------
+     *  Zerocoin Mint Handling (Historical Only)
+     *  --------------------------------------------------------------------
+     *  Original SCH code used libzerocoin::PublicCoin. We replace it with
+     *  uint256, which stores the hash/commitment of the mint.
+     *
+     *  NOTE: These functions DO NOT perform Zerocoin validation anymore.
+     *        They only preserve DB compatibility for historical blocks.
+     */
+
+    bool WriteCoinMintBatch(const std::vector<std::pair<uint256, uint256>>& mintInfo);
+
+    // Read mint by BigNum (legacy) — now treated as uint256 hash
     bool ReadCoinMint(const CBigNum& bnPubcoin, uint256& txHash);
+
+    // Read mint by hash
     bool ReadCoinMint(const uint256& hashPubcoin, uint256& hashTx);
-    /** Write zSCH spends to the zerocoinDB in a batch */
-    bool WriteCoinSpendBatch(const std::vector<std::pair<libzerocoin::CoinSpend, uint256> >& spendInfo);
+
+    /** --------------------------------------------------------------------
+     *  Zerocoin Spend Handling (Historical Only)
+     *  --------------------------------------------------------------------
+     *  Original SCH code used libzerocoin::CoinSpend. We replace it with
+     *  uint256, which stores the serial hash.
+     */
+
+    bool WriteCoinSpendBatch(const std::vector<std::pair<uint256, uint256>>& spendInfo);
+
+    // Read spend by BigNum (legacy)
     bool ReadCoinSpend(const CBigNum& bnSerial, uint256& txHash);
+
+    // Read spend by hash
     bool ReadCoinSpend(const uint256& hashSerial, uint256 &txHash);
+
+    // Erase functions remain for DB cleanup compatibility
     bool EraseCoinMint(const CBigNum& bnPubcoin);
     bool EraseCoinSpend(const CBigNum& bnSerial);
+
+    // Wipe all Zerocoin entries of a given type
     bool WipeCoins(std::string strType);
 
-    /** Accumulators (only for zPoS IBD): [checksum, denom] --> block height **/
-    bool WriteAccChecksum(const uint32_t& nChecksum, const libzerocoin::CoinDenomination denom, const int nHeight);
-    bool ReadAccChecksum(const uint32_t& nChecksum, const libzerocoin::CoinDenomination denom, int& nHeightRet);
-    bool EraseAccChecksum(const uint32_t& nChecksum, const libzerocoin::CoinDenomination denom);
+    /** --------------------------------------------------------------------
+     *  Accumulator Checksum Handling
+     *  --------------------------------------------------------------------
+     *  SCH version‑4 blocks contain non‑zero accumulator checkpoints.
+     *  We MUST preserve these DB entries to sync the chain.
+     *
+     *  libzerocoin::CoinDenomination is replaced with uint8_t.
+     *  (All denominations fit safely in 8 bits.)
+     */
+
+    bool WriteAccChecksum(const uint32_t& nChecksum, const uint8_t denom, const int nHeight);
+    bool ReadAccChecksum(const uint32_t& nChecksum, const uint8_t denom, int& nHeightRet);
+    bool EraseAccChecksum(const uint32_t& nChecksum, const uint8_t denom);
     bool WipeAccChecksums();
 };
 

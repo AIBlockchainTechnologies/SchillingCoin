@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2013 The Bitcoin developers
 // Copyright (c) 2016-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -28,8 +28,66 @@ public:
     unsigned int nHeight; // if the outpoint was the last unspent: its height
     int nVersion;         // if the outpoint was the last unspent: its version
 
-    CTxInUndo() : txout(), fCoinBase(false), fCoinStake(false), nHeight(0), nVersion(0) {}
-    CTxInUndo(const CTxOut& txoutIn, bool fCoinBaseIn = false, bool fCoinStakeIn = false, unsigned int nHeightIn = 0, int nVersionIn = 0) : txout(txoutIn), fCoinBase(fCoinBaseIn), fCoinStake(fCoinStakeIn), nHeight(nHeightIn), nVersion(nVersionIn) {}
+    CTxInUndo()
+        : txout(),
+          fCoinBase(false),
+          fCoinStake(false),
+          nHeight(0),
+          nVersion(0)
+    {}
+
+    CTxInUndo(const CTxOut& txoutIn, bool fCoinBaseIn = false, bool fCoinStakeIn = false,
+              unsigned int nHeightIn = 0, int nVersionIn = 0)
+        : txout(txoutIn),
+          fCoinBase(fCoinBaseIn),
+          fCoinStake(fCoinStakeIn),
+          nHeight(nHeightIn),
+          nVersion(nVersionIn)
+    {}
+
+    // Copy constructor
+    CTxInUndo(const CTxInUndo& other)
+        : txout(other.txout),
+          fCoinBase(other.fCoinBase),
+          fCoinStake(other.fCoinStake),
+          nHeight(other.nHeight),
+          nVersion(other.nVersion)
+    {}
+
+    // Move constructor
+    CTxInUndo(CTxInUndo&& other) noexcept
+        : txout(std::move(other.txout)),
+          fCoinBase(other.fCoinBase),
+          fCoinStake(other.fCoinStake),
+          nHeight(other.nHeight),
+          nVersion(other.nVersion)
+    {}
+
+    // Copy assignment
+    CTxInUndo& operator=(const CTxInUndo& other)
+    {
+        if (this != &other) {
+            txout      = other.txout;
+            fCoinBase  = other.fCoinBase;
+            fCoinStake = other.fCoinStake;
+            nHeight    = other.nHeight;
+            nVersion   = other.nVersion;
+        }
+        return *this;
+    }
+
+    // Move assignment
+    CTxInUndo& operator=(CTxInUndo&& other) noexcept
+    {
+        if (this != &other) {
+            txout      = std::move(other.txout);
+            fCoinBase  = other.fCoinBase;
+            fCoinStake = other.fCoinStake;
+            nHeight    = other.nHeight;
+            nVersion   = other.nVersion;
+        }
+        return *this;
+    }
 
     unsigned int GetSerializeSize(int nType, int nVersion) const
     {
@@ -52,9 +110,9 @@ public:
     {
         unsigned int nCode = 0;
         ::Unserialize(s, VARINT(nCode), nType, nVersion);
-        nHeight = nCode >> 2;
-        fCoinBase = nCode & 2;
-        fCoinStake = nCode & 1;
+        nHeight   = nCode >> 2;
+        fCoinBase = (nCode & 2) != 0;
+        fCoinStake = (nCode & 1) != 0;
         if (nHeight > 0)
             ::Unserialize(s, VARINT(this->nVersion), nType, nVersion);
         ::Unserialize(s, REF(CTxOutCompressor(REF(txout))), nType, nVersion);

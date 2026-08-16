@@ -1,15 +1,23 @@
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "masternode.h"
 #include "addrman.h"
 #include "masternodeman.h"
-#include "obfuscation.h"
 #include "sync.h"
 #include "util.h"
+
+#include "main.h"
+#include "init.h"
+#include "masternode-payments.h"
+#include "masternode-sync.h"
+#include "activemasternode.h"
+
+#include "wallet/wallet.h"
+#include "script/standard.h"
 
 // keep track of the scanning errors I've seen
 std::map<uint256, int> mapSeenMasternodeScanningErrors;
@@ -183,10 +191,8 @@ void CMasternode::Check(bool forceCheck)
     if (!forceCheck && (GetTime() - lastTimeChecked < MASTERNODE_CHECK_SECONDS)) return;
     lastTimeChecked = GetTime();
 
-
-    //once spent, stop doing the checks
+    // once spent, stop doing the checks
     if (activeState == MASTERNODE_VIN_SPENT) return;
-
 
     if (!IsPingedWithin(MASTERNODE_REMOVAL_SECONDS)) {
         activeState = MASTERNODE_REMOVE;
@@ -198,7 +204,7 @@ void CMasternode::Check(bool forceCheck)
         return;
     }
 
-    if(lastPing.sigTime - sigTime < MASTERNODE_MIN_MNP_SECONDS){
+    if (lastPing.sigTime - sigTime < MASTERNODE_MIN_MNP_SECONDS) {
         activeState = MASTERNODE_PRE_ENABLED;
         return;
     }
@@ -206,7 +212,11 @@ void CMasternode::Check(bool forceCheck)
     if (!unitTest) {
         CValidationState state;
         CMutableTransaction tx = CMutableTransaction();
-        CTxOut vout = CTxOut((GetMNCollateral()-0.01) * COIN, obfuScationPool.collateralPubKey);
+
+        // Build proper collateral script now that Darksend/Obfuscation is removed
+        CScript collateralScript = GetScriptForDestination(pubKeyCollateralAddress.GetID());
+        CTxOut vout = CTxOut((GetMNCollateral() - 0.01) * COIN, collateralScript);
+
         tx.vin.push_back(vin);
         tx.vout.push_back(vout);
 
@@ -524,26 +534,22 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos)
     }
 
     // incorrect ping or its sigTime
-    if(lastPing == CMasternodePing() || !lastPing.CheckAndUpdate(nDos, false, true))
-    return false;
+    if (lastPing == CMasternodePing() || !lastPing.CheckAndUpdate(nDos, false, true))
+        return false;
 
     if (protocolVersion < masternodePayments.GetMinMasternodePaymentsProto()) {
         LogPrint("masternode","mnb - ignoring outdated Masternode %s protocol version %d\n", vin.prevout.hash.ToString(), protocolVersion);
         return false;
     }
 
-    CScript pubkeyScript;
-    pubkeyScript = GetScriptForDestination(pubKeyCollateralAddress.GetID());
-
+    CScript pubkeyScript = GetScriptForDestination(pubKeyCollateralAddress.GetID());
     if (pubkeyScript.size() != 25) {
         LogPrint("masternode","mnb - pubkey the wrong size\n");
         nDos = 100;
         return false;
     }
 
-    CScript pubkeyScript2;
-    pubkeyScript2 = GetScriptForDestination(pubKeyMasternode.GetID());
-
+    CScript pubkeyScript2 = GetScriptForDestination(pubKeyMasternode.GetID());
     if (pubkeyScript2.size() != 25) {
         LogPrint("masternode","mnb - pubkey2 the wrong size\n");
         nDos = 100;
@@ -556,19 +562,18 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos)
     }
 
     std::string strError = "";
-    if (!CheckSignature())
-    {
+    if (!CheckSignature()) {
         // don't ban for old masternodes, their sigs could be broken because of the bug
         nDos = protocolVersion < MIN_PEER_MNANNOUNCE ? 0 : 100;
         return error("%s : Got bad Masternode address signature", __func__);
     }
 
     if (Params().NetworkID() == CBaseChainParams::MAIN) {
-        if (addr.GetPort() != 9070) return false;
-    } else if (addr.GetPort() == 9070)
+        if (addr.GetPort() != Params().GetDefaultPort()) return false;
+    } else if (addr.GetPort() == Params().GetDefaultPort())
         return false;
 
-    //search existing Masternode list, this is where we update existing Masternodes with new mnb broadcasts
+    // search existing Masternode list, this is where we update existing Masternodes with new mnb broadcasts
     CMasternode* pmn = mnodeman.Find(vin);
 
     // no such masternode, nothing to update
@@ -576,19 +581,18 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos)
 
     // this broadcast is older or equal than the one that we already have - it's bad and should never happen
     // unless someone is doing something fishy
-    // (mapSeenMasternodeBroadcast in CMasternodeMan::ProcessMessage should filter legit duplicates)
-    if(pmn->sigTime >= sigTime) {
+    if (pmn->sigTime >= sigTime) {
         return error("%s : Bad sigTime %d for Masternode %20s %105s (existing broadcast is at %d)",
-                      __func__, sigTime, addr.ToString(), vin.ToString(), pmn->sigTime);
+                     __func__, sigTime, addr.ToString(), vin.ToString(), pmn->sigTime);
     }
 
     // masternode is not enabled yet/already, nothing to update
     if (!pmn->IsEnabled()) return true;
 
     // mn.pubkey = pubkey, IsVinAssociatedWithPubkey is validated once below,
-    //   after that they just need to match
+    // after that they just need to match
     if (pmn->pubKeyCollateralAddress == pubKeyCollateralAddress && !pmn->IsBroadcastedWithin(MASTERNODE_MIN_MNB_SECONDS)) {
-        //take the newest entry
+        // take the newest entry
         LogPrint("masternode","mnb - Got updated entry for %s\n", vin.prevout.hash.ToString());
         if (pmn->UpdateFromNewBroadcast((*this))) {
             pmn->Check();
@@ -608,7 +612,8 @@ bool CMasternodeBroadcast::CheckInputsAndAdd(int& nDoS)
         return true;
 
     // incorrect ping or its sigTime
-    if(lastPing == CMasternodePing() || !lastPing.CheckAndUpdate(nDoS, false, true)) return false;
+    if (lastPing == CMasternodePing() || !lastPing.CheckAndUpdate(nDoS, false, true))
+        return false;
 
     // search existing Masternode list
     CMasternode* pmn = mnodeman.Find(vin);
@@ -617,27 +622,30 @@ bool CMasternodeBroadcast::CheckInputsAndAdd(int& nDoS)
         // nothing to do here if we already know about this masternode and it's enabled
         if (pmn->IsEnabled()) return true;
         // if it's not enabled, remove old MN first and continue
-        else
-            mnodeman.Remove(pmn->vin);
+        mnodeman.Remove(pmn->vin);
     }
 
     CValidationState state;
     CMutableTransaction tx = CMutableTransaction();
-    CTxOut vout = CTxOut((GetMNCollateral() - 0.01) * COIN, obfuScationPool.collateralPubKey);
+
+    // Build proper collateral script now that Darksend/Obfuscation is removed
+    CScript collateralScript = GetScriptForDestination(pubKeyCollateralAddress.GetID());
+    CTxOut vout = CTxOut((GetMNCollateral() - 0.01) * COIN, collateralScript);
+
     tx.vin.push_back(vin);
     tx.vout.push_back(vout);
 
     {
         TRY_LOCK(cs_main, lockMain);
         if (!lockMain) {
-            // not mnb fault, let it to be checked again later
+            // not mnb fault, let it be checked again later
             mnodeman.mapSeenMasternodeBroadcast.erase(GetHash());
             masternodeSync.mapSeenSyncMNB.erase(GetHash());
             return false;
         }
 
         if (!AcceptableInputs(mempool, state, CTransaction(tx), false, NULL)) {
-            //set nDos
+            // set nDoS
             state.IsInvalid(nDoS);
             return false;
         }
@@ -647,20 +655,20 @@ bool CMasternodeBroadcast::CheckInputsAndAdd(int& nDoS)
 
     if (GetInputAge(vin) < MASTERNODE_MIN_CONFIRMATIONS) {
         LogPrint("masternode","mnb - Input must have at least %d confirmations\n", MASTERNODE_MIN_CONFIRMATIONS);
-        // maybe we miss few blocks, let this mnb to be checked again later
+        // maybe we miss few blocks, let this mnb be checked again later
         mnodeman.mapSeenMasternodeBroadcast.erase(GetHash());
         masternodeSync.mapSeenSyncMNB.erase(GetHash());
         return false;
     }
 
     // verify that sig time is legit in past
-    // should be at least not earlier than block when 1000 SCH tx got MASTERNODE_MIN_CONFIRMATIONS
+    // should be at least not earlier than block when collateral tx got MASTERNODE_MIN_CONFIRMATIONS
     uint256 hashBlock = UINT256_ZERO;
     CTransaction tx2;
     GetTransaction(vin.prevout.hash, tx2, hashBlock, true);
     BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
     if (mi != mapBlockIndex.end() && (*mi).second) {
-        CBlockIndex* pMNIndex = (*mi).second;                                                        // block for 1000 SchillingCoin tx -> 1 confirmation
+        CBlockIndex* pMNIndex = (*mi).second;                                                        // block for collateral tx -> 1 confirmation
         CBlockIndex* pConfIndex = chainActive[pMNIndex->nHeight + MASTERNODE_MIN_CONFIRMATIONS - 1]; // block where tx got MASTERNODE_MIN_CONFIRMATIONS
         if (pConfIndex->GetBlockTime() > sigTime) {
             LogPrint("masternode","mnb - Bad sigTime %d for Masternode %s (%i conf block is at %d)\n",

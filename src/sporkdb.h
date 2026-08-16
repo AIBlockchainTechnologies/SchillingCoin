@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,6 +9,8 @@
 #include <boost/filesystem/path.hpp>
 #include "leveldbwrapper.h"
 #include "spork.h"
+#include "masternode-sync.h"
+#include "util.h"
 
 class CSporkDB : public CLevelDBWrapper
 {
@@ -24,6 +26,5 @@ public:
     bool ReadSpork(const SporkId nSporkId, CSporkMessage& spork);
     bool SporkExists(const SporkId nSporkId);
 };
-
 
 #endif //SchillingCoin_CSPORKDB_H

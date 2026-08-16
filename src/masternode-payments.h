@@ -1,6 +1,6 @@
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,7 +10,6 @@
 #include "key.h"
 #include "main.h"
 #include "masternode.h"
-
 
 extern RecursiveMutex cs_vecPayments;
 extern RecursiveMutex cs_mapMasternodeBlocks;
@@ -64,15 +63,45 @@ public:
     int nVotes;
 
     CMasternodePayee()
-    {
-        scriptPubKey = CScript();
-        nVotes = 0;
-    }
+        : scriptPubKey(),
+          nVotes(0)
+    {}
 
     CMasternodePayee(CScript payee, int nVotesIn)
+        : scriptPubKey(payee),
+          nVotes(nVotesIn)
+    {}
+
+    // Copy constructor
+    CMasternodePayee(const CMasternodePayee& other)
+        : scriptPubKey(other.scriptPubKey),
+          nVotes(other.nVotes)
+    {}
+
+    // Move constructor
+    CMasternodePayee(CMasternodePayee&& other) noexcept
+        : scriptPubKey(std::move(other.scriptPubKey)),
+          nVotes(other.nVotes)
+    {}
+
+    // Copy assignment
+    CMasternodePayee& operator=(const CMasternodePayee& other)
     {
-        scriptPubKey = payee;
-        nVotes = nVotesIn;
+        if (this != &other) {
+            scriptPubKey = other.scriptPubKey;
+            nVotes       = other.nVotes;
+        }
+        return *this;
+    }
+
+    // Move assignment
+    CMasternodePayee& operator=(CMasternodePayee&& other) noexcept
+    {
+        if (this != &other) {
+            scriptPubKey = std::move(other.scriptPubKey);
+            nVotes       = other.nVotes;
+        }
+        return *this;
     }
 
     ADD_SERIALIZE_METHODS;
@@ -93,14 +122,45 @@ public:
     std::vector<CMasternodePayee> vecPayments;
 
     CMasternodeBlockPayees()
-    {
-        nBlockHeight = 0;
-        vecPayments.clear();
-    }
+        : nBlockHeight(0),
+          vecPayments()
+    {}
+
     CMasternodeBlockPayees(int nBlockHeightIn)
+        : nBlockHeight(nBlockHeightIn),
+          vecPayments()
+    {}
+
+    // Copy constructor
+    CMasternodeBlockPayees(const CMasternodeBlockPayees& other)
+        : nBlockHeight(other.nBlockHeight),
+          vecPayments(other.vecPayments)
+    {}
+
+    // Move constructor
+    CMasternodeBlockPayees(CMasternodeBlockPayees&& other) noexcept
+        : nBlockHeight(other.nBlockHeight),
+          vecPayments(std::move(other.vecPayments))
+    {}
+
+    // Copy assignment
+    CMasternodeBlockPayees& operator=(const CMasternodeBlockPayees& other)
     {
-        nBlockHeight = nBlockHeightIn;
-        vecPayments.clear();
+        if (this != &other) {
+            nBlockHeight = other.nBlockHeight;
+            vecPayments  = other.vecPayments;
+        }
+        return *this;
+    }
+
+    // Move assignment
+    CMasternodeBlockPayees& operator=(CMasternodeBlockPayees&& other) noexcept
+    {
+        if (this != &other) {
+            nBlockHeight = other.nBlockHeight;
+            vecPayments  = std::move(other.vecPayments);
+        }
+        return *this;
     }
 
     void AddPayee(CScript payeeIn, int nIncrement)
@@ -165,19 +225,59 @@ public:
     int nBlockHeight;
     CScript payee;
 
-    CMasternodePaymentWinner() :
-        CSignedMessage(),
-        vinMasternode(),
-        nBlockHeight(0),
-        payee()
+    CMasternodePaymentWinner()
+        : CSignedMessage(),
+          vinMasternode(),
+          nBlockHeight(0),
+          payee()
     {}
 
-    CMasternodePaymentWinner(CTxIn vinIn) :
-        CSignedMessage(),
-        vinMasternode(vinIn),
-        nBlockHeight(0),
-        payee()
+    CMasternodePaymentWinner(CTxIn vinIn)
+        : CSignedMessage(),
+          vinMasternode(vinIn),
+          nBlockHeight(0),
+          payee()
     {}
+
+    // Copy constructor
+    CMasternodePaymentWinner(const CMasternodePaymentWinner& other)
+        : CSignedMessage(other),
+          vinMasternode(other.vinMasternode),
+          nBlockHeight(other.nBlockHeight),
+          payee(other.payee)
+    {}
+
+    // Move constructor
+    CMasternodePaymentWinner(CMasternodePaymentWinner&& other) noexcept
+        : CSignedMessage(std::move(other)),
+          vinMasternode(std::move(other.vinMasternode)),
+          nBlockHeight(other.nBlockHeight),
+          payee(std::move(other.payee))
+    {}
+
+    // Copy assignment
+    CMasternodePaymentWinner& operator=(const CMasternodePaymentWinner& other)
+    {
+        if (this != &other) {
+            CSignedMessage::operator=(other);
+            vinMasternode = other.vinMasternode;
+            nBlockHeight  = other.nBlockHeight;
+            payee         = other.payee;
+        }
+        return *this;
+    }
+
+    // Move assignment
+    CMasternodePaymentWinner& operator=(CMasternodePaymentWinner&& other) noexcept
+    {
+        if (this != &other) {
+            CSignedMessage::operator=(std::move(other));
+            vinMasternode = std::move(other.vinMasternode);
+            nBlockHeight  = other.nBlockHeight;
+            payee         = std::move(other.payee);
+        }
+        return *this;
+    }
 
     uint256 GetHash() const;
 
@@ -203,8 +303,7 @@ public:
         READWRITE(nBlockHeight);
         READWRITE(payee);
         READWRITE(vchSig);
-        try
-        {
+        try {
             READWRITE(nMessVersion);
         } catch (...) {
             nMessVersion = MessageVersion::MESS_VER_STRMESS;
@@ -236,12 +335,58 @@ private:
 public:
     std::map<uint256, CMasternodePaymentWinner> mapMasternodePayeeVotes;
     std::map<int, CMasternodeBlockPayees> mapMasternodeBlocks;
-    std::map<COutPoint, int> mapMasternodesLastVote; //prevout, nBlockHeight
+    std::map<COutPoint, int> mapMasternodesLastVote; // prevout, nBlockHeight
 
     CMasternodePayments()
+        : nSyncedFromPeer(0),
+          nLastBlockHeight(0),
+          mapMasternodePayeeVotes(),
+          mapMasternodeBlocks(),
+          mapMasternodesLastVote()
+    {}
+
+    // Copy constructor
+    CMasternodePayments(const CMasternodePayments& other)
+        : nSyncedFromPeer(other.nSyncedFromPeer),
+          nLastBlockHeight(other.nLastBlockHeight),
+          mapMasternodePayeeVotes(other.mapMasternodePayeeVotes),
+          mapMasternodeBlocks(other.mapMasternodeBlocks),
+          mapMasternodesLastVote(other.mapMasternodesLastVote)
+    {}
+
+    // Move constructor
+    CMasternodePayments(CMasternodePayments&& other) noexcept
+        : nSyncedFromPeer(other.nSyncedFromPeer),
+          nLastBlockHeight(other.nLastBlockHeight),
+          mapMasternodePayeeVotes(std::move(other.mapMasternodePayeeVotes)),
+          mapMasternodeBlocks(std::move(other.mapMasternodeBlocks)),
+          mapMasternodesLastVote(std::move(other.mapMasternodesLastVote))
+    {}
+
+    // Copy assignment
+    CMasternodePayments& operator=(const CMasternodePayments& other)
     {
-        nSyncedFromPeer = 0;
-        nLastBlockHeight = 0;
+        if (this != &other) {
+            nSyncedFromPeer        = other.nSyncedFromPeer;
+            nLastBlockHeight       = other.nLastBlockHeight;
+            mapMasternodePayeeVotes = other.mapMasternodePayeeVotes;
+            mapMasternodeBlocks     = other.mapMasternodeBlocks;
+            mapMasternodesLastVote  = other.mapMasternodesLastVote;
+        }
+        return *this;
+    }
+
+    // Move assignment
+    CMasternodePayments& operator=(CMasternodePayments&& other) noexcept
+    {
+        if (this != &other) {
+            nSyncedFromPeer        = other.nSyncedFromPeer;
+            nLastBlockHeight       = other.nLastBlockHeight;
+            mapMasternodePayeeVotes = std::move(other.mapMasternodePayeeVotes);
+            mapMasternodeBlocks     = std::move(other.mapMasternodeBlocks);
+            mapMasternodesLastVote  = std::move(other.mapMasternodesLastVote);
+        }
+        return *this;
     }
 
     void Clear()
@@ -272,7 +417,7 @@ public:
             }
         }
 
-        //record this masternode voted
+        // record this masternode voted
         mapMasternodesLastVote[outMasternode] = nBlockHeight;
         return true;
     }
@@ -294,6 +439,5 @@ public:
         READWRITE(mapMasternodeBlocks);
     }
 };
-
 
 #endif

@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2012 The Bitcoin developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,15 +8,16 @@
 #include "db.h"
 #include "init.h"
 #include "main.h"
-#include "masternode-budget.h"
 #include "masternode-payments.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
+#include "masternode-sync.h"
 #include "rpc/server.h"
 #include "utilmoneystr.h"
+#include "wallet/wallet.h"
+#include "script/standard.h"
 
 #include <univalue.h>
-
 #include <boost/tokenizer.hpp>
 #include <fstream>
 
@@ -25,24 +26,25 @@ UniValue getpoolinfo(const UniValue& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw std::runtime_error(
             "getpoolinfo\n"
-            "\nReturns anonymous pool-related information\n"
-
+            "\nReturns basic masternode pool information\n"
             "\nResult:\n"
             "{\n"
-            "  \"current\": \"addr\",    (string) SchillingCoin address of current masternode\n"
-            "  \"state\": xxxx,        (string) unknown\n"
-            "  \"entries\": xxxx,      (numeric) Number of entries\n"
-            "  \"accepted\": xxxx,     (numeric) Number of entries accepted\n"
+            "  \"current_masternode\": \"addr\"   (string) SchillingCoin address of current masternode\n"
+            "  \"sync_state\": n                  (numeric) masternode sync asset state\n"
+            "  \"masternode_count\": n            (numeric) number of enabled masternodes\n"
             "}\n"
-
             "\nExamples:\n" +
             HelpExampleCli("getpoolinfo", "") + HelpExampleRpc("getpoolinfo", ""));
 
     UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("current_masternode", mnodeman.GetCurrentMasterNode()->addr.ToString()));
-    obj.push_back(Pair("state", obfuScationPool.GetState()));
-    obj.push_back(Pair("entries", obfuScationPool.GetEntriesCount()));
-    obj.push_back(Pair("entries_accepted", obfuScationPool.GetCountEntriesAccepted()));
+
+    CMasternode* cur = mnodeman.GetCurrentMasterNode();
+    obj.push_back(Pair("current_masternode",
+                       cur ? cur->addr.ToString() : std::string("unknown")));
+
+    obj.push_back(Pair("sync_state", masternodeSync.RequestedMasternodeAssets));
+    obj.push_back(Pair("masternode_count", mnodeman.CountEnabled()));
+
     return obj;
 }
 
@@ -85,7 +87,7 @@ UniValue listmasternodes(const UniValue& params, bool fHelp)
     {
         LOCK(cs_main);
         CBlockIndex* pindex = chainActive.Tip();
-        if(!pindex) return 0;
+        if (!pindex) return ret;
         nHeight = pindex->nHeight;
     }
     std::vector<std::pair<int, CMasternode> > vMasternodeRanks = mnodeman.GetMasternodeRanks(nHeight);
@@ -610,38 +612,38 @@ UniValue getmasternodewinners (const UniValue& params, bool fHelp)
             "\nResult (single winner):\n"
             "[\n"
             "  {\n"
-            "    \"nHeight\": n,           (numeric) block height\n"
+            "    \"nHeight\": n,\n"
             "    \"winner\": {\n"
-            "      \"address\": \"xxxx\",    (string) SchillingCoin MN Address\n"
-            "      \"nVotes\": n,          (numeric) Number of votes for winner\n"
+            "      \"address\": \"xxxx\",\n"
+            "      \"nVotes\": n\n"
             "    }\n"
             "  }\n"
-            "  ,...\n"
             "]\n"
 
             "\nResult (multiple winners):\n"
             "[\n"
             "  {\n"
-            "    \"nHeight\": n,           (numeric) block height\n"
+            "    \"nHeight\": n,\n"
             "    \"winner\": [\n"
             "      {\n"
-            "        \"address\": \"xxxx\",  (string) SchillingCoin MN Address\n"
-            "        \"nVotes\": n,        (numeric) Number of votes for winner\n"
+            "        \"address\": \"xxxx\",\n"
+            "        \"nVotes\": n\n"
             "      }\n"
-            "      ,...\n"
             "    ]\n"
             "  }\n"
-            "  ,...\n"
             "]\n"
 
             "\nExamples:\n" +
             HelpExampleCli("getmasternodewinners", "") + HelpExampleRpc("getmasternodewinners", ""));
 
+    UniValue ret(UniValue::VARR);
+
     int nHeight;
     {
         LOCK(cs_main);
         CBlockIndex* pindex = chainActive.Tip();
-        if(!pindex) return 0;
+        if (!pindex)
+            return ret;   // now valid
         nHeight = pindex->nHeight;
     }
 
@@ -654,45 +656,46 @@ UniValue getmasternodewinners (const UniValue& params, bool fHelp)
     if (params.size() == 2)
         strFilter = params[1].get_str();
 
-    UniValue ret(UniValue::VARR);
-
     for (int i = nHeight - nLast; i < nHeight + 20; i++) {
         UniValue obj(UniValue::VOBJ);
         obj.push_back(Pair("nHeight", i));
 
         std::string strPayment = GetRequiredPaymentsString(i);
-        if (strFilter != "" && strPayment.find(strFilter) == std::string::npos) continue;
+        if (strFilter != "" && strPayment.find(strFilter) == std::string::npos)
+            continue;
 
         if (strPayment.find(',') != std::string::npos) {
             UniValue winner(UniValue::VARR);
             boost::char_separator<char> sep(",");
-            boost::tokenizer< boost::char_separator<char> > tokens(strPayment, sep);
+            boost::tokenizer<boost::char_separator<char>> tokens(strPayment, sep);
             for (const std::string& t : tokens) {
                 UniValue addr(UniValue::VOBJ);
                 std::size_t pos = t.find(":");
-                std::string strAddress = t.substr(0,pos);
-                uint64_t nVotes = atoi(t.substr(pos+1));
+                std::string strAddress = t.substr(0, pos);
+                uint64_t nVotes = atoi(t.substr(pos + 1));
                 addr.push_back(Pair("address", strAddress));
                 addr.push_back(Pair("nVotes", nVotes));
                 winner.push_back(addr);
             }
             obj.push_back(Pair("winner", winner));
-        } else if (strPayment.find("Unknown") == std::string::npos) {
+        }
+        else if (strPayment.find("Unknown") == std::string::npos) {
             UniValue winner(UniValue::VOBJ);
             std::size_t pos = strPayment.find(":");
-            std::string strAddress = strPayment.substr(0,pos);
-            uint64_t nVotes = atoi(strPayment.substr(pos+1));
+            std::string strAddress = strPayment.substr(0, pos);
+            uint64_t nVotes = atoi(strPayment.substr(pos + 1));
             winner.push_back(Pair("address", strAddress));
             winner.push_back(Pair("nVotes", nVotes));
             obj.push_back(Pair("winner", winner));
-        } else {
+        }
+        else {
             UniValue winner(UniValue::VOBJ);
             winner.push_back(Pair("address", strPayment));
             winner.push_back(Pair("nVotes", 0));
             obj.push_back(Pair("winner", winner));
         }
 
-            ret.push_back(obj);
+        ret.push_back(obj);
     }
 
     return ret;

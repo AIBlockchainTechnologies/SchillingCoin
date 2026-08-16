@@ -1,13 +1,13 @@
 // Copyright (c) 2012-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef BITCOIN_BLOOM_H
 #define BITCOIN_BLOOM_H
 
-#include "libzerocoin/bignum.h"
+#include "bignum/bignum.h"
 #include "serialize.h"
 
 #include <vector>

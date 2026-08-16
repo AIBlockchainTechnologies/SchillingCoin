@@ -1,6 +1,6 @@
 // Copyright (c) 2011-2013 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,15 +13,15 @@
 
 #include "bitcoinunits.h"
 #include "guiutil.h"
-#include "obfuscation.h"
 #include "optionsmodel.h"
 
-#include "main.h" // for MAX_SCRIPTCHECK_THREADS
+#include "main.h"
 #include "netbase.h"
-#include "txdb.h" // for -dbcache defaults
+#include "txdb.h"
 
 #ifdef ENABLE_WALLET
-#include "wallet/wallet.h" // for CWallet::minTxFee
+#include "wallet/wallet.h"
+extern CWallet* pwalletMain;
 #endif
 
 #include <boost/thread.hpp>

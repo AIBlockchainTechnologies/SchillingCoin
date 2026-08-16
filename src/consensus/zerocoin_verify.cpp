@@ -1,8 +1,9 @@
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "zerocoin_verify.h"
+#include "stubs/zerocoin_legacy_types.h"
 
 #include "chainparams.h"
 #include "consensus/consensus.h"

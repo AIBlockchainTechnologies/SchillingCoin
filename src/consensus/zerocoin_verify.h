@@ -8,7 +8,6 @@
 #include "consensus/consensus.h"
 #include "main.h"
 #include "script/interpreter.h"
-#include "zschchain.h"
 
 // Public coin spend
 bool RecalculateSCHSupply(int nHeightStart, bool fSkipZsch = true);

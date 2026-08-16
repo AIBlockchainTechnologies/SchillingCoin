@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,10 +14,8 @@
 #include "script/sign.h"
 #include "script/standard.h"
 #include "spork.h"
-#include "swifttx.h"    // mapTxLockReq
 #include "util.h"
 #include "utilmoneystr.h"
-#include "zschchain.h"
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
@@ -1989,13 +1987,7 @@ void CWalletTx::RelayWalletTransaction(std::string strCommand)
             uint256 hash = GetHash();
             LogPrintf("Relaying wtx %s\n", hash.ToString());
 
-            if (strCommand == "ix") {
-                mapTxLockReq.insert(std::make_pair(hash, (CTransaction) * this));
-                CreateNewLock(((CTransaction) * this));
-                RelayTransactionLockReq((CTransaction) * this, true);
-            } else {
-                RelayTransaction((CTransaction) * this);
-            }
+            RelayTransaction((CTransaction)*this);
         }
     }
 }
@@ -2609,7 +2601,7 @@ bool CWallet::SelectCoins(const CAmount& nTargetValue, std::set<std::pair<const 
 
 bool CWallet::IsCollateralAmount(CAmount nInputAmount) const
 {
-    return nInputAmount != 0 && nInputAmount % OBFUSCATION_COLLATERAL == 0 && nInputAmount < OBFUSCATION_COLLATERAL * 5 && nInputAmount > OBFUSCATION_COLLATERAL;
+    return (nInputAmount == GetMNCollateral() * COIN);
 }
 
 bool CWallet::GetBudgetSystemCollateralTX(CWalletTx& tx, uint256 hash, bool useIX)
@@ -2999,8 +2991,7 @@ bool CWallet::CreateCoinStake(
         if (nBytes >= DEFAULT_BLOCK_MAX_SIZE / 5)
             return error("CreateCoinStake : exceeded coinstake size limit");
 
-        //Masternode payment
-        FillBlockPayee(txNew, nMinFee, true);
+        // Darksend/Obfuscation removed — masternode payments handled elsewhere
 
         uint256 hashTxOut = txNew.GetHash();
         CTxIn in;
@@ -4110,6 +4101,7 @@ int CMerkleTx::GetDepthInMainChain(const CBlockIndex*& pindexRet, bool enableIX)
 {
     if (hashUnset())
         return 0;
+
     AssertLockHeld(cs_main);
     int nResult;
 
@@ -4117,27 +4109,18 @@ int CMerkleTx::GetDepthInMainChain(const CBlockIndex*& pindexRet, bool enableIX)
     BlockMap::iterator mi = mapBlockIndex.find(hashBlock);
     if (mi == mapBlockIndex.end()) {
         nResult = 0;
-    }
-    else {
+    } else {
         CBlockIndex* pindex = (*mi).second;
         if (!pindex || !chainActive.Contains(pindex)) {
             nResult = 0;
-        }
-        else {
+        } else {
             pindexRet = pindex;
-            nResult = ((nIndex == -1) ? (-1) : 1) * (chainActive.Height() - pindex->nHeight + 1);
+            nResult = ((nIndex == -1) ? (-1) : 1) *
+                      (chainActive.Height() - pindex->nHeight + 1);
         }
     }
 
-    if (enableIX) {
-        if (nResult < 6) {
-            int signatures = GetTransactionLockSignatures();
-            if (signatures >= SWIFTTX_SIGNATURES_REQUIRED) {
-                return nSwiftTXDepth + nResult;
-            }
-        }
-    }
-
+    // SwiftTX removed — ignore enableIX entirely
     return nResult;
 }
 
@@ -4146,7 +4129,10 @@ int CMerkleTx::GetBlocksToMaturity() const
     LOCK(cs_main);
     if (!(IsCoinBase() || IsCoinStake()))
         return 0;
-    return std::max(0, (Params().GetConsensus().nCoinbaseMaturity + 1) - GetDepthInMainChain());
+
+    return std::max(0,
+        (Params().GetConsensus().nCoinbaseMaturity + 1) -
+        GetDepthInMainChain());
 }
 
 bool CMerkleTx::IsInMainChain() const
@@ -4156,46 +4142,39 @@ bool CMerkleTx::IsInMainChain() const
 
 bool CMerkleTx::IsInMainChainImmature() const
 {
-    if (!IsCoinBase() && !IsCoinStake()) return false;
+    if (!IsCoinBase() && !IsCoinStake())
+        return false;
+
     const int depth = GetDepthInMainChain(false);
-    return (depth > 0 && depth <= Params().GetConsensus().nCoinbaseMaturity);
+    return (depth > 0 &&
+            depth <= Params().GetConsensus().nCoinbaseMaturity);
 }
 
-
-bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree, bool fRejectInsaneFee, bool ignoreFees)
+bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree,
+                                   bool fRejectInsaneFee,
+                                   bool ignoreFees)
 {
     CValidationState state;
-    bool fAccepted = ::AcceptToMemoryPool(mempool, state, *this, fLimitFree, NULL, fRejectInsaneFee, ignoreFees);
+    bool fAccepted = ::AcceptToMemoryPool(
+        mempool, state, *this,
+        fLimitFree, NULL,
+        fRejectInsaneFee, ignoreFees);
+
     if (!fAccepted)
         LogPrintf("%s : %s\n", __func__, state.GetRejectReason());
+
     return fAccepted;
 }
 
 int CMerkleTx::GetTransactionLockSignatures() const
 {
-    if (fLargeWorkForkFound || fLargeWorkInvalidChainFound) return -2;
-    if (!sporkManager.IsSporkActive(SPORK_2_SWIFTTX)) return -3;
-    if (!fEnableSwiftTX) return -1;
-
-    //compile consessus vote
-    std::map<uint256, CTransactionLock>::iterator i = mapTxLocks.find(GetHash());
-    if (i != mapTxLocks.end()) {
-        return (*i).second.CountSignatures();
-    }
-
-    return -1;
+    // SwiftTX removed
+    return 0;
 }
 
 bool CMerkleTx::IsTransactionLockTimedOut() const
 {
-    if (!fEnableSwiftTX) return 0;
-
-    //compile consessus vote
-    std::map<uint256, CTransactionLock>::iterator i = mapTxLocks.find(GetHash());
-    if (i != mapTxLocks.end()) {
-        return GetTime() > (*i).second.nTimeout;
-    }
-
+    // SwiftTX removed
     return false;
 }
 

@@ -2,6 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2016-2019 The PIVX developers
 // Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2026 The Sentinnel Crypto Helix developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -80,10 +81,8 @@ CBlockIndex::CBlockIndex(const CBlock& block):
 
 void CBlockIndex::ClearMapZcSupply()
 {
+    // Zerocoin removed — supply tracking disabled
     mapZerocoinSupply.clear();
-    // Start supply of each denomination with 0s
-    for (auto& denom : libzerocoin::zerocoinDenomList)
-        mapZerocoinSupply.insert(std::make_pair(denom, 0));
 }
 
 std::string CBlockIndex::ToString() const
@@ -259,25 +258,20 @@ bool CBlockIndex::RaiseValidity(enum BlockStatus nUpTo)
 }
 
 /*
- * CBlockIndex - Legacy Zerocoin
+ * CBlockIndex - Legacy Zerocoin (removed)
  */
 
 int64_t CBlockIndex::GetZerocoinSupply() const
 {
-    int64_t nTotal = 0;
-    for (auto& denom : libzerocoin::zerocoinDenomList) {
-        nTotal += GetZcMintsAmount(denom);
-    }
-    return nTotal;
+    return 0; // Zerocoin removed
 }
 
-int64_t CBlockIndex::GetZcMints(libzerocoin::CoinDenomination denom) const
+int64_t CBlockIndex::GetZcMints(libzerocoin::CoinDenomination) const
 {
-    return mapZerocoinSupply.at(denom);
+    return 0; // Zerocoin removed
 }
 
-int64_t CBlockIndex::GetZcMintsAmount(libzerocoin::CoinDenomination denom) const
+int64_t CBlockIndex::GetZcMintsAmount(libzerocoin::CoinDenomination) const
 {
-    return libzerocoin::ZerocoinDenominationToAmount(denom) * GetZcMints(denom);
+    return 0; // Zerocoin removed
 }
-

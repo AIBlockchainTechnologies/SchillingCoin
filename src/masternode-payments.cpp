@@ -1,6 +1,6 @@
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,11 +10,14 @@
 #include "masternode-budget.h"
 #include "masternode-sync.h"
 #include "masternodeman.h"
-#include "obfuscation.h"
 #include "spork.h"
 #include "sync.h"
 #include "util.h"
 #include "utilmoneystr.h"
+
+#include "version.h"
+#include "activemasternode.h"
+
 #include <boost/filesystem.hpp>
 
 /** Object for who's going to get paid on which blocks */

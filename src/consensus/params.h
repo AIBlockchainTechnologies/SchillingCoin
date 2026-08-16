@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,7 +8,6 @@
 #define BITCOIN_CONSENSUS_PARAMS_H
 
 #include "amount.h"
-#include "libzerocoin/Params.h"
 #include "uint256.h"
 #include <map>
 #include <string>
@@ -106,11 +106,9 @@ struct Params {
     int ZC_MinStakeDepth;
     int ZC_TimeStart;
 
-    libzerocoin::ZerocoinParams* Zerocoin_Params(bool useModulusV1) const
+    libzerocoin::ZerocoinParams* Zerocoin_Params(bool) const
     {
-        static CBigNum bnTrustedModulus(ZC_Modulus);
-        static libzerocoin::ZerocoinParams ZCParams = libzerocoin::ZerocoinParams(bnTrustedModulus);
-        return &ZCParams;
+        return nullptr;
     }
 };
 } // namespace Consensus

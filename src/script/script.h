@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2016-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -385,6 +385,23 @@ public:
     CScript(const CScript& b) : std::vector<unsigned char>(b.begin(), b.end()) { }
     CScript(const_iterator pbegin, const_iterator pend) : std::vector<unsigned char>(pbegin, pend) { }
     CScript(const unsigned char* pbegin, const unsigned char* pend) : std::vector<unsigned char>(pbegin, pend) { }
+
+    // Added explicit copy and move assignment operators
+    CScript& operator=(const CScript& other)
+    {
+        if (this != &other) {
+            std::vector<unsigned char>::operator=(other);
+        }
+        return *this;
+    }
+
+    CScript& operator=(CScript&& other) noexcept
+    {
+        if (this != &other) {
+            std::vector<unsigned char>::operator=(std::move(other));
+        }
+        return *this;
+    }
 
     CScript& operator+=(const CScript& b)
     {

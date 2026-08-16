@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -50,6 +50,7 @@ extern bool fEnableSwiftTX;
 extern int nSwiftTXDepth;
 extern int64_t enforceMasternodePaymentsTime;
 extern std::string strMasterNodeAddr;
+extern std::string strMasterNodePrivKey;
 extern int keysLoaded;
 extern bool fSucessfullyLoaded;
 extern std::vector<int64_t> obfuScationDenominations;
@@ -74,15 +75,18 @@ bool LogAcceptCategory(const char* category);
 int LogPrintStr(const std::string& str);
 
 /** Get format string from VA_ARGS for error reporting */
-template<typename... Args> std::string FormatStringFromLogArgs(const char *fmt, const Args&... args) { return fmt; }
+template<typename... Args>
+std::string FormatStringFromLogArgs(const char *fmt, const Args&... args) { return fmt; }
 
 #define LogPrintf(...) do {                                                         \
     std::string _log_msg_; /* Unlikely name to avoid shadowing variables */         \
     try {                                                                           \
         _log_msg_ = tfm::format(__VA_ARGS__);                                       \
-    } catch (tinyformat::format_error &e) {                                               \
+    } catch (tinyformat::format_error &e) {                                         \
         /* Original format string will have newline so don't add one here */        \
-        _log_msg_ = "Error \"" + std::string(e.what()) + "\" while formatting log message: " + FormatStringFromLogArgs(__VA_ARGS__); \
+        _log_msg_ = "Error \"" + std::string(e.what()) +                            \
+                    "\" while formatting log message: " +                           \
+                    FormatStringFromLogArgs(__VA_ARGS__);                           \
     }                                                                               \
     LogPrintStr(_log_msg_);                                                         \
 } while(0)
@@ -121,7 +125,8 @@ boost::filesystem::path GetForgeConfigFile();
 boost::filesystem::path GetPidFile();
 void CreatePidFile(const boost::filesystem::path& path, pid_t pid);
 #endif
-void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet, std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet);
+void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet,
+                    std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet);
 #ifdef WIN32
 boost::filesystem::path GetSpecialFolderPath(int nFolder, bool fCreate = true);
 #endif
@@ -140,63 +145,36 @@ inline bool IsSwitchChar(char c)
 
 /**
  * Return string argument or default value
- *
- * @param strArg Argument to get (e.g. "-foo")
- * @param default (e.g. "1")
- * @return command-line argument or default value
  */
 std::string GetArg(const std::string& strArg, const std::string& strDefault);
 
 /**
  * Return integer argument or default value
- *
- * @param strArg Argument to get (e.g. "-foo")
- * @param default (e.g. 1)
- * @return command-line argument (0 if invalid number) or default value
  */
 int64_t GetArg(const std::string& strArg, int64_t nDefault);
 
 /**
  * Return boolean argument or default value
- *
- * @param strArg Argument to get (e.g. "-foo")
- * @param default (true or false)
- * @return command-line argument or default value
  */
 bool GetBoolArg(const std::string& strArg, bool fDefault);
 
 /**
  * Set an argument if it doesn't already have a value
- *
- * @param strArg Argument to set (e.g. "-foo")
- * @param strValue Value (e.g. "1")
- * @return true if argument gets set, false if it already had a value
  */
 bool SoftSetArg(const std::string& strArg, const std::string& strValue);
 
 /**
  * Set a boolean argument if it doesn't already have a value
- *
- * @param strArg Argument to set (e.g. "-foo")
- * @param fValue Value (e.g. false)
- * @return true if argument gets set, false if it already had a value
  */
 bool SoftSetBoolArg(const std::string& strArg, bool fValue);
 
 /**
  * Format a string to be used as group of options in help messages
- *
- * @param message Group name (e.g. "RPC server options:")
- * @return the formatted string
  */
 std::string HelpMessageGroup(const std::string& message);
 
 /**
  * Format a string to be used as option description in help messages
- *
- * @param option Option message (e.g. "-rpcuser=<user>")
- * @param message Option description (e.g. "Username for JSON-RPC connections")
- * @return the formatted string
  */
 std::string HelpMessageOpt(const std::string& option, const std::string& message);
 

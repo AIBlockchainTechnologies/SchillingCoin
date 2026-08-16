@@ -1,6 +1,6 @@
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,8 +8,9 @@
 #include "activemasternode.h"
 #include "addrman.h"
 #include "masternode.h"
+#include "masternode-payments.h"
+#include "masternode-sync.h"
 #include "messagesigner.h"
-#include "obfuscation.h"
 #include "spork.h"
 #include "util.h"
 #include <boost/filesystem.hpp>
@@ -709,13 +710,14 @@ CMasternode* CMasternodeMan::GetMasternodeByRank(int nRank, int64_t nBlockHeight
 
 void CMasternodeMan::ProcessMasternodeConnections()
 {
-    //we don't care about this for regtest
     if (Params().IsRegTestNet()) return;
 
     LOCK(cs_vNodes);
     for (CNode* pnode : vNodes) {
         if (pnode->fObfuScationMaster) {
-            if (obfuScationPool.pSubmittedToMasternode != NULL && pnode->addr == obfuScationPool.pSubmittedToMasternode->addr) continue;
+
+            // Darksend removed — skip legacy pool checks
+
             LogPrint("masternode","Closing Masternode connection peer=%i \n", pnode->GetId());
             pnode->fObfuScationMaster = false;
             pnode->Release();

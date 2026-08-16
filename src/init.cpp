@@ -5,7 +5,7 @@
 // Copyright (c) 2013-2014 The NovaCoin Developers
 // Copyright (c) 2014-2018 The BlackCoin Developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -30,6 +30,7 @@
 #include "masternodeconfig.h"
 #include "forgeman.h"
 #include "masternodeman.h"
+#include "masternode-sync.h"
 #include "messagesigner.h"
 #include "miner.h"
 #include "net.h"
@@ -45,14 +46,10 @@
 #include "utilmoneystr.h"
 #include "util/threadnames.h"
 #include "validationinterface.h"
-#include "zschchain.h"
 
-#ifdef ENABLE_WALLET
 #include "wallet/db.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
-
-#endif
 
 #include <fstream>
 #include <stdint.h>
@@ -73,11 +70,8 @@
 #include "zmq/zmqnotificationinterface.h"
 #endif
 
-
-#ifdef ENABLE_WALLET
 CWallet* pwalletMain = NULL;
 int nWalletBackups = 10;
-#endif
 volatile bool fFeeEstimatesInitialized = false;
 volatile bool fRestartRequested = false; // true: restart false: shutdown
 
@@ -1517,26 +1511,7 @@ bool AppInit2(const std::vector<std::string>& words)
                     break;
                 }
 
-                // Drop all information from the zerocoinDB and repopulate
-                if (GetBoolArg("-reindexzerocoin", false)) {
-                    if (chainActive.Height() > consensus.height_start_ZC) {
-                        uiInterface.InitMessage(_("Reindexing zerocoin database..."));
-                        std::string strError = ReindexZerocoinDB();
-                        if (strError != "") {
-                            strLoadError = strError;
-                            break;
-                        }
-                    }
-                }
-
-                bool reindexZerocoin = false;
                 int chainHeight = chainActive.Height();
-
-                // Recalculate money supply for blocks that are impacted by accounting issue after zerocoin activation
-                if (GetBoolArg("-reindexmoneysupply", false)) {
-                    // Recalculate from the zerocoin activation or from scratch.
-                    RecalculateSCHSupply((reindexZerocoin ? consensus.height_start_ZC : 1), false);
-                }
 
                 if (!fReindex) {
                     uiInterface.InitMessage(_("Verifying blocks..."));
@@ -1556,12 +1531,6 @@ bool AppInit2(const std::vector<std::string>& words)
                         }
                     }
 
-                    // Zerocoin must check at level 4
-                    if (!CVerifyDB().VerifyDB(pcoinsdbview, 4, GetArg("-checkblocks", 10))) {
-                        strLoadError = _("Corrupted block database detected");
-                        fVerifyingBlocks = false;
-                        break;
-                    }
                 }
             } catch (const std::exception& e) {
                 if (fDebug) LogPrintf("%s\n", e.what());
@@ -1800,7 +1769,7 @@ bool AppInit2(const std::vector<std::string>& words)
         uiInterface.NotifyBlockTip.disconnect(BlockNotifyGenesisWait);
     }
 
-    // ********************************************************* Step 10: setup ObfuScation
+    // ********************************************************* Step 10: setup masternodes and caches
 
     uiInterface.InitMessage(_("Loading masternode cache..."));
 
@@ -1831,10 +1800,9 @@ bool AppInit2(const std::vector<std::string>& words)
             LogPrintf("file format is unknown or invalid, please fix it manually\n");
     }
 
-    //flag our cached items so we send them to our peers
+    // flag our cached items so we send them to our peers
     budget.ResetSync();
     budget.ClearSeen();
-
 
     uiInterface.InitMessage(_("Loading masternode payment cache..."));
 
@@ -1889,7 +1857,7 @@ bool AppInit2(const std::vector<std::string>& words)
         }
     }
 
-    //get the mode of budget voting for this masternode
+    // get the mode of budget voting for this masternode
     strBudgetMode = GetArg("-budgetvotemode", "auto");
 
     if (GetBoolArg("-mnconflock", true) && pwalletMain) {
@@ -1904,39 +1872,16 @@ bool AppInit2(const std::vector<std::string>& words)
         }
     }
 
-    fEnableSwiftTX = GetBoolArg("-enableswifttx", fEnableSwiftTX);
-    nSwiftTXDepth = GetArg("-swifttxdepth", nSwiftTXDepth);
-    nSwiftTXDepth = std::min(std::max(nSwiftTXDepth, 0), 60);
+    // SwiftTX v2 and Obfuscation removed: no SwiftTX depth config, no obfuscation pool, no denominations
 
-    //lite mode disables all Masternode and Obfuscation related functionality
+    // lite mode disables all Masternode-related functionality
     fLiteMode = GetBoolArg("-litemode", false);
     if (fMasterNode && fLiteMode) {
         return InitError("You can not start a masternode in litemode");
     }
 
     LogPrintf("fLiteMode %d\n", fLiteMode);
-    LogPrintf("nSwiftTXDepth %d\n", nSwiftTXDepth);
     LogPrintf("Budget Mode %s\n", strBudgetMode.c_str());
-
-    /* Denominations
-
-       A note about convertability. Within Obfuscation pools, each denomination
-       is convertable to another.
-
-       For example:
-       1SCH+1000 == (.1SCH+100)*10
-       10SCH+10000 == (1SCH+1000)*10
-    */
-    obfuScationDenominations.push_back((10000 * COIN) + 10000000);
-    obfuScationDenominations.push_back((1000 * COIN) + 1000000);
-    obfuScationDenominations.push_back((100 * COIN) + 100000);
-    obfuScationDenominations.push_back((10 * COIN) + 10000);
-    obfuScationDenominations.push_back((1 * COIN) + 1000);
-    obfuScationDenominations.push_back((.1 * COIN) + 100);
-
-    obfuScationPool.InitCollateralAddress();
-
-    threadGroup.create_thread(boost::bind(&ThreadCheckObfuScationPool));
 
     if (ShutdownRequested()) {
         LogPrintf("Shutdown requested. Exiting.\n");

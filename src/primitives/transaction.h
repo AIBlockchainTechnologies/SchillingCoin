@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -26,6 +26,36 @@ public:
 
     COutPoint() { SetNull(); }
     COutPoint(uint256 hashIn, uint32_t nIn) { hash = hashIn; n = nIn; }
+
+    // Copy constructor
+    COutPoint(const COutPoint& other)
+        : hash(other.hash), n(other.n)
+    {}
+
+    // Move constructor
+    COutPoint(COutPoint&& other) noexcept
+        : hash(std::move(other.hash)), n(other.n)
+    {}
+
+    // Copy assignment
+    COutPoint& operator=(const COutPoint& other)
+    {
+        if (this != &other) {
+            hash = other.hash;
+            n    = other.n;
+        }
+        return *this;
+    }
+
+    // Move assignment
+    COutPoint& operator=(COutPoint&& other) noexcept
+    {
+        if (this != &other) {
+            hash = std::move(other.hash);
+            n    = other.n;
+        }
+        return *this;
+    }
 
     ADD_SERIALIZE_METHODS;
 
@@ -57,7 +87,6 @@ public:
     std::string ToStringShort() const;
 
     uint256 GetHash();
-
 };
 
 /** An input of a transaction.  It contains the location of the previous
@@ -79,6 +108,46 @@ public:
 
     explicit CTxIn(COutPoint prevoutIn, CScript scriptSigIn=CScript(), uint32_t nSequenceIn=std::numeric_limits<unsigned int>::max());
     CTxIn(uint256 hashPrevTx, uint32_t nOut, CScript scriptSigIn=CScript(), uint32_t nSequenceIn=std::numeric_limits<uint32_t>::max());
+
+    // Copy constructor
+    CTxIn(const CTxIn& other)
+        : prevout(other.prevout),
+          scriptSig(other.scriptSig),
+          nSequence(other.nSequence),
+          prevPubKey(other.prevPubKey)
+    {}
+
+    // Move constructor
+    CTxIn(CTxIn&& other) noexcept
+        : prevout(std::move(other.prevout)),
+          scriptSig(std::move(other.scriptSig)),
+          nSequence(other.nSequence),
+          prevPubKey(std::move(other.prevPubKey))
+    {}
+
+    // Copy assignment
+    CTxIn& operator=(const CTxIn& other)
+    {
+        if (this != &other) {
+            prevout    = other.prevout;
+            scriptSig  = other.scriptSig;
+            nSequence  = other.nSequence;
+            prevPubKey = other.prevPubKey;
+        }
+        return *this;
+    }
+
+    // Move assignment
+    CTxIn& operator=(CTxIn&& other) noexcept
+    {
+        if (this != &other) {
+            prevout    = std::move(other.prevout);
+            scriptSig  = std::move(other.scriptSig);
+            nSequence  = other.nSequence;
+            prevPubKey = std::move(other.prevPubKey);
+        }
+        return *this;
+    }
 
     ADD_SERIALIZE_METHODS;
 
@@ -128,6 +197,42 @@ public:
 
     CTxOut(const CAmount& nValueIn, CScript scriptPubKeyIn);
 
+    // Copy constructor
+    CTxOut(const CTxOut& other)
+        : nValue(other.nValue),
+          scriptPubKey(other.scriptPubKey),
+          nRounds(other.nRounds)
+    {}
+
+    // Move constructor
+    CTxOut(CTxOut&& other) noexcept
+        : nValue(other.nValue),
+          scriptPubKey(std::move(other.scriptPubKey)),
+          nRounds(other.nRounds)
+    {}
+
+    // Copy assignment
+    CTxOut& operator=(const CTxOut& other)
+    {
+        if (this != &other) {
+            nValue       = other.nValue;
+            scriptPubKey = other.scriptPubKey;
+            nRounds      = other.nRounds;
+        }
+        return *this;
+    }
+
+    // Move assignment
+    CTxOut& operator=(CTxOut&& other) noexcept
+    {
+        if (this != &other) {
+            nValue       = other.nValue;
+            scriptPubKey = std::move(other.scriptPubKey);
+            nRounds      = other.nRounds;
+        }
+        return *this;
+    }
+
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
@@ -163,13 +268,6 @@ public:
 
     bool IsDust(CFeeRate minRelayTxFee) const
     {
-        // "Dust" is defined in terms of CTransaction::minRelayTxFee, which has units usch-per-kilobyte.
-        // If you'd pay more than 1/3 in fees to spend something, then we consider it dust.
-        // A typical txout is 34 bytes big, and will need a CTxIn of at least 148 bytes to spend
-        // i.e. total is 148 + 32 = 182 bytes. Default -minrelaytxfee is 10000 usch per kB
-        // and that means that fee per txout is 182 * 10000 / 1000 = 1820 usch.
-        // So dust is a txout less than 1820 *3 = 5460 usch
-        // with default -minrelaytxfee = minRelayTxFee = 10000 usch per kB.
         size_t nSize = GetSerializeSize(SER_DISK,0)+148u;
         return (nValue < 3*minRelayTxFee.GetFee(nSize));
     }
@@ -207,24 +305,37 @@ private:
 public:
     static const int32_t CURRENT_VERSION=1;
 
-    // The local variables are made const to prevent unintended modification
-    // without updating the cached hash value. However, CTransaction is not
-    // actually immutable; deserialization and assignment are implemented,
-    // and bypass the constness. This is safe, as they update the entire
-    // structure, including the hash.
     const int32_t nVersion;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
     const uint32_t nLockTime;
-    //const unsigned int nTime;
 
-    /** Construct a CTransaction that qualifies as IsNull() */
     CTransaction();
-
-    /** Convert a CMutableTransaction into a CTransaction. */
     CTransaction(const CMutableTransaction &tx);
 
-    CTransaction& operator=(const CTransaction& tx);
+    // ✅ Explicit copy constructor to avoid deprecated implicit copy
+    CTransaction(const CTransaction& tx) :
+        nVersion(tx.nVersion),
+        vin(tx.vin),
+        vout(tx.vout),
+        nLockTime(tx.nLockTime),
+        hash(tx.hash)
+    {
+    }
+
+    // ✅ Explicit copy assignment operator
+    CTransaction& operator=(const CTransaction& tx)
+    {
+        if (this != &tx) {
+            // nVersion and nLockTime are const, so we update them via const_cast
+            *const_cast<int32_t*>(&nVersion)   = tx.nVersion;
+            vin                                = tx.vin;
+            vout                               = tx.vout;
+            *const_cast<uint32_t*>(&nLockTime) = tx.nLockTime;
+            *const_cast<uint256*>(&hash)       = tx.hash;
+        }
+        return *this;
+    }
 
     ADD_SERIALIZE_METHODS;
 
@@ -247,20 +358,12 @@ public:
         return hash;
     }
 
-    // Return sum of txouts.
     CAmount GetValueOut() const;
-    // GetValueIn() is a method on CCoinsViewCache, because
-    // inputs must be known to compute value in.
-
-    // Compute priority, given priority of inputs and (optionally) tx size
     double ComputePriority(double dPriorityInputs, unsigned int nTxSize=0) const;
-
-    // Compute modified tx size for priority calculation (optionally given tx size)
     unsigned int CalculateModifiedSize(unsigned int nTxSize=0) const;
 
     bool HasZerocoinSpendInputs() const;
     bool HasZerocoinPublicSpendInputs() const;
-
     bool HasZerocoinMintOutputs() const;
 
     bool ContainsZerocoins() const
@@ -321,11 +424,7 @@ struct CMutableTransaction
         READWRITE(nLockTime);
     }
 
-    /** Compute the hash of this CMutableTransaction. This is computed on the
-     * fly, as opposed to GetHash() in CTransaction, which uses a cached result.
-     */
     uint256 GetHash() const;
-
     std::string ToString() const;
 };
 

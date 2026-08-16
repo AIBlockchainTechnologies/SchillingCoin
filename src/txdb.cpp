@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2016-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -277,52 +277,41 @@ CZerocoinDB::CZerocoinDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDB
 {
 }
 
-bool CZerocoinDB::WriteCoinMintBatch(const std::vector<std::pair<libzerocoin::PublicCoin, uint256> >& mintInfo)
+bool CZerocoinDB::WriteCoinMintBatch(const std::vector<std::pair<uint256, uint256>>& mintInfo)
 {
     CLevelDBBatch batch;
-    size_t count = 0;
-    for (std::vector<std::pair<libzerocoin::PublicCoin, uint256> >::const_iterator it=mintInfo.begin(); it != mintInfo.end(); it++) {
-        libzerocoin::PublicCoin pubCoin = it->first;
-        uint256 hash = GetPubCoinHash(pubCoin.getValue());
-        batch.Write(std::make_pair('m', hash), it->second);
-        ++count;
+
+    for (const auto& p : mintInfo) {
+        const uint256& pubcoinHash = p.first;
+        const uint256& txid        = p.second;
+        batch.Write(std::make_pair('m', pubcoinHash), txid);
     }
 
-    LogPrint("zero", "Writing %u coin mints to db.\n", (unsigned int)count);
-    return WriteBatch(batch, true);
+    return WriteBatch(batch);
 }
 
-bool CZerocoinDB::ReadCoinMint(const CBigNum& bnPubcoin, uint256& hashTx)
+bool CZerocoinDB::ReadCoinMint(const uint256& pubcoinHash, uint256& hashTx)
 {
-    return ReadCoinMint(GetPubCoinHash(bnPubcoin), hashTx);
-}
-
-bool CZerocoinDB::ReadCoinMint(const uint256& hashPubcoin, uint256& hashTx)
-{
-    return Read(std::make_pair('m', hashPubcoin), hashTx);
+    return false; // Zerocoin DB disabled
 }
 
 bool CZerocoinDB::EraseCoinMint(const CBigNum& bnPubcoin)
 {
-    uint256 hash = GetPubCoinHash(bnPubcoin);
+    uint256 hash = uint256(bnPubcoin.getuint256());
     return Erase(std::make_pair('m', hash));
 }
 
-bool CZerocoinDB::WriteCoinSpendBatch(const std::vector<std::pair<libzerocoin::CoinSpend, uint256> >& spendInfo)
+bool CZerocoinDB::WriteCoinSpendBatch(const std::vector<std::pair<uint256, uint256>>& spendInfo)
 {
     CLevelDBBatch batch;
-    size_t count = 0;
-    for (std::vector<std::pair<libzerocoin::CoinSpend, uint256> >::const_iterator it=spendInfo.begin(); it != spendInfo.end(); it++) {
-        CBigNum bnSerial = it->first.getCoinSerialNumber();
-        CDataStream ss(SER_GETHASH, 0);
-        ss << bnSerial;
-        uint256 hash = Hash(ss.begin(), ss.end());
-        batch.Write(std::make_pair('s', hash), it->second);
-        ++count;
+
+    for (const auto& p : spendInfo) {
+        const uint256& spendHash = p.first;
+        const uint256& txid      = p.second;
+        batch.Write(std::make_pair('s', spendHash), txid);
     }
 
-    LogPrint("zero", "Writing %u coin spends to db.\n", (unsigned int)count);
-    return WriteBatch(batch, true);
+    return WriteBatch(batch);
 }
 
 bool CZerocoinDB::ReadCoinSpend(const CBigNum& bnSerial, uint256& txHash)
@@ -395,19 +384,19 @@ bool CZerocoinDB::WipeCoins(std::string strType)
 // Legacy Zerocoin Database
 static const char LZC_ACCUMCS = 'A';
 
-bool CZerocoinDB::WriteAccChecksum(const uint32_t& nChecksum, const libzerocoin::CoinDenomination denom, const int nHeight)
+bool CZerocoinDB::WriteAccChecksum(const uint32_t& nChecksum, const uint8_t denom, const int nHeight)
 {
-    return Write(std::make_pair(LZC_ACCUMCS, std::make_pair(nChecksum, denom)), nHeight);
+    return Write(std::make_pair('a', std::make_pair(nChecksum, denom)), nHeight);
 }
 
-bool CZerocoinDB::ReadAccChecksum(const uint32_t& nChecksum, const libzerocoin::CoinDenomination denom, int& nHeightRet)
+bool CZerocoinDB::ReadAccChecksum(const uint32_t& nChecksum, const uint8_t denom, int& nHeightRet)
 {
-    return Read(std::make_pair(LZC_ACCUMCS, std::make_pair(nChecksum, denom)), nHeightRet);
+    return Read(std::make_pair('a', std::make_pair(nChecksum, denom)), nHeightRet);
 }
 
-bool CZerocoinDB::EraseAccChecksum(const uint32_t& nChecksum, const libzerocoin::CoinDenomination denom)
+bool CZerocoinDB::EraseAccChecksum(const uint32_t& nChecksum, const uint8_t denom)
 {
-    return Erase(std::make_pair(LZC_ACCUMCS, std::make_pair(nChecksum, denom)));
+    return Erase(std::make_pair('a', std::make_pair(nChecksum, denom)));
 }
 
 bool CZerocoinDB::WipeAccChecksums()

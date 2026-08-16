@@ -5,7 +5,7 @@
 // Copyright (c) 2013-2014 The NovaCoin Developers
 // Copyright (c) 2014-2018 The BlackCoin Developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,7 +13,7 @@
 
 #include "amount.h"
 #include "consensus/merkle.h"
-#include "consensus/tx_verify.h" // needed in case of no ENABLE_WALLET
+#include "consensus/tx_verify.h"
 #include "hash.h"
 #include "main.h"
 #include "masternode-sync.h"
@@ -24,18 +24,21 @@
 #include "timedata.h"
 #include "util.h"
 #include "utilmoneystr.h"
-#ifdef ENABLE_WALLET
-#include "wallet/wallet.h"
-#endif
 #include "validationinterface.h"
 #include "masternode-payments.h"
 #include "blocksignature.h"
 #include "spork.h"
 
+// Wallet subsystem (always include)
+#include "wallet/wallet.h"
+#include "wallet/walletdb.h"
+#include "wallet/db.h"
+
+// Global wallet pointer from init.cpp
+extern CWallet* pwalletMain;
 
 #include <boost/thread.hpp>
 #include <boost/tuple/tuple.hpp>
-
 
 //////////////////////////////////////////////////////////////////////////////
 //
