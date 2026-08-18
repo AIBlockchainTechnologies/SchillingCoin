@@ -667,7 +667,8 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 
 CCoinsViewCache* pcoinsTip = NULL;
 CBlockTreeDB* pblocktree = NULL;
-CZerocoinDB* zerocoinDB = NULL;
+// Global Zerocoin DB pointer. Do not instantiate disk DB when Zerocoin is removed.
+CZerocoinDB* zerocoinDB = nullptr;
 CSporkDB* pSporkDB = NULL;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -2094,25 +2095,42 @@ static bool AbortNode(CValidationState& state, const std::string& strMessage, co
 
 // Legacy Zerocoin DB: used for performance during IBD
 // (between Zerocoin_Block_V2_Start and Zerocoin_Block_Last_Checkpoint)
+//
+// NOTE: This build intentionally disables on-disk Zerocoin activity.
+// If zerocoinDB is nullptr, do nothing here to avoid creating/opening DATADIR/zerocoin.
 void DataBaseAccChecksum(CBlockIndex* pindex, bool fWrite)
 {
     const Consensus::Params& consensus = Params().GetConsensus();
+
     if (!pindex ||
-            pindex->nHeight < consensus.height_start_ZC_SerialsV2 ||
-            pindex->nHeight > consensus.height_last_ZC_AccumCheckpoint ||
-            pindex->nAccumulatorCheckpoint == pindex->pprev->nAccumulatorCheckpoint)
+        pindex->nHeight < consensus.height_start_ZC_SerialsV2 ||
+        pindex->nHeight > consensus.height_last_ZC_AccumCheckpoint ||
+        pindex->nAccumulatorCheckpoint == pindex->pprev->nAccumulatorCheckpoint)
         return;
+
+    // If Zerocoin DB is disabled in this build, skip any DB writes/erases.
+    if (!zerocoinDB) {
+        // Optional: Log at debug level so maintainers can verify behavior.
+        if (fDebug) LogPrintf("DataBaseAccChecksum: zerocoinDB is disabled; skipping acc checksum DB updates at height %d\n", pindex->nHeight);
+        return;
+    }
 
     uint256 accCurr = pindex->nAccumulatorCheckpoint;
     uint256 accPrev = pindex->pprev->nAccumulatorCheckpoint;
+
     // add/remove changed checksums to/from DB
-    for (int i = (int)libzerocoin::zerocoinDenomList.size()-1; i >= 0; i--) {
-        const uint32_t& nChecksum = accCurr.Get32();
-        if (nChecksum != accPrev.Get32()) {
-            fWrite ?
-               zerocoinDB->WriteAccChecksum(nChecksum, libzerocoin::zerocoinDenomList[i], pindex->nHeight) :
-               zerocoinDB->EraseAccChecksum(nChecksum, libzerocoin::zerocoinDenomList[i]);
+    for (int i = (int)libzerocoin::zerocoinDenomList.size() - 1; i >= 0; --i) {
+        const uint32_t nChecksumCurr = accCurr.Get32();
+        const uint32_t nChecksumPrev = accPrev.Get32();
+
+        if (nChecksumCurr != nChecksumPrev) {
+            if (fWrite) {
+                zerocoinDB->WriteAccChecksum(nChecksumCurr, libzerocoin::zerocoinDenomList[i], pindex->nHeight);
+            } else {
+                zerocoinDB->EraseAccChecksum(nChecksumCurr, libzerocoin::zerocoinDenomList[i]);
+            }
         }
+
         accCurr >>= 32;
         accPrev >>= 32;
     }
@@ -2469,13 +2487,19 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     nTimeCallbacks += nTime4 - nTime3;
     LogPrint("bench", "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
 
-
-    if (pindex->nHeight >= consensus.height_start_ZC_SerialsV2 && pindex->nHeight < consensus.height_last_ZC_AccumCheckpoint) {
-        // Legacy Zerocoin DB: If Accumulators Checkpoint is changed, database the checksums
+    // Legacy Zerocoin handling during accumulator checkpoint window
+    if (pindex->nHeight >= consensus.height_start_ZC_SerialsV2 &&
+        pindex->nHeight < consensus.height_last_ZC_AccumCheckpoint) {
+        // DataBaseAccChecksum is a no-op when zerocoinDB is nullptr (guarded inside).
         DataBaseAccChecksum(pindex, true);
     } else if (pindex->nHeight == consensus.height_last_ZC_AccumCheckpoint) {
-        // After last Checkpoint block, wipe the checksum database
-        zerocoinDB->WipeAccChecksums();
+        // Wipe the checksum DB only if it exists (guarded to avoid nullptr deref).
+        if (zerocoinDB) {
+            if (fDebug) LogPrintf("ConnectBlock: Wiping Zerocoin accumulator checksums at height %d\n", pindex->nHeight);
+            zerocoinDB->WipeAccChecksums();
+        } else {
+            if (fDebug) LogPrintf("ConnectBlock: Zerocoin DB disabled; skipping WipeAccChecksums at height %d\n", pindex->nHeight);
+        }
     }
 
     return true;

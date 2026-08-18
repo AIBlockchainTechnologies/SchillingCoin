@@ -273,164 +273,95 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
     return true;
 }
 
-CZerocoinDB::CZerocoinDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDBWrapper(GetDataDir() / "zerocoin", nCacheSize, fMemory, fWipe)
+/**
+ * Zerocoin database (zerocoin/)
+ *
+ * This build intentionally disables any on-disk Zerocoin DB activity.
+ * The underlying LevelDB wrapper is never allocated here, so DATADIR/zerocoin
+ * will never be created or opened by this code path. All methods are safe
+ * no-ops that return failure/safe defaults so the rest of the node can run
+ * and sync normally without Zerocoin validation or disk I/O.
+ */
+
+CZerocoinDB::CZerocoinDB(size_t nCacheSize, bool fMemory, bool fWipe)
 {
+    // Deliberately do not allocate the LevelDB wrapper under any condition.
+    // This guarantees no creation or opening of DATADIR/zerocoin from this binary.
+    pdb = nullptr;
 }
 
-bool CZerocoinDB::WriteCoinMintBatch(const std::vector<std::pair<uint256, uint256>>& mintInfo)
+CZerocoinDB::~CZerocoinDB()
 {
-    CLevelDBBatch batch;
-
-    for (const auto& p : mintInfo) {
-        const uint256& pubcoinHash = p.first;
-        const uint256& txid        = p.second;
-        batch.Write(std::make_pair('m', pubcoinHash), txid);
-    }
-
-    return WriteBatch(batch);
+    // Nothing to delete because we never allocate pdb here.
+    pdb = nullptr;
 }
 
-bool CZerocoinDB::ReadCoinMint(const uint256& pubcoinHash, uint256& hashTx)
+/* All operations are intentionally inert. They return safe defaults and
+   never touch disk or call into LevelDB. */
+
+bool CZerocoinDB::WriteCoinMintBatch(const std::vector<std::pair<uint256, uint256>>& /*mintInfo*/)
 {
-    return false; // Zerocoin DB disabled
+    return false;
 }
 
-bool CZerocoinDB::EraseCoinMint(const CBigNum& bnPubcoin)
+bool CZerocoinDB::ReadCoinMint(const uint256& /*pubcoinHash*/, uint256& /*hashTx*/)
 {
-    uint256 hash = uint256(bnPubcoin.getuint256());
-    return Erase(std::make_pair('m', hash));
+    return false;
 }
 
-bool CZerocoinDB::WriteCoinSpendBatch(const std::vector<std::pair<uint256, uint256>>& spendInfo)
+bool CZerocoinDB::ReadCoinMint(const CBigNum& /*bnPubcoin*/, uint256& /*txHash*/)
 {
-    CLevelDBBatch batch;
-
-    for (const auto& p : spendInfo) {
-        const uint256& spendHash = p.first;
-        const uint256& txid      = p.second;
-        batch.Write(std::make_pair('s', spendHash), txid);
-    }
-
-    return WriteBatch(batch);
+    return false;
 }
 
-bool CZerocoinDB::ReadCoinSpend(const CBigNum& bnSerial, uint256& txHash)
+bool CZerocoinDB::EraseCoinMint(const CBigNum& /*bnPubcoin*/)
 {
-    CDataStream ss(SER_GETHASH, 0);
-    ss << bnSerial;
-    uint256 hash = Hash(ss.begin(), ss.end());
-
-    return Read(std::make_pair('s', hash), txHash);
+    return false;
 }
 
-bool CZerocoinDB::ReadCoinSpend(const uint256& hashSerial, uint256 &txHash)
+bool CZerocoinDB::WriteCoinSpendBatch(const std::vector<std::pair<uint256, uint256>>& /*spendInfo*/)
 {
-    return Read(std::make_pair('s', hashSerial), txHash);
+    return false;
 }
 
-bool CZerocoinDB::EraseCoinSpend(const CBigNum& bnSerial)
+bool CZerocoinDB::ReadCoinSpend(const CBigNum& /*bnSerial*/, uint256& /*txHash*/)
 {
-    CDataStream ss(SER_GETHASH, 0);
-    ss << bnSerial;
-    uint256 hash = Hash(ss.begin(), ss.end());
-
-    return Erase(std::make_pair('s', hash));
+    return false;
 }
 
-bool CZerocoinDB::WipeCoins(std::string strType)
+bool CZerocoinDB::ReadCoinSpend(const uint256& /*hashSerial*/, uint256 &/*txHash*/)
 {
-    if (strType != "spends" && strType != "mints")
-        return error("%s: did not recognize type %s", __func__, strType);
-
-    boost::scoped_ptr<leveldb::Iterator> pcursor(NewIterator());
-
-    char type = (strType == "spends" ? 's' : 'm');
-    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
-    ssKeySet << std::make_pair(type, UINT256_ZERO);
-    pcursor->Seek(ssKeySet.str());
-    // Load mapBlockIndex
-    std::set<uint256> setDelete;
-    while (pcursor->Valid()) {
-        boost::this_thread::interruption_point();
-        try {
-            leveldb::Slice slKey = pcursor->key();
-            CDataStream ssKey(slKey.data(), slKey.data() + slKey.size(), SER_DISK, CLIENT_VERSION);
-            char chType;
-            ssKey >> chType;
-            if (chType == type) {
-                leveldb::Slice slValue = pcursor->value();
-                CDataStream ssValue(slValue.data(), slValue.data() + slValue.size(), SER_DISK, CLIENT_VERSION);
-                uint256 hash;
-                ssValue >> hash;
-                setDelete.insert(hash);
-                pcursor->Next();
-            } else {
-                break; // if shutdown requested or finished loading block index
-            }
-        } catch (const std::exception& e) {
-            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
-        }
-    }
-
-    for (auto& hash : setDelete) {
-        if (!Erase(std::make_pair(type, hash)))
-            LogPrintf("%s: error failed to delete %s\n", __func__, hash.GetHex());
-    }
-
-    return true;
+    return false;
 }
 
-
-// Legacy Zerocoin Database
-static const char LZC_ACCUMCS = 'A';
-
-bool CZerocoinDB::WriteAccChecksum(const uint32_t& nChecksum, const uint8_t denom, const int nHeight)
+bool CZerocoinDB::EraseCoinSpend(const CBigNum& /*bnSerial*/)
 {
-    return Write(std::make_pair('a', std::make_pair(nChecksum, denom)), nHeight);
+    return false;
 }
 
-bool CZerocoinDB::ReadAccChecksum(const uint32_t& nChecksum, const uint8_t denom, int& nHeightRet)
+bool CZerocoinDB::WipeCoins(std::string /*strType*/)
 {
-    return Read(std::make_pair('a', std::make_pair(nChecksum, denom)), nHeightRet);
+    return false;
 }
 
-bool CZerocoinDB::EraseAccChecksum(const uint32_t& nChecksum, const uint8_t denom)
+/* Legacy accumulator checksum methods — inert as well */
+
+bool CZerocoinDB::WriteAccChecksum(const uint32_t& /*nChecksum*/, const uint8_t /*denom*/, const int /*nHeight*/)
 {
-    return Erase(std::make_pair('a', std::make_pair(nChecksum, denom)));
+    return false;
+}
+
+bool CZerocoinDB::ReadAccChecksum(const uint32_t& /*nChecksum*/, const uint8_t /*denom*/, int& /*nHeightRet*/)
+{
+    return false;
+}
+
+bool CZerocoinDB::EraseAccChecksum(const uint32_t& /*nChecksum*/, const uint8_t /*denom*/)
+{
+    return false;
 }
 
 bool CZerocoinDB::WipeAccChecksums()
 {
-    boost::scoped_ptr<leveldb::Iterator> pcursor(NewIterator());
-    CDataStream ssKeySet(SER_DISK, CLIENT_VERSION);
-    ssKeySet << std::make_pair(LZC_ACCUMCS, (uint32_t) 0);
-    pcursor->Seek(ssKeySet.str());
-    std::set<uint32_t> setDelete;
-    while (pcursor->Valid()) {
-        boost::this_thread::interruption_point();
-        try {
-            leveldb::Slice slKey = pcursor->key();
-            CDataStream ssKey(slKey.data(), slKey.data() + slKey.size(), SER_DISK, CLIENT_VERSION);
-            char chType;
-            ssKey >> chType;
-            if (chType == LZC_ACCUMCS) {
-                leveldb::Slice slValue = pcursor->value();
-                CDataStream ssValue(slValue.data(), slValue.data() + slValue.size(), SER_DISK, CLIENT_VERSION);
-                uint32_t acs;
-                ssValue >> acs;
-                setDelete.insert(acs);
-                pcursor->Next();
-            } else break;
-        } catch (const std::exception& e) {
-            return error("%s : Deserialize or I/O error - %s", __func__, e.what());
-        }
-    }
-
-    for (auto& acs : setDelete) {
-        if (!Erase(std::make_pair(LZC_ACCUMCS, acs)))
-            LogPrintf("%s: error failed to acc checksum %s\n", __func__, acs);
-    }
-
-    LogPrintf("%s: AccChecksum database removed.\n", __func__);
-    return true;
+    return false;
 }

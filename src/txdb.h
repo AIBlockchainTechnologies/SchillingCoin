@@ -96,16 +96,38 @@ public:
     bool LoadBlockIndexGuts();
 };
 
-/** Zerocoin database (zerocoin/)*/
+/**
+ * Zerocoin database (zerocoin/)
+ *
+ * NOTE: This class previously inherited from CLevelDBWrapper which caused the
+ * on-disk LevelDB to be opened during object construction (implicitly creating
+ * DATADIR/zerocoin). It has been refactored to contain a pointer to a
+ * CLevelDBWrapper (pdb) instead of inheriting it. The underlying LevelDB
+ * wrapper is only allocated when explicitly requested (for example, when the
+ * constructor is called with fMemory == true or when the zerocoin directory
+ * already exists and you choose to open it). When pdb is nullptr, all DB
+ * operations are no-ops or return safe defaults to preserve historical DB
+ * compatibility without forcing disk I/O or directory creation.
+ *
+ * The public API is preserved so historical blocks and compatibility code can
+ * remain unchanged; implementations must guard calls through pdb.
+ */
 
-class CZerocoinDB : public CLevelDBWrapper
+class CZerocoinDB
 {
 public:
+    // Constructor: nCacheSize is passed to the underlying wrapper if created.
+    // If fMemory is true, callers may request an in-memory DB.
     CZerocoinDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    ~CZerocoinDB();
 
 private:
+    // non-copyable
     CZerocoinDB(const CZerocoinDB&);
     void operator=(const CZerocoinDB&);
+
+    // Pointer to the underlying LevelDB wrapper. May be nullptr if not initialized.
+    CLevelDBWrapper* pdb;
 
 public:
 

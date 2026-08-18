@@ -39,7 +39,7 @@
 #include <exception>
 #include <map>
 #include <set>
-#include <stdint.h>
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -99,7 +99,7 @@ static const unsigned int DATABASE_WRITE_INTERVAL = 3600;
 static const unsigned int MAX_REJECT_MESSAGE_LENGTH = 111;
 
 /** Enable bloom filter */
- static const bool DEFAULT_PEERBLOOMFILTERS = true;
+static const bool DEFAULT_PEERBLOOMFILTERS = true;
 
 /** If the tip is older than this (in seconds), the node is considered to be in initial block download. */
 static const int64_t DEFAULT_MAX_TIP_AGE = 24 * 60 * 60;
@@ -392,7 +392,12 @@ extern CCoinsViewCache* pcoinsTip;
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB* pblocktree;
 
-/** Global variable that points to the zerocoin database (protected by cs_main) */
+/** Global variable that points to the zerocoin database (protected by cs_main)
+ * NOTE: In this build Zerocoin support is intentionally disabled. The global
+ * zerocoinDB must be initialized to nullptr in the single definition location
+ * and callers must check for nullptr before use to avoid creating or opening
+ * DATADIR/zerocoin.
+ */
 extern CZerocoinDB* zerocoinDB;
 
 /** Global variable that points to the spork database (protected by cs_main) */
@@ -400,40 +405,40 @@ extern CSporkDB* pSporkDB;
 
 inline int64_t GetMNCollateral() {
 
-	int nHeight = chainActive.Height();
+    int nHeight = chainActive.Height();
 
-	if (nHeight < 1000)
-	{
-		return 100;
-	}
-	else if (nHeight >= 1000 && nHeight < 2000)
-	{
-		return 200;
-	}
-	else if (nHeight >= 2000 && nHeight < 3000)
-	{
-		return 300;
-	}
-	else if (nHeight >= 3000 && nHeight < 260000)
-	{
-		return 40000;
-	}
-	else if (nHeight >= 260000 && nHeight < 520000)
-	{
-		return 60000;
-	}
-	else if (nHeight >= 520000 && nHeight < 780000)
-	{
-		return 80000;
-	}
-	else if (nHeight >= 780000 && nHeight < 1040000)
-	{
-		return 90000;
-	}
-	else
-	{
-		return 100000;
-	}
+    if (nHeight < 1000)
+    {
+        return 100;
+    }
+    else if (nHeight >= 1000 && nHeight < 2000)
+    {
+        return 200;
+    }
+    else if (nHeight >= 2000 && nHeight < 3000)
+    {
+        return 300;
+    }
+    else if (nHeight >= 3000 && nHeight < 260000)
+    {
+        return 40000;
+    }
+    else if (nHeight >= 260000 && nHeight < 520000)
+    {
+        return 60000;
+    }
+    else if (nHeight >= 520000 && nHeight < 780000)
+    {
+        return 80000;
+    }
+    else if (nHeight >= 780000 && nHeight < 1040000)
+    {
+        return 90000;
+    }
+    else
+    {
+        return 100000;
+    }
 }
 
 #endif // BITCOIN_MAIN_H

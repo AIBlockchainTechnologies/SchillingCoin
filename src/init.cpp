@@ -1464,8 +1464,13 @@ bool AppInit2(const std::vector<std::string>& words)
                 delete zerocoinDB;
                 delete pSporkDB;
 
-                //SchillingCoin specific: zerocoin and spork DB's
-                zerocoinDB = new CZerocoinDB(0, false, fReindex);
+                // SchillingCoin specific: zerocoin and spork DBs
+                // Minimal change: DO NOT construct the Zerocoin disk DB in this build.
+                // Keep zerocoinDB nullptr so DATADIR/zerocoin is never created or opened.
+                zerocoinDB = nullptr;
+
+                // Spork DB is still used by the node; construct as before.
+                // If you want to disable sporks as well, set pSporkDB = nullptr and guard uses.
                 pSporkDB = new CSporkDB(0, false, false);
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
