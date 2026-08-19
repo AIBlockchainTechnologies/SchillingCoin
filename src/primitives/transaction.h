@@ -315,11 +315,11 @@ public:
 
     // ✅ Explicit copy constructor to avoid deprecated implicit copy
     CTransaction(const CTransaction& tx) :
+        hash(tx.hash),
         nVersion(tx.nVersion),
         vin(tx.vin),
         vout(tx.vout),
-        nLockTime(tx.nLockTime),
-        hash(tx.hash)
+        nLockTime(tx.nLockTime)
     {
     }
 
