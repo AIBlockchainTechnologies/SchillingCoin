@@ -13,9 +13,6 @@
 */
 
 enum SporkId : int32_t {
-    SPORK_2_SWIFTTX                             = 10001,
-    SPORK_3_SWIFTTX_BLOCK_FILTERING             = 10002,
-    SPORK_5_MAX_VALUE                           = 10004,
     SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT      = 10007,
     SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT       = 10008,
     SPORK_13_ENABLE_SUPERBLOCKS                 = 10012,
