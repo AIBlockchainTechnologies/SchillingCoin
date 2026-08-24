@@ -1,6 +1,6 @@
 // Copyright (c) 2014-2016 The Dash developers
 // Copyright (c) 2016-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,8 +8,16 @@
 #define SPORKID_H
 
 /*
-    Don't ever reuse these IDs for other sporks
-    - This would result in old clients getting confused about which spork is for what
+    Don't ever reuse these IDs for other sporks...
+    - This would result in old clients getting confused about which spork is for what.
+
+    The following legacy sporks have been permanently removed from SCH:
+      * SwiftTX sporks (SPORK_2_SWIFTTX, SPORK_3_SWIFTTX_BLOCK_FILTERING, SPORK_5_MAX_VALUE)
+      * Zerocoin sporks (SPORK_16_ZEROCOIN_MAINTENANCE_MODE, SPORK_18_ZEROCOIN_PUBLICSPEND_V4)
+
+    These sporks were tied exclusively to subsystems that no longer exist in SCH.
+    They must never be reused for new features, as older clients may misinterpret
+    the IDs and behave unpredictably.
 */
 
 enum SporkId : int32_t {
@@ -18,9 +26,7 @@ enum SporkId : int32_t {
     SPORK_13_ENABLE_SUPERBLOCKS                 = 10012,
     SPORK_14_NEW_PROTOCOL_ENFORCEMENT           = 10013,
     SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2         = 10014,
-    SPORK_16_ZEROCOIN_MAINTENANCE_MODE          = 10015,
     SPORK_17_COLDSTAKING_ENFORCEMENT            = 10017,
-    //SPORK_18_ZEROCOIN_PUBLICSPEND_V4            = 10018,
 
     SPORK_INVALID                               = -1
 };

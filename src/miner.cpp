@@ -204,9 +204,6 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, 
             if (tx.IsCoinBase() || tx.IsCoinStake() || !IsFinalTx(tx, nHeight)){
                 continue;
             }
-			if (sporkManager.IsSporkActive(SPORK_16_ZEROCOIN_MAINTENANCE_MODE) && tx.ContainsZerocoins()) {
-				continue;
-			}
 
             COrphan* porphan = NULL;
             double dPriority = 0;
