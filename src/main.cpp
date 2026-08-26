@@ -3120,42 +3120,22 @@ bool CheckColdStakeFreeOutput(const CTransaction& tx, const int nHeight)
         return true;
 
     const unsigned int outs = tx.vout.size();
-    const CTxOut& lastOut = tx.vout[outs-1];
-    if (outs >=3 && lastOut.scriptPubKey != tx.vout[outs-2].scriptPubKey) {
-        // last output can either be a mn reward or a budget payment
+    const CTxOut& lastOut = tx.vout[outs - 1];
+
+    if (outs >= 3 && lastOut.scriptPubKey != tx.vout[outs - 2].scriptPubKey) {
+
         if (lastOut.nValue == GetMasternodePayment(nHeight, GetBlockValue(nHeight), 0))
             return true;
 
-        // This could be a budget block.
-        if (Params().IsRegTestNet())
-            return false;
-
-        // if mnsync is incomplete, we cannot verify if this is a budget block.
-        // so we check that the staker is not transferring value to the free output
-        if (!masternodeSync.IsSynced()) {
-            // First try finding the previous transaction in database
-            CTransaction txPrev; uint256 hashBlock;
-            if (!GetTransaction(tx.vin[0].prevout.hash, txPrev, hashBlock, true))
-                return error("%s : read txPrev failed: %s",  __func__, tx.vin[0].prevout.hash.GetHex());
-            CAmount amtIn = txPrev.vout[tx.vin[0].prevout.n].nValue + GetBlockValue(nHeight - 1);
-            CAmount amtOut = 0;
-            for (unsigned int i = 1; i < outs-1; i++) amtOut += tx.vout[i].nValue;
-            if (amtOut != amtIn)
-                return error("%s: non-free outputs value %d less than required %d", __func__, amtOut, amtIn);
-            return true;
-        }
-
-        // Check that this is indeed a superblock.
-        if (budget.IsBudgetPaymentBlock(nHeight)) {
-            // if superblocks are not enabled, reject
-            if (!sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS))
-                return error("%s: superblocks are not enabled");
-            return true;
-        }
-
-        // wrong free output
-        return error("%s: Wrong cold staking outputs: vout[%d].scriptPubKey (%s) != vout[%d].scriptPubKey (%s) - value: %s",
-                __func__, outs-1, HexStr(lastOut.scriptPubKey), outs-2, HexStr(tx.vout[outs-2].scriptPubKey), FormatMoney(lastOut.nValue).c_str());
+        return error(
+            "%s: Wrong cold staking outputs: vout[%d].scriptPubKey (%s) != vout[%d].scriptPubKey (%s) - value: %s",
+            __func__,
+            outs - 1,
+            HexStr(lastOut.scriptPubKey),
+            outs - 2,
+            HexStr(tx.vout[outs - 2].scriptPubKey),
+            FormatMoney(lastOut.nValue).c_str()
+        );
     }
 
     return true;

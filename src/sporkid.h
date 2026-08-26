@@ -12,8 +12,18 @@
     - This would result in old clients getting confused about which spork is for what.
 
     The following legacy sporks have been permanently removed from SCH:
-      * SwiftTX sporks (SPORK_2_SWIFTTX, SPORK_3_SWIFTTX_BLOCK_FILTERING, SPORK_5_MAX_VALUE)
-      * Zerocoin sporks (SPORK_16_ZEROCOIN_MAINTENANCE_MODE, SPORK_18_ZEROCOIN_PUBLICSPEND_V4)
+      * SwiftTX sporks
+          (SPORK_2_SWIFTTX,
+           SPORK_3_SWIFTTX_BLOCK_FILTERING,
+           SPORK_5_MAX_VALUE)
+
+      * Zerocoin sporks
+          (SPORK_16_ZEROCOIN_MAINTENANCE_MODE,
+           SPORK_18_ZEROCOIN_PUBLICSPEND_V4)
+
+      * Governance / Superblock sporks
+          (SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT,
+           SPORK_13_ENABLE_SUPERBLOCKS)
 
     These sporks were tied exclusively to subsystems that no longer exist in SCH.
     They must never be reused for new features, as older clients may misinterpret
@@ -22,8 +32,6 @@
 
 enum SporkId : int32_t {
     SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT      = 10007,
-    SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT       = 10008,
-    SPORK_13_ENABLE_SUPERBLOCKS                 = 10012,
     SPORK_14_NEW_PROTOCOL_ENFORCEMENT           = 10013,
     SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2         = 10014,
     SPORK_17_COLDSTAKING_ENFORCEMENT            = 10017,

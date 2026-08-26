@@ -232,51 +232,7 @@ void DumpMasternodePayments()
 
 bool IsBlockValueValid(const CBlock& block, CAmount nExpectedValue, CAmount nMinted)
 {
-    CBlockIndex* pindexPrev = chainActive.Tip();
-    if (pindexPrev == NULL) return true;
-
-    int nHeight = 0;
-    if (pindexPrev->GetBlockHash() == block.hashPrevBlock) {
-        nHeight = pindexPrev->nHeight + 1;
-    } else { //out of order
-        BlockMap::iterator mi = mapBlockIndex.find(block.hashPrevBlock);
-        if (mi != mapBlockIndex.end() && (*mi).second)
-            nHeight = (*mi).second->nHeight + 1;
-    }
-
-    if (nHeight == 0) {
-        LogPrint("masternode","IsBlockValueValid() : WARNING: Couldn't find previous block\n");
-    }
-
-    //LogPrintf("XX69----------> IsBlockValueValid(): nMinted: %d, nExpectedValue: %d\n", FormatMoney(nMinted), FormatMoney(nExpectedValue));
-
-    if (!masternodeSync.IsSynced()) { //there is no budget data to use to check anything
-        //super blocks will always be on these blocks, max 100 per budgeting
-        if (nHeight % Params().GetConsensus().nBudgetCycleBlocks < 100) {
-            return true;
-        } else {
-            if (nMinted > nExpectedValue) {
-                return false;
-            }
-        }
-    } else { // we're synced and have data so check the budget schedule
-
-        //are these blocks even enabled
-        if (!sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS)) {
-            return nMinted <= nExpectedValue;
-        }
-
-        if (budget.IsBudgetPaymentBlock(nHeight)) {
-            //the value of the block is evaluated in CheckBlock
-            return true;
-        } else {
-            if (nMinted > nExpectedValue) {
-                return false;
-            }
-        }
-    }
-
-    return true;
+    return nMinted <= nExpectedValue;
 }
 
 bool IsBlockPayeeValid(const CBlock& block, int nBlockHeight)
@@ -288,38 +244,21 @@ bool IsBlockPayeeValid(const CBlock& block, int nBlockHeight)
         return true;
     }
 
-	if (nBlockHeight == 1040001) {
-		std::vector<std::pair<int, CMasternode> > vMasternodeRanks = mnodeman.GetMasternodeRanks(nBlockHeight);
-		for (PAIRTYPE(int, CMasternode) & s : vMasternodeRanks) {
-			mnodeman.Remove(s.second.vin);
-		}
-		return true;
-	}
+    if (nBlockHeight == 1040001) {
+        std::vector<std::pair<int, CMasternode> > vMasternodeRanks = mnodeman.GetMasternodeRanks(nBlockHeight);
+        for (PAIRTYPE(int, CMasternode) & s : vMasternodeRanks) {
+            mnodeman.Remove(s.second.vin);
+        }
+        return true;
+    }
 
     const CTransaction& txNew = (nBlockHeight > Params().GetConsensus().height_last_PoW ? block.vtx[1] : block.vtx[0]);
 
-    //check if it's a budget block
-    if (sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS)) {
-        if (budget.IsBudgetPaymentBlock(nBlockHeight)) {
-            transactionStatus = budget.IsTransactionValid(txNew, nBlockHeight);
-            if (transactionStatus == TrxValidationStatus::Valid) {
-                return true;
-            }
+    // Entire budget/superblock logic removed permanently.
+    // SCH does not use governance or superblocks.
 
-            if (transactionStatus == TrxValidationStatus::InValid) {
-                LogPrint("masternode","Invalid budget payment detected %s\n", txNew.ToString().c_str());
-                if (sporkManager.IsSporkActive(SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT))
-                    return false;
-
-                LogPrint("masternode","Budget enforcement is disabled, accepting block\n");
-            }
-        }
-    }
-
-    // If we end here the transaction was either TrxValidationStatus::InValid and Budget enforcement is disabled, or
-    // a double budget payment (status = TrxValidationStatus::DoublePayment) was detected, or no/not enough masternode
-    // votes (status = TrxValidationStatus::VoteThreshold) for a finalized budget were found
-    // In all cases a masternode will get the payment for this block
+    // Governance, superblock, and budget logic has been permanently removed from SCH.
+    // Only standard masternode payment validation remains.
 
     //check for masternode payee
     if (masternodePayments.IsTransactionValid(txNew, nBlockHeight))
@@ -332,26 +271,19 @@ bool IsBlockPayeeValid(const CBlock& block, int nBlockHeight)
     return true;
 }
 
-
 void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, bool fProofOfStake)
 {
     CBlockIndex* pindexPrev = chainActive.Tip();
     if (!pindexPrev) return;
 
-    if (sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS) && budget.IsBudgetPaymentBlock(pindexPrev->nHeight + 1)) {
-        budget.FillBlockPayee(txNew, nFees, fProofOfStake);
-    } else {
-        masternodePayments.FillBlockPayee(txNew, nFees, fProofOfStake);
-    }
+    // SCH does not use governance or superblocks.
+    // Always use standard masternode payment logic.
+    masternodePayments.FillBlockPayee(txNew, nFees, fProofOfStake);
 }
 
 std::string GetRequiredPaymentsString(int nBlockHeight)
 {
-    if (sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS) && budget.IsBudgetPaymentBlock(nBlockHeight)) {
-        return budget.GetRequiredPaymentsString(nBlockHeight);
-    } else {
-        return masternodePayments.GetRequiredPaymentsString(nBlockHeight);
-    }
+    return masternodePayments.GetRequiredPaymentsString(nBlockHeight);
 }
 
 void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFees, bool fProofOfStake)
@@ -399,7 +331,7 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
                     unsigned int outputs = i-1;
                     CAmount mnPaymentSplit = masternodePayment / outputs;
                     CAmount mnPaymentRemainder = masternodePayment - (mnPaymentSplit * outputs);
-                    for (unsigned int j=1; j<=outputs; j++) {
+                    for (unsigned int j = 1; j <= outputs; j++) {
                         txNew.vout[j].nValue -= mnPaymentSplit;
                     }
                     // in case it's not an even division, take the last bit of dust from the last one
@@ -620,11 +552,11 @@ bool CMasternodeBlockPayees::IsTransactionValid(const CTransaction& txNew)
         bool found = false;
         for (CTxOut out : txNew.vout) {
             if (payee.scriptPubKey == out.scriptPubKey) {
-                if(out.nValue == requiredMasternodePayment)
+                if (out.nValue == requiredMasternodePayment)
                     found = true;
                 else
                     LogPrintf("%s : Masternode payment value (%s) different from required value (%s).\n",
-                            __func__, FormatMoney(out.nValue).c_str(), FormatMoney(requiredMasternodePayment).c_str());
+                              __func__, FormatMoney(out.nValue).c_str(), FormatMoney(requiredMasternodePayment).c_str());
             }
         }
 
@@ -829,7 +761,6 @@ std::string CMasternodePayments::ToString() const
     return info.str();
 }
 
-
 int CMasternodePayments::GetOldestBlock()
 {
     LOCK(cs_mapMasternodeBlocks);
@@ -846,7 +777,6 @@ int CMasternodePayments::GetOldestBlock()
 
     return nOldestBlock;
 }
-
 
 int CMasternodePayments::GetNewestBlock()
 {
