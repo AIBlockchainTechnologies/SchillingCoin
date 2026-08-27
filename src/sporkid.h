@@ -25,13 +25,21 @@
           (SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT,
            SPORK_13_ENABLE_SUPERBLOCKS)
 
-    These sporks were tied exclusively to subsystems that no longer exist in SCH.
-    They must never be reused for new features, as older clients may misinterpret
-    the IDs and behave unpredictably.
+      * Masternode payment enforcement spork
+          (SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT)
+
+    SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT has been retired because its
+    behavior is now statically hard‑coded into SCH. The chain permanently
+    uses the stable masternode set for payment and validation logic, and no
+    longer relies on runtime spork activation or deactivation signals.
+
+    These sporks were tied exclusively to subsystems that no longer exist or
+    no longer require dynamic toggles. They must never be reused for new
+    features, as older clients may misinterpret the IDs and behave
+    unpredictably.
 */
 
 enum SporkId : int32_t {
-    SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT      = 10007,
     SPORK_14_NEW_PROTOCOL_ENFORCEMENT           = 10013,
     SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2         = 10014,
     SPORK_17_COLDSTAKING_ENFORCEMENT            = 10017,

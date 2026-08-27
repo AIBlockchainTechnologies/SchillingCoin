@@ -354,24 +354,25 @@ int CMasternodeMan::stable_size ()
 {
     int nStable_size = 0;
     int nMinProtocol = ActiveProtocol();
-    int64_t nMasternode_Min_Age = MN_WINNER_MINIMUM_AGE;
-    int64_t nMasternode_Age = 0;
+    const int64_t nMasternode_Min_Age = MN_WINNER_MINIMUM_AGE;
+    const int64_t nNow = GetAdjustedTime();
 
     for (CMasternode& mn : vMasternodes) {
         if (mn.protocolVersion < nMinProtocol) {
             continue; // Skip obsolete versions
         }
-        if (sporkManager.IsSporkActive (SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT)) {
-            nMasternode_Age = GetAdjustedTime() - mn.sigTime;
-            if ((nMasternode_Age) < nMasternode_Min_Age) {
-                continue; // Skip masternodes younger than (default) 8000 sec (MUST be > MASTERNODE_REMOVAL_SECONDS)
-            }
+
+        // Always enforce the age requirement (formerly controlled by SPORK_8).
+        const int64_t nMasternode_Age = (nNow > mn.sigTime) ? (nNow - mn.sigTime) : 0;
+        if (nMasternode_Age < nMasternode_Min_Age) {
+            continue; // Skip masternodes younger than (default) 8000 sec (MUST be > MASTERNODE_REMOVAL_SECONDS)
         }
-        mn.Check ();
-        if (!mn.IsEnabled ())
+
+        mn.Check();
+        if (!mn.IsEnabled())
             continue; // Skip not-enabled masternodes
 
-        nStable_size++;
+        ++nStable_size;
     }
 
     return nStable_size;
@@ -598,6 +599,7 @@ int CMasternodeMan::GetMasternodeRank(const CTxIn& vin, int64_t nBlockHeight, in
     std::vector<std::pair<int64_t, CTxIn> > vecMasternodeScores;
     int64_t nMasternode_Min_Age = MN_WINNER_MINIMUM_AGE;
     int64_t nMasternode_Age = 0;
+    const int64_t nNow = GetAdjustedTime();
 
     //make sure we know about this block
     uint256 hash;
@@ -607,16 +609,16 @@ int CMasternodeMan::GetMasternodeRank(const CTxIn& vin, int64_t nBlockHeight, in
     for (CMasternode& mn : vMasternodes) {
         if (mn.protocolVersion < minProtocol) {
             LogPrint("masternode","Skipping Masternode with obsolete version %d\n", mn.protocolVersion);
-            continue;                                                       // Skip obsolete versions
+            continue; // Skip obsolete versions
         }
 
-        if (sporkManager.IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT)) {
-            nMasternode_Age = GetAdjustedTime() - mn.sigTime;
-            if ((nMasternode_Age) < nMasternode_Min_Age) {
-                if (fDebug) LogPrint("masternode","Skipping just activated Masternode. Age: %ld\n", nMasternode_Age);
-                continue;                                                   // Skip masternodes younger than (default) 1 hour
-            }
+        // Always enforce the age requirement (formerly controlled by SPORK_8).
+        nMasternode_Age = (nNow > mn.sigTime) ? (nNow - mn.sigTime) : 0;
+        if ((nMasternode_Age) < nMasternode_Min_Age) {
+            if (fDebug) LogPrint("masternode","Skipping just activated Masternode. Age: %ld\n", nMasternode_Age);
+            continue; // Skip masternodes younger than (default) 1 hour
         }
+
         if (fOnlyActive) {
             mn.Check();
             if (!mn.IsEnabled()) continue;

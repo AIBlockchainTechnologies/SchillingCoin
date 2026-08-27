@@ -265,10 +265,8 @@ bool IsBlockPayeeValid(const CBlock& block, int nBlockHeight)
         return true;
     LogPrint("masternode","Invalid mn payment detected %s\n", txNew.ToString().c_str());
 
-    if (sporkManager.IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT))
-        return false;
-    LogPrint("masternode","Masternode payment enforcement is disabled, accepting block\n");
-    return true;
+    // SPORK_8 has been permanently removed; always enforce masternode payment validation unconditionally.
+    return false;
 }
 
 void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, bool fProofOfStake)
@@ -527,16 +525,8 @@ bool CMasternodeBlockPayees::IsTransactionValid(const CTransaction& txNew)
     CAmount nReward = GetBlockValue(nBlockHeight);
     const int mn_count_drift = Params().GetConsensus().nMasternodeCountDrift;
 
-    if (sporkManager.IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT)) {
-        // Get a stable number of masternodes by ignoring newly activated (< 8000 sec old) masternodes
-        nMasternode_Drift_Count = mnodeman.stable_size() + mn_count_drift;
-    }
-    else {
-        //account for the fact that all peers do not see the same masternode count. A allowance of being off our masternode count is given
-        //we only need to look at an increased masternode count because as count increases, the reward decreases. This code only checks
-        //for mnPayment >= required, so it only makes sense to check the max node count allowed.
-        nMasternode_Drift_Count = mnodeman.size() + mn_count_drift;
-    }
+    // Get a stable number of masternodes by ignoring newly activated (< 8000 sec old) masternodes
+    nMasternode_Drift_Count = mnodeman.stable_size() + mn_count_drift;
 
     CAmount requiredMasternodePayment = GetMasternodePayment(nBlockHeight, nReward, nMasternode_Drift_Count);
 
