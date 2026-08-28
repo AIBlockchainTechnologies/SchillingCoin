@@ -2463,10 +2463,10 @@ bool less_then_denom(const COutput& out1, const COutput& out2)
 
 bool CWallet::StakeableCoins(std::vector<COutput>* pCoins)
 {
-    const bool fIncludeCold = (sporkManager.IsSporkActive(SPORK_17_COLDSTAKING_ENFORCEMENT) &&
-                               GetBoolArg("-coldstaking", true));
-
-    return AvailableCoins(pCoins, true, nullptr, false, STAKEABLE_COINS,  false, 1, fIncludeCold, false);
+    // SPORK_17_COLDSTAKING_ENFORCEMENT was removed and cold-staking is now a build-time behavior.
+    // Respect the runtime -coldstaking flag so tests and local runs can still opt out if needed.
+    const bool fIncludeCold = IsColdStakingEnabled();
+    return AvailableCoins(pCoins, true, nullptr, false, STAKEABLE_COINS, false, 1, fIncludeCold, false);
 }
 
 bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int nConfTheirs, std::vector<COutput> vCoins, std::set<std::pair<const CWalletTx*, unsigned int> >& setCoinsRet, CAmount& nValueRet) const

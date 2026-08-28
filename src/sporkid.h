@@ -13,36 +13,39 @@
 
     The following legacy sporks have been permanently removed from SCH:
       * SwiftTX sporks
-          (SPORK_2_SWIFTTX,
-           SPORK_3_SWIFTTX_BLOCK_FILTERING,
-           SPORK_5_MAX_VALUE)
+          SPORK_2_SWIFTTX;
+          SPORK_3_SWIFTTX_BLOCK_FILTERING;
+          SPORK_5_MAX_VALUE;
 
       * Zerocoin sporks
-          (SPORK_16_ZEROCOIN_MAINTENANCE_MODE,
-           SPORK_18_ZEROCOIN_PUBLICSPEND_V4)
+          SPORK_16_ZEROCOIN_MAINTENANCE_MODE;
+          SPORK_18_ZEROCOIN_PUBLICSPEND_V4;
 
       * Governance / Superblock sporks
-          (SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT,
-           SPORK_13_ENABLE_SUPERBLOCKS)
+          SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT;
+          SPORK_13_ENABLE_SUPERBLOCKS;
 
       * Masternode payment enforcement spork
-          (SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT)
+          SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT;
 
-    SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT has been retired because its
-    behavior is now statically hard‑coded into SCH. The chain permanently
-    uses the stable masternode set for payment and validation logic, and no
-    longer relies on runtime spork activation or deactivation signals.
+      * Cold staking enforcement spork
+          SPORK_17_COLDSTAKING_ENFORCEMENT;
 
-    These sporks were tied exclusively to subsystems that no longer exist or
-    no longer require dynamic toggles. They must never be reused for new
-    features, as older clients may misinterpret the IDs and behave
-    unpredictably.
+    Rationale:
+    - SPORK_8 was retired because its behavior is now statically hard‑coded into SCH.
+    - SPORK_17 and the other listed sporks are permanently removed or replaced by
+      hard‑coded behavior; the chain no longer relies on runtime spork toggles for
+      these features.
+
+    Important:
+    - These numeric IDs must never be reused for new features.
+    - Reusing an ID risks older clients misinterpreting the meaning of a spork
+      message and behaving unpredictably.
 */
 
 enum SporkId : int32_t {
     SPORK_14_NEW_PROTOCOL_ENFORCEMENT           = 10013,
     SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2         = 10014,
-    SPORK_17_COLDSTAKING_ENFORCEMENT            = 10017,
 
     SPORK_INVALID                               = -1
 };

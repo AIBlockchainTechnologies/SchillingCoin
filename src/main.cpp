@@ -997,14 +997,13 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
 
     // Check transaction
     int chainHeight = chainActive.Height();
-    bool fColdStakingActive = sporkManager.IsSporkActive(SPORK_17_COLDSTAKING_ENFORCEMENT);
+    bool fColdStakingActive = IsColdStakingEnabled(); // runtime flag, single source of truth
     if (!CheckTransaction(tx, chainHeight >= consensus.height_start_ZC, state, fColdStakingActive))
         return state.DoS(100, error("%s : CheckTransaction failed", __func__), REJECT_INVALID, "bad-tx");
 
     // Coinbase is only valid in a block, not as a loose transaction
     if (tx.IsCoinBase())
-        return state.DoS(100, error("%s : coinbase as individual tx",
-                __func__), REJECT_INVALID, "coinbase");
+        return state.DoS(100, error("%s : coinbase as individual tx", __func__), REJECT_INVALID, "coinbase");
 
     // Coinstake is also only valid in a block, not as a loose transaction
     if (tx.IsCoinStake())
@@ -1018,8 +1017,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
     // Rather not work on nonstandard transactions (unless regtest)
     std::string reason;
     if (!Params().IsRegTestNet() && !IsStandardTx(tx, reason))
-        return state.DoS(0, error("%s : nonstandard transaction: %s",
-                    __func__, reason), REJECT_NONSTANDARD, reason);
+        return state.DoS(0, error("%s : nonstandard transaction: %s", __func__, reason), REJECT_NONSTANDARD, reason);
 
     // is it already in the memory pool?
     uint256 hash = tx.GetHash();
@@ -1061,8 +1059,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
 
         // are the actual inputs available?
         if (!view.HaveInputs(tx))
-            return state.Invalid(error("%s : inputs already spent",
-                    __func__), REJECT_DUPLICATE, "bad-txns-inputs-spent");
+            return state.Invalid(error("%s : inputs already spent", __func__), REJECT_DUPLICATE, "bad-txns-inputs-spent");
 
         // Bring the best block into scope
         view.GetBestBlock();
@@ -1480,6 +1477,10 @@ bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex)
     return true;
 }
 
+bool IsColdStakingEnabled()
+{
+    return GetBoolArg("-coldstaking", true);
+}
 
 double ConvertBitsToDouble(unsigned int nBits)
 {
@@ -3147,7 +3148,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     const bool IsPoS = block.IsProofOfStake();
     LogPrint("debug", "%s: block=%s  is proof of stake=%d\n", __func__, block.GetHash().ToString().c_str(), IsPoS);
 
-
     if (block.fChecked)
         return true;
 
@@ -3205,6 +3205,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     }
 
     // Cold Staking enforcement (true during sync - reject P2CS outputs when false)
+    // Use a single, local runtime flag rather than a spork toggle.
     bool fColdStakingActive = true;
 
     // Zerocoin activation
@@ -3216,14 +3217,14 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     if (pindexPrev != NULL) {
         if (pindexPrev->GetBlockHash() == block.hashPrevBlock) {
             nHeight = pindexPrev->nHeight + 1;
-        } else { //out of order
+        } else { // out of order
             BlockMap::iterator mi = mapBlockIndex.find(block.hashPrevBlock);
             if (mi != mapBlockIndex.end() && (*mi).second)
                 nHeight = (*mi).second->nHeight + 1;
         }
 
         // SchillingCoin
-        // It is entierly possible that we don't have enough data and this could fail
+        // It is entirely possible that we don't have enough data and this could fail
         // (i.e. the block could indeed be valid). Store the block for later consideration
         // but issue an initial reject message.
         // The case also exists that the sending peer could not have enough data to see
@@ -3236,8 +3237,8 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
                         REJECT_INVALID, "bad-p2cs-outs");
             }
 
-            // set Cold Staking Spork
-            fColdStakingActive = sporkManager.IsSporkActive(SPORK_17_COLDSTAKING_ENFORCEMENT);
+            // Resolve cold-staking enforcement from runtime configuration
+            fColdStakingActive = IsColdStakingEnabled();
 
             // check masternode/budget payment
             if (!IsBlockPayeeValid(block, nHeight)) {
@@ -4809,8 +4810,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         // available. If not, ask the first peer connected for them.
         // TODO: Move this to an instant broadcast of the sporks.
         bool fMissingSporks = !pSporkDB->SporkExists(SPORK_14_NEW_PROTOCOL_ENFORCEMENT) ||
-                              !pSporkDB->SporkExists(SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2) ||
-                              !pSporkDB->SporkExists(SPORK_17_COLDSTAKING_ENFORCEMENT);
+                              !pSporkDB->SporkExists(SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2);
 
         if (fMissingSporks || !fRequestedSporksIDB){
             LogPrintf("asking peer for sporks\n");

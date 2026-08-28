@@ -403,6 +403,9 @@ extern CZerocoinDB* zerocoinDB;
 /** Global variable that points to the spork database (protected by cs_main) */
 extern CSporkDB* pSporkDB;
 
+/** Core runtime helper: return whether cold staking enforcement is enabled on this node */
+bool IsColdStakingEnabled();
+
 inline int64_t GetMNCollateral() {
 
     int nHeight = chainActive.Height();

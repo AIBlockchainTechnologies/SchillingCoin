@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -627,7 +627,7 @@ UniValue getstakingstatus(const UniValue& params, bool fHelp)
         UniValue obj(UniValue::VOBJ);
         obj.push_back(Pair("staking_status", pwalletMain->pStakerStatus->IsActive()));
         obj.push_back(Pair("staking_enabled", GetBoolArg("-staking", true)));
-        bool fColdStaking = GetBoolArg("-coldstaking", true);
+        bool fColdStaking = IsColdStakingEnabled();
         obj.push_back(Pair("coldstaking_enabled", fColdStaking));
         obj.push_back(Pair("haveconnections", !vNodes.empty()));
         obj.push_back(Pair("mnsync", !masternodeSync.NotCompleted()));

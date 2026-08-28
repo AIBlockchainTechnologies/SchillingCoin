@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2020 The SchillingCoin developers
+# Copyright (c) 2020, 2026 The SchillingCoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -23,6 +23,7 @@ class ImportStakingTest(SchillingcoinTestFramework):
     def set_test_params(self):
         self.num_nodes = 2
         self.extra_args = [[]] * self.num_nodes
+        # Node0 still gets a spork key, but SPORK_17 is now hard-coded enabled
         self.extra_args[0].append('-sporkkey=932HEevBSujW2ud7RfB1YF91AFygbBRQj3de3LyaCRqNzKKgWXi')
 
     def log_title(self):
@@ -34,8 +35,9 @@ class ImportStakingTest(SchillingcoinTestFramework):
     def run_test(self):
         NUM_OF_DELEGATIONS = 4  # Create 2*NUM_OF_DELEGATIONS staking addresses
         self.log_title()
-        self.log.info("Activating cold staking spork")
-        assert_equal("success", self.activate_spork(0, "SPORK_17_COLDSTAKING_ENFORCEMENT"))
+
+        # Cold staking is now permanently enabled in SCH
+        self.log.info("Cold staking is hard-coded enabled; skipping spork activation")
 
         # Create cold staking addresses and delegations
         self.log.info("Creating new staking addresses and sending delegations")
@@ -47,7 +49,7 @@ class ImportStakingTest(SchillingcoinTestFramework):
             delegations.append(self.nodes[0].delegatestake(sa, 10)['txid'])
             # mine a block and check staking balance
             self.nodes[0].generate(1)
-            assert_equal(self.nodes[0].getcoldstakingbalance(), DecimalAmt(10 * (i+1)))
+            assert_equal(self.nodes[0].getcoldstakingbalance(), DecimalAmt(10 * (i + 1)))
             sync_blocks(self.nodes)
 
         # Export keys
@@ -64,6 +66,7 @@ class ImportStakingTest(SchillingcoinTestFramework):
             assert_equal(val['iswatchonly'], False)
             assert_equal(self.nodes[1].getcoldstakingbalance(), DecimalAmt(10 * (i + 1)))
         self.log.info("Balance of node 1 checks out")
+
         coldutxos = [x['txid'] for x in self.nodes[1].listcoldutxos()]
         assert_equal(len(coldutxos), NUM_OF_DELEGATIONS)
         assert_equal(len([x for x in coldutxos if x in delegations]), NUM_OF_DELEGATIONS)
@@ -82,7 +85,6 @@ class ImportStakingTest(SchillingcoinTestFramework):
             assert_equal(val['iswatchonly'], True)
             assert_equal(self.nodes[1].getcoldstakingbalance(), DecimalAmt(10 * NUM_OF_DELEGATIONS))
         self.log.info("Balance of node 1 checks out")
-
 
 
 if __name__ == '__main__':

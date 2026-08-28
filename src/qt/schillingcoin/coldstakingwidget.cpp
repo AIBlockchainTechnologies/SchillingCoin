@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -406,7 +406,7 @@ void ColdStakingWidget::onSendClicked() {
     if (!walletModel || !walletModel->getOptionsModel())
         return;
 
-    if (!walletModel->isColdStakingNetworkelyEnabled()) {
+    if (!walletModel->IsColdStakingEnabled()) {
         inform(tr("Cold Staking is disabled until the v2.0 hardfork"));
         return;
     }

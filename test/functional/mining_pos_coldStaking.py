@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 # Copyright (c) 2019 The PIVX developers
-# Copyright (c) 2020 The SchillingCoin developers
+# Copyright (c) 2020, 2026 The SchillingCoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 # -*- coding: utf-8 -*-
+
+# Note: SPORK_17_COLDSTAKING_ENFORCEMENT has been removed from runtime.
+#       This test assumes cold staking is permanently enabled.
 
 from io import BytesIO
 from time import sleep
@@ -16,23 +19,29 @@ from test_framework.test_framework import SchillingcoinTestFramework
 from test_framework.util import connect_nodes_bi, p2p_port, bytes_to_hex_str, set_node_times, \
     assert_equal, assert_greater_than, sync_blocks, sync_mempools, assert_raises_rpc_error
 
-# filter utxos based on first 5 bytes of scriptPubKey
+# filter utxos based on first 5 bytes of scriptPubKey (P2CS prefix)
 def getDelegatedUtxos(utxos):
-    return [x for x in utxos if x["scriptPubKey"][:10] == '76a97b63d1']
-
+    delegated_prefix = '76a97b63d1'  # hex prefix for P2CS scripts used in tests
+    return [
+        x for x in utxos
+        if isinstance(x, dict)
+        and 'scriptPubKey' in x
+        and isinstance(x['scriptPubKey'], str)
+        and (lambda spk: len(spk) >= len(delegated_prefix) and spk[:len(delegated_prefix)].lower() == delegated_prefix)(x['scriptPubKey'].strip())
+    ]
 
 class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
 
     def set_test_params(self):
         self.num_nodes = 3
-        self.extra_args = [[]] * self.num_nodes
-        self.extra_args[0].append('-sporkkey=932HEevBSujW2ud7RfB1YF91AFygbBRQj3de3LyaCRqNzKKgWXi')
+        # Use a list comprehension so each node gets its own args list
+        self.extra_args = [[] for _ in range(self.num_nodes)]
+        # SPORK_17 removed; no spork key required
 
     def setup_chain(self):
         # Start with PoW cache: 200 blocks
         self._initialize_chain()
         self.enable_mocktime()
-
 
     def setup_network(self):
         ''' Can't rely on syncing all the nodes when staking=1
@@ -60,25 +69,15 @@ class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
             self.test_nodes[i].wait_for_verack()
 
     def setColdStakingEnforcement(self, fEnable=True):
-        sporkName = "SPORK_17_COLDSTAKING_ENFORCEMENT"
-        # update spork 17 with node[0]
-        if fEnable:
-            self.log.info("Enabling cold staking with SPORK 17...")
-            res = self.activate_spork(0, sporkName)
-        else:
-            self.log.info("Disabling cold staking with SPORK 17...")
-            res = self.deactivate_spork(0, sporkName)
-        assert_equal(res, "success")
+        # SPORK_17_COLDSTAKING_ENFORCEMENT is hard-coded enabled in SCH.
+        # Keep this helper as a no-op so tests remain compatible with older test logic.
+        self.log.info("Cold staking is hard-coded enabled; SPORK 17 activation skipped.")
+        # small sleep to preserve test timing expectations in tests that expect a short delay
         sleep(1)
-        # check that node[1] receives it
-        assert_equal(fEnable, self.is_spork_active(1, sporkName))
-        self.log.info("done")
 
     def isColdStakingEnforced(self):
-        # verify from node[1]
-        return self.is_spork_active(1, "SPORK_17_COLDSTAKING_ENFORCEMENT")
-
-
+        # Always true now that SPORK_17 is removed from runtime control.
+        return True
 
     def run_test(self):
         self.description = "Performs tests on the Cold Staking P2CS implementation"
@@ -98,7 +97,7 @@ class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
                 self.mocktime = self.generate_pow(peer, self.mocktime)
             sync_blocks(self.nodes)
 
-        # 2) node[1] sends his entire balance (50 mature rewards) to node[2]
+        # 2) node[1] sends his entire balance (50 mature rewards) to node[2)
         #  - node[2] stakes a block - node[1] locks the change
         print("*** 2 ***")
         self.log.info("Emptying node1 balance")
@@ -128,17 +127,8 @@ class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
         # 4) Check enforcement.
         # ---------------------
         print("*** 4 ***")
-        # Check that SPORK 17 is disabled
-        assert (not self.isColdStakingEnforced())
-        self.log.info("Creating a stake-delegation tx before cold staking enforcement...")
-        assert_raises_rpc_error(-4, "The transaction was rejected!",
-                                self.nodes[0].delegatestake, staker_address, INPUT_VALUE, owner_address, False, False, True)
-        self.log.info("Good. Cold Staking NOT ACTIVE yet.")
-
-        # Enable SPORK
-        self.setColdStakingEnforcement()
-        # double check
-        assert (self.isColdStakingEnforced())
+        # SPORK_17 has been removed; cold staking is permanently enabled in this build.
+        self.log.info("Cold staking is permanently enabled in this build; skipping pre-enforcement rejection test.")
 
         # 5) nodes[0] delegates a number of inputs for nodes[1] to stake em.
         # ------------------------------------------------------------------
@@ -329,6 +319,8 @@ class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
         print("*** 13 ***")
         self.log.info("Cancel the stake delegation spending the delegated utxos...")
         delegated_utxos = getDelegatedUtxos(self.nodes[0].listunspent())
+        # Ensure there is at least one delegated UTXO before popping the final_spend
+        assert_greater_than(len(delegated_utxos), 0)
         # remove one utxo to spend later
         final_spend = delegated_utxos.pop()
         txhash = self.spendUTXOsWithNode(delegated_utxos, 0)
@@ -337,12 +329,11 @@ class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
         self.mocktime = self.generate_pos(2, self.mocktime)
         sync_blocks(self.nodes)
 
-        # deactivate SPORK 17 and check that the owner can still spend the last utxo
-        self.setColdStakingEnforcement(False)
-        assert (not self.isColdStakingEnforced())
+        # SPORK_17 cannot be disabled in this build; log and continue.
+        self.log.info("Cold staking cannot be disabled; SPORK_17 removed. Proceeding to spend the final delegated UTXO.")
         txhash = self.spendUTXOsWithNode([final_spend], 0)
         assert(txhash != None)
-        self.log.info("Good. Owner was able to void a stake delegation (with SPORK 17 disabled) - tx: %s" % str(txhash))
+        self.log.info("Good. Owner was able to void a stake delegation - tx: %s" % str(txhash))
         self.mocktime = self.generate_pos(2, self.mocktime)
         sync_blocks(self.nodes)
 
@@ -350,9 +341,7 @@ class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
         self.expected_balance = 0
         self.checkBalances()
         self.log.info("Balances check out after the delegations have been voided.")
-        # re-activate SPORK17
-        self.setColdStakingEnforcement()
-        assert (self.isColdStakingEnforced())
+        self.log.info("Cold staking remains permanently enabled.")
 
         # 14) check that coinstaker is empty and can no longer stake.
         # -----------------------------------------------------------
@@ -382,54 +371,80 @@ class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
         self.expected_balance = 0
         self.checkBalances()
 
-
     def checkBalances(self):
         w_info = self.nodes[0].getwalletinfo()
+        # Use .get to avoid KeyError if a field is missing; cast to float where appropriate
+        delegated_balance = float(w_info.get("delegated_balance", 0.0))
+        immature_delegated_balance = float(w_info.get("immature_delegated_balance", 0.0))
+        cold_staking_balance = float(w_info.get("cold_staking_balance", 0.0))
+        immature_cold_staking_balance = float(w_info.get("immature_cold_staking_balance", 0.0))
+
         self.log.info("OWNER - Delegated %f / Cold %f   [%f / %f]" % (
-            float(w_info["delegated_balance"]), w_info["cold_staking_balance"],
-            float(w_info["immature_delegated_balance"]), w_info["immature_cold_staking_balance"]))
-        assert_equal(float(w_info["delegated_balance"]), self.expected_balance)
-        assert_equal(float(w_info["immature_delegated_balance"]), self.expected_immature_balance)
-        assert_equal(float(w_info["cold_staking_balance"]), 0)
+            delegated_balance, cold_staking_balance,
+            immature_delegated_balance, immature_cold_staking_balance))
+        assert_equal(delegated_balance, self.expected_balance)
+        assert_equal(immature_delegated_balance, self.expected_immature_balance)
+        assert_equal(cold_staking_balance, 0)
+
         w_info = self.nodes[1].getwalletinfo()
+        delegated_balance = float(w_info.get("delegated_balance", 0.0))
+        immature_delegated_balance = float(w_info.get("immature_delegated_balance", 0.0))
+        cold_staking_balance = float(w_info.get("cold_staking_balance", 0.0))
+        immature_cold_staking_balance = float(w_info.get("immature_cold_staking_balance", 0.0))
+
         self.log.info("STAKER - Delegated %f / Cold %f   [%f / %f]" % (
-            float(w_info["delegated_balance"]), w_info["cold_staking_balance"],
-            float(w_info["immature_delegated_balance"]), w_info["immature_cold_staking_balance"]))
-        assert_equal(float(w_info["delegated_balance"]), 0)
-        assert_equal(float(w_info["cold_staking_balance"]), self.expected_balance)
-        assert_equal(float(w_info["immature_cold_staking_balance"]), self.expected_immature_balance)
+            delegated_balance, cold_staking_balance,
+            immature_delegated_balance, immature_cold_staking_balance))
+        assert_equal(delegated_balance, 0)
+        assert_equal(cold_staking_balance, self.expected_balance)
+        assert_equal(immature_cold_staking_balance, self.expected_immature_balance)
 
     def spendUTXOwithNode(self, utxo, node_n):
+        if not utxo or 'txid' not in utxo or 'vout' not in utxo:
+            raise ValueError("Invalid utxo provided to spendUTXOwithNode")
         new_addy = self.nodes[node_n].getnewaddress()
         inputs = [{"txid": utxo["txid"], "vout": utxo["vout"]}]
-        out_amount = (float(utxo["amount"]) - self.DEFAULT_FEE)
-        outputs = {}
-        outputs[new_addy] = out_amount
+        out_amount = (float(utxo.get("amount", 0.0)) - self.DEFAULT_FEE)
+        if out_amount <= 0:
+            raise ValueError("UTXO amount too small to cover fee")
+        outputs = {new_addy: out_amount}
         spendingTx = self.nodes[node_n].createrawtransaction(inputs, outputs)
         spendingTx_signed = self.nodes[node_n].signrawtransaction(spendingTx)
         return self.nodes[node_n].sendrawtransaction(spendingTx_signed["hex"])
 
     def spendUTXOsWithNode(self, utxos, node_n):
+        if not utxos:
+            raise ValueError("No UTXOs provided to spendUTXOsWithNode")
         new_addy = self.nodes[node_n].getnewaddress()
         inputs = []
-        outputs = {}
-        outputs[new_addy] = 0
+        total_amount = 0.0
         for utxo in utxos:
+            if 'txid' not in utxo or 'vout' not in utxo:
+                raise ValueError("Invalid utxo in list")
             inputs.append({"txid": utxo["txid"], "vout": utxo["vout"]})
-            outputs[new_addy] += float(utxo["amount"])
-        outputs[new_addy] -= self.DEFAULT_FEE
+            total_amount += float(utxo.get("amount", 0.0))
+        out_amount = total_amount - self.DEFAULT_FEE
+        if out_amount <= 0:
+            raise ValueError("Total UTXO amount too small to cover fee")
+        outputs = {new_addy: out_amount}
         spendingTx = self.nodes[node_n].createrawtransaction(inputs, outputs)
         spendingTx_signed = self.nodes[node_n].signrawtransaction(spendingTx)
         return self.nodes[node_n].sendrawtransaction(spendingTx_signed["hex"])
 
     def add_output_to_coinstake(self, block, value, peer=1):
+        # Append an extra output to the coinstake transaction (used to test invalid coinstake outputs)
         coinstake = block.vtx[1]
         if not hasattr(self, 'DUMMY_KEY'):
             self.init_dummy_key()
+        # Append the dummy output and deduct value from the coinstake reward output
         coinstake.vout.append(
             CTxOut(value * COIN, CScript([self.DUMMY_KEY.get_pubkey(), OP_CHECKSIG])))
+        # Ensure there is an output at index 1 to deduct from
+        if len(coinstake.vout) <= 1:
+            raise RuntimeError("Unexpected coinstake vout layout when adding output")
         coinstake.vout[1].nValue -= value * COIN
-        # re-sign coinstake
+
+        # Rebuild and re-sign the coinstake input referencing the prevout stake
         prevout = COutPoint()
         prevout.deserialize_uniqueness(BytesIO(block.prevoutStake))
         coinstake.vin[0] = CTxIn(prevout)
@@ -437,14 +452,11 @@ class SchillingCoin_ColdStakingTest(SchillingcoinTestFramework):
             bytes_to_hex_str(coinstake.serialize()))['hex']
         block.vtx[1] = CTransaction()
         block.vtx[1].from_hex(stake_tx_signed_raw_hex)
-        # re-sign block
+
+        # Recompute merkle root and re-sign the block
         block.hashMerkleRoot = block.calc_merkle_root()
         block.rehash()
         block.re_sign_block()
-
-
-
-
 
 if __name__ == '__main__':
     SchillingCoin_ColdStakingTest().main()
