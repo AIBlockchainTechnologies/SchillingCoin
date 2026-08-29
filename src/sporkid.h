@@ -31,11 +31,18 @@
       * Cold staking enforcement spork
           SPORK_17_COLDSTAKING_ENFORCEMENT;
 
+      * Protocol‑enforcement sporks
+          SPORK_14_NEW_PROTOCOL_ENFORCEMENT;
+          SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2;
+
     Rationale:
-    - SPORK_8 was retired because its behavior is now statically hard‑coded into SCH.
-    - SPORK_17 and the other listed sporks are permanently removed or replaced by
-      hard‑coded behavior; the chain no longer relies on runtime spork toggles for
-      these features.
+    - SCH now uses static, hard‑coded consensus rules for protocol enforcement,
+      masternode payments, cold staking, and all previously spork‑controlled features.
+    - SPORK_14 and SPORK_15 were never used dynamically in the original SCH binary;
+      SPORK_14 was effectively always ON, and SPORK_15 was always OFF.
+    - All listed sporks are permanently removed and must never be reintroduced or
+      repurposed. Their numeric IDs must remain retired to avoid older clients
+      misinterpreting future spork messages.
 
     Important:
     - These numeric IDs must never be reused for new features.
@@ -44,13 +51,11 @@
 */
 
 enum SporkId : int32_t {
-    SPORK_14_NEW_PROTOCOL_ENFORCEMENT           = 10013,
-    SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2         = 10014,
 
     SPORK_INVALID                               = -1
 };
 
-// Default values
+// Default Values
 struct CSporkDef
 {
     CSporkDef(): sporkId(SPORK_INVALID), defaultValue(0) {}

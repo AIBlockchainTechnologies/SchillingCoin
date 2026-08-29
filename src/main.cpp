@@ -4806,17 +4806,15 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             return true;
         }
 
-        // SchillingCoin: We use certain sporks during IBD, so check to see if they are
-        // available. If not, ask the first peer connected for them.
-        // TODO: Move this to an instant broadcast of the sporks.
-        bool fMissingSporks = !pSporkDB->SporkExists(SPORK_14_NEW_PROTOCOL_ENFORCEMENT) ||
-                              !pSporkDB->SporkExists(SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2);
+        // SchillingCoin: Legacy SPORK fetching removed.
+        // Original SCH binaries always behaved with SPORK_14 enforced and SPORK_15 unused.
+        // Dynamic SPORK requests during IBD are no longer needed, and the network now
+        // operates under static protocol enforcement rules.
 
-        if (fMissingSporks || !fRequestedSporksIDB){
-            LogPrintf("asking peer for sporks\n");
-            pfrom->PushMessage("getsporks");
-            fRequestedSporksIDB = true;
-        }
+        LogPrintf("SCH: Skipping legacy SPORK request; static protocol enforcement active.\n");
+
+        // Mark SPORKS as requested so old logic never triggers.
+        fRequestedSporksIDB = true;
 
         pfrom->addrLocal = addrMe;
         if (pfrom->fInbound && addrMe.IsRoutable()) {
@@ -5578,16 +5576,21 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
     return true;
 }
 
-// Note: whenever a protocol update is needed toggle between both implementations (comment out the formerly active one)
+// Note: Whenever a protocol update is needed toggle between both implementations (comment out the formerly active one)
 //       so we can leave the existing clients untouched (old SPORK will stay on so they don't see even older clients).
 //       Those old clients won't react to the changes of the other (new) SPORK because at the time of their implementation
-//       it was the one which was commented out
+//       it was the one which was commented out.
+//
+// SCH UPDATE:
+//       SchillingCoin never used SPORK_15 for protocol enforcement. In the original SCH binary,
+//       SPORK_15 was always inactive and no dynamic protocol switching ever occurred.
+//       SCH now uses static protocol enforcement, so the SPORK_15 toggle has been removed.
+//       For compatibility with original SCH behavior, we continue returning the
+//       BEFORE-enforcement protocol version until a future static upgrade is defined.
+
 int ActiveProtocol()
 {
-    // SPORK_15 is used for 70005 (v2.0+)
-    if (sporkManager.IsSporkActive(SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2))
-            return MIN_PEER_PROTO_VERSION_AFTER_ENFORCEMENT;
-
+    // SCH: SPORK_15 removed; always behave as original SCH (SPORK_15 OFF).
     return MIN_PEER_PROTO_VERSION_BEFORE_ENFORCEMENT;
 }
 

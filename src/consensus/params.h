@@ -40,7 +40,7 @@ struct Params {
     int nTimeSlotLength;
     std::string strObfuscationPoolDummyAddress;
 
-    // spork keys
+    // SPORK keys
 	std::string strSporkPubKey;
 	std::string strSporkPubKeyOld;
 	int64_t nTime_EnforceNewSporkKey;

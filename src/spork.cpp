@@ -38,11 +38,18 @@
       * Cold staking enforcement spork
           SPORK_17_COLDSTAKING_ENFORCEMENT;
 
+      * Protocol‑enforcement sporks
+          SPORK_14_NEW_PROTOCOL_ENFORCEMENT;
+          SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2;
+
     Rationale:
-    - SPORK_8 was retired because its behavior is now statically hard‑coded into SCH.
-    - SPORK_17 and the other listed sporks are permanently removed or replaced by
-      hard‑coded behavior; the chain no longer relies on runtime spork toggles for
-      these features.
+    - SCH now uses static, hard‑coded consensus rules for protocol enforcement,
+      masternode payments, cold staking, and all previously spork‑controlled features.
+    - SPORK_14 and SPORK_15 were never used dynamically in the original SCH binary;
+      SPORK_14 was effectively always ON, and SPORK_15 was always OFF.
+    - All listed sporks are permanently removed and must never be reintroduced or
+      repurposed. Their numeric IDs must remain retired to avoid older clients
+      misinterpreting future spork messages.
 
     Important:
     - These numeric IDs must never be reused for new features.
@@ -50,10 +57,7 @@
       message and behaving unpredictably.
 */
 
-std::vector<CSporkDef> sporkDefs = {
-    MAKE_SPORK_DEF(SPORK_14_NEW_PROTOCOL_ENFORCEMENT,       4070908800ULL), // OFF
-    MAKE_SPORK_DEF(SPORK_15_NEW_PROTOCOL_ENFORCEMENT_2,     4070908800ULL), // OFF
-};
+std::vector<CSporkDef> sporkDefs = { };
 
 CSporkManager sporkManager;
 std::map<uint256, CSporkMessage> mapSporks;
@@ -72,7 +76,7 @@ void CSporkManager::Clear()
     mapSporksActive.clear();
 }
 
-// SchillingCoin: on startup load spork values from previous session if they exist in the sporkDB
+// SchillingCoin: on startup load SPORK values from previous session if they exist in the sporkDB
 void CSporkManager::LoadSporksFromDB()
 {
     for (const auto& sporkDef : sporkDefs) {
@@ -165,16 +169,16 @@ void CSporkManager::ProcessSpork(CNode* pfrom, std::string& strCommand, CDataStr
         }
 
         // NOTE:
-        // After Darksend/Obfuscation removal and related refactors, legacy spork signatures
-        // from existing peers may no longer validate against the current spork keys.
+        // After Darksend/Obfuscation removal and related refactors, legacy SPORK signatures
+        // from existing peers may no longer validate against the current SPORK keys.
         // Banning peers here causes the node to lose all connections and prevents sync.
-        // For now, we IGNORE invalid spork signatures instead of banning the peer, so
-        // networking and block/tx relay continue to function while spork signing is
+        // For now, we IGNORE invalid SPORK signatures instead of banning the peer, so
+        // networking and block/tx relay continue to function while SPORK signing is
         // being migrated/updated.
         if (!fValidSig) {
             LOCK(cs_main);
             LogPrintf("%s : Invalid Signature (IGNORED - NOT BANNING PEER, POSSIBLY DUE TO DARKSEND/OBFUSCATION REMOVAL)\n", __func__);
-            // Do NOT ban the peer. Just ignore this spork message.
+            // Do NOT ban the peer. Just ignore this SPORK message.
             return;
         }
 
