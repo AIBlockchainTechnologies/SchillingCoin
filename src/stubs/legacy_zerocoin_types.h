@@ -2,15 +2,15 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_SRC_STUBS_ZEROCOIN_LEGACY_TYPES_H
-#define SchillingCoin_SRC_STUBS_ZEROCOIN_LEGACY_TYPES_H
+#ifndef SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_TYPES_H
+#define SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_TYPES_H
 
 #include <list>
 #include <vector>
 #include "uint256.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
-#include "stubs/zerocoin_legacy_consensus.h"
+#include "stubs/legacy_zerocoin_consensus.h"
 
 // ---------------------------------------------------------------------------
 // Dummy passthrough hash helpers (SCH expects these symbols)
@@ -141,4 +141,4 @@ inline bool TxOutToPublicCoin(const CTxOut& out,
     return false;
 }
 
-#endif // SchillingCoin_SRC_STUBS_ZEROCOIN_LEGACY_TYPES_H
+#endif // SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_TYPES_H

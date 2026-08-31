@@ -18,7 +18,7 @@
 #include "wallet/wallet.h"
 
 #include "uint256.h"
-#include "stubs/zerocoin_legacy_types.h"
+#include "stubs/legacy_zerocoin_types.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/scoped_ptr.hpp>

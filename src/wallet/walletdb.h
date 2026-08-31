@@ -13,7 +13,7 @@
 #include "wallet/hdchain.h"
 #include "key.h"
 #include "keystore.h"
-#include "stubs/zerocoin_legacy_consensus.h"
+#include "stubs/legacy_zerocoin_consensus.h"
 
 #include <list>
 #include <stdint.h>

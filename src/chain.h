@@ -18,7 +18,7 @@
 #include "tinyformat.h"
 #include "uint256.h"
 #include "util.h"
-#include "stubs/zerocoin_legacy_consensus.h"
+#include "stubs/legacy_zerocoin_consensus.h"
 
 #include <vector>
 

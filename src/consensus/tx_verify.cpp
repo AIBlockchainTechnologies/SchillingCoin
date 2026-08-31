@@ -6,7 +6,7 @@
 #include "tx_verify.h"
 
 #include "consensus/consensus.h"
-#include "consensus/zerocoin_verify.h"
+#include "stubs/legacy_zerocoin_verify.h"
 #include "main.h"
 #include "script/interpreter.h"
 

@@ -40,8 +40,7 @@ Demon status:
     schillingcoin-cli mnsync status
 
 
-
-Coin Specifications
+Current Coin Specifications
 
 <table>
 <tr><td>Algo</td><td>Quark</td></tr>
@@ -54,7 +53,8 @@ Coin Specifications
 <tr><td>Reward Per Block</td><td>32.3 SCH</td></tr>
 <tr><td>Reward Split</td><td>80% (MN) / 20% (POS)</td></tr>
 </table>
-Masternode’s Collateral
+
+Past/Current Masternode Collateral
 
 <table>
 <th>Block Height</th><th>Collateral</th>
@@ -64,26 +64,14 @@ Masternode’s Collateral
 <tr><td>780001–1040000</td><td>90,000 SCH</td></tr>
 <tr><td>1040001+</td><td>100,000 SCH</td></tr>
 </table>
-Planned Future Collateral Levels
 
-<table>
-<th>Planned Collateral</th><th>Status</th><th>Reward Behavior</th>
-<tr>
-<td>333,333 SCH</td>
-<td>Planned — activation block undecided</td>
-<td>Rewards follow the 333,333 tier and pay x3 consecutive blocks</td>
-</tr>
-<tr>
-<td>666,666 SCH</td>
-<td>Planned — activation block undecided</td>
-<td>Rewards follow the 666,666 tier and pay x6 consecutive blocks</td>
-</tr>
-<tr>
-<td>1,000,000 SCH</td>
-<td>Planned — activation block undecided (final target)</td>
-<td>Rewards follow the 1,000,000 tier and pay x10 consecutive blocks</td>
-</tr>
-</table>
+<p><strong>SCH Network Transition Notice</strong></p>
+<ul>
+  <li><strong>100% reward to Proof of Stake</strong> — Schilling Coin (SCH) will transition to a full 100% reward Proof of Stake (PoS) consensus model.</li>
+  <li><strong>Masternode Reward Removal</strong> — Masternodes rewards will be completely removed as part of this transition.</li>
+  <li><strong>Activation Block</strong> — The exact block height for the PoS transition and masternode reward removal is undecided and will be announced in an official communication prior to activation.</li>
+  <li><strong>Collateral & Rewards</strong> — Existing collateral tiers and reward behaviors are retained here for historical reference; they will be deprecated or adjusted according to the official transition plan announced with the activation block.</li>
+</ul>
 
 ⚠️ Critical SCH DataDir Warning (Cross‑OS Safety Notice)
 

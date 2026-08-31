@@ -2,15 +2,15 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_SRC_STUBS_ZEROCOIN_LEGACY_CONSENSUS_H
-#define SchillingCoin_SRC_STUBS_ZEROCOIN_LEGACY_CONSENSUS_H
+#ifndef SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
+#define SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
 
 #include <stdint.h>
 #include <vector>
 
 //
 // ============================================================================
-//  Zerocoin Legacy Stub (SCH)
+// Legacy Zerocoin Stub (SCH)
 // ============================================================================
 //
 //  PURPOSE
@@ -186,4 +186,4 @@ namespace libzerocoin {
 
 } // namespace libzerocoin
 
-#endif // SchillingCoin_SRC_STUBS_ZEROCOIN_LEGACY_CONSENSUS_H
+#endif // SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H

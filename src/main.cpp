@@ -20,7 +20,7 @@
 #include "consensus/merkle.h"
 #include "consensus/tx_verify.h"
 #include "consensus/validation.h"
-#include "consensus/zerocoin_verify.h"
+#include "stubs/legacy_zerocoin_verify.h"
 #include "init.h"
 #include "kernel.h"
 #include "legacy/stakemodifier.h"
@@ -41,7 +41,7 @@
 #include "wallet/wallet.h"
 #include "merkleblock.h"
 
-#include "stubs/zerocoin_legacy_consensus.h"
+#include "stubs/legacy_zerocoin_consensus.h"
 #include <sstream>
 
 #include <boost/algorithm/string/replace.hpp>
