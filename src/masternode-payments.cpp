@@ -10,7 +10,7 @@
 #include "masternode-budget.h"
 #include "masternode-sync.h"
 #include "masternodeman.h"
-#include "spork.h"
+#include "stubs/legacy_spork.h"
 #include "sync.h"
 #include "util.h"
 #include "utilmoneystr.h"

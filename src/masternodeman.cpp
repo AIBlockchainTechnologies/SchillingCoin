@@ -11,7 +11,7 @@
 #include "masternode-payments.h"
 #include "masternode-sync.h"
 #include "messagesigner.h"
-#include "spork.h"
+#include "stubs/legacy_spork.h"
 #include "util.h"
 #include <boost/filesystem.hpp>
 

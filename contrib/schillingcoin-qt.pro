@@ -111,7 +111,7 @@ HEADERS += src/activemasternode.h \
            src/rpcprotocol.h \
            src/rpcserver.h \
            src/serialize.h \
-           src/spork.h \
+           src/stubs/legacy_spork.h \
            src/streams.h \
            src/sync.h \
            src/threadsafety.h \
@@ -414,7 +414,7 @@ SOURCES += src/activemasternode.cpp \
            src/rpcrawtransaction.cpp \
            src/rpcserver.cpp \
            src/rpcwallet.cpp \
-           src/spork.cpp \
+           src/stubs/legacy_spork.cpp \
            src/sync.cpp \
            src/timedata.cpp \
            src/txdb.cpp \

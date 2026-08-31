@@ -16,7 +16,7 @@
 #include "db.h"
 #include "keystore.h"
 #include "main.h"
-#include "spork.h"
+#include "stubs/legacy_spork.h"
 #include "sync.h"
 #include "guiinterface.h"
 #include "wallet/wallet.h"

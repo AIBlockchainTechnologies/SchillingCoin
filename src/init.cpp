@@ -37,7 +37,7 @@
 #include "rpc/server.h"
 #include "script/standard.h"
 #include "scheduler.h"
-#include "spork.h"
+#include "stubs/legacy_spork.h"
 #include "sporkdb.h"
 #include "txdb.h"
 #include "torcontrol.h"

@@ -11,7 +11,7 @@
 #include "masternodeman.h"
 #include "messagesigner.h"
 #include "protocol.h"
-#include "spork.h"
+#include "stubs/legacy_spork.h"
 #include "masternode-sync.h"
 #include "util.h"
 

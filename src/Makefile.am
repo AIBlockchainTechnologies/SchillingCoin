@@ -164,11 +164,11 @@ BITCOIN_CORE_H = \
   script/standard.h \
   script/script_error.h \
   serialize.h \
-  spork.h \
   sporkdb.h \
   sporkid.h \
   stakeinput.h \
   streams.h \
+  stubs/legacy_spork.h \
   stubs/legacy_zerocoin_consensus.h \
   stubs/legacy_zerocoin_types.h \
   stubs/legacy_zerocoin_verify.h \
@@ -393,7 +393,7 @@ libbitcoin_common_a_SOURCES = \
   script/sign.cpp \
   script/standard.cpp \
   script/script_error.cpp \
-  spork.cpp \
+  stubs/legacy_spork.cpp \
   sporkdb.cpp \
   $(BITCOIN_CORE_H)
 

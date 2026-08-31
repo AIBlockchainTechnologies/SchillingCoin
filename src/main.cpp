@@ -30,7 +30,7 @@
 #include "masternode-sync.h"
 #include "messagesigner.h"
 #include "protocol.h"
-#include "spork.h"
+#include "stubs/legacy_spork.h"
 #include "sporkdb.h"
 #include "txdb.h"
 #include "txmempool.h"

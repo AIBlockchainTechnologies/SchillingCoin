@@ -25,6 +25,15 @@ extern std::vector<CSporkDef> sporkDefs;
 extern std::map<uint256, CSporkMessage> mapSporks;
 extern CSporkManager sporkManager;
 
+/*
+    NOTE (stub behavior):
+    - This header pairs with a minimal stub implementation in spork.cpp.
+    - Dynamic spork handling, signing, relay, DB writes, and runtime updates are
+      deliberately disabled; spork behavior is enforced statically by consensus.
+    - The header preserves the original API for compatibility; some functions
+      are intentionally no-ops in the implementation.
+*/
+
 class CSporkMessage
 {
 public:
@@ -53,7 +62,7 @@ public:
 
     void Relay();
 
-    // REQUIRED BY spork.cpp — MUST be present
+    // REQUIRED BY spork.cpp — MUST be present.
     uint256 GetSignatureHash() const;
     std::string GetStrMessage() const;
     const CPubKey GetPublicKey(std::string& strErrorRet) const;
@@ -99,7 +108,17 @@ public:
     void LoadSporksFromDB();
     void ProcessSpork(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
     int64_t GetSporkValue(SporkId nSporkID);
-    void ExecuteSpork(SporkId nSporkID, int nValue);
+
+    // ExecuteSpork is intentionally a no-op in the stub implementation.
+    // Provided a small inline no-op here so the header does not declare an
+    // undefined symbol when the implementation is intentionally omitted.
+    inline void ExecuteSpork(SporkId nSporkID, int nValue)
+    {
+        (void)nSporkID;
+        (void)nValue;
+        // Intentionally empty: dynamic spork execution disabled.
+    }
+
     bool UpdateSpork(SporkId nSporkID, int64_t nValue);
     bool IsSporkActive(SporkId nSporkID);
     std::string GetSporkNameByID(SporkId id);
