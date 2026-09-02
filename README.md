@@ -39,46 +39,46 @@ Demon status:
     schillingcoin-cli getinfo
     schillingcoin-cli mnsync status
 
-
-Current Coin Specifications
-
+<!-- Current Coin Specifications (updated) -->
 <table>
-<tr><td>Algo</td><td>Quark</td></tr>
-<tr><td>Block Time</td><td>60 Seconds</td></tr>
-<tr><td>Max Coin Supply</td><td>200,000,000 SCH</td></tr>
-<tr><td>Premine</td><td>NONE</td></tr>
-<tr><td>Maturity</td><td>50</td></tr>
-<tr><td>Port</td><td>9070</td></tr>
-<tr><td>RPC Port</td><td>9071</td></tr>
-<tr><td>Reward Per Block</td><td>32.3 SCH</td></tr>
-<tr><td>Reward Split</td><td>80% (MN) / 20% (POS)</td></tr>
+  <tr><td><strong>Algo</strong></td><td>Quark</td></tr>
+  <tr><td><strong>Block Time</strong></td><td>60 Seconds</td></tr>
+  <tr><td><strong>Max Coin Supply</strong></td><td>200,000,000 SCH</td></tr>
+  <tr><td><strong>Premine</strong></td><td>NONE</td></tr>
+  <tr><td><strong>Maturity</strong></td><td>50</td></tr>
+  <tr><td><strong>Port</strong></td><td>9070</td></tr>
+  <tr><td><strong>RPC Port</strong></td><td>9071</td></tr>
+  <tr><td><strong>Reward Per Block (original 200,000,000 max supply pre‑mint completion)</strong></td><td>32.29999999 SCH</td></tr>
+  <tr><td><strong>Reward Per Block (original 200,000,000 max supply post‑mint completion)</strong></td><td>1 SCH (fixed forever; effective on the first block after total circulating initial max supply reaches 200,000,000 SCH)</td></tr>
+  <tr><td><strong>Reward Split (pre‑mint completion)</strong></td><td>80% (MN) / 20% (PoS)</td></tr>
+  <tr><td><strong>Reward Split (pre‑mint completion)</strong></td><td>100% to PoS; timing of new masternode collateral becoming 1 SCH permanently to be announced separately, shortly after 100% of rewards go to PoS.</td></tr>
 </table>
 
-Historical/Current Masternode Collateral
-
+<!-- Historical Masternode Collateral -->
 <table>
-<thead>
-<tr><th>Block Height</th><th>Collateral</th></tr>
-</thead>
-<tbody>
-<tr><td>0–260000</td><td>40,000 SCH</td></tr>
-<tr><td>260001–520000</td><td>60,000 SCH</td></tr>
-<tr><td>520001–780000</td><td>80,000 SCH</td></tr>
-<tr><td>780001–1,040,000</td><td>90,000 SCH</td></tr>
-<tr><td>1,040,001–(transition)</td><td>100,000 SCH</td></tr>
-<tr><td>(post‑transition)</td><td>1 SCH (permanent; collateral retained only for MasterSeedNode identity)</td></tr>
-</tbody>
+  <thead>
+    <tr><th>Block Height</th><th>Collateral</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>0–260000</td><td>40,000 SCH</td></tr>
+    <tr><td>260001–520000</td><td>60,000 SCH</td></tr>
+    <tr><td>520001–780000</td><td>80,000 SCH</td></tr>
+    <tr><td>780001–1,040,000</td><td>90,000 SCH</td></tr>
+    <tr><td>1,040,001–(pre‑repurposing)</td><td>100,000 SCH</td></tr>
+    <tr><td>(post‑repurposing)</td><td>1 SCH (permanent; collateral retained only for MasterSeedNode identity)</td></tr>
+  </tbody>
 </table>
 
 <p><strong>SCH Network Transition Notice</strong></p>
 <ul>
-<li><strong>Final consensus model</strong> — Schilling Coin (SCH) will transition to a full 100% Proof of Stake (PoS) reward model.</li>
-<li><strong>Masternode Rewards Removed</strong> — After the transition, <strong>0% of block rewards</strong> will be paid to masternodes; masternode reward payments will be permanently removed forever.</li>
-<li><strong>Permanent Collateral Change</strong> — Following the transition, masternode collateral will be set to <strong>1 SCH forever</strong>. This minimal collateral preserves a unique on‑chain identity but no longer confers any reward entitlement.</li>
-<li><strong>Repurposing: MasterSeedNodes</strong> — Masternodes will be repurposed as <strong>MasterSeedNodes</strong>. Their role will be limited to acting as reliable network seed nodes (peer discovery and bootstrap assistance). They will not receive block rewards or perform reward‑driven consensus functions.</li>
-<li><strong>Activation block</strong> — The exact block height for the PoS transition, collateral change, and masternode reward removal will be announced in an official communication prior to activation.</li>
-<li><strong>Collateral &amp; rewards (historical)</strong> — The table above preserves historical collateral tiers for reference. After activation, those tiers are deprecated and replaced by the permanent 1 SCH collateral and the MasterSeedNode role.</li>
-<li><strong>Operational Notes</strong> — Existing masternode operators should expect an official migration plan and tooling guidance before the activation block; no operator action is required until the project publishes the transition instructions.</li>
+  <li><strong>Final Consensus Model</strong> — Schilling Coin (SCH) will transition to a full <strong>100% Proof of Stake (PoS)</strong> reward model as part of the network roadmap.</li>
+  <li><strong>Post‑Mint Block Reward</strong> — When the total circulating supply reaches <strong>200,000,000 SCH</strong>, the block reward will change to <strong>1 SCH</strong> and remain fixed at 1 SCH forever, effective on the first block after the initial 200,000,000 max supply cap is reached, estimated to be late in the year 2029.</li>
+  <li><strong>Activation Block For 100% PoS</strong> — The exact block height at which block rewards become 100% PoS is not yet decided. An official announcement will specify the activation block before it occurs.</li>
+  <li><strong>Masternode Reward Removal Timing</strong> — The precise block height and timing for removing or redistributing masternode rewards (i.e., reducing masternode reward share per block to 0%) have not been finalized. Any change to masternode reward distribution will be announced separately and in advance, and will occur only after the network has moved to 100% PoS.</li>
+  <li><strong>Collateral Repurposing Sequence</strong> — The permanent reduction of masternode collateral to <strong>1 SCH</strong> and the repurposing of masternodes into <strong>MasterSeedNodes</strong> is planned to occur shortly after the activation that makes PoS 100% of block rewards. The exact block height for the collateral change will be announced in the same communications that define the PoS activation and masternode reward schedule.</li>
+  <li><strong>MasterSeedNode Role</strong> — After repurposing, MasterSeedNodes will serve primarily as reliable network seed nodes for peer discovery and bootstrap assistance. Under SCH's current development team, masternodes will never again be entitled to block rewards, at all.</li>
+  <li><strong>Historical Reference</strong> — The collateral tiers and reward behavior above are retained for historical reference. They will be deprecated or updated according to the official transition plan announced with the activation block(s).</li>
+  <li><strong>Operator Guidance</strong> — Existing masternode operators should await the formal migration plan and tooling guidance. No operator action is required until the project publishes the transition instructions and the activation block(s).</li>
 </ul>
 
 ⚠️ Critical SCH DataDir Warning (Cross‑OS Safety Notice)

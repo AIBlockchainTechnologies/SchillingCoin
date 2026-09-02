@@ -20,7 +20,7 @@
 #include <utility>
 #include <vector>
 #include "stubs/legacy_zerocoin_consensus.h"
-#include "sporkid.h"
+#include "stubs/legacy_sporkid.h"
 
 class CScript;
 

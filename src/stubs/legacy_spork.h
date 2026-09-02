@@ -12,7 +12,7 @@
 #include "key.h"
 #include "main.h"
 #include "net.h"
-#include "sporkid.h"
+#include "stubs/legacy_sporkid.h"
 #include "sync.h"
 #include "util.h"
 #include "protocol.h"

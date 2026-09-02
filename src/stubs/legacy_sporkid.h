@@ -51,15 +51,15 @@
 */
 
 enum SporkId : int32_t {
-
-    SPORK_INVALID                               = -1
+    SPORK_INVALID = -1
 };
 
-// Default Values
+// Stubbed Values, SCH no longer uses dynamic
+// SPORKS and they are to be retired permanently.
 struct CSporkDef
 {
-    CSporkDef(): sporkId(SPORK_INVALID), defaultValue(0) {}
-    CSporkDef(SporkId id, int64_t val, std::string n): sporkId(id), defaultValue(val), name(n) {}
+    CSporkDef(): sporkId(SPORK_INVALID), defaultValue(0), name() {}
+    CSporkDef(SporkId id, int64_t val, const std::string& n): sporkId(id), defaultValue(val), name(n) {}
     SporkId sporkId;
     int64_t defaultValue;
     std::string name;

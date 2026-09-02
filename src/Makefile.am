@@ -165,10 +165,10 @@ BITCOIN_CORE_H = \
   script/script_error.h \
   serialize.h \
   sporkdb.h \
-  sporkid.h \
   stakeinput.h \
   streams.h \
   stubs/legacy_spork.h \
+  stubs/legacy_sporkid.h \
   stubs/legacy_zerocoin_consensus.h \
   stubs/legacy_zerocoin_types.h \
   stubs/legacy_zerocoin_verify.h \
