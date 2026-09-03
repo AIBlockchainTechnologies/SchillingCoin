@@ -1,13 +1,6 @@
 // Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
-#ifndef SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
-#define SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
-
-#include <stdint.h>
-#include <vector>
-
 //
 // ============================================================================
 // Legacy Zerocoin Stub (SCH)
@@ -49,9 +42,14 @@
 //  - Do NOT extend this stub to re‑enable Zerocoin privacy.
 //  - Do NOT change enum values or ordering; they are consensus‑critical.
 //  - This file is intentionally small and boring—its job is to keep old
-//    blocks valid while SCH moves forward as a non‑privacy coin.
+//    blocks valid while SCH moves forward as a non‑privacy pure UTXO coin.
 // ============================================================================
-//
+
+#ifndef SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
+#define SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
+
+#include <stdint.h>
+#include <vector>
 
 namespace libzerocoin {
 

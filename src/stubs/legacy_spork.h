@@ -4,6 +4,15 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+/*
+    NOTE (stub behavior):
+    - This header pairs with a minimal stub implementation in spork.cpp.
+    - Dynamic spork handling, signing, relay, DB writes, and runtime updates are
+      deliberately disabled; spork behavior is enforced statically by consensus.
+    - The header preserves the original API for compatibility; some functions
+      are intentionally no-ops in the implementation.
+*/
+
 #ifndef SPORK_H
 #define SPORK_H
 
@@ -24,15 +33,6 @@ class CSporkManager;
 extern std::vector<CSporkDef> sporkDefs;
 extern std::map<uint256, CSporkMessage> mapSporks;
 extern CSporkManager sporkManager;
-
-/*
-    NOTE (stub behavior):
-    - This header pairs with a minimal stub implementation in spork.cpp.
-    - Dynamic spork handling, signing, relay, DB writes, and runtime updates are
-      deliberately disabled; spork behavior is enforced statically by consensus.
-    - The header preserves the original API for compatibility; some functions
-      are intentionally no-ops in the implementation.
-*/
 
 class CSporkMessage
 {

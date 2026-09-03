@@ -31,7 +31,7 @@
 #include "messagesigner.h"
 #include "protocol.h"
 #include "stubs/legacy_spork.h"
-#include "sporkdb.h"
+#include "stubs/legacy_sporkdb.h"
 #include "txdb.h"
 #include "txmempool.h"
 #include "guiinterface.h"

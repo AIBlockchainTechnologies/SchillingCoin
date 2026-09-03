@@ -1,7 +1,7 @@
 // Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
+//
 // Stubbed replacement for the original block of code that implemented:
 //   bool RecalculateSCHSupply(int nHeightStart, bool fSkipZsch)
 //   bool UpdateZSCHSupply(const CBlock& block, CBlockIndex* pindex)

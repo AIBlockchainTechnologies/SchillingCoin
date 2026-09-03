@@ -9,7 +9,7 @@
 #include "main.h"
 #include "script/interpreter.h"
 
-// Public coin spend
+// Public Coin Spend
 bool RecalculateSCHSupply(int nHeightStart, bool fSkipZsch = true);
 bool UpdateZSCHSupply(const CBlock& block, CBlockIndex* pindex);
 

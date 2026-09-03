@@ -38,7 +38,7 @@
 #include "script/standard.h"
 #include "scheduler.h"
 #include "stubs/legacy_spork.h"
-#include "sporkdb.h"
+#include "stubs/legacy_sporkdb.h"
 #include "txdb.h"
 #include "torcontrol.h"
 #include "guiinterface.h"

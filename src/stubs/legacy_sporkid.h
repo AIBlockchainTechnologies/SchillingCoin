@@ -3,10 +3,6 @@
 // Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
-#ifndef SPORKID_H
-#define SPORKID_H
-
 /*
     Don't ever reuse these IDs for other sporks...
     - This would result in old clients getting confused about which spork is for what.
@@ -49,6 +45,9 @@
     - Reusing an ID risks older clients misinterpreting the meaning of a spork
       message and behaving unpredictably.
 */
+
+#ifndef SPORKID_H
+#define SPORKID_H
 
 enum SporkId : int32_t {
     SPORK_INVALID = -1

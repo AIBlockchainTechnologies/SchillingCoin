@@ -3,17 +3,6 @@
 // Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
-#include "main.h"
-#include "masternode-budget.h"
-#include "messagesigner.h"
-#include "net.h"
-#include "stubs/legacy_spork.h"
-#include "sporkdb.h"
-#include <iostream>
-
-#define MAKE_SPORK_DEF(name, defaultValue) CSporkDef(name, defaultValue, #name)
-
 /*
     Don't ever reuse these IDs for other sporks...
     - This would result in old clients getting confused about which spork is for what.
@@ -65,6 +54,16 @@
     - Do not re-enable dynamic spork behavior or signature checks without a
       full security audit and explicit design justification.
 */
+
+#include "main.h"
+#include "masternode-budget.h"
+#include "messagesigner.h"
+#include "net.h"
+#include "stubs/legacy_spork.h"
+#include "stubs/legacy_sporkdb.h"
+#include <iostream>
+
+#define MAKE_SPORK_DEF(name, defaultValue) CSporkDef(name, defaultValue, #name)
 
 std::vector<CSporkDef> sporkDefs = { };
 

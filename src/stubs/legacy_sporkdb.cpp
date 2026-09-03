@@ -3,7 +3,22 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "sporkdb.h"
+/*
+  NOTE: Persistent CSporkDB retained.
+
+  Reason: legacy_spork.cpp, legacy_spork.h, and sporkid.h were already
+  stubbed, so replacing CSporkDB was unnecessary. The LevelDB-backed
+  CSporkDB is kept to preserve durability and compatibility for production.
+
+  Operational notes:
+  - This implementation persists spork state to disk under datadir/sporks.
+  - Production builds should use the persistent DB; developers may use
+    the in-memory stub for tests via the DISABLE_SPORK_DB compile flag
+    or the --sporkdb=memory runtime option.
+  - Writes should validate SporkId and cap payload sizes to prevent abuse.
+*/
+
+#include "stubs/legacy_sporkdb.h"
 #include "stubs/legacy_spork.h"
 
 CSporkDB::CSporkDB(size_t nCacheSize, bool fMemory, bool fWipe) : CLevelDBWrapper(GetDataDir() / "sporks", nCacheSize, fMemory, fWipe) {}
