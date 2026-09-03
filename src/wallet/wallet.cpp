@@ -13,7 +13,6 @@
 #include "masternode-budget.h"
 #include "script/sign.h"
 #include "script/standard.h"
-#include "stubs/legacy_spork.h"
 #include "util.h"
 #include "utilmoneystr.h"
 

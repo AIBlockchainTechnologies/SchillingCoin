@@ -14,7 +14,6 @@
 #include "net.h"
 #include "netbase.h"
 #include "rpc/server.h"
-#include "stubs/legacy_spork.h"
 #include "timedata.h"
 #include "util.h"
 #ifdef ENABLE_WALLET
@@ -29,8 +28,7 @@
 
 #include <univalue.h>
 
-extern std::vector<CSporkDef> sporkDefs;
-
+// Spork subsystem removed: no CSporkDef or sporkDefs available in this build.
 
 /**
  * @note Do not add or change anything in the information returned by this
@@ -282,37 +280,32 @@ public:
 
 /*
     Used for updating/reading spork settings on the network
+    NOTE: Spork subsystem removed in this build. Show/active return safe defaults.
 */
+
 UniValue spork(const UniValue& params, bool fHelp)
 {
+    // SPORK subsystem removed in this build.
+    // If you want to expose known spork names, populate sporkNames with string literals.
+    static const std::vector<std::string> sporkNames = {}; // e.g. {"SPORK_1", "SPORK_2"}
+
     if (params.size() == 1 && params[0].get_str() == "show") {
         UniValue ret(UniValue::VOBJ);
-        for (const auto& sporkDef : sporkDefs) {
-            ret.push_back(Pair(sporkDef.name, sporkManager.GetSporkValue(sporkDef.sporkId)));
+        for (const auto& name : sporkNames) {
+            // Report default value 0 for all sporks (safe stub).
+            ret.push_back(Pair(name, (int64_t)0));
         }
         return ret;
     } else if (params.size() == 1 && params[0].get_str() == "active") {
         UniValue ret(UniValue::VOBJ);
-        for (const auto& sporkDef : sporkDefs) {
-            ret.push_back(Pair(sporkDef.name, sporkManager.IsSporkActive(sporkDef.sporkId)));
+        for (const auto& name : sporkNames) {
+            // Report all sporks as inactive.
+            ret.push_back(Pair(name, false));
         }
         return ret;
     } else if (params.size() == 2) {
-        // advanced mode, update spork values
-        SporkId nSporkID = sporkManager.GetSporkIDByName(params[0].get_str());
-        if (nSporkID == SPORK_INVALID) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid spork name");
-        }
-
-        // SPORK VALUE
-        int64_t nValue = params[1].get_int64();
-
-        //broadcast new spork
-        if (sporkManager.UpdateSpork(nSporkID, nValue)) {
-            return "success";
-        } else {
-            return "failure";
-        }
+        // Update operations are not available because the spork subsystem was removed.
+        throw JSONRPCError(RPC_MISC_ERROR, "Spork subsystem removed in this build; update operations unavailable");
     }
 
     throw std::runtime_error(
@@ -321,19 +314,16 @@ UniValue spork(const UniValue& params, bool fHelp)
 
         "\nArguments:\n"
         "1. \"name\"        (string, required)  \"show\" to show values, \"active\" to show active state.\n"
-        "                       When set up as a spork signer, the name of the spork can be used to update it's value.\n"
         "2. value           (numeric, required when updating a spork) The new value for the spork.\n"
 
         "\nResult (show):\n"
         "{\n"
         "  \"spork_name\": nnn      (key/value) Key is the spork name, value is it's current value.\n"
-        "  ,...\n"
         "}\n"
 
         "\nResult (active):\n"
         "{\n"
         "  \"spork_name\": true|false      (key/value) Key is the spork name, value is a boolean for it's active state.\n"
-        "  ,...\n"
         "}\n"
 
         "\nResult (name):\n"

@@ -12,7 +12,6 @@
 #include "masternode-budget.h"
 #include "masternode.h"
 #include "masternodeman.h"
-#include "stubs/legacy_spork.h"
 #include "util.h"
 #include "addrman.h"
 // clang-format on

@@ -22,7 +22,6 @@
 
 #include <stdint.h>
 
-#include "stubs/legacy_spork.h"
 #include <boost/assign/list_of.hpp>
 #include <boost/thread/thread.hpp>
 

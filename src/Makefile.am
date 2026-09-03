@@ -166,9 +166,6 @@ BITCOIN_CORE_H = \
   serialize.h \
   stakeinput.h \
   streams.h \
-  stubs/legacy_spork.h \
-  stubs/legacy_sporkdb.h \
-  stubs/legacy_sporkid.h \
   stubs/legacy_zerocoin_consensus.h \
   stubs/legacy_zerocoin_types.h \
   stubs/legacy_zerocoin_verify.h \
@@ -237,7 +234,6 @@ libbitcoin_server_a_SOURCES = \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
   script/sigcache.cpp \
-  stubs/legacy_sporkdb.cpp \
   stubs/legacy_zerocoin_verify.cpp \
   timedata.cpp \
   torcontrol.cpp \
@@ -393,8 +389,6 @@ libbitcoin_common_a_SOURCES = \
   script/sign.cpp \
   script/standard.cpp \
   script/script_error.cpp \
-  stubs/legacy_spork.cpp \
-  stubs/legacy_sporkdb.cpp \
   $(BITCOIN_CORE_H)
 
 # util: shared between all executables.

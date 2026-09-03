@@ -30,8 +30,6 @@
 #include "masternode-sync.h"
 #include "messagesigner.h"
 #include "protocol.h"
-#include "stubs/legacy_spork.h"
-#include "stubs/legacy_sporkdb.h"
 #include "txdb.h"
 #include "txmempool.h"
 #include "guiinterface.h"
@@ -669,7 +667,7 @@ CCoinsViewCache* pcoinsTip = NULL;
 CBlockTreeDB* pblocktree = NULL;
 // Global Zerocoin DB pointer. Do not instantiate disk DB when Zerocoin is removed.
 CZerocoinDB* zerocoinDB = nullptr;
-CSporkDB* pSporkDB = NULL;
+// Spork subsystem removed: no global spork DB pointer.
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -4503,7 +4501,8 @@ bool static AlreadyHave(const CInv& inv)
     // SwiftTX removed: MSG_TXLOCK_REQUEST, MSG_TXLOCK_VOTE
 
     case MSG_SPORK:
-        return mapSporks.count(inv.hash);
+        // Spork subsystem removed: treat spork inventory as not present.
+        return false;
 
     case MSG_MASTERNODE_WINNER:
         if (masternodePayments.mapMasternodePayeeVotes.count(inv.hash)) {
@@ -4654,13 +4653,9 @@ void static ProcessGetData(CNode* pfrom)
                 }
 
                 if (!pushed && inv.type == MSG_SPORK) {
-                    if (mapSporks.count(inv.hash)) {
-                        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                        ss.reserve(1000);
-                        ss << mapSporks[inv.hash];
-                        pfrom->PushMessage("spork", ss);
-                        pushed = true;
-                    }
+                    // Spork subsystem removed: ignore spork inventory entries.
+                    // Do not attempt to access mapSporks or send spork messages.
+                    continue;
                 }
                 if (!pushed && inv.type == MSG_MASTERNODE_WINNER) {
                     if (masternodePayments.mapMasternodePayeeVotes.count(inv.hash)) {
@@ -4968,7 +4963,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             pfrom->fDisconnect = true;
     }
 
-
     else if (strCommand == "inv") {
         std::vector<CInv> vInv;
         vRecv >> vInv;
@@ -5036,7 +5030,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         ProcessGetData(pfrom);
     }
 
-
     else if (strCommand == "getblocks" || strCommand == "getheaders") {
         CBlockLocator locator;
         uint256 hashStop;
@@ -5073,7 +5066,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             }
         }
     }
-
 
     else if (strCommand == "headers" && Params().HeadersFirstSyncingActive()) {
         CBlockLocator locator;
@@ -5118,158 +5110,145 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         pfrom->PushMessage("headers", vHeaders);
     }
 
+    else if (strCommand == "tx" || strCommand == "dstx") {
+        std::vector<uint256> vWorkQueue;
+        std::vector<uint256> vEraseQueue;
+        CTransaction tx;
 
-	else if (strCommand == "tx" || strCommand == "dstx") {
-		std::vector<uint256> vWorkQueue;
-		std::vector<uint256> vEraseQueue;
-		CTransaction tx;
+        // masternode signed transaction
+        bool ignoreFees = false;
+        CTxIn vin;
+        std::vector<unsigned char> vchSig;
+        int64_t sigTime;
 
-		//masternode signed transaction
-		bool ignoreFees = false;
-		CTxIn vin;
-		std::vector<unsigned char> vchSig;
-		int64_t sigTime;
+        if (strCommand == "tx") {
+            vRecv >> tx;
+        } else if (strCommand == "dstx") {
+            // these allow masternodes to publish a limited amount of free transactions
+            vRecv >> tx >> vin >> vchSig >> sigTime;
 
-		if (strCommand == "tx") {
-			vRecv >> tx;
-		}
-		else if (strCommand == "dstx") {
-			//these allow masternodes to publish a limited amount of free transactions
-			vRecv >> tx >> vin >> vchSig >> sigTime;
+            CMasternode* pmn = mnodeman.Find(vin);
+            if (pmn != NULL) {
+                if (!pmn->allowFreeTx) {
+                    // multiple peers can send us a valid masternode transaction
+                    if (fDebug)
+                        LogPrintf("dstx: Masternode sending too many transactions %s\n", tx.GetHash().ToString());
+                    return true;
+                }
 
-			CMasternode* pmn = mnodeman.Find(vin);
-			if (pmn != NULL) {
-				if (!pmn->allowFreeTx) {
-					//multiple peers can send us a valid masternode transaction
-					if (fDebug) LogPrintf("dstx: Masternode sending too many transactions %s\n", tx.GetHash().ToString());
-					return true;
-				}
+                std::string strMessage = tx.GetHash().ToString() + std::to_string(sigTime);
 
-				std::string strMessage = tx.GetHash().ToString() + std::to_string(sigTime);
+                std::string errorMessage = "";
+                if (!CMessageSigner::VerifyMessage(pmn->pubKeyMasternode, vchSig, strMessage, errorMessage)) {
+                    return error("dstx: Got bad masternode address signature %s, error: %s", vin.ToString(), errorMessage);
+                }
 
-				std::string errorMessage = "";
-				if (!CMessageSigner::VerifyMessage(pmn->pubKeyMasternode, vchSig, strMessage, errorMessage)) {
-					return error("dstx: Got bad masternode address signature %s, error: %s", vin.ToString(), errorMessage);
-				}
+                LogPrintf("dstx: Got Masternode transaction %s\n", tx.GetHash().ToString());
 
-				LogPrintf("dstx: Got Masternode transaction %s\n", tx.GetHash().ToString());
+                ignoreFees = true;
+                pmn->allowFreeTx = false;
+            }
+        }
 
-				ignoreFees = true;
-				pmn->allowFreeTx = false;
+        CInv inv(MSG_TX, tx.GetHash());
+        pfrom->AddInventoryKnown(inv);
 
-			}
-		}
+        LOCK(cs_main);
 
-		CInv inv(MSG_TX, tx.GetHash());
-		pfrom->AddInventoryKnown(inv);
+        bool fMissingInputs = false;
+        CValidationState state;
 
-		LOCK(cs_main);
+        mapAlreadyAskedFor.erase(inv);
 
-		bool fMissingInputs = false;
-		CValidationState state;
+        if (!tx.HasZerocoinSpendInputs() && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, false, ignoreFees)) {
+            mempool.check(pcoinsTip);
+            RelayTransaction(tx);
+            vWorkQueue.push_back(inv.hash);
 
-		mapAlreadyAskedFor.erase(inv);
+            LogPrint("mempool", "AcceptToMemoryPool: peer=%d %s : accepted %s (poolsz %u)\n",
+                pfrom->id, pfrom->cleanSubVer,
+                tx.GetHash().ToString(),
+                mempool.mapTx.size());
 
-		if (!tx.HasZerocoinSpendInputs() && AcceptToMemoryPool(mempool, state, tx, true, &fMissingInputs, false, ignoreFees)) {
-			mempool.check(pcoinsTip);
-			RelayTransaction(tx);
-			vWorkQueue.push_back(inv.hash);
+            // Recursively process any orphan transactions that depended on this one
+            std::set<NodeId> setMisbehaving;
+            for (unsigned int i = 0; i < vWorkQueue.size(); i++) {
+                std::map<uint256, std::set<uint256> >::iterator itByPrev = mapOrphanTransactionsByPrev.find(vWorkQueue[i]);
+                if (itByPrev == mapOrphanTransactionsByPrev.end())
+                    continue;
+                for (std::set<uint256>::iterator mi = itByPrev->second.begin(); mi != itByPrev->second.end(); ++mi) {
+                    const uint256& orphanHash = *mi;
+                    const CTransaction& orphanTx = mapOrphanTransactions[orphanHash].tx;
+                    NodeId fromPeer = mapOrphanTransactions[orphanHash].fromPeer;
+                    bool fMissingInputs2 = false;
+                    // Use a dummy CValidationState so someone can't setup nodes to counter-DoS based on orphan
+                    CValidationState stateDummy;
 
-			LogPrint("mempool", "AcceptToMemoryPool: peer=%d %s : accepted %s (poolsz %u)\n",
-				pfrom->id, pfrom->cleanSubVer,
-				tx.GetHash().ToString(),
-				mempool.mapTx.size());
+                    if (setMisbehaving.count(fromPeer))
+                        continue;
+                    if (AcceptToMemoryPool(mempool, stateDummy, orphanTx, true, &fMissingInputs2)) {
+                        LogPrint("mempool", "   accepted orphan tx %s\n", orphanHash.ToString());
+                        RelayTransaction(orphanTx);
+                        vWorkQueue.push_back(orphanHash);
+                        vEraseQueue.push_back(orphanHash);
+                    }
+                    else if (!fMissingInputs2) {
+                        int nDos = 0;
+                        if (stateDummy.IsInvalid(nDos) && nDos > 0) {
+                            // Punish peer that gave us an invalid orphan tx
+                            Misbehaving(fromPeer, nDos);
+                            setMisbehaving.insert(fromPeer);
+                            LogPrint("mempool", "   invalid orphan tx %s\n", orphanHash.ToString());
+                        }
+                        // Has inputs but not accepted to mempool
+                        // Probably non-standard or insufficient fee/priority
+                        LogPrint("mempool", "   removed orphan tx %s\n", orphanHash.ToString());
+                        vEraseQueue.push_back(orphanHash);
+                    }
+                    mempool.check(pcoinsTip);
+                }
+            }
 
-			// Recursively process any orphan transactions that depended on this one
-			std::set<NodeId> setMisbehaving;
-			for (unsigned int i = 0; i < vWorkQueue.size(); i++) {
-				std::map<uint256, std::set<uint256> >::iterator itByPrev = mapOrphanTransactionsByPrev.find(vWorkQueue[i]);
-				if (itByPrev == mapOrphanTransactionsByPrev.end())
-					continue;
-				for (std::set<uint256>::iterator mi = itByPrev->second.begin();
-					mi != itByPrev->second.end();
-					++mi) {
-					const uint256 &orphanHash = *mi;
-					const CTransaction &orphanTx = mapOrphanTransactions[orphanHash].tx;
-					NodeId fromPeer = mapOrphanTransactions[orphanHash].fromPeer;
-					bool fMissingInputs2 = false;
-					// Use a dummy CValidationState so someone can't setup nodes to counter-DoS based on orphan
-					// resolution (that is, feeding people an invalid transaction based on LegitTxX in order to get
-					// anyone relaying LegitTxX banned)
-					CValidationState stateDummy;
+            for (uint256 hash : vEraseQueue) EraseOrphanTx(hash);
 
+        }
+        else if (tx.HasZerocoinSpendInputs()) {
+            RelayTransaction(tx);
+            LogPrint("mempool", "AcceptToMemoryPool: Zerocoinspend peer=%d %s : accepted %s (poolsz %u)\n",
+                pfrom->id, pfrom->cleanSubVer,
+                tx.GetHash().ToString(),
+                mempool.mapTx.size());
+        }
+        else if (fMissingInputs) {
+            AddOrphanTx(tx, pfrom->GetId());
 
-					if (setMisbehaving.count(fromPeer))
-						continue;
-					if (AcceptToMemoryPool(mempool, stateDummy, orphanTx, true, &fMissingInputs2)) {
-						LogPrint("mempool", "   accepted orphan tx %s\n", orphanHash.ToString());
-						RelayTransaction(orphanTx);
-						vWorkQueue.push_back(orphanHash);
-						vEraseQueue.push_back(orphanHash);
-					}
-					else if (!fMissingInputs2) {
-						int nDos = 0;
-						if (stateDummy.IsInvalid(nDos) && nDos > 0) {
-							// Punish peer that gave us an invalid orphan tx
-							Misbehaving(fromPeer, nDos);
-							setMisbehaving.insert(fromPeer);
-							LogPrint("mempool", "   invalid orphan tx %s\n", orphanHash.ToString());
-						}
-						// Has inputs but not accepted to mempool
-						// Probably non-standard or insufficient fee/priority
-						LogPrint("mempool", "   removed orphan tx %s\n", orphanHash.ToString());
-						vEraseQueue.push_back(orphanHash);
-					}
-					mempool.check(pcoinsTip);
-				}
-			}
+            // DoS prevention: do not allow mapOrphanTransactions to grow unbounded
+            unsigned int nMaxOrphanTx = (unsigned int)std::max((int64_t)0, GetArg("-maxorphantx", DEFAULT_MAX_ORPHAN_TRANSACTIONS));
+            unsigned int nEvicted = LimitOrphanTxSize(nMaxOrphanTx);
+            if (nEvicted > 0)
+                LogPrint("mempool", "mapOrphan overflow, removed %u tx\n", nEvicted);
+        }
+        else if (pfrom->fWhitelisted) {
+            // Always relay transactions received from whitelisted peers
+            RelayTransaction(tx);
+        }
 
-			for (uint256 hash : vEraseQueue) EraseOrphanTx(hash);
+        if (strCommand == "dstx") {
+            CInv invDst(MSG_DSTX, tx.GetHash());
+            RelayInv(invDst);
+        }
 
-		}
-		else if (tx.HasZerocoinSpendInputs()) {
-			//Presstab: ZCoin has a bunch of code commented out here. Is this something that should have more going on?
-			//Also there is nothing that handles fMissingZerocoinInputs. Does there need to be?
-			RelayTransaction(tx);
-			LogPrint("mempool", "AcceptToMemoryPool: Zerocoinspend peer=%d %s : accepted %s (poolsz %u)\n",
-				pfrom->id, pfrom->cleanSubVer,
-				tx.GetHash().ToString(),
-				mempool.mapTx.size());
-		}
-		else if (fMissingInputs) {
-			AddOrphanTx(tx, pfrom->GetId());
-
-			// DoS prevention: do not allow mapOrphanTransactions to grow unbounded
-			unsigned int nMaxOrphanTx = (unsigned int)std::max((int64_t)0, GetArg("-maxorphantx", DEFAULT_MAX_ORPHAN_TRANSACTIONS));
-			unsigned int nEvicted = LimitOrphanTxSize(nMaxOrphanTx);
-			if (nEvicted > 0)
-				LogPrint("mempool", "mapOrphan overflow, removed %u tx\n", nEvicted);
-		}
-		else if (pfrom->fWhitelisted) {
-			// Always relay transactions received from whitelisted peers, even
-			// if they are already in the mempool (allowing the node to function
-			// as a gateway for nodes hidden behind it).
-
-			RelayTransaction(tx);
-		}
-
-		if (strCommand == "dstx") {
-			CInv inv(MSG_DSTX, tx.GetHash());
-			RelayInv(inv);
-		}
-
-		int nDoS = 0;
-		if (state.IsInvalid(nDoS)) {
-			LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n", tx.GetHash().ToString(),
-				pfrom->id, pfrom->cleanSubVer,
-				state.GetRejectReason());
-			pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
-				state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
-			if (nDoS > 0)
-				Misbehaving(pfrom->GetId(), nDoS);
-		}
-	}
-
+        int nDoS = 0;
+        if (state.IsInvalid(nDoS)) {
+            LogPrint("mempool", "%s from peer=%d %s was not accepted into the memory pool: %s\n", tx.GetHash().ToString(),
+                pfrom->id, pfrom->cleanSubVer,
+                state.GetRejectReason());
+            pfrom->PushMessage("reject", strCommand, state.GetRejectCode(),
+                state.GetRejectReason().substr(0, MAX_REJECT_MESSAGE_LENGTH), inv.hash);
+            if (nDoS > 0)
+                Misbehaving(pfrom->GetId(), nDoS);
+        }
+    }
 
     else if (strCommand == "headers" && Params().HeadersFirstSyncingActive() && !fImporting && !fReindex) // Ignore headers received while importing
     {
@@ -5307,9 +5286,8 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
              */
             if (!AcceptBlockHeader((CBlock)header, state, &pindexLast)) {
                 int nDoS;
-                if (state.IsInvalid(nDoS)) {
-                    if (nDoS > 0)
-                        Misbehaving(pfrom->GetId(), nDoS);
+                if (state.IsInvalid(nDoS) && nDoS > 0) {
+                    Misbehaving(pfrom->GetId(), nDoS);
                     std::string strError = "invalid header received " + header.GetHash().ToString();
                     return error(strError.c_str());
                 }
@@ -5564,14 +5542,20 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             }
         }
     } else {
-        //probably one the extensions
+        // Compatibility: ignore legacy "spork" messages and do not call removed spork code.
+        if (strCommand == "spork") {
+            // Spork subsystem removed: do not deserialize or process legacy spork messages.
+            LogPrintf("Info: received legacy 'spork' message; ignoring.\n");
+            return true;
+        }
+
+        // probably one of the extensions
         mnodeman.ProcessMessage(pfrom, strCommand, vRecv);
         budget.ProcessMessage(pfrom, strCommand, vRecv);
         masternodePayments.ProcessMessageMasternodePayments(pfrom, strCommand, vRecv);
-        sporkManager.ProcessSpork(pfrom, strCommand, vRecv);
+        // Spork subsystem removed: do not call sporkManager.ProcessSpork.
         masternodeSync.ProcessMessage(pfrom, strCommand, vRecv);
     }
-
 
     return true;
 }
@@ -5702,7 +5686,6 @@ bool ProcessMessages(CNode* pfrom)
 
     return fOk;
 }
-
 
 bool SendMessages(CNode* pto, bool fSendTrickle)
 {
@@ -5930,7 +5913,6 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
     return true;
 }
 
-
 bool CBlockUndo::WriteToDisk(CDiskBlockPos& pos, const uint256& hashBlock)
 {
     // Open history file to append
@@ -5988,7 +5970,6 @@ std::string CBlockFileInfo::ToString() const
 {
     return strprintf("CBlockFileInfo(blocks=%u, size=%u, heights=%u...%u, time=%s...%s)", nBlocks, nSize, nHeightFirst, nHeightLast, DateTimeStrFormat("%Y-%m-%d", nTimeFirst), DateTimeStrFormat("%Y-%m-%d", nTimeLast));
 }
-
 
 class CMainCleanup
 {

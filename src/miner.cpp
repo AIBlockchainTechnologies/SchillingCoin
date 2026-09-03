@@ -27,7 +27,6 @@
 #include "validationinterface.h"
 #include "masternode-payments.h"
 #include "blocksignature.h"
-#include "stubs/legacy_spork.h"
 
 // Wallet subsystem (always include)
 #include "wallet/wallet.h"

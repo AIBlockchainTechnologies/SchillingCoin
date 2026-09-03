@@ -49,7 +49,6 @@
 class CBlockIndex;
 class CBlockTreeDB;
 class CZerocoinDB;
-class CSporkDB;
 class CBloomFilter;
 class CInv;
 class CScriptCheck;
@@ -399,9 +398,6 @@ extern CBlockTreeDB* pblocktree;
  * DATADIR/zerocoin.
  */
 extern CZerocoinDB* zerocoinDB;
-
-/** Global variable that points to the spork database (protected by cs_main) */
-extern CSporkDB* pSporkDB;
 
 /** Core runtime helper: return whether cold staking enforcement is enabled on this node */
 bool IsColdStakingEnabled();

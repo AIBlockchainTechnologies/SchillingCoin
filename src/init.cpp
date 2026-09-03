@@ -37,8 +37,6 @@
 #include "rpc/server.h"
 #include "script/standard.h"
 #include "scheduler.h"
-#include "stubs/legacy_spork.h"
-#include "stubs/legacy_sporkdb.h"
 #include "txdb.h"
 #include "torcontrol.h"
 #include "guiinterface.h"
@@ -239,10 +237,6 @@ void PrepareShutdown()
         pcoinsdbview = NULL;
         delete pblocktree;
         pblocktree = NULL;
-        delete zerocoinDB;
-        zerocoinDB = NULL;
-        delete pSporkDB;
-        pSporkDB = NULL;
     }
 #ifdef ENABLE_WALLET
     if (pwalletMain)
@@ -1112,10 +1106,11 @@ bool AppInit2(const std::vector<std::string>& words)
             threadGroup.create_thread(&ThreadScriptCheck);
     }
 
-    if (mapArgs.count("-sporkkey")) // spork priv key
+    if (mapArgs.count("-sporkkey")) // spork priv key (legacy)
     {
-        if (!sporkManager.SetPrivKey(GetArg("-sporkkey", "")))
-            return InitError(_("Unable to sign spork message, wrong key?"));
+        // Spork subsystem removed: ignore -sporkkey if provided.
+        // Log a warning so users know the argument is being ignored.
+        LogPrintf("Warning: -sporkkey provided but spork subsystem removed; ignoring.\n");
     }
 
     // Start the lightweight task scheduler thread
@@ -1461,17 +1456,10 @@ bool AppInit2(const std::vector<std::string>& words)
                 delete pcoinsdbview;
                 delete pcoinscatcher;
                 delete pblocktree;
-                delete zerocoinDB;
-                delete pSporkDB;
 
-                // SchillingCoin specific: zerocoin and spork DBs
+                // SchillingCoin specific: Zerocoin and SPORK DB's
                 // Minimal change: DO NOT construct the Zerocoin disk DB in this build.
-                // Keep zerocoinDB nullptr so DATADIR/zerocoin is never created or opened.
-                zerocoinDB = nullptr;
-
-                // Spork DB is still used by the node; construct as before.
-                // If you want to disable sporks as well, set pSporkDB = nullptr and guard uses.
-                pSporkDB = new CSporkDB(0, false, false);
+                // SPORK subsystem removed: do not create a spork DB.
 
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
@@ -1484,9 +1472,10 @@ bool AppInit2(const std::vector<std::string>& words)
                 // End loop if shutdown was requested
                 if (ShutdownRequested()) break;
 
-                // SchillingCoin: load previous sessions sporks if we have them.
-                uiInterface.InitMessage(_("Loading sporks..."));
-                sporkManager.LoadSporksFromDB();
+                // Spork subsystem removed: do not load sporks from DB.
+                // Keep a user-facing message for clarity but do not call missing code.
+                uiInterface.InitMessage(_("Loading legacy sporks (ignored)..."));
+                LogPrintf("Info: spork subsystem removed; skipping LoadSporksFromDB().\n");
 
                 uiInterface.InitMessage(_("Loading block index..."));
                 std::string strBlockIndexError = "";
