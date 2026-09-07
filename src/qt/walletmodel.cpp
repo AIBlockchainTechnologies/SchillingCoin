@@ -20,6 +20,7 @@
 #include "guiinterface.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
+
 #include <stdint.h>
 #include <iostream>
 #include <mutex>
@@ -30,16 +31,24 @@
 
 extern CWallet* pwalletMain;
 
+// Notification queue (thread‑safe)
 static std::mutex g_queueMutex;
 static bool fQueueNotifications = false;
-static std::vector<std::pair<uint256, ChangeType> > vQueueNotifications;
+static std::vector<std::pair<uint256, ChangeType>> vQueueNotifications;
 
-WalletModel::WalletModel(CWallet* wallet, OptionsModel* optionsModel, QObject* parent) : QObject(parent), wallet(wallet), optionsModel(optionsModel), addressTableModel(0),
-                                                                                         transactionTableModel(0),
-                                                                                         recentRequestsTableModel(0),
-                                                                                         cachedBalance(0), cachedLockedBalance(0), cachedUnconfirmedBalance(0), cachedImmatureBalance(0),
-                                                                                         cachedEncryptionStatus(Unencrypted),
-                                                                                         cachedNumBlocks(0)
+WalletModel::WalletModel(CWallet* wallet, OptionsModel* optionsModel, QObject* parent) :
+    QObject(parent),
+    wallet(wallet),
+    optionsModel(optionsModel),
+    addressTableModel(nullptr),
+    transactionTableModel(nullptr),
+    recentRequestsTableModel(nullptr),
+    cachedBalance(0),
+    cachedLockedBalance(0),
+    cachedUnconfirmedBalance(0),
+    cachedImmatureBalance(0),
+    cachedEncryptionStatus(Unencrypted),
+    cachedNumBlocks(0)
 {
     fHaveWatchOnly = wallet->HaveWatchOnly();
     fHaveMultiSig = wallet->HaveMultiSig();
@@ -49,9 +58,9 @@ WalletModel::WalletModel(CWallet* wallet, OptionsModel* optionsModel, QObject* p
     transactionTableModel = new TransactionTableModel(wallet, this);
     recentRequestsTableModel = new RecentRequestsTableModel(wallet, this);
 
-    // This timer will be fired repeatedly to update the balance
+    // Poll balance periodically
     pollTimer = new QTimer(this);
-    connect(pollTimer, SIGNAL(timeout()), this, SLOT(pollBalanceChanged()));
+    connect(pollTimer, &QTimer::timeout, this, &WalletModel::pollBalanceChanged);
     pollTimer->start(MODEL_UPDATE_DELAY);
 
     subscribeToCoreSignals();
@@ -72,14 +81,14 @@ bool WalletModel::isRegTestNetwork() const
     return Params().IsRegTestNet();
 }
 
-// Single source of truth for whether cold staking is enabled at runtime.
-// Use -coldstaking to opt out; default is enabled.
+// Single source of truth for cold staking runtime state
 bool WalletModel::IsColdStakingEnabled() const
 {
     return ::IsColdStakingEnabled();
 }
 
-bool WalletModel::isStakingStatusActive() const {
+bool WalletModel::isStakingStatusActive() const
+{
     return wallet->pStakerStatus->IsActive();
 }
 
@@ -89,13 +98,12 @@ CAmount WalletModel::getBalance(const CCoinControl* coinControl) const
         CAmount nBalance = 0;
         std::vector<COutput> vCoins;
         wallet->AvailableCoins(&vCoins, true, coinControl);
-        for (const COutput& out : vCoins)
+        for (const COutput& out : vCoins) {
             if (out.fSpendable)
                 nBalance += out.tx->vout[out.i].nValue;
-
+        }
         return nBalance;
     }
-
     return wallet->GetBalance();
 }
 
@@ -118,7 +126,6 @@ CAmount WalletModel::getLockedBalance() const
 {
     return wallet->GetLockedCoins();
 }
-
 
 bool WalletModel::haveWatchOnly() const
 {
@@ -152,30 +159,30 @@ CAmount WalletModel::getColdStakedBalance() const
 
 bool WalletModel::isColdStaking() const
 {
-    // Return whether this wallet currently has any cold-staked balance or delegation.
-    // This is a conservative indicator for UI; it does not change network enforcement.
     return (getColdStakedBalance() > 0 || getDelegatedBalance() > 0);
 }
 
 void WalletModel::updateStatus()
 {
-    EncryptionStatus newEncryptionStatus = getEncryptionStatus();
-
-    if (cachedEncryptionStatus != newEncryptionStatus)
-        Q_EMIT encryptionStatusChanged(newEncryptionStatus);
+    EncryptionStatus newStatus = getEncryptionStatus();
+    if (cachedEncryptionStatus != newStatus)
+        Q_EMIT encryptionStatusChanged(newStatus);
 }
 
-bool WalletModel::isWalletUnlocked() const {
+bool WalletModel::isWalletUnlocked() const
+{
     EncryptionStatus status = getEncryptionStatus();
     return status == Unencrypted || status == Unlocked;
 }
 
-bool WalletModel::isWalletLocked(bool fFullUnlocked) const {
+bool WalletModel::isWalletLocked(bool fFullUnlocked) const
+{
     EncryptionStatus status = getEncryptionStatus();
     return (status == Locked || (!fFullUnlocked && status == UnlockedForStaking));
 }
 
-bool IsImportingOrReindexing() {
+bool IsImportingOrReindexing()
+{
     return fImporting || fReindex;
 }
 
@@ -709,11 +716,11 @@ static void NotifyWalletBacked(WalletModel* model, const bool& fSuccess, const s
     if (fSuccess) {
         message = "The wallet data was successfully saved to ";
         title += "Successful: ";
-        method = CClientUIInterface::MessageBoxFlags::MSG_INFORMATION;
+        method = CClientUIInterface::MSG_INFORMATION;
     } else {
         message = "There was an error trying to save the wallet data to ";
         title += "Failed: ";
-        method = CClientUIInterface::MessageBoxFlags::MSG_ERROR;
+        method = CClientUIInterface::MSG_ERROR;
     }
 
     message += _(filename.data());
@@ -726,26 +733,114 @@ static void NotifyWalletBacked(WalletModel* model, const bool& fSuccess, const s
 
 void WalletModel::subscribeToCoreSignals()
 {
-    // Connect signals to wallet
-    wallet->NotifyStatusChanged.connect(boost::bind(&NotifyKeyStoreStatusChanged, this, _1));
-    wallet->NotifyAddressBookChanged.connect(boost::bind(NotifyAddressBookChanged, this, _1, _2, _3, _4, _5, _6));
-    wallet->NotifyTransactionChanged.connect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3));
-    wallet->ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
-    wallet->NotifyWatchonlyChanged.connect(boost::bind(NotifyWatchonlyChanged, this, _1));
-    wallet->NotifyMultiSigChanged.connect(boost::bind(NotifyMultiSigChanged, this, _1));
-    wallet->NotifyWalletBacked.connect(boost::bind(NotifyWalletBacked, this, _1, _2));
+    // KeyStore status changed
+    wallet->NotifyStatusChanged.connect(
+        [this](CCryptoKeyStore* /*wallet*/) {
+            QMetaObject::invokeMethod(this, "updateStatus", Qt::QueuedConnection);
+        });
+
+    // Address book changed
+    wallet->NotifyAddressBookChanged.connect(
+        [this](CWallet* walletIn,
+               const CTxDestination& address,
+               const std::string& label,
+               bool isMine,
+               const std::string& purpose,
+               ChangeType status)
+        {
+            QString strAddress = QString::fromStdString(
+                pwalletMain->ParseIntoAddress(address, purpose).ToString());
+            QString strLabel = QString::fromStdString(label);
+            QString strPurpose = QString::fromStdString(purpose);
+
+            QMetaObject::invokeMethod(this, "updateAddressBook", Qt::QueuedConnection,
+                                      Q_ARG(QString, strAddress),
+                                      Q_ARG(QString, strLabel),
+                                      Q_ARG(bool, isMine),
+                                      Q_ARG(QString, strPurpose),
+                                      Q_ARG(int, status));
+        });
+
+    // Transaction changed
+    wallet->NotifyTransactionChanged.connect(
+        [this](CWallet* /*walletIn*/, const uint256& hash, ChangeType status)
+        {
+            {
+                std::lock_guard<std::mutex> lock(g_queueMutex);
+                if (fQueueNotifications) {
+                    vQueueNotifications.emplace_back(hash, status);
+                    return;
+                }
+            }
+
+            QString strHash = QString::fromStdString(hash.GetHex());
+            QMetaObject::invokeMethod(this, "updateTransaction", Qt::QueuedConnection,
+                                      Q_ARG(QString, strHash),
+                                      Q_ARG(int, status),
+                                      Q_ARG(bool, true));
+        });
+
+    // Show progress
+    wallet->ShowProgress.connect(
+        [this](const std::string& title, int nProgress)
+        {
+            QMetaObject::invokeMethod(this, "showProgress", Qt::QueuedConnection,
+                                      Q_ARG(QString, QString::fromStdString(title)),
+                                      Q_ARG(int, nProgress));
+        });
+
+    // Watch-only changed
+    wallet->NotifyWatchonlyChanged.connect(
+        [this](bool fHaveWatchonly)
+        {
+            QMetaObject::invokeMethod(this, "updateWatchOnlyFlag", Qt::QueuedConnection,
+                                      Q_ARG(bool, fHaveWatchonly));
+        });
+
+    // MultiSig changed
+    wallet->NotifyMultiSigChanged.connect(
+        [this](bool fHaveMultiSig)
+        {
+            QMetaObject::invokeMethod(this, "updateMultiSigFlag", Qt::QueuedConnection,
+                                      Q_ARG(bool, fHaveMultiSig));
+        });
+
+    // Wallet backup result
+    wallet->NotifyWalletBacked.connect(
+        [this](const bool& fSuccess, const std::string& filename)
+        {
+            std::string message;
+            std::string title = "Backup ";
+            CClientUIInterface::MessageBoxFlags method;
+
+            if (fSuccess) {
+                message = "The wallet data was successfully saved to ";
+                title += "Successful: ";
+                method = CClientUIInterface::MSG_INFORMATION;
+            } else {
+                message = "There was an error trying to save the wallet data to ";
+                title += "Failed: ";
+                method = CClientUIInterface::MSG_ERROR;
+            }
+
+            message += _(filename.data());
+
+            QMetaObject::invokeMethod(this, "message", Qt::QueuedConnection,
+                                      Q_ARG(QString, QString::fromStdString(title)),
+                                      Q_ARG(QString, QString::fromStdString(message)),
+                                      Q_ARG(unsigned int, (unsigned int)method));
+        });
 }
 
 void WalletModel::unsubscribeFromCoreSignals()
 {
-    // Disconnect signals from wallet
-    wallet->NotifyStatusChanged.disconnect(boost::bind(&NotifyKeyStoreStatusChanged, this, _1));
-    wallet->NotifyAddressBookChanged.disconnect(boost::bind(NotifyAddressBookChanged, this, _1, _2, _3, _4, _5, _6));
-    wallet->NotifyTransactionChanged.disconnect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3));
-    wallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
-    wallet->NotifyWatchonlyChanged.disconnect(boost::bind(NotifyWatchonlyChanged, this, _1));
-    wallet->NotifyMultiSigChanged.disconnect(boost::bind(NotifyMultiSigChanged, this, _1));
-    wallet->NotifyWalletBacked.disconnect(boost::bind(NotifyWalletBacked, this, _1, _2));
+    wallet->NotifyStatusChanged.disconnect_all_slots();
+    wallet->NotifyAddressBookChanged.disconnect_all_slots();
+    wallet->NotifyTransactionChanged.disconnect_all_slots();
+    wallet->ShowProgress.disconnect_all_slots();
+    wallet->NotifyWatchonlyChanged.disconnect_all_slots();
+    wallet->NotifyMultiSigChanged.disconnect_all_slots();
+    wallet->NotifyWalletBacked.disconnect_all_slots();
 }
 
 // WalletModel::UnlockContext implementation
@@ -753,36 +848,34 @@ WalletModel::UnlockContext WalletModel::requestUnlock()
 {
     const WalletModel::EncryptionStatus status_before = getEncryptionStatus();
     if (status_before == Locked || status_before == UnlockedForStaking)
-    {
-        // Request UI to unlock wallet
         Q_EMIT requireUnlock();
-    }
-    // If wallet is still locked, unlock was failed or cancelled, mark context as invalid
-    bool valid = isWalletUnlocked();
 
+    bool valid = isWalletUnlocked();
     return UnlockContext(this, valid, status_before);
 }
 
-WalletModel::UnlockContext::UnlockContext(WalletModel *_wallet, bool _valid, const WalletModel::EncryptionStatus& status_before):
-        wallet(_wallet),
-        valid(_valid),
-        was_status(status_before),
-        relock(status_before == Locked || status_before == UnlockedForStaking)
+WalletModel::UnlockContext::UnlockContext(WalletModel* _wallet, bool _valid, const WalletModel::EncryptionStatus& status_before) :
+    wallet(_wallet),
+    valid(_valid),
+    was_status(status_before),
+    relock(status_before == Locked || status_before == UnlockedForStaking)
 {
 }
 
 WalletModel::UnlockContext::~UnlockContext()
 {
     if (valid && relock && wallet) {
-        if (was_status == Locked) wallet->setWalletLocked(true);
-        else if (was_status == UnlockedForStaking) wallet->lockForStakingOnly();
+        if (was_status == Locked)
+            wallet->setWalletLocked(true);
+        else if (was_status == UnlockedForStaking)
+            wallet->lockForStakingOnly();
+
         wallet->updateStatus();
     }
 }
 
 void WalletModel::UnlockContext::CopyFrom(UnlockContext&& rhs)
 {
-    // Transfer context; old object no longer relocks wallet
     *this = std::move(rhs);
     rhs.relock = false;
 }
@@ -792,44 +885,53 @@ bool WalletModel::getPubKey(const CKeyID& address, CPubKey& vchPubKeyOut) const
     return wallet->GetPubKey(address, vchPubKeyOut);
 }
 
-int64_t WalletModel::getCreationTime() const {
+int64_t WalletModel::getCreationTime() const
+{
     return wallet->nTimeFirstKey;
 }
 
-int64_t WalletModel::getKeyCreationTime(const CPubKey& key){
+int64_t WalletModel::getKeyCreationTime(const CPubKey& key)
+{
     return pwalletMain->GetKeyCreationTime(key);
 }
 
-int64_t WalletModel::getKeyCreationTime(const CBitcoinAddress& address){
-    if (this->isMine(address)) {
+int64_t WalletModel::getKeyCreationTime(const CBitcoinAddress& address)
+{
+    if (this->isMine(address))
         return pwalletMain->GetKeyCreationTime(address);
-    }
     return 0;
 }
 
-PairResult WalletModel::getNewAddress(CBitcoinAddress& ret, std::string label) const{
+PairResult WalletModel::getNewAddress(CBitcoinAddress& ret, std::string label) const
+{
     return wallet->getNewAddress(ret, label);
 }
 
-PairResult WalletModel::getNewStakingAddress(CBitcoinAddress& ret,std::string label) const{
+PairResult WalletModel::getNewStakingAddress(CBitcoinAddress& ret, std::string label) const
+{
     return wallet->getNewStakingAddress(ret, label);
 }
 
-bool WalletModel::whitelistAddressFromColdStaking(const QString &addressStr) {
+bool WalletModel::whitelistAddressFromColdStaking(const QString& addressStr)
+{
     return updateAddressBookPurpose(addressStr, AddressBook::AddressBookPurpose::DELEGATOR);
 }
 
-bool WalletModel::blacklistAddressFromColdStaking(const QString &addressStr) {
+bool WalletModel::blacklistAddressFromColdStaking(const QString& addressStr)
+{
     return updateAddressBookPurpose(addressStr, AddressBook::AddressBookPurpose::DELEGABLE);
 }
 
-bool WalletModel::updateAddressBookPurpose(const QString &addressStr, const std::string& purpose) {
+bool WalletModel::updateAddressBookPurpose(const QString& addressStr, const std::string& purpose)
+{
     CBitcoinAddress address(addressStr.toStdString());
     if (address.IsStakingAddress())
         return error("Invalid SchillingCoin address, cold staking address");
+
     CKeyID keyID;
     if (!getKeyId(address, keyID))
         return false;
+
     return pwalletMain->SetAddressBook(keyID, getLabelForAddress(address), purpose);
 }
 

@@ -26,11 +26,15 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include <QWindowStateChangeEvent>
+#include <QMessageBox>
 
 #include "util.h"
 
 #include "init.h"
 #include "wallet/wallet.h"
+
+#include <QMetaObject>
+#include <boost/signals2/connection.hpp>
 
 #define BASE_WINDOW_WIDTH 1200
 #define BASE_WINDOW_HEIGHT 740
@@ -42,7 +46,7 @@ const QString SchillingCoinGUI::DEFAULT_WALLET = "~Default";
 
 SchillingCoinGUI::SchillingCoinGUI(const NetworkStyle* networkStyle, QWidget* parent) :
         QMainWindow(parent),
-        clientModel(0){
+        clientModel(nullptr){
 
     /* Open CSS when configured */
     this->setStyleSheet(GUIUtil::loadStyleSheet());
@@ -147,7 +151,7 @@ SchillingCoinGUI::SchillingCoinGUI(const NetworkStyle* networkStyle, QWidget* pa
     {
         // When compiled without wallet or -disablewallet is provided,
         // the central widget is the rpc console.
-        rpcConsole = new RPCConsole(enableWallet ? this : 0);
+        rpcConsole = new RPCConsole(enableWallet ? this : nullptr);
         setCentralWidget(rpcConsole);
     }
 
@@ -399,7 +403,7 @@ void SchillingCoinGUI::message(const QString& title, const QString& message, uns
         }else{
             r = openStandardDialog((title.isEmpty() ? strTitle : title), message, "OK");
         }
-        if (ret != NULL)
+        if (ret != nullptr)
             *ret = r;
     } else if(style & CClientUIInterface::MSG_INFORMATION_SNACK){
         messageInfo(message);
@@ -663,12 +667,70 @@ static bool ThreadSafeMessageBox(SchillingCoinGUI* gui, const std::string& messa
 
 void SchillingCoinGUI::subscribeToCoreSignals()
 {
-    // Connect signals to client
-    uiInterface.ThreadSafeMessageBox.connect(boost::bind(ThreadSafeMessageBox, this, _1, _2, _3));
+    // Connect signals to client using lambdas and store the returned connections in the instance members.
+
+    // ThreadSafeMessageBox: signature (const std::string& message, const std::string& caption, unsigned int style)
+    // The signal expects a bool return value, so the lambda must return bool.
+    m_connThreadSafeMessageBox = uiInterface.ThreadSafeMessageBox.connect(
+        [this](const std::string& message, const std::string& caption, unsigned int style) -> bool {
+            // Reuse the existing helper which already marshals to the GUI thread and returns the modal result.
+            return ThreadSafeMessageBox(this, message, caption, style);
+        }
+    );
+
+    // InitMessage: signature (const std::string& message)
+    m_connInitMessage = uiInterface.InitMessage.connect(
+        [this](const std::string& msg) {
+            QMetaObject::invokeMethod(this, "handleInitMessage", Qt::QueuedConnection,
+                Q_ARG(QString, QString::fromStdString(msg)));
+        }
+    );
+
+    // NotifyNumConnectionsChanged: signature (int)
+    m_connNotifyNumConnectionsChanged = uiInterface.NotifyNumConnectionsChanged.connect(
+        [this](int newNumConnections) {
+            QMetaObject::invokeMethod(this, "setNumConnections", Qt::QueuedConnection,
+                Q_ARG(int, newNumConnections));
+        }
+    );
+
+    // Add other uiInterface connections here following the same pattern,
+    // storing each returned boost::signals2::connection in a member variable.
 }
 
 void SchillingCoinGUI::unsubscribeFromCoreSignals()
 {
-    // Disconnect signals from client
-    uiInterface.ThreadSafeMessageBox.disconnect(boost::bind(ThreadSafeMessageBox, this, _1, _2, _3));
+    // Disconnect signals from client using stored connections.
+    if (m_connThreadSafeMessageBox.connected()) m_connThreadSafeMessageBox.disconnect();
+    if (m_connInitMessage.connected()) m_connInitMessage.disconnect();
+    if (m_connNotifyNumConnectionsChanged.connected()) m_connNotifyNumConnectionsChanged.disconnect();
+
+    // Disconnect any other stored connections similarly.
+}
+
+// Slot implementations to receive marshalled notifications on the Qt thread
+void SchillingCoinGUI::handleInitMessage(const QString& initMsg)
+{
+    // Forward the init message to the GUI message handler on this object.
+    // Use a different parameter name to avoid shadowing the member function name.
+    this->message(QString(), initMsg, CClientUIInterface::MSG_INFORMATION);
+}
+
+void SchillingCoinGUI::handleThreadSafeMessageBox(const QString& message, const QString& caption, unsigned int style)
+{
+    // This slot is provided for completeness if you prefer to marshal to a dedicated slot.
+    // Map style to QMessageBox flags and show message on GUI thread.
+    if (style & CClientUIInterface::MODAL) {
+        // For modal messages, show a blocking dialog
+        openStandardDialog(caption, message, "OK");
+    } else {
+        // Non-modal: use notificator or information box depending on style
+        if (style & CClientUIInterface::ICON_ERROR) {
+            QMessageBox::critical(this, caption, message);
+        } else if (style & CClientUIInterface::ICON_WARNING) {
+            QMessageBox::warning(this, caption, message);
+        } else {
+            QMessageBox::information(this, caption, message);
+        }
+    }
 }

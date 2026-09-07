@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,6 +14,8 @@
 #include <QStackedWidget>
 #include <QSystemTrayIcon>
 #include <QLabel>
+
+#include <boost/signals2/connection.hpp>
 
 #include "qt/schillingcoin/navmenuwidget.h"
 #include "qt/schillingcoin/topbar.h"
@@ -147,6 +149,12 @@ private:
     QLabel *op = nullptr;
     bool opEnabled = false;
 
+    /** Stored connections for deterministic disconnect */
+    boost::signals2::connection m_connThreadSafeMessageBox;
+    boost::signals2::connection m_connInitMessage;
+    boost::signals2::connection m_connNotifyNumConnectionsChanged;
+    // Add other connection members here if you connect additional uiInterface signals
+
     /** Create the main UI actions. */
     void createActions(const NetworkStyle* networkStyle);
     /** Create system tray icon and notification */
@@ -176,6 +184,10 @@ private Q_SLOTS:
     /** Handle tray icon clicked */
     void trayIconActivated(QSystemTrayIcon::ActivationReason reason);
 #endif
+
+    /** Slots to receive marshalled core notifications on the Qt thread */
+    void handleInitMessage(const QString& message);
+    void handleThreadSafeMessageBox(const QString& message, const QString& caption, unsigned int style);
 
 Q_SIGNALS:
     /** Signal raised when a URI was entered or dragged to the GUI */

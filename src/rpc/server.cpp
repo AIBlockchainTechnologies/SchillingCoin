@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,7 +17,7 @@
 #include "util.h"
 #include "utilstrencodings.h"
 
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/iostreams/concepts.hpp>
 #include <boost/iostreams/stream.hpp>
@@ -28,6 +28,7 @@
 
 #include <univalue.h>
 
+using namespace boost::placeholders;
 
 static bool fRPCRunning = false;
 static bool fRPCInWarmup = true;
@@ -60,12 +61,12 @@ void RPCServer::OnStopped(boost::function<void ()> slot)
 
 void RPCServer::OnPreCommand(boost::function<void (const CRPCCommand&)> slot)
 {
-    g_rpcSignals.PreCommand.connect(boost::bind(slot, _1));
+    g_rpcSignals.PreCommand.connect(slot);
 }
 
 void RPCServer::OnPostCommand(boost::function<void (const CRPCCommand&)> slot)
 {
-    g_rpcSignals.PostCommand.connect(boost::bind(slot, _1));
+    g_rpcSignals.PostCommand.connect(slot);
 }
 
 void RPCTypeCheck(const UniValue& params,
@@ -609,7 +610,7 @@ std::vector<std::string> CRPCTable::listCommands() const
 
     std::transform( mapCommands.begin(), mapCommands.end(),
                    std::back_inserter(commandList),
-                   boost::bind(&commandMap::value_type::first,_1) );
+                   boost::bind(&commandMap::value_type::first, _1) );
     return commandList;
 }
 

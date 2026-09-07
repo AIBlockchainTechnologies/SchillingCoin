@@ -1,6 +1,6 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2017-2018 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -50,7 +50,7 @@ public:
     };
 
 protected:
-    virtual bool eventFilter(QObject* obj, QEvent* event);
+    virtual bool eventFilter(QObject* obj, QEvent* event) override;
 
 private Q_SLOTS:
     void on_lineEdit_returnPressed();
@@ -61,9 +61,9 @@ private Q_SLOTS:
     void on_sldGraphRange_valueChanged(int value);
     /** update traffic statistics */
     void updateTrafficStats(quint64 totalBytesIn, quint64 totalBytesOut);
-    void resizeEvent(QResizeEvent* event);
-    void showEvent(QShowEvent* event);
-    void hideEvent(QHideEvent* event);
+    void resizeEvent(QResizeEvent* event) override;
+    void showEvent(QShowEvent* event) override;
+    void hideEvent(QHideEvent* event) override;
     /** Show custom context menu on Peers tab */
     void showPeersTableContextMenu(const QPoint& point);
     /** Show custom context menu on Bans tab */
@@ -86,7 +86,7 @@ public Q_SLOTS:
     void walletResync();
     void walletUpgradeToHd();
 
-    void reject();
+    void reject() override;
     void message(int category, const QString& message, bool html = false);
     /** Set number of connections shown in the UI */
     void setNumConnections(int count);

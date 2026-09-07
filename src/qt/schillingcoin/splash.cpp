@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -32,8 +32,8 @@ Splash::Splash(Qt::WindowFlags f, const NetworkStyle* networkStyle) :
     setWindowTitle(titleText + " " + titleAddText);
 
     this->setStyleSheet(GUIUtil::loadStyleSheet());
-    this->setAttribute( Qt::WA_TranslucentBackground, true );
-    ui->progressBar->setAttribute( Qt::WA_TranslucentBackground, true );
+    this->setAttribute(Qt::WA_TranslucentBackground, true);
+    ui->progressBar->setAttribute(Qt::WA_TranslucentBackground, true);
 
     ui->progressBar->setTextVisible(false);
     ui->progressBar->setMaximum(0);
@@ -53,17 +53,20 @@ Splash::Splash(Qt::WindowFlags f, const NetworkStyle* networkStyle) :
     subscribeToCoreSignals();
 }
 
-Splash::~Splash(){
+Splash::~Splash()
+{
     unsubscribeFromCoreSignals();
     delete ui;
 }
 
-void Splash::slotFinish(QWidget* mainWin){
+void Splash::slotFinish(QWidget* mainWin)
+{
     Q_UNUSED(mainWin);
     hide();
 }
 
-static void InitMessage(Splash* splash, const std::string& message){
+static void InitMessage(Splash* splash, const std::string& message)
+{
     QMetaObject::invokeMethod(splash, "showMessage",
                               Qt::QueuedConnection,
                               Q_ARG(QString, QString::fromStdString(message)),
@@ -71,40 +74,65 @@ static void InitMessage(Splash* splash, const std::string& message){
                               Q_ARG(QColor, QColor(100, 100, 100)));
 }
 
-static void ShowProgress(Splash* splash, const std::string& title, int nProgress){
+static void ShowProgress(Splash* splash, const std::string& title, int nProgress)
+{
     InitMessage(splash, title + strprintf("%d", nProgress) + "%");
 }
 
 #ifdef ENABLE_WALLET
-static void ConnectWallet(Splash* splash, CWallet* wallet){
-    wallet->ShowProgress.connect(boost::bind(ShowProgress, splash, _1, _2));
+static void ConnectWallet(Splash* splash, CWallet* wallet)
+{
+    // Connect the wallet's ShowProgress signal using a lambda (modern C++)
+    wallet->ShowProgress.connect(
+        [splash](const std::string& title, int nProgress) {
+            ShowProgress(splash, title, nProgress);
+        });
 }
 #endif
 
-void Splash::subscribeToCoreSignals(){
-    // Connect signals to client
-    uiInterface.InitMessage.connect(boost::bind(InitMessage, this, _1));
-    uiInterface.ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
+void Splash::subscribeToCoreSignals()
+{
+    // Connect signals to client using lambdas instead of boost::bind
+    uiInterface.InitMessage.connect(
+        [this](const std::string& message) {
+            InitMessage(this, message);
+        });
+
+    uiInterface.ShowProgress.connect(
+        [this](const std::string& title, int nProgress) {
+            ShowProgress(this, title, nProgress);
+        });
+
 #ifdef ENABLE_WALLET
-    uiInterface.LoadWallet.connect(boost::bind(ConnectWallet, this, _1));
+    uiInterface.LoadWallet.connect(
+        [this](CWallet* wallet) {
+            ConnectWallet(this, wallet);
+        });
 #endif
 }
 
-void Splash::unsubscribeFromCoreSignals(){
+void Splash::unsubscribeFromCoreSignals()
+{
     // Disconnect signals from client
-    uiInterface.InitMessage.disconnect(boost::bind(InitMessage, this, _1));
-    uiInterface.ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+    uiInterface.InitMessage.disconnect_all_slots();
+    uiInterface.ShowProgress.disconnect_all_slots();
+
 #ifdef ENABLE_WALLET
-    if (pwalletMain)
-        pwalletMain->ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+    if (pwalletMain) {
+        pwalletMain->ShowProgress.disconnect_all_slots();
+    }
 #endif
 }
 
-void Splash::showMessage(const QString& message, int alignment, const QColor& color){
+void Splash::showMessage(const QString& message, int alignment, const QColor& color)
+{
+    Q_UNUSED(alignment);
+    Q_UNUSED(color);
     ui->lblMessage->setText(message);
 }
 
-void Splash::closeEvent(QCloseEvent* event){
+void Splash::closeEvent(QCloseEvent* event)
+{
     StartShutdown(); // allows an "emergency" shutdown during startup
     event->ignore();
 }

@@ -1,4 +1,5 @@
 // Copyright (c) 2015 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,47 +10,171 @@
 #include <stdint.h>
 #include <functional>
 
-static const int DEFAULT_HTTP_THREADS=4;
-static const int DEFAULT_HTTP_WORKQUEUE=16;
-static const int DEFAULT_HTTP_SERVER_TIMEOUT=30;
+#include <deque>
+#include <memory>
+#include <mutex>
+#include <condition_variable>
+#include <type_traits>
+#include <utility>
+#include <exception>
+#include <cassert>
+
+#include "util.h" // Ensure logging macros (LogPrintf / LogPrint) are visible to templates
+
+static const int DEFAULT_HTTP_THREADS = 4;
+static const int DEFAULT_HTTP_WORKQUEUE = 16;
+static const int DEFAULT_HTTP_SERVER_TIMEOUT = 30;
 
 struct evhttp_request;
 struct event_base;
+struct event;
+struct timeval;
 class CService;
 class HTTPRequest;
 
-/** Initialize HTTP server.
- * Call this before RegisterHTTPHandler or EventBase().
+/**
+ * WorkQueue template used by the HTTP server.
+ *
+ * - Template definitions must be header-visible to avoid two-phase lookup issues.
+ * - Uses std::unique_ptr for ownership of work items to avoid manual new/delete.
+ * - Uses explicit member names (m_ prefix) for clarity and to avoid dependent-name lookup pitfalls.
+ * - Uses condition_variable::wait with a predicate to avoid spurious-wake races.
+ *
+ * API contract:
+ * - Enqueue(std::unique_ptr<T>&) accepts a unique_ptr to a type T that derives from WorkItem.
+ *   Ownership is transferred into the queue only on success; on failure the caller retains ownership.
+ * - Enqueue(std::unique_ptr<WorkItem>) accepts a moved unique_ptr<WorkItem> and transfers ownership on success.
+ *
+ * Notes:
+ * - This class is non-copyable and non-movable.
+ * - Enqueue overloads are exception-safe: ownership is transferred into a temporary unique_ptr<WorkItem>
+ *   before pushing into the container so that if push_back throws the pointer is still managed.
  */
+template <typename WorkItem>
+class WorkQueue
+{
+private:
+    std::mutex m_mutex;
+    std::condition_variable m_cond;
+    std::deque<std::unique_ptr<WorkItem>> m_queue;
+    bool m_running;
+    size_t m_maxDepth;
+    int m_numThreads;
+
+    // Non-copyable, non-movable
+    WorkQueue(const WorkQueue&) = delete;
+    WorkQueue& operator=(const WorkQueue&) = delete;
+    WorkQueue(WorkQueue&&) = delete;
+    WorkQueue& operator=(WorkQueue&&) = delete;
+
+    class ThreadCounter {
+    public:
+        WorkQueue &wq;
+        ThreadCounter(WorkQueue &w): wq(w) {
+            std::lock_guard<std::mutex> lock(wq.m_mutex);
+            ++wq.m_numThreads;
+        }
+        ~ThreadCounter() {
+            std::lock_guard<std::mutex> lock(wq.m_mutex);
+            --wq.m_numThreads;
+            wq.m_cond.notify_all();
+        }
+    };
+
+public:
+    explicit WorkQueue(size_t maxDepth)
+        : m_mutex(), m_cond(), m_queue(), m_running(true), m_maxDepth(maxDepth), m_numThreads(0) {}
+    ~WorkQueue() {
+        Interrupt();
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_queue.clear();
+    }
+
+    /**
+     * Enqueue overload for derived work item types.
+     * Accepts a reference to std::unique_ptr<T> where T must derive from WorkItem.
+     * On success ownership is transferred (item becomes null). On failure item remains owned by caller.
+     */
+    template <typename T>
+    bool Enqueue(std::unique_ptr<T> &item) {
+        static_assert(std::is_base_of<WorkItem, T>::value, "T must derive from WorkItem");
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (m_queue.size() >= m_maxDepth) {
+            return false; // caller retains ownership
+        }
+        // Exception-safe transfer: create a temporary unique_ptr<WorkItem> that will clean up if push_back throws.
+        std::unique_ptr<WorkItem> tmp(static_cast<WorkItem*>(item.release()));
+        m_queue.push_back(std::move(tmp));
+        m_cond.notify_one();
+        return true;
+    }
+
+    /**
+     * Enqueue overload that accepts a unique_ptr<WorkItem> by value (move).
+     * On failure the passed-in unique_ptr will be destroyed by the caller's context (it is moved).
+     */
+    bool Enqueue(std::unique_ptr<WorkItem> item) {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        if (m_queue.size() >= m_maxDepth) return false;
+        m_queue.push_back(std::move(item));
+        m_cond.notify_one();
+        return true;
+    }
+
+    // Worker thread main loop
+    void Run() {
+        ThreadCounter count(*this);
+        while (true) {
+            std::unique_ptr<WorkItem> item;
+            {
+                std::unique_lock<std::mutex> lock(m_mutex);
+                m_cond.wait(lock, [this]{ return !m_running || !m_queue.empty(); });
+                if (!m_running && m_queue.empty()) break;
+                item = std::move(m_queue.front());
+                m_queue.pop_front();
+            }
+            if (item) {
+                try {
+                    (*item)();
+                } catch (const std::exception& e) {
+                    // util.h provides LogPrintf; include it above so this compiles at template instantiation sites.
+                    LogPrintf("WorkQueue worker caught exception: %s\n", e.what());
+                } catch (...) {
+                    LogPrintf("WorkQueue worker caught unknown exception\n");
+                }
+            }
+        }
+    }
+
+    void Interrupt() {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_running = false;
+        m_cond.notify_all();
+    }
+
+    void WaitExit() {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_cond.wait(lock, [this]{ return m_numThreads == 0; });
+    }
+
+    size_t Depth() const noexcept {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        return m_queue.size();
+    }
+};
+
+/// HTTP server API declarations follow (unchanged)
 bool InitHTTPServer();
-/** Start HTTP server.
- * This is separate from InitHTTPServer to give users race-condition-free time
- * to register their handlers between InitHTTPServer and StartHTTPServer.
- */
 bool StartHTTPServer();
-/** Interrupt HTTP server threads */
 void InterruptHTTPServer();
-/** Stop HTTP server */
 void StopHTTPServer();
 
-/** Handler for requests to a certain HTTP path */
 typedef std::function<void(HTTPRequest* req, const std::string &)> HTTPRequestHandler;
-/** Register handler for prefix.
- * If multiple handlers match a prefix, the first-registered one will
- * be invoked.
- */
 void RegisterHTTPHandler(const std::string &prefix, bool exactMatch, const HTTPRequestHandler &handler);
-/** Unregister handler for prefix */
 void UnregisterHTTPHandler(const std::string &prefix, bool exactMatch);
 
-/** Return evhttp event base. This can be used by submodules to
- * queue timers or custom events.
- */
 struct event_base* EventBase();
 
-/** In-flight HTTP request.
- * Thin C++ wrapper around evhttp_request.
- */
 class HTTPRequest
 {
 private:
@@ -68,52 +193,15 @@ public:
         PUT
     };
 
-    /** Get requested URI.
-     */
     std::string GetURI();
-
-    /** Get CService (address:ip) for the origin of the http request.
-     */
     CService GetPeer();
-
-    /** Get request method.
-     */
     RequestMethod GetRequestMethod();
-
-    /**
-     * Get the request header specified by hdr, or an empty string.
-     * Return an pair (isPresent,std::string).
-     */
     std::pair<bool, std::string> GetHeader(const std::string& hdr);
-
-    /**
-     * Read request body.
-     *
-     * @note As this consumes the underlying buffer, call this only once.
-     * Repeated calls will return an empty string.
-     */
     std::string ReadBody();
-
-    /**
-     * Write output header.
-     *
-     * @note call this before calling WriteErrorReply or Reply.
-     */
     void WriteHeader(const std::string& hdr, const std::string& value);
-
-    /**
-     * Write HTTP reply.
-     * nStatus is the HTTP status code to send.
-     * strReply is the body of the reply. Keep it empty to send a standard message.
-     *
-     * @note Can be called only once. As this will give the request back to the
-     * main thread, do not call any other HTTPRequest methods after calling this.
-     */
     void WriteReply(int nStatus, const std::string& strReply = "");
 };
 
-/** Event handler closure.
- */
 class HTTPClosure
 {
 public:
@@ -121,21 +209,11 @@ public:
     virtual ~HTTPClosure() {}
 };
 
-/** Event class. This can be used either as an cross-thread trigger or as a timer.
- */
 class HTTPEvent
 {
 public:
-    /** Create a new event.
-     * deleteWhenTriggered deletes this event object after the event is triggered (and the handler called)
-     * handler is the handler to call when the event is triggered.
-     */
     HTTPEvent(struct event_base* base, bool deleteWhenTriggered, const std::function<void(void)>& handler);
     ~HTTPEvent();
-
-    /** Trigger the event. If tv is 0, trigger it immediately. Otherwise trigger it after
-     * the given time has elapsed.
-     */
     void trigger(struct timeval* tv);
 
     bool deleteWhenTriggered;

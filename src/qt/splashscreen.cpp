@@ -1,7 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -22,6 +22,17 @@
 #include <QCloseEvent>
 #include <QDesktopWidget>
 #include <QPainter>
+
+#include <map>
+#include <boost/signals2/connection.hpp>
+
+// File-scope connections so we can disconnect deterministically in unsubscribe
+static boost::signals2::connection g_connInitMessage;
+static boost::signals2::connection g_connShowProgress;
+static boost::signals2::connection g_connLoadWallet;
+#ifdef ENABLE_WALLET
+static std::map<CWallet*, boost::signals2::connection> g_wallet_connections;
+#endif
 
 SplashScreen::SplashScreen(Qt::WindowFlags f, const NetworkStyle* networkStyle) : QWidget(0, f), curAlignment(0)
 {
@@ -126,28 +137,48 @@ static void ShowProgress(SplashScreen* splash, const std::string& title, int nPr
 #ifdef ENABLE_WALLET
 static void ConnectWallet(SplashScreen* splash, CWallet* wallet)
 {
-    wallet->ShowProgress.connect(boost::bind(ShowProgress, splash, _1, _2));
+    // Connect the wallet's ShowProgress signal and store the connection so we can disconnect later.
+    auto conn = wallet->ShowProgress.connect([splash](const std::string& title, int nProgress) {
+        ShowProgress(splash, title, nProgress);
+    });
+    g_wallet_connections[wallet] = conn;
 }
 #endif
 
 void SplashScreen::subscribeToCoreSignals()
 {
-    // Connect signals to client
-    uiInterface.InitMessage.connect(boost::bind(InitMessage, this, _1));
-    uiInterface.ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
+    // Connect signals to client and store connections for deterministic disconnect later.
+    g_connInitMessage = uiInterface.InitMessage.connect([this](const std::string& message) {
+        InitMessage(this, message);
+    });
+
+    g_connShowProgress = uiInterface.ShowProgress.connect([this](const std::string& title, int nProgress) {
+        ShowProgress(this, title, nProgress);
+    });
+
 #ifdef ENABLE_WALLET
-    uiInterface.LoadWallet.connect(boost::bind(ConnectWallet, this, _1));
+    g_connLoadWallet = uiInterface.LoadWallet.connect([this](CWallet* wallet) {
+        ConnectWallet(this, wallet);
+    });
 #endif
 }
 
 void SplashScreen::unsubscribeFromCoreSignals()
 {
-    // Disconnect signals from client
-    uiInterface.InitMessage.disconnect(boost::bind(InitMessage, this, _1));
-    uiInterface.ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+    // Disconnect signals from client using stored connections.
+    if (g_connInitMessage.connected()) g_connInitMessage.disconnect();
+    if (g_connShowProgress.connected()) g_connShowProgress.disconnect();
 #ifdef ENABLE_WALLET
-    if (pwalletMain)
-        pwalletMain->ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+    if (g_connLoadWallet.connected()) g_connLoadWallet.disconnect();
+
+    // Disconnect any wallet ShowProgress connections we stored
+    for (auto &entry : g_wallet_connections) {
+        if (entry.second.connected()) entry.second.disconnect();
+    }
+    g_wallet_connections.clear();
+#else
+    // If wallet support is not compiled in, ensure any previous connections are cleared.
+    if (g_connLoadWallet.connected()) g_connLoadWallet.disconnect();
 #endif
 }
 

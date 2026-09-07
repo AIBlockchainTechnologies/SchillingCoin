@@ -1,7 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -25,7 +25,7 @@
 #include "askpassphrasedialog.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
-#endif // ENABLE_WALLET
+#endif
 
 #include <univalue.h>
 
@@ -43,16 +43,10 @@
 #include <QTimer>
 #include <QStringList>
 
-// TODO: add a scrollback limit, as there is currently none
-// TODO: make it possible to filter out categories (esp debug messages when implemented)
-// TODO: receive errors and debug messages through ClientModel
-
 const int CONSOLE_HISTORY = 50;
 const QSize ICON_SIZE(24, 24);
-
 const int INITIAL_TRAFFIC_GRAPH_MINS = 30;
 
-// Repair parameters
 const QString SALVAGEWALLET("-salvagewallet");
 const QString RESCAN("-rescan");
 const QString ZAPTXES1("-zapwallettxes=1");
@@ -69,49 +63,61 @@ const struct {
     {"cmd-reply", ":/icons/tx_output"},
     {"cmd-error", ":/icons/tx_output"},
     {"misc", ":/icons/tx_inout"},
-    {NULL, NULL}};
+    {NULL, NULL}
+};
 
-/* Object for executing console RPC commands in a separate thread.
-*/
+/* Object for executing console RPC commands in a separate thread. */
 class RPCExecutor : public QObject
 {
     Q_OBJECT
-
 public Q_SLOTS:
     void request(const QString& command);
-
 Q_SIGNALS:
     void reply(int category, const QString& command);
 };
 
-/** Class for handling RPC timers
- * (used for e.g. re-locking the wallet after a timeout)
- */
-class QtRPCTimerBase: public QObject, public RPCTimerBase
+/** Qt RPC timer implementation */
+class QtRPCTimerBase : public QObject, public RPCTimerBase
 {
     Q_OBJECT
 public:
-    QtRPCTimerBase(boost::function<void(void)>& func, int64_t millis):
-        func(func)
+    QtRPCTimerBase(const boost::function<void(void)>& func, int64_t millis)
+        : QObject(), m_func(func)
     {
         timer.setSingleShot(true);
-        connect(&timer, SIGNAL(timeout()), this, SLOT(timeout()));
-        timer.start(millis);
+        connect(&timer, &QTimer::timeout, this, &QtRPCTimerBase::timeout);
+        timer.start(static_cast<int>(millis));
     }
-    ~QtRPCTimerBase() {}
+
+    ~QtRPCTimerBase() override {}
+
+    void cancel()   // NO override
+    {
+        timer.stop();
+    }
+
 private Q_SLOTS:
-    void timeout() { func(); }
+    void timeout()
+    {
+        try {
+            if (m_func) m_func();
+        } catch (...) {}
+    }
+
 private:
     QTimer timer;
-    boost::function<void(void)> func;
+    boost::function<void(void)> m_func;
 };
 
-class QtRPCTimerInterface: public RPCTimerInterface
+class QtRPCTimerInterface : public RPCTimerInterface
 {
 public:
-    ~QtRPCTimerInterface() {}
-    const char *Name() { return "Qt"; }
-    RPCTimerBase* NewTimer(boost::function<void(void)>& func, int64_t millis)
+    QtRPCTimerInterface() = default;
+    ~QtRPCTimerInterface() override = default;
+
+    const char* Name() override { return "Qt"; }
+
+    RPCTimerBase* NewTimer(const boost::function<void(void)>& func, int64_t millis) override
     {
         return new QtRPCTimerBase(func, millis);
     }
@@ -120,18 +126,7 @@ public:
 #include "rpcconsole.moc"
 
 /**
- * Split shell command line into a list of arguments. Aims to emulate \c bash and friends.
- *
- * - Arguments are delimited with whitespace
- * - Extra whitespace at the beginning and end and between arguments will be ignored
- * - Text can be "double" or 'single' quoted
- * - The backslash \c \ is used as escape character
- *   - Outside quotes, any character can be escaped
- *   - Within double quotes, only escape \c " and backslashes before a \c " or another backslash
- *   - Within single quotes, no escaping is possible and no special interpretation takes place
- *
- * @param[out]   args        Parsed arguments will be appended to this list
- * @param[in]    strCommand  Command line to split
+ * Split shell command line into a list of arguments.
  */
 bool parseCommandLine(std::vector<std::string>& args, const std::string& strCommand)
 {
@@ -143,26 +138,20 @@ bool parseCommandLine(std::vector<std::string>& args, const std::string& strComm
         STATE_ESCAPE_OUTER,
         STATE_ESCAPE_DOUBLEQUOTED
     } state = STATE_EATING_SPACES;
+
     std::string curarg;
-    Q_FOREACH (char ch, strCommand) {
+    Q_FOREACH(char ch, strCommand) {
         switch (state) {
-        case STATE_ARGUMENT:      // In or after argument
-        case STATE_EATING_SPACES: // Handle runs of whitespace
+        case STATE_ARGUMENT:
+        case STATE_EATING_SPACES:
             switch (ch) {
-            case '"':
-                state = STATE_DOUBLEQUOTED;
-                break;
-            case '\'':
-                state = STATE_SINGLEQUOTED;
-                break;
-            case '\\':
-                state = STATE_ESCAPE_OUTER;
-                break;
+            case '"': state = STATE_DOUBLEQUOTED; break;
+            case '\'': state = STATE_SINGLEQUOTED; break;
+            case '\\': state = STATE_ESCAPE_OUTER; break;
             case ' ':
             case '\n':
             case '\t':
-                if (state == STATE_ARGUMENT) // Space ends argument
-                {
+                if (state == STATE_ARGUMENT) {
                     args.push_back(curarg);
                     curarg.clear();
                 }
@@ -173,48 +162,37 @@ bool parseCommandLine(std::vector<std::string>& args, const std::string& strComm
                 state = STATE_ARGUMENT;
             }
             break;
-        case STATE_SINGLEQUOTED: // Single-quoted string
-            switch (ch) {
-            case '\'':
-                state = STATE_ARGUMENT;
-                break;
-            default:
-                curarg += ch;
-            }
+
+        case STATE_SINGLEQUOTED:
+            if (ch == '\'') state = STATE_ARGUMENT;
+            else curarg += ch;
             break;
-        case STATE_DOUBLEQUOTED: // Double-quoted string
-            switch (ch) {
-            case '"':
-                state = STATE_ARGUMENT;
-                break;
-            case '\\':
-                state = STATE_ESCAPE_DOUBLEQUOTED;
-                break;
-            default:
-                curarg += ch;
-            }
+
+        case STATE_DOUBLEQUOTED:
+            if (ch == '"') state = STATE_ARGUMENT;
+            else if (ch == '\\') state = STATE_ESCAPE_DOUBLEQUOTED;
+            else curarg += ch;
             break;
-        case STATE_ESCAPE_OUTER: // '\' outside quotes
+
+        case STATE_ESCAPE_OUTER:
             curarg += ch;
             state = STATE_ARGUMENT;
             break;
-        case STATE_ESCAPE_DOUBLEQUOTED:                  // '\' in double-quoted text
-            if (ch != '"' && ch != '\\') curarg += '\\'; // keep '\' for everything but the quote and '\' itself
+
+        case STATE_ESCAPE_DOUBLEQUOTED:
+            if (ch != '"' && ch != '\\') curarg += '\\';
             curarg += ch;
             state = STATE_DOUBLEQUOTED;
             break;
         }
     }
-    switch (state) // final state
-    {
-    case STATE_EATING_SPACES:
-        return true;
-    case STATE_ARGUMENT:
+
+    if (state == STATE_ARGUMENT) {
         args.push_back(curarg);
         return true;
-    default: // ERROR to end in one of the other states
-        return false;
     }
+
+    return state == STATE_EATING_SPACES;
 }
 
 void RPCExecutor::request(const QString& command)
@@ -225,16 +203,15 @@ void RPCExecutor::request(const QString& command)
         return;
     }
     if (args.empty())
-        return; // Nothing to do
+        return;
+
     try {
         std::string strPrint;
-        // Convert argument list to JSON objects in method-dependent way,
-        // and pass it along with the method name to the dispatcher.
+
         UniValue result = tableRPC.execute(
             args[0],
             RPCConvertValues(args[0], std::vector<std::string>(args.begin() + 1, args.end())));
 
-        // Format result reply
         if (result.isNull())
             strPrint = "";
         else if (result.isStr())
@@ -243,18 +220,21 @@ void RPCExecutor::request(const QString& command)
             strPrint = result.write(2);
 
         Q_EMIT reply(RPCConsole::CMD_REPLY, QString::fromStdString(strPrint));
+
     } catch (const UniValue& objError) {
-        try // Nice formatting for standard-format error
-        {
+        try {
             int code = find_value(objError, "code").get_int();
             std::string message = find_value(objError, "message").get_str();
-            Q_EMIT reply(RPCConsole::CMD_ERROR, QString::fromStdString(message) + " (code " + QString::number(code) + ")");
-        } catch (const std::runtime_error&) // raised when converting to invalid type, i.e. missing code or message
-        {                             // Show raw JSON object
-            Q_EMIT reply(RPCConsole::CMD_ERROR, QString::fromStdString(objError.write()));
+            Q_EMIT reply(RPCConsole::CMD_ERROR,
+                         QString::fromStdString(message) +
+                         " (code " + QString::number(code) + ")");
+        } catch (...) {
+            Q_EMIT reply(RPCConsole::CMD_ERROR,
+                         QString::fromStdString(objError.write()));
         }
     } catch (const std::exception& e) {
-        Q_EMIT reply(RPCConsole::CMD_ERROR, QString("Error: ") + QString::fromStdString(e.what()));
+        Q_EMIT reply(RPCConsole::CMD_ERROR,
+                     QString("Error: ") + QString::fromStdString(e.what()));
     }
 }
 
@@ -296,7 +276,7 @@ RPCConsole::RPCConsole(QWidget* parent) : QDialog(parent, Qt::WindowSystemMenuHi
     std::string strPathCustom = GetArg("-backuppath", "");
     int nCustomBackupThreshold = GetArg("-custombackupthreshold", DEFAULT_CUSTOMBACKUPTHRESHOLD);
 
-    if(!strPathCustom.empty()) {
+    if (!strPathCustom.empty()) {
         ui->wallet_custombackuppath->setText(QString::fromStdString(strPathCustom));
         ui->wallet_custombackuppath_label->show();
         ui->wallet_custombackuppath->show();
@@ -310,10 +290,10 @@ RPCConsole::RPCConsole(QWidget* parent) : QDialog(parent, Qt::WindowSystemMenuHi
     ui->berkeleyDBVersion->setText(DbEnv::version(0, 0, 0));
     ui->wallet_path->setText(QString::fromStdString(GetDataDir().string() + QDir::separator().toLatin1() + GetArg("-wallet", "wallet.dat")));
 #else
-
     ui->label_berkeleyDBVersion->hide();
     ui->berkeleyDBVersion->hide();
 #endif
+
     // Register RPC timer interface
     rpcTimerInterface = new QtRPCTimerInterface();
     // avoid accidentally overwriting an existing, non QTThread
@@ -513,19 +493,15 @@ void RPCConsole::setWalletModel(WalletModel* walletModel)
     this->walletModel = walletModel;
 }
 
-
 static QString categoryClass(int category)
 {
     switch (category) {
     case RPCConsole::CMD_REQUEST:
         return "cmd-request";
-        break;
     case RPCConsole::CMD_REPLY:
         return "cmd-reply";
-        break;
     case RPCConsole::CMD_ERROR:
         return "cmd-error";
-        break;
     default:
         return "misc";
     }
@@ -571,9 +547,9 @@ void RPCConsole::walletReindex()
 void RPCConsole::walletResync()
 {
     QString resyncWarning = tr("This will delete your local blockchain folders and the wallet will synchronize the complete Blockchain from scratch.<br /><br />");
-        resyncWarning +=   tr("This needs quite some time and downloads a lot of data.<br /><br />");
-        resyncWarning +=   tr("Your transactions and funds will be visible again after the download has completed.<br /><br />");
-        resyncWarning +=   tr("Do you want to continue?.<br />");
+    resyncWarning += tr("This needs quite some time and downloads a lot of data.<br /><br />");
+    resyncWarning += tr("Your transactions and funds will be visible again after the download has completed.<br /><br />");
+    resyncWarning += tr("Do you want to continue?.<br />");
     QMessageBox::StandardButton retval = QMessageBox::question(this, tr("Confirm resync Blockchain"),
         resyncWarning,
         QMessageBox::Yes | QMessageBox::Cancel,
@@ -592,16 +568,16 @@ void RPCConsole::walletResync()
 void RPCConsole::walletUpgradeToHd()
 {
     QString upgradeWarning = tr("This will convert you non-HD wallet to a HD wallet<br /><br />");
-    upgradeWarning +=   tr("Make sure to make a backup of your wallet ahead of time<br /><br />");
-    upgradeWarning +=   tr("You shouldn't force close the wallet while this is running<br /><br />");
-    upgradeWarning +=   tr("Do you want to continue?.<br />");
+    upgradeWarning += tr("Make sure to make a backup of your wallet ahead of time<br /><br />");
+    upgradeWarning += tr("You shouldn't force close the wallet while this is running<br /><br />");
+    upgradeWarning += tr("Do you want to continue?.<br />");
     QMessageBox::StandardButton retval = QMessageBox::question(this, tr("Confirm upgrade to HD wallet"),
                                                                upgradeWarning,
                                                                QMessageBox::Yes | QMessageBox::Cancel,
                                                                QMessageBox::Cancel);
 
     if (retval != QMessageBox::Yes) {
-        // Resync canceled
+        // Upgrade canceled
         return;
     }
 
@@ -628,8 +604,9 @@ void RPCConsole::walletUpgradeToHd()
         LogPrintf("Performing wallet upgrade to %i\n", FEATURE_LATEST);
         nMaxVersion = CLIENT_VERSION;
         pwalletMain->SetMinVersion(FEATURE_LATEST); // permanently upgrade the wallet immediately
-    } else
+    } else {
         LogPrintf("Allowing wallet upgrade up to %i\n", nMaxVersion);
+    }
     if (nMaxVersion < pwalletMain->GetVersion()) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Cannot downgrade wallet");
     }
@@ -638,7 +615,7 @@ void RPCConsole::walletUpgradeToHd()
 
     // Do not upgrade versions to any version between HD_SPLIT and FEATURE_PRE_SPLIT_KEYPOOL unless already supporting HD_SPLIT
     int max_version = pwalletMain->GetVersion();
-    if (!pwalletMain->CanSupportFeature(FEATURE_HD) && max_version >=FEATURE_HD && max_version < FEATURE_PRE_SPLIT_KEYPOOL) {
+    if (!pwalletMain->CanSupportFeature(FEATURE_HD) && max_version >= FEATURE_HD && max_version < FEATURE_PRE_SPLIT_KEYPOOL) {
         throw JSONRPCError(RPC_WALLET_ERROR, "Cannot upgrade a non HD split wallet without upgrading to support pre split keypool. Please use -upgradewallet=169900 or -upgradewallet with no version specified.");
     }
 
@@ -685,16 +662,14 @@ void RPCConsole::walletUpgradeToHd()
     }
 
     buildParameterlist(RESCAN);
-
 }
-
 
 /** Build command-line parameter list for restart */
 void RPCConsole::buildParameterlist(QString arg)
 {
     // Get command-line arguments and remove the application name
     QStringList args = QApplication::arguments();
-    args.removeFirst();
+    if (!args.isEmpty()) args.removeFirst();
 
     // Remove existing repair-options
     args.removeAll(SALVAGEWALLET);
@@ -755,7 +730,7 @@ void RPCConsole::clear()
 
 void RPCConsole::reject()
 {
-    // Ignore escape keypress if this is not a seperate window
+    // Ignore escape keypress if this is not a separate window
     if (windowType() != Qt::Widget)
         QDialog::reject();
 }
@@ -1097,7 +1072,7 @@ void RPCConsole::showPeersTableContextMenu(const QPoint& point)
 {
     QModelIndex index = ui->peerWidget->indexAt(point);
     if (index.isValid())
-    peersTableContextMenu->exec(QCursor::pos());
+        peersTableContextMenu->exec(QCursor::pos());
 }
 
 void RPCConsole::showBanTableContextMenu(const QPoint& point)
@@ -1112,7 +1087,7 @@ void RPCConsole::disconnectSelectedNode()
     // Get currently selected peer address
     QString strNode = GUIUtil::getEntryData(ui->peerWidget, 0, PeerTableModel::Address);
     // Find the node, disconnect it and clear the selected node
-    if (CNode *bannedNode = FindNode(strNode.toStdString())) {
+    if (CNode* bannedNode = FindNode(strNode.toStdString())) {
         bannedNode->CloseSocketDisconnect();
         clearSelectedNode();
     }
@@ -1148,8 +1123,7 @@ void RPCConsole::unbanSelectedNode()
     QString strNode = GUIUtil::getEntryData(ui->banlistWidget, 0, BanTableModel::Address);
     CSubNet possibleSubnet(strNode.toStdString());
 
-    if (possibleSubnet.IsValid())
-    {
+    if (possibleSubnet.IsValid()) {
         CNode::Unban(possibleSubnet);
         clientModel->getBanTableModel()->refresh();
     }

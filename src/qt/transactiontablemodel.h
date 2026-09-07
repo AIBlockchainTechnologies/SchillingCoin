@@ -1,6 +1,6 @@
 // Copyright (c) 2011-2013 The Bitcoin developers
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,6 +11,8 @@
 
 #include <QAbstractTableModel>
 #include <QStringList>
+
+#include <boost/signals2/connection.hpp>
 
 class TransactionRecord;
 class TransactionTablePriv;
@@ -78,6 +80,9 @@ public:
     QVariant headerData(int section, Qt::Orientation orientation, int role) const;
     QModelIndex index(int row, int column, const QModelIndex& parent = QModelIndex()) const;
     bool processingQueuedTransactions() { return fProcessingQueuedTransactions; }
+    Qt::ItemFlags flags(const QModelIndex& index) const override;
+    QString getTxHash(int row) const;
+    TransactionRecord* getTxRecord(int row) const;
 
 Q_SIGNALS:
     void txArrived(const QString& hash, const bool& isCoinStake, const bool& isCSAnyType, const bool& isMasternodeReward);
@@ -88,6 +93,9 @@ private:
     QStringList columns;
     TransactionTablePriv* priv;
     bool fProcessingQueuedTransactions;
+
+    // Boost.Signals2 connection for NotifyTransactionChanged
+    boost::signals2::connection m_connNotifyTransactionChanged;
 
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();

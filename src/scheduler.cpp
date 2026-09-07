@@ -1,6 +1,6 @@
 // Copyright (c) 2015 The Bitcoin Core developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,7 +10,7 @@
 #include "reverselock.h"
 
 #include <assert.h>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <utility>
 
 CScheduler::CScheduler() : nThreadsServicingQueue(0), stopRequested(false), stopWhenEmpty(false)

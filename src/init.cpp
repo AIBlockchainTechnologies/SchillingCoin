@@ -1917,7 +1917,7 @@ bool AppInit2(const std::vector<std::string>& words)
 #endif
 
     if (GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
-        StartTorControl(threadGroup);
+        StartTorControl();
 
     StartNode(threadGroup, scheduler);
 

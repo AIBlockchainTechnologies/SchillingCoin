@@ -1,7 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2016 The Dash developers
 // Copyright (c) 2016-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -30,6 +30,7 @@
 #include <QList>
 #include <QtConcurrent/QtConcurrent>
 #include <QFuture>
+#include <QThreadPool>
 
 #define SINGLE_THREAD_MAX_TXES_SIZE 4000
 
@@ -168,6 +169,7 @@ public:
     }
 
     static ConvertTxToVectorResult convertTxToRecords(TransactionTablePriv* tablePriv, const CWallet* wallet, const std::vector<CWalletTx>& walletTxes) {
+        Q_UNUSED(tablePriv);
         ConvertTxToVectorResult res;
 
         for (const auto &tx : walletTxes) {
@@ -235,7 +237,7 @@ public:
                     if (cachedWallet.size() >= MAX_AMOUNT_LOADED_RECORDS && wtx.GetTxTime() < nFirstLoadedTxTime) {
                         return;
                     }
-                
+
                     // Added -- insert at the right position
                     QList<TransactionRecord> toInsert =
                         TransactionRecord::decomposeTransaction(wallet, wtx);
@@ -359,8 +361,10 @@ void TransactionTableModel::updateConfirmations()
     // Invalidate status (number of confirmations) and (possibly) description
     //  for all rows. Qt is smart enough to only actually request the data for the
     //  visible rows.
-    Q_EMIT dataChanged(index(0, Status), index(priv->size() - 1, Status));
-    Q_EMIT dataChanged(index(0, ToAddress), index(priv->size() - 1, ToAddress));
+    if (priv->size() > 0) {
+        Q_EMIT dataChanged(index(0, Status), index(priv->size() - 1, Status));
+        Q_EMIT dataChanged(index(0, ToAddress), index(priv->size() - 1, ToAddress));
+    }
 }
 
 int TransactionTableModel::rowCount(const QModelIndex& parent) const
@@ -375,7 +379,8 @@ int TransactionTableModel::columnCount(const QModelIndex& parent) const
     return columns.length();
 }
 
-int TransactionTableModel::size() const{
+int TransactionTableModel::size() const
+{
     return priv->size();
 }
 
@@ -783,77 +788,63 @@ QModelIndex TransactionTableModel::index(int row, int column, const QModelIndex&
 
 void TransactionTableModel::updateDisplayUnit()
 {
-    // emit dataChanged to update Amount column with the current unit
     updateAmountColumnTitle();
-    Q_EMIT dataChanged(index(0, Amount), index(priv->size() - 1, Amount));
+    if (priv->size() > 0) {
+        Q_EMIT dataChanged(index(0, Amount), index(priv->size() - 1, Amount));
+    }
 }
 
-// queue notifications to show a non freezing progress dialog e.g. for rescan
-struct TransactionNotification {
-public:
-    TransactionNotification() {}
-    TransactionNotification(uint256 hash, ChangeType status) : hash(hash), status(status) {}
-
-    void invoke(QObject* ttm)
-    {
-        QString strHash = QString::fromStdString(hash.GetHex());
-        qDebug() << "NotifyTransactionChanged : " + strHash + " status= " + QString::number(status);
-        QMetaObject::invokeMethod(ttm, "updateTransaction", Qt::QueuedConnection,
-            Q_ARG(QString, strHash),
-            Q_ARG(int, status),
-            Q_ARG(bool, true));
-    }
-
-private:
-    uint256 hash;
-    ChangeType status;
-};
-
-static bool fQueueNotifications = false;
-static std::vector<TransactionNotification> vQueueNotifications;
-
-static void NotifyTransactionChanged(TransactionTableModel* ttm, CWallet* wallet, const uint256& hash, ChangeType status)
+Qt::ItemFlags TransactionTableModel::flags(const QModelIndex& index) const
 {
+    if (!index.isValid())
+        return Qt::NoItemFlags;
 
-    TransactionNotification notification(hash, status);
-
-    if (fQueueNotifications)
-    {
-        vQueueNotifications.push_back(notification);
-        return;
-    }
-    notification.invoke(ttm);
+    Qt::ItemFlags flags = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+    return flags;
 }
 
-static void ShowProgress(TransactionTableModel* ttm, const std::string& title, int nProgress)
+QString TransactionTableModel::getTxHash(int row) const
 {
-    if (nProgress == 0)
-        fQueueNotifications = true;
+    TransactionRecord* rec = priv->index(row);
+    if (rec)
+        return QString::fromStdString(rec->hash.ToString());
+    return QString();
+}
 
-    if (nProgress == 100) {
-        fQueueNotifications = false;
-        if (vQueueNotifications.size() > 10) // prevent balloon spam, show maximum 10 balloons
-            QMetaObject::invokeMethod(ttm, "setProcessingQueuedTransactions", Qt::QueuedConnection, Q_ARG(bool, true));
-        for (unsigned int i = 0; i < vQueueNotifications.size(); ++i) {
-            if (vQueueNotifications.size() - i <= 10)
-                QMetaObject::invokeMethod(ttm, "setProcessingQueuedTransactions", Qt::QueuedConnection, Q_ARG(bool, false));
-
-            vQueueNotifications[i].invoke(ttm);
-        }
-        std::vector<TransactionNotification>().swap(vQueueNotifications); // clear
-    }
+TransactionRecord* TransactionTableModel::getTxRecord(int row) const
+{
+    return priv->index(row);
 }
 
 void TransactionTableModel::subscribeToCoreSignals()
 {
-    // Connect signals to wallet
-    wallet->NotifyTransactionChanged.connect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3));
-    wallet->ShowProgress.connect(boost::bind(ShowProgress, this, _1, _2));
+    m_connNotifyTransactionChanged =
+        wallet->NotifyTransactionChanged.connect(
+            [this](CWallet* wallet, const uint256& hash, ChangeType status) {
+
+                QMetaObject::invokeMethod(
+                    this,
+                    [this, wallet, hash, status]() {
+
+                        QString qHash = QString::fromStdString(hash.ToString());
+
+                        bool showTransaction = true;
+                        {
+                            LOCK(wallet->cs_wallet);
+                            auto it = wallet->mapWallet.find(hash);
+                            showTransaction = (it != wallet->mapWallet.end());
+                        }
+
+                        updateTransaction(qHash, status, showTransaction);
+                    },
+                    Qt::QueuedConnection
+                );
+            }
+        );
 }
 
 void TransactionTableModel::unsubscribeFromCoreSignals()
 {
-    // Disconnect signals from wallet
-    wallet->NotifyTransactionChanged.disconnect(boost::bind(NotifyTransactionChanged, this, _1, _2, _3));
-    wallet->ShowProgress.disconnect(boost::bind(ShowProgress, this, _1, _2));
+    if (m_connNotifyTransactionChanged.connected())
+        m_connNotifyTransactionChanged.disconnect();
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 2015-2016 The Bitcoin Core developers
 // Copyright (c) 2017 The Zcash developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,20 +16,24 @@
 #include <deque>
 #include <set>
 #include <stdlib.h>
+#include <thread>
 
 #include <boost/function.hpp>
-#include <boost/bind.hpp>
+#include <boost/bind/bind.hpp>
 #include <boost/signals2/signal.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/split.hpp>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/thread.hpp>
 
 #include <event2/bufferevent.h>
 #include <event2/buffer.h>
 #include <event2/util.h>
 #include <event2/event.h>
 #include <event2/thread.h>
+
+using namespace boost::placeholders;
 
 /** Default control port */
 const std::string DEFAULT_TOR_CONTROL = "127.0.0.1:9051";
@@ -314,10 +318,6 @@ static std::map<std::string,std::string> ParseTorReplyMapping(const std::string 
             std::string escaped_value;
             for (size_t i = 0; i < value.size(); ++i) {
                 if (value[i] == '\\') {
-                    // This will always be valid, because if the QuotedString
-                    // ended in an odd number of backslashes, then the parser
-                    // would already have returned above, due to a missing
-                    // terminating double-quote.
                     ++i;
                     if (value[i] == 'n') {
                         escaped_value.push_back('\n');
@@ -327,18 +327,11 @@ static std::map<std::string,std::string> ParseTorReplyMapping(const std::string 
                         escaped_value.push_back('\r');
                     } else if ('0' <= value[i] && value[i] <= '7') {
                         size_t j;
-                        // Octal escape sequences have a limit of three octal digits,
-                        // but terminate at the first character that is not a valid
-                        // octal digit if encountered sooner.
                         for (j = 1; j < 3 && (i+j) < value.size() && '0' <= value[i+j] && value[i+j] <= '7'; ++j) {}
-                        // Tor restricts first digit to 0-3 for three-digit octals.
-                        // A leading digit of 4-7 would therefore be interpreted as
-                        // a two-digit octal.
                         if (j == 3 && value[i] > '3') {
                             j--;
                         }
                         escaped_value.push_back(strtol(value.substr(i, j).c_str(), NULL, 8));
-                        // Account for automatic incrementing at loop end
                         i += j - 1;
                     } else {
                         escaped_value.push_back(value[i]);
@@ -377,8 +370,6 @@ static std::pair<bool,std::string> ReadBinaryFile(const std::string &filename, s
     char buffer[128];
     size_t n;
     while ((n=fread(buffer, 1, sizeof(buffer), f)) > 0) {
-        // Check for reading errors so we don't return any data if we couldn't
-        // read the entire file (or up to maxsize)
         if (ferror(f)) {
             fclose(f);
             return std::make_pair(false,"");
@@ -407,10 +398,10 @@ static bool WriteBinaryFile(const std::string &filename, const std::string &data
     return true;
 }
 
-/****** Bitcoin specific TorController implementation ********/
+/****** Bitcoin/SCH-specific TorController implementation ********/
 
 /** Controller that connects to Tor control socket, authenticate, then create
- * and maintain a ephemeral hidden service.
+ * and maintain an ephemeral hidden service.
  */
 class TorController
 {
@@ -418,7 +409,7 @@ public:
     TorController(struct event_base* base, const std::string& target);
     ~TorController();
 
-    /** Get name fo file to store private key in */
+    /** Get name of file to store private key in */
     std::string GetPrivateKeyFile();
 
     /** Reconnect, after getting disconnected */
@@ -540,9 +531,6 @@ void TorController::auth_cb(TorControlConnection& _conn, const TorControlReply& 
         // Finally - now create the service
         if (private_key.empty()) // No private key, generate one
             private_key = "NEW:RSA1024"; // Explicitly request RSA1024 - see issue #9214
-        // Request hidden service, redirect port.
-        // Note that the 'virtual' port doesn't have to be the same as our internal port, but this is just a convenient
-        // choice.  TODO; refactor the shutdown sequence some day.
         _conn.Command(strprintf("ADD_ONION %s Port=%i,127.0.0.1:%i", private_key, GetListenPort(), GetListenPort()),
             boost::bind(&TorController::add_onion_cb, this, _1, _2));
     } else {
@@ -643,10 +631,6 @@ void TorController::protocolinfo_cb(TorControlConnection& _conn, const TorContro
             LogPrint("tor", "tor: Supported authentication method: %s\n", s);
         }
         // Prefer NULL, otherwise SAFECOOKIE. If a password is provided, use HASHEDPASSWORD
-        /* Authentication:
-         *   cookie:   hex-encoded ~/.tor/control_auth_cookie
-         *   password: "password"
-         */
         std::string torpassword = GetArg("-torpassword", "");
         if (!torpassword.empty()) {
             if (methods.count("HASHEDPASSWORD")) {
@@ -660,11 +644,9 @@ void TorController::protocolinfo_cb(TorControlConnection& _conn, const TorContro
             LogPrint("tor", "tor: Using NULL authentication\n");
             _conn.Command("AUTHENTICATE", boost::bind(&TorController::auth_cb, this, _1, _2));
         } else if (methods.count("SAFECOOKIE")) {
-            // Cookie: hexdump -e '32/1 "%02x""\n"'  ~/.tor/control_auth_cookie
             LogPrint("tor", "tor: Using SAFECOOKIE authentication, reading cookie authentication from %s\n", cookiefile);
             std::pair<bool,std::string> status_cookie = ReadBinaryFile(cookiefile, TOR_COOKIE_SIZE);
             if (status_cookie.first && status_cookie.second.size() == TOR_COOKIE_SIZE) {
-                // _conn.Command("AUTHENTICATE " + HexStr(status_cookie.second), boost::bind(&TorController::auth_cb, this, _1, _2));
                 cookie = std::vector<uint8_t>(status_cookie.second.begin(), status_cookie.second.end());
                 clientNonce = std::vector<uint8_t>(TOR_NONCE_SIZE, 0);
                 GetRandBytes(&clientNonce[0], TOR_NONCE_SIZE);
@@ -714,9 +696,6 @@ void TorController::disconnected_cb(TorControlConnection& _conn)
 
 void TorController::Reconnect()
 {
-    /* Try to reconnect and reestablish if we get booted - for example, Tor
-     * may be restarting.
-     */
     if (!conn.Connect(target, boost::bind(&TorController::connected_cb, this, _1),
          boost::bind(&TorController::disconnected_cb, this, _1) )) {
         LogPrintf("tor: Re-initiating connection to Tor control port %s failed\n", target);
@@ -730,57 +709,79 @@ std::string TorController::GetPrivateKeyFile()
 
 void TorController::reconnect_cb(evutil_socket_t fd, short what, void *arg)
 {
-    TorController *self = (TorController*)arg;
+    TorController* self = static_cast<TorController*>(arg);
+    if (!self) return;
     self->Reconnect();
 }
 
-/****** Thread ********/
-static struct event_base *gBase;
-static boost::thread torControlThread;
+/****** Tor control thread and lifecycle ********/
+
+static struct event_base* gBase = nullptr;
+static TorController* torControl = nullptr;
+static std::thread torControlThread;
 
 static void TorControlThread()
 {
-    TorController ctrl(gBase, GetArg("-torcontrol", DEFAULT_TOR_CONTROL));
-
-    event_base_dispatch(gBase);
-}
-
-void StartTorControl(boost::thread_group& threadGroup/*, CScheduler& scheduler*/)
-{
-    assert(!gBase);
-#ifdef WIN32
-    evthread_use_windows_threads();
-#else
+    // Enable libevent threading
     evthread_use_pthreads();
-#endif
+
     gBase = event_base_new();
     if (!gBase) {
-        LogPrintf("tor: Unable to create event_base\n");
+        LogPrintf("tor: Failed to create event_base\n");
         return;
     }
 
-    torControlThread = boost::thread(boost::bind(&TraceThread<void (*)()>, "torcontrol", &TorControlThread));
+    std::string target = GetArg("-torcontrol", DEFAULT_TOR_CONTROL);
+    torControl = new TorController(gBase, target);
+
+    // Main event loop
+    event_base_dispatch(gBase);
+
+    // Cleanup
+    delete torControl;
+    torControl = nullptr;
+
+    event_base_free(gBase);
+    gBase = nullptr;
+}
+
+/* StartTorControl overload to match callers that pass a boost::thread_group.
+ * This wrapper preserves the existing no-arg StartTorControl behavior.
+ */
+void StartTorControl(boost::thread_group& /*threadGroup*/);
+void StartTorControl()
+{
+    if (!GetBoolArg("-listenonion", true))
+        return;
+
+    if (torControlThread.joinable())
+        return;
+
+    torControlThread = std::thread(&TorControlThread);
+}
+
+void StartTorControl(boost::thread_group& /*threadGroup*/)
+{
+    // Compatibility wrapper for callers that pass a boost::thread_group.
+    StartTorControl();
 }
 
 void InterruptTorControl()
 {
-    if (gBase) {
-        LogPrintf("tor: Thread interrupt\n");
-        event_base_loopbreak(gBase);
-    }
+    if (!gBase)
+        return;
+
+    event_base_loopbreak(gBase);
 }
 
 void StopTorControl()
 {
-    // timed_join() avoids the wallet not closing during a repair-restart. For a 'normal' wallet exit
-    // it behaves for our cases exactly like the normal join()
-    if (gBase) {
-#if BOOST_VERSION >= 105000
-        torControlThread.try_join_for(boost::chrono::seconds(1));
-#else
-        torControlThread.timed_join(boost::posix_time::seconds(1));
-#endif
-        event_base_free(gBase);
-        gBase = 0;
-    }
+    if (!torControlThread.joinable())
+        return;
+
+    // Request the event loop to exit so the thread can finish cleanly.
+    InterruptTorControl();
+
+    // Wait for the thread to finish and clean up.
+    torControlThread.join();
 }

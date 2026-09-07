@@ -1,7 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,16 +10,14 @@
 
 #include "uint256.h"
 #include "chain.h"
+
 #include <QObject>
 #include <QDateTime>
+#include <QTimer>
 
-class AddressTableModel;
-class BanTableModel;
 class OptionsModel;
 class PeerTableModel;
-class TransactionTableModel;
-
-class CWallet;
+class BanTableModel;
 
 QT_BEGIN_NAMESPACE
 class QDateTime;
@@ -35,9 +33,9 @@ enum BlockSource {
 
 enum NumConnections {
     CONNECTIONS_NONE = 0,
-    CONNECTIONS_IN = (1U << 0),
-    CONNECTIONS_OUT = (1U << 1),
-    CONNECTIONS_ALL = (CONNECTIONS_IN | CONNECTIONS_OUT),
+    CONNECTIONS_IN   = (1U << 0),
+    CONNECTIONS_OUT  = (1U << 1),
+    CONNECTIONS_ALL  = (CONNECTIONS_IN | CONNECTIONS_OUT),
 };
 
 /** Model for SchillingCoin network client. */
@@ -46,65 +44,66 @@ class ClientModel : public QObject
     Q_OBJECT
 
 public:
-    explicit ClientModel(OptionsModel* optionsModel, QObject* parent = 0);
-    ~ClientModel();
+    explicit ClientModel(OptionsModel* optionsModel, QObject* parent = nullptr);
+    ~ClientModel() override;
 
-    OptionsModel* getOptionsModel();
-    PeerTableModel* getPeerTableModel();
-    BanTableModel *getBanTableModel();
+    OptionsModel*    getOptionsModel();
+    PeerTableModel*  getPeerTableModel();
+    BanTableModel*   getBanTableModel();
 
     //! Return number of connections, default is in- and outbound (total)
-    int getNumConnections(unsigned int flags = CONNECTIONS_ALL) const;
-    int getNumBlocksAtStartup();
-    QString getMasternodeCountString() const;
+    int      getNumConnections(unsigned int flags = CONNECTIONS_ALL) const;
+    int      getNumBlocksAtStartup();
+    QString  getMasternodeCountString() const;
 
     // from cached block index
-    int getNumBlocks();
+    int       getNumBlocks();
     QDateTime getLastBlockDate() const;
-    QString getLastBlockHash() const;
-    double getVerificationProgress() const;
+    QString   getLastBlockHash() const;
+    double    getVerificationProgress() const;
 
     quint64 getTotalBytesRecv() const;
     quint64 getTotalBytesSent() const;
 
     //! Return true if core is doing initial block download
-    bool inInitialBlockDownload() const;
-    //! Return true if core is importing blocks
+    bool          inInitialBlockDownload() const;
+    //! Return current block source
     enum BlockSource getBlockSource() const;
     //! Return warnings to be displayed in status bar
-    QString getStatusBarWarnings() const;
+    QString       getStatusBarWarnings() const;
 
     QString formatFullVersion() const;
     QString formatFullVersionWithCodename() const;
     QString formatBuildDate() const;
-    bool isReleaseVersion() const;
+    bool    isReleaseVersion() const;
     QString clientName() const;
     QString formatClientStartupTime() const;
     QString dataDir() const;
 
-    void setCacheTip(const CBlockIndex* const tip) { cacheTip = tip; }
-    void setCacheReindexing(bool reindex) { cachedReindexing = reindex; }
-    void setCacheImporting(bool import) { cachedImporting = import; }
-    void setCacheInitialSync(bool _initialSync) { cachedInitialSync = _initialSync; }
+    // cache setters used by core notifications
+    void setCacheTip(const CBlockIndex* const tip)      { cacheTip = tip; }
+    void setCacheReindexing(bool reindex)               { cachedReindexing = reindex; }
+    void setCacheImporting(bool import)                 { cachedImporting = import; }
+    void setCacheInitialSync(bool _initialSync)         { cachedInitialSync = _initialSync; }
 
     bool getTorInfo(std::string& ip_port) const;
 
 private:
-    OptionsModel* optionsModel;
+    OptionsModel*   optionsModel;
     PeerTableModel* peerTableModel;
-    BanTableModel *banTableModel;
+    BanTableModel*  banTableModel;
 
     const CBlockIndex* cacheTip{nullptr};
-    QString cachedMasternodeCountString;
-    bool cachedReindexing;
-    bool cachedImporting;
-    bool cachedInitialSync;
+    QString            cachedMasternodeCountString;
+    bool               cachedReindexing{false};
+    bool               cachedImporting{false};
+    bool               cachedInitialSync{false};
 
-    int numBlocksAtStartup;
+    int     numBlocksAtStartup{-1};
+    QTimer* pollTimer{nullptr};
+    QTimer* pollMnTimer{nullptr};
 
-    QTimer* pollTimer;
-    QTimer* pollMnTimer;
-
+    /** Subscribe/unsubscribe core signals. Implemented in clientmodel.cpp using static connections. */
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();
 
@@ -118,7 +117,8 @@ Q_SIGNALS:
     //! Fired when a message should be reported to the user
     void message(const QString& title, const QString& message, unsigned int style);
 
-    // Show progress dialog e.g. for verifychain
+    //! Initialization / progress messages marshalled from core
+    void initMessage(const QString& message);
     void showProgress(const QString& title, int nProgress);
 
 public Q_SLOTS:
@@ -127,6 +127,13 @@ public Q_SLOTS:
     void updateNumConnections(int numConnections);
     void updateAlert();
     void updateBanlist();
+
+    // Slots used to receive marshalled core notifications on the Qt thread
+    void handleInitMessage(const QString& message);
+    void handleShowProgress(const QString& title, int nProgress);
+
+private:
+    Q_DISABLE_COPY(ClientModel)
 };
 
 #endif // BITCOIN_QT_CLIENTMODEL_H

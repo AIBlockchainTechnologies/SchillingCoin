@@ -1,11 +1,17 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef BITCOIN_QT_SPLASHSCREEN_H
 #define BITCOIN_QT_SPLASHSCREEN_H
 
-#include <QSplashScreen>
+#include <QWidget>
+#include <QPixmap>
+#include <QString>
+#include <QColor>
+#include <QPaintEvent>
+#include <QCloseEvent>
 
 class NetworkStyle;
 
@@ -21,11 +27,11 @@ class SplashScreen : public QWidget
 
 public:
     explicit SplashScreen(Qt::WindowFlags f, const NetworkStyle* networkStyle);
-    ~SplashScreen();
+    ~SplashScreen() override;
 
 protected:
-    void paintEvent(QPaintEvent* event);
-    void closeEvent(QCloseEvent* event);
+    void paintEvent(QPaintEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 public Q_SLOTS:
     /** Slot to call finish() method as it's not defined as slot */
@@ -44,6 +50,8 @@ private:
     QString curMessage;
     QColor curColor;
     int curAlignment;
+
+    Q_DISABLE_COPY(SplashScreen)
 };
 
 #endif // BITCOIN_QT_SPLASHSCREEN_H

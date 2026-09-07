@@ -21,6 +21,8 @@
 
 #include <QObject>
 
+#include <boost/signals2/connection.hpp>
+
 class AddressTableModel;
 class OptionsModel;
 class RecentRequestsTableModel;
@@ -248,7 +250,7 @@ public:
 
     bool whitelistAddressFromColdStaking(const QString &addressStr);
     bool blacklistAddressFromColdStaking(const QString &address);
-    bool updateAddressBookPurpose(const QString &addressStr, const std::string& purpose);
+    bool updateAddressBookPurpose(const QString& addressStr, const std::string& purpose);
     std::string getLabelForAddress(const CBitcoinAddress& address);
     bool getKeyId(const CBitcoinAddress& address, CKeyID& keyID);
 
@@ -305,6 +307,9 @@ private:
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();
     Q_INVOKABLE void checkBalanceChanged();
+
+    // Stored connections for deterministic disconnect
+    boost::signals2::connection m_connNotifyAddressBookChanged;
 
 Q_SIGNALS:
     // Signal that balance in wallet changed

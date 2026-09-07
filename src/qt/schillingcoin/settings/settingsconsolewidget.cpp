@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -46,53 +46,69 @@ const struct {
     const char* url;
     const char* source;
 } ICON_MAPPING[] = {
-        {"cmd-request", ":/icons/ic-transaction-received"},
-        {"cmd-reply", ":/icons/ic-transaction-sent"},
-        {"cmd-error", ":/icons/ic-transaction-sent"},
-        {"misc", ":/icons/ic-transaction-staked"},
-        {NULL, NULL}};
+    {"cmd-request", ":/icons/ic-transaction-received"},
+    {"cmd-reply",   ":/icons/ic-transaction-sent"},
+    {"cmd-error",   ":/icons/ic-transaction-sent"},
+    {"misc",        ":/icons/ic-transaction-staked"},
+    {NULL,          NULL}
+};
 
-/* Object for executing console RPC commands in a separate thread.
-*/
+/* Object for executing console RPC commands in a separate thread. */
 class RPCExecutor : public QObject
 {
     Q_OBJECT
 
 public Q_SLOTS:
-     void requestCommand(const QString& command);
+    void requestCommand(const QString& command);
 
 Q_SIGNALS:
-     void reply(int category, const QString& command);
+    void reply(int category, const QString& command);
 };
 
-/** Class for handling RPC timers
- * (used for e.g. re-locking the wallet after a timeout)
- */
-class QtRPCTimerBase: public QObject, public RPCTimerBase
+/** Class for handling RPC timers (used for e.g. re-locking the wallet after a timeout). */
+class QtRPCTimerBase : public QObject, public RPCTimerBase
 {
     Q_OBJECT
 public:
-    QtRPCTimerBase(boost::function<void(void)>& func, int64_t millis):
-            func(func)
+    QtRPCTimerBase(const boost::function<void(void)>& func, int64_t millis)
+        : QObject(), m_func(func)
     {
         timer.setSingleShot(true);
-        connect(&timer, SIGNAL(timeout()), this, SLOT(timeout()));
-        timer.start(millis);
+        connect(&timer, &QTimer::timeout, this, &QtRPCTimerBase::timeout);
+        timer.start(static_cast<int>(millis));
     }
-    ~QtRPCTimerBase() {}
+
+    ~QtRPCTimerBase() override {}
+
+    void cancel()
+    {
+        timer.stop();
+    }
+
 private Q_SLOTS:
-            void timeout() { func(); }
+    void timeout()
+    {
+        try {
+            if (m_func) m_func();
+        } catch (...) {
+            // Swallow exceptions to avoid crashing the Qt event loop.
+        }
+    }
+
 private:
     QTimer timer;
-    boost::function<void(void)> func;
+    boost::function<void(void)> m_func;
 };
 
-class QtRPCTimerInterface: public RPCTimerInterface
+class QtRPCTimerInterface : public RPCTimerInterface
 {
 public:
-    ~QtRPCTimerInterface() {}
-    const char *Name() { return "Qt"; }
-    RPCTimerBase* NewTimer(boost::function<void(void)>& func, int64_t millis)
+    QtRPCTimerInterface() = default;
+    ~QtRPCTimerInterface() override = default;
+
+    const char* Name() override { return "Qt"; }
+
+    RPCTimerBase* NewTimer(const boost::function<void(void)>& func, int64_t millis) override
     {
         return new QtRPCTimerBase(func, millis);
     }
@@ -127,74 +143,72 @@ bool parseCommandLineSettings(std::vector<std::string>& args, const std::string&
     std::string curarg;
     Q_FOREACH (char ch, strCommand) {
         switch (state) {
-            case STATE_ARGUMENT:      // In or after argument
-            case STATE_EATING_SPACES: // Handle runs of whitespace
-                switch (ch) {
-                    case '"':
-                        state = STATE_DOUBLEQUOTED;
-                        break;
-                    case '\'':
-                        state = STATE_SINGLEQUOTED;
-                        break;
-                    case '\\':
-                        state = STATE_ESCAPE_OUTER;
-                        break;
-                    case ' ':
-                    case '\n':
-                    case '\t':
-                        if (state == STATE_ARGUMENT) // Space ends argument
-                        {
-                            args.push_back(curarg);
-                            curarg.clear();
-                        }
-                        state = STATE_EATING_SPACES;
-                        break;
-                    default:
-                        curarg += ch;
-                        state = STATE_ARGUMENT;
-                }
-                break;
-            case STATE_SINGLEQUOTED: // Single-quoted string
-                switch (ch) {
-                    case '\'':
-                        state = STATE_ARGUMENT;
-                        break;
-                    default:
-                        curarg += ch;
-                }
-                break;
-            case STATE_DOUBLEQUOTED: // Double-quoted string
-                switch (ch) {
-                    case '"':
-                        state = STATE_ARGUMENT;
-                        break;
-                    case '\\':
-                        state = STATE_ESCAPE_DOUBLEQUOTED;
-                        break;
-                    default:
-                        curarg += ch;
-                }
-                break;
-            case STATE_ESCAPE_OUTER: // '\' outside quotes
-                curarg += ch;
-                state = STATE_ARGUMENT;
-                break;
-            case STATE_ESCAPE_DOUBLEQUOTED:                  // '\' in double-quoted text
-                if (ch != '"' && ch != '\\') curarg += '\\'; // keep '\' for everything but the quote and '\' itself
-                curarg += ch;
+        case STATE_ARGUMENT:      // In or after argument
+        case STATE_EATING_SPACES: // Handle runs of whitespace
+            switch (ch) {
+            case '"':
                 state = STATE_DOUBLEQUOTED;
                 break;
+            case '\'':
+                state = STATE_SINGLEQUOTED;
+                break;
+            case '\\':
+                state = STATE_ESCAPE_OUTER;
+                break;
+            case ' ':
+            case '\n':
+            case '\t':
+                if (state == STATE_ARGUMENT) { // Space ends argument
+                    args.push_back(curarg);
+                    curarg.clear();
+                }
+                state = STATE_EATING_SPACES;
+                break;
+            default:
+                curarg += ch;
+                state = STATE_ARGUMENT;
+            }
+            break;
+        case STATE_SINGLEQUOTED: // Single-quoted string
+            switch (ch) {
+            case '\'':
+                state = STATE_ARGUMENT;
+                break;
+            default:
+                curarg += ch;
+            }
+            break;
+        case STATE_DOUBLEQUOTED: // Double-quoted string
+            switch (ch) {
+            case '"':
+                state = STATE_ARGUMENT;
+                break;
+            case '\\':
+                state = STATE_ESCAPE_DOUBLEQUOTED;
+                break;
+            default:
+                curarg += ch;
+            }
+            break;
+        case STATE_ESCAPE_OUTER: // '\' outside quotes
+            curarg += ch;
+            state = STATE_ARGUMENT;
+            break;
+        case STATE_ESCAPE_DOUBLEQUOTED:                  // '\' in double-quoted text
+            if (ch != '"' && ch != '\\') curarg += '\\'; // keep '\' for everything but the quote and '\' itself
+            curarg += ch;
+            state = STATE_DOUBLEQUOTED;
+            break;
         }
     }
-    switch (state) // final state
-    {
-        case STATE_EATING_SPACES:
-            return true;
-        case STATE_ARGUMENT:
-            args.push_back(curarg);
-            return true;
-        default: // ERROR to end in one of the other states
-            return false;
+    switch (state) { // final state
+    case STATE_EATING_SPACES:
+        return true;
+    case STATE_ARGUMENT:
+        args.push_back(curarg);
+        return true;
+    default: // ERROR to end in one of the other states
+        return false;
     }
 }
 
@@ -212,8 +226,8 @@ void RPCExecutor::requestCommand(const QString& command)
         // Convert argument list to JSON objects in method-dependent way,
         // and pass it along with the method name to the dispatcher.
         UniValue result = tableRPC.execute(
-                args[0],
-                RPCConvertValues(args[0], std::vector<std::string>(args.begin() + 1, args.end())));
+            args[0],
+            RPCConvertValues(args[0], std::vector<std::string>(args.begin() + 1, args.end())));
 
         // Format result reply
         if (result.isNull())
@@ -225,22 +239,23 @@ void RPCExecutor::requestCommand(const QString& command)
 
         Q_EMIT reply(SettingsConsoleWidget::CMD_REPLY, QString::fromStdString(strPrint));
     } catch (UniValue& objError) {
-        try // Nice formatting for standard-format error
-        {
+        try { // Nice formatting for standard-format error
             int code = find_value(objError, "code").get_int();
             std::string message = find_value(objError, "message").get_str();
-            Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR, QString::fromStdString(message) + " (code " + QString::number(code) + ")");
-        } catch (std::runtime_error&) // raised when converting to invalid type, i.e. missing code or message
-        {                             // Show raw JSON object
+            Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR,
+                         QString::fromStdString(message) + " (code " + QString::number(code) + ")");
+        } catch (std::runtime_error&) { // raised when converting to invalid type, i.e. missing code or message
+            // Show raw JSON object
             Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR, QString::fromStdString(objError.write()));
         }
     } catch (std::exception& e) {
-        Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR, QString("Error: ") + QString::fromStdString(e.what()));
+        Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR,
+                     QString("Error: ") + QString::fromStdString(e.what()));
     }
 }
 
-SettingsConsoleWidget::SettingsConsoleWidget(SchillingCoinGUI* _window, QWidget *parent) :
-    PWidget(_window,parent),
+SettingsConsoleWidget::SettingsConsoleWidget(SchillingCoinGUI* _window, QWidget* parent) :
+    PWidget(_window, parent),
     ui(new Ui::SettingsConsoleWidget)
 {
     ui->setupUi(this);
@@ -249,9 +264,9 @@ SettingsConsoleWidget::SettingsConsoleWidget(SchillingCoinGUI* _window, QWidget 
 
     // Containers
     setCssProperty({ui->left, ui->messagesWidget}, "container");
-    ui->left->setContentsMargins(10,10,10,10);
-	ui->messagesWidget->setReadOnly(true);
-	ui->messagesWidget->setTextInteractionFlags(Qt::TextInteractionFlag::TextSelectableByMouse);
+    ui->left->setContentsMargins(10, 10, 10, 10);
+    ui->messagesWidget->setReadOnly(true);
+    ui->messagesWidget->setTextInteractionFlags(Qt::TextInteractionFlag::TextSelectableByMouse);
 
     // Title
     ui->labelTitle->setText(tr("Console"));
@@ -277,7 +292,7 @@ SettingsConsoleWidget::SettingsConsoleWidget(SchillingCoinGUI* _window, QWidget 
     ui->pushButtonClear->setToolTip(tr("Clear history"));
     connect(ui->pushButtonClear, &QPushButton::clicked, [this]{ clear(false); });
     connect(ui->pushButtonOpenDebug, &QPushButton::clicked, [this](){
-        if(!GUIUtil::openDebugLogfile()){
+        if (!GUIUtil::openDebugLogfile()) {
             inform(tr("Cannot open debug file.\nVerify that you have installed a predetermined text editor."));
         }
     });
@@ -289,8 +304,7 @@ SettingsConsoleWidget::SettingsConsoleWidget(SchillingCoinGUI* _window, QWidget 
 
     // Register RPC timer interface
     rpcTimerInterface = new QtRPCTimerInterface();
-    // avoid accidentally overwriting an existing, non QTThread
-    // based timer interface
+    // avoid accidentally overwriting an existing, non QtThread-based timer interface
     RPCSetTimerInterfaceIfUnset(rpcTimerInterface);
 
     startExecutor();
@@ -306,67 +320,65 @@ SettingsConsoleWidget::~SettingsConsoleWidget()
     delete ui;
 }
 
-
 bool SettingsConsoleWidget::eventFilter(QObject* obj, QEvent* event)
 {
-    if (event->type() == QEvent::KeyPress) // Special key handling
-    {
+    if (event->type() == QEvent::KeyPress) { // Special key handling
         QKeyEvent* keyevt = static_cast<QKeyEvent*>(event);
         int key = keyevt->key();
         Qt::KeyboardModifiers mod = keyevt->modifiers();
         switch (key) {
-            case Qt::Key_Up:
-                if (obj == ui->lineEdit) {
-                    browseHistory(-1);
-                    return true;
-                }
-                break;
-            case Qt::Key_Down:
-                if (obj == ui->lineEdit) {
-                    browseHistory(1);
-                    return true;
-                }
-                break;
-            case Qt::Key_PageUp: /* pass paging keys to messages widget */
-            case Qt::Key_PageDown:
-                if (obj == ui->lineEdit) {
-                    QApplication::postEvent(ui->messagesWidget, new QKeyEvent(*keyevt));
-                    return true;
-                }
-                break;
-            case Qt::Key_Return:
-            case Qt::Key_Enter:
-                // forward these events to lineEdit
-                if(obj == autoCompleter->popup()) {
-                    QApplication::postEvent(ui->lineEdit, new QKeyEvent(*keyevt));
-                    return true;
-                }
-                break;
-            default:
-                // Typing in messages widget brings focus to line edit, and redirects key there
-                // Exclude most combinations and keys that emit no text, except paste shortcuts
-                if (obj == ui->messagesWidget && ((!mod && !keyevt->text().isEmpty() && key != Qt::Key_Tab) ||
-                                                  ((mod & Qt::ControlModifier) && key == Qt::Key_V) ||
-                                                  ((mod & Qt::ShiftModifier) && key == Qt::Key_Insert))) {
-                    ui->lineEdit->setFocus();
-                    QApplication::postEvent(ui->lineEdit, new QKeyEvent(*keyevt));
-                    return true;
-                }
-                if (mod == Qt::ControlModifier && key == Qt::Key_L)
-                    clear(false);
+        case Qt::Key_Up:
+            if (obj == ui->lineEdit) {
+                browseHistory(-1);
+                return true;
+            }
+            break;
+        case Qt::Key_Down:
+            if (obj == ui->lineEdit) {
+                browseHistory(1);
+                return true;
+            }
+            break;
+        case Qt::Key_PageUp: /* pass paging keys to messages widget */
+        case Qt::Key_PageDown:
+            if (obj == ui->lineEdit) {
+                QApplication::postEvent(ui->messagesWidget, new QKeyEvent(*keyevt));
+                return true;
+            }
+            break;
+        case Qt::Key_Return:
+        case Qt::Key_Enter:
+            // forward these events to lineEdit
+            if (obj == autoCompleter->popup()) {
+                QApplication::postEvent(ui->lineEdit, new QKeyEvent(*keyevt));
+                return true;
+            }
+            break;
+        default:
+            // Typing in messages widget brings focus to line edit, and redirects key there
+            // Exclude most combinations and keys that emit no text, except paste shortcuts
+            if (obj == ui->messagesWidget &&
+                ((!mod && !keyevt->text().isEmpty() && key != Qt::Key_Tab) ||
+                 ((mod & Qt::ControlModifier) && key == Qt::Key_V) ||
+                 ((mod & Qt::ShiftModifier) && key == Qt::Key_Insert))) {
+                ui->lineEdit->setFocus();
+                QApplication::postEvent(ui->lineEdit, new QKeyEvent(*keyevt));
+                return true;
+            }
+            if (mod == Qt::ControlModifier && key == Qt::Key_L)
+                clear(false);
         }
     }
     return QWidget::eventFilter(obj, event);
 }
 
-void SettingsConsoleWidget::loadClientModel() {
-    if (clientModel){
-
-        //Setup autocomplete and attach it
+void SettingsConsoleWidget::loadClientModel()
+{
+    if (clientModel) {
+        // Setup autocomplete and attach it
         QStringList wordList;
         std::vector<std::string> commandList = tableRPC.listCommands();
-        for (size_t i = 0; i < commandList.size(); ++i)
-        {
+        for (size_t i = 0; i < commandList.size(); ++i) {
             wordList << commandList[i].c_str();
         }
 
@@ -378,26 +390,28 @@ void SettingsConsoleWidget::loadClientModel() {
     }
 }
 
-void SettingsConsoleWidget::showEvent(QShowEvent *event)
+void SettingsConsoleWidget::showEvent(QShowEvent* event)
 {
+    Q_UNUSED(event);
     if (ui->lineEdit) ui->lineEdit->setFocus();
 }
 
 static QString categoryClass(int category)
 {
     switch (category) {
-        case SettingsConsoleWidget::CMD_REQUEST:
-            return "cmd-request";
-        case SettingsConsoleWidget::CMD_REPLY:
-            return "cmd-reply";
-        case SettingsConsoleWidget::CMD_ERROR:
-            return "cmd-error";
-        default:
-            return "misc";
+    case SettingsConsoleWidget::CMD_REQUEST:
+        return "cmd-request";
+    case SettingsConsoleWidget::CMD_REPLY:
+        return "cmd-reply";
+    case SettingsConsoleWidget::CMD_ERROR:
+        return "cmd-error";
+    default:
+        return "misc";
     }
 }
 
-void SettingsConsoleWidget::clear(bool clearHistory){
+void SettingsConsoleWidget::clear(bool clearHistory)
+{
     ui->messagesWidget->clear();
     if (clearHistory) {
         history.clear();
@@ -407,12 +421,11 @@ void SettingsConsoleWidget::clear(bool clearHistory){
     ui->lineEdit->setFocus();
 
     // Add smoothly scaled icon images.
-    // (when using width/height on an img, Qt uses nearest instead of linear interpolation)
     for (int i = 0; ICON_MAPPING[i].url; ++i) {
         ui->messagesWidget->document()->addResource(
-                QTextDocument::ImageResource,
-                QUrl(ICON_MAPPING[i].url),
-                QImage(ICON_MAPPING[i].source));
+            QTextDocument::ImageResource,
+            QUrl(ICON_MAPPING[i].url),
+            QImage(ICON_MAPPING[i].source));
     }
 
     QString theme;
@@ -424,12 +437,14 @@ void SettingsConsoleWidget::clear(bool clearHistory){
     QString clsKey = "Ctrl-L";
 #endif
 
-    message(CMD_REPLY, (tr("Welcome to the SchillingCoin RPC console.") + "<br>" +
-                        tr("Use up and down arrows to navigate history, and %1 to clear screen.").arg("<b>"+clsKey+"</b>") + "<br>" +
-                        tr("Type <b>help</b> for an overview of available commands.") +
-                        "<br><span class=\"secwarning\"><br>" +
-                        tr("WARNING: Scammers have been active, telling users to type commands here, stealing their wallet contents. Do not use this console without fully understanding the ramifications of a command.") +
-                        "</span>"),
+    message(CMD_REPLY,
+            (tr("Welcome to the SchillingCoin RPC console.") + "<br>" +
+             tr("Use up and down arrows to navigate history, and %1 to clear screen.")
+                 .arg("<b>" + clsKey + "</b>") + "<br>" +
+             tr("Type <b>help</b> for an overview of available commands.") +
+             "<br><span class=\"secwarning\"><br>" +
+             tr("WARNING: Scammers have been active, telling users to type commands here, stealing their wallet contents. Do not use this console without fully understanding the ramifications of a command.") +
+             "</span>"),
             true);
 }
 
@@ -471,7 +486,6 @@ void SettingsConsoleWidget::on_lineEdit_returnPressed()
     }
 }
 
-
 void SettingsConsoleWidget::browseHistory(int offset)
 {
     historyPtr += offset;
@@ -496,7 +510,7 @@ void SettingsConsoleWidget::startExecutor()
     // Requests from this object must go to executor
     connect(this, &SettingsConsoleWidget::cmdCommandRequest, executor, &RPCExecutor::requestCommand);
 
-    // On stopExecutor signal
+    // On stopExecutor signal:
     // - queue executor for deletion (in execution thread)
     // - quit the Qt event loop in the execution thread
     connect(this, SIGNAL(stopExecutor()), executor, SLOT(deleteLater()));
@@ -515,37 +529,37 @@ void SettingsConsoleWidget::scrollToEnd()
     scrollbar->setValue(scrollbar->maximum());
 }
 
-
-void SettingsConsoleWidget::changeTheme(bool isLightTheme, QString &theme)
+void SettingsConsoleWidget::changeTheme(bool isLightTheme, QString& theme)
 {
+    Q_UNUSED(theme);
     // Set default style sheet
     if (isLightTheme) {
         ui->messagesWidget->document()->setDefaultStyleSheet(
-                "table { color: #707070;  }"
-                "td.time { color: #808080; padding-top: 3px; } "
-                "td.message { color: #777777;font-family: Courier, Courier New, Lucida Console, monospace; font-size: 12px; } " // Todo: Remove fixed font-size
-                "td.cmd-request { color: #006060; } "
-                "td.cmd-error { color: red; } "
-                ".secwarning { color: red; }"
-                "b { color: #707070; } ");
+            "table { color: #707070;  }"
+            "td.time { color: #808080; padding-top: 3px; } "
+            "td.message { color: #777777;font-family: Courier, Courier New, Lucida Console, monospace; font-size: 12px; } "
+            "td.cmd-request { color: #006060; } "
+            "td.cmd-error { color: red; } "
+            ".secwarning { color: red; }"
+            "b { color: #707070; } ");
     } else {
         ui->messagesWidget->document()->setDefaultStyleSheet(
-                "table { color: #FFFFFF; }"
-                "td.time { color: #808080; padding-top: 3px; } "
-                "td.message { color: #777777;font-family: Courier, Courier New, Lucida Console, monospace; font-size: 12px; } " // Todo: Remove fixed font-size
-                "td.cmd-request { color: #006060; } "
-                "td.cmd-error { color: red; } "
-                ".secwarning { color: red; }"
-                "b { color: #FFFFFF; } ");
+            "table { color: #FFFFFF; }"
+            "td.time { color: #808080; padding-top: 3px; } "
+            "td.message { color: #777777;font-family: Courier, Courier New, Lucida Console, monospace; font-size: 12px; } "
+            "td.cmd-request { color: #006060; } "
+            "td.cmd-error { color: red; } "
+            ".secwarning { color: red; }"
+            "b { color: #FFFFFF; } ");
     }
     updateStyle(ui->messagesWidget);
 }
 
-void SettingsConsoleWidget::onCommandsClicked() {
+void SettingsConsoleWidget::onCommandsClicked()
+{
     if (!clientModel)
         return;
 
     HelpMessageDialog dlg(this, false);
     dlg.exec();
-
 }

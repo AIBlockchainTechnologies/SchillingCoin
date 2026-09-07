@@ -1,6 +1,6 @@
 // Copyright (c) 2015-2017 The Bitcoin Core developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,7 +19,8 @@
 extern const std::string DEFAULT_TOR_CONTROL;
 static const bool DEFAULT_LISTEN_ONION = true;
 
-void StartTorControl(boost::thread_group& threadGroup);
+// Correct signature — matches torcontrol.cpp
+void StartTorControl();
 void InterruptTorControl();
 void StopTorControl();
 

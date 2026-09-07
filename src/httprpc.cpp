@@ -1,6 +1,6 @@
 // Copyright (c) 2015-2017 The Bitcoin Core developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -20,37 +20,44 @@
 #include <boost/algorithm/string.hpp> // boost::trim
 
 /** Simple one-shot callback timer to be used by the RPC mechanism to e.g.
- * re-lock the wellet.
+ * re-lock the wallet.
  */
 class HTTPRPCTimer : public RPCTimerBase
 {
 public:
-    HTTPRPCTimer(struct event_base* eventBase, boost::function<void(void)>& func, int64_t millis) :
+    HTTPRPCTimer(struct event_base* eventBase, const boost::function<void(void)>& func, int64_t millis) :
         ev(eventBase, false, func)
     {
         struct timeval tv;
-        tv.tv_sec = millis/1000;
-        tv.tv_usec = (millis%1000)*1000;
+        tv.tv_sec = millis / 1000;
+        tv.tv_usec = (millis % 1000) * 1000;
         ev.trigger(&tv);
     }
 private:
     HTTPEvent ev;
 };
 
+/*
+ * Match the RPCTimerInterface virtual signatures exactly.
+ * The RPCTimerInterface in this tree declares NewTimer as:
+ *   virtual RPCTimerBase* NewTimer(const boost::function<void(void)>& func, int64_t millis) = 0;
+ * and Name() as a non-const virtual. Implement those exact signatures here.
+ */
 class HTTPRPCTimerInterface : public RPCTimerInterface
 {
 public:
-    HTTPRPCTimerInterface(struct event_base* base) : base(base)
-    {
-    }
-    const char* Name()
+    explicit HTTPRPCTimerInterface(struct event_base* base) : base(base) {}
+
+    const char* Name() override
     {
         return "HTTP";
     }
-    RPCTimerBase* NewTimer(boost::function<void(void)>& func, int64_t millis)
+
+    RPCTimerBase* NewTimer(const boost::function<void(void)>& func, int64_t millis) override
     {
         return new HTTPRPCTimer(base, func, millis);
     }
+
 private:
     struct event_base* base;
 };
@@ -59,7 +66,7 @@ private:
 /* Pre-base64-encoded authentication token */
 static std::string strRPCUserColonPass;
 /* Stored RPC timer interface (for unregistration) */
-static HTTPRPCTimerInterface* httpRPCTimerInterface = 0;
+static HTTPRPCTimerInterface* httpRPCTimerInterface = nullptr;
 
 static void JSONErrorReply(HTTPRequest* req, const UniValue& objError, const UniValue& id)
 {
@@ -177,6 +184,7 @@ bool StartHTTPRPC()
     RegisterHTTPHandler("/", true, HTTPReq_JSONRPC);
 
     assert(EventBase());
+    // Create and register the timer interface that matches RPCTimerInterface's virtual signatures
     httpRPCTimerInterface = new HTTPRPCTimerInterface(EventBase());
     RPCSetTimerInterface(httpRPCTimerInterface);
     return true;
@@ -194,6 +202,6 @@ void StopHTTPRPC()
     if (httpRPCTimerInterface) {
         RPCUnsetTimerInterface(httpRPCTimerInterface);
         delete httpRPCTimerInterface;
-        httpRPCTimerInterface = 0;
+        httpRPCTimerInterface = nullptr;
     }
 }

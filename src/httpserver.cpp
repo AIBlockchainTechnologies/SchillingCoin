@@ -1,6 +1,6 @@
 // Copyright (c) 2015 The Bitcoin Core developers
 // Copyright (c) 2018-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,6 +14,7 @@
 #include "sync.h"
 #include "guiinterface.h"
 
+#include <cassert>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -60,109 +61,7 @@ private:
     HTTPRequestHandler func;
 };
 
-/** Simple work queue for distributing work over multiple threads.
- * Work items are simply callable objects.
- */
-template <typename WorkItem>
-class WorkQueue
-{
-private:
-    /** Mutex protects entire object */
-    std::mutex cs;
-    std::condition_variable cond;
-    /* XXX in C++11 we can use std::unique_ptr here and avoid manual cleanup */
-    std::deque<WorkItem*> queue;
-    bool running;
-    size_t maxDepth;
-    int numThreads;
-
-    /** RAII object to keep track of number of running worker threads */
-    class ThreadCounter
-    {
-    public:
-        WorkQueue &wq;
-        ThreadCounter(WorkQueue &w): wq(w)
-        {
-            std::lock_guard<std::mutex> lock(wq.cs);
-            wq.numThreads += 1;
-        }
-        ~ThreadCounter()
-        {
-            std::lock_guard<std::mutex> lock(wq.cs);
-            wq.numThreads -= 1;
-            wq.cond.notify_all();
-        }
-    };
-
-public:
-    WorkQueue(size_t maxDepth) : running(true),
-                                 maxDepth(maxDepth),
-                                 numThreads(0)
-    {
-    }
-    /*( Precondition: worker threads have all stopped
-     * (call WaitExit)
-     */
-    ~WorkQueue()
-    {
-        while (!queue.empty()) {
-            delete queue.front();
-            queue.pop_front();
-        }
-    }
-    /** Enqueue a work item */
-    bool Enqueue(WorkItem* item)
-    {
-        std::unique_lock<std::mutex> lock(cs);
-        if (queue.size() >= maxDepth) {
-            return false;
-        }
-        queue.push_back(item);
-        cond.notify_one();
-        return true;
-    }
-    /** Thread function */
-    void Run()
-    {
-        ThreadCounter count(*this);
-        while (running) {
-            WorkItem* i = 0;
-            {
-                std::unique_lock<std::mutex> lock(cs);
-                while (running && queue.empty())
-                    cond.wait(lock);
-                if (!running)
-                    break;
-                i = queue.front();
-                queue.pop_front();
-            }
-            (*i)();
-            delete i;
-        }
-    }
-    /** Interrupt and exit loops */
-    void Interrupt()
-    {
-        std::unique_lock<std::mutex> lock(cs);
-        running = false;
-        cond.notify_all();
-    }
-    /** Wait for worker threads to exit */
-    void WaitExit()
-    {
-        std::unique_lock<std::mutex> lock(cs);
-        while (numThreads > 0)
-            cond.wait(lock);
-    }
-
-    /** Return current depth of queue */
-    size_t Depth()
-    {
-        std::unique_lock<std::mutex> lock(cs);
-        return queue.size();
-    }
-};
-
+/** Path handler struct */
 struct HTTPPathHandler
 {
     HTTPPathHandler() {}
@@ -232,16 +131,12 @@ static std::string RequestMethodString(HTTPRequest::RequestMethod m)
     switch (m) {
     case HTTPRequest::GET:
         return "GET";
-        break;
     case HTTPRequest::POST:
         return "POST";
-        break;
     case HTTPRequest::HEAD:
         return "HEAD";
-        break;
     case HTTPRequest::PUT:
         return "PUT";
-        break;
     default:
         return "unknown";
     }
@@ -286,12 +181,15 @@ static void http_request_cb(struct evhttp_request* req, void* arg)
 
     // Dispatch to worker thread
     if (i != iend) {
+        // Create work item owning the HTTPRequest
         std::unique_ptr<HTTPWorkItem> item(new HTTPWorkItem(hreq.release(), path, i->handler));
         assert(workQueue);
-        if (workQueue->Enqueue(item.get()))
-            item.release(); /* if true, queue took ownership */
-        else
+        // Long-term API: Enqueue accepts unique_ptr<T>& and transfers ownership only on success.
+        if (!workQueue->Enqueue(item)) {
+            // Enqueue failed; item still owns the request so we can reply
             item->req->WriteReply(HTTP_INTERNAL, "Work queue depth exceeded");
+        }
+        // If Enqueue succeeded, item is now null and ownership is in the queue.
     } else {
         hreq->WriteReply(HTTP_NOTFOUND);
     }
@@ -479,6 +377,7 @@ void StopHTTPServer()
         LogPrint("http", "Waiting for HTTP worker threads to exit\n");
         workQueue->WaitExit();
         delete workQueue;
+        workQueue = nullptr;
     }
     MilliSleep(500); // Avoid race condition while the last HTTP-thread is exiting
     if (eventBase) {
@@ -633,19 +532,14 @@ HTTPRequest::RequestMethod HTTPRequest::GetRequestMethod()
     switch (evhttp_request_get_command(req)) {
     case EVHTTP_REQ_GET:
         return GET;
-        break;
     case EVHTTP_REQ_POST:
         return POST;
-        break;
     case EVHTTP_REQ_HEAD:
         return HEAD;
-        break;
     case EVHTTP_REQ_PUT:
         return PUT;
-        break;
     default:
         return UNKNOWN;
-        break;
     }
 }
 
