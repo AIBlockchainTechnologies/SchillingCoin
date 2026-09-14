@@ -18,6 +18,7 @@
 #include "init.h"
 #include "main.h"
 #include "net.h"
+#include "netbase.h" // <-- REQUIRED for proxyType, GetProxy, SplitHostPort, LookupHost
 #include "txdb.h" // for -dbcache defaults
 #include "util.h"
 

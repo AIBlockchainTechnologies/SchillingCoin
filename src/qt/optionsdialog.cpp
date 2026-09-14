@@ -16,7 +16,8 @@
 #include "optionsmodel.h"
 
 #include "main.h"
-#include "netbase.h"
+#include "netaddress.h"
+#include "netbase.h" // <-- REQUIRED for LookupNumeric, proxyType, GetProxy
 #include "txdb.h"
 
 #ifdef ENABLE_WALLET

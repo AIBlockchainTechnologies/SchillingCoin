@@ -1,12 +1,17 @@
 // Copyright (c) 2012-2014 The Bitcoin Core developers
 // Copyright (c) 2014-2015 The Dash Core developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "netbase.h"
+#include "netaddress.h"
+#include "netbase.h" // <-- REQUIRED for SplitHostPort, LookupNumeric, LookupHost, Lookup
 #include "test/test_schillingcoin.h"
+
+#include <string>
+
+#include <boost/test/unit_test.hpp>
 
 #include <string>
 

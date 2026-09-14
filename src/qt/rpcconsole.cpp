@@ -18,7 +18,7 @@
 #include "main.h"
 #include "rpc/client.h"
 #include "rpc/server.h"
-#include "util.h"
+#include "netbase.h" // <-- REQUIRED for SplitHostPort, Lookup, LookupHost, GetNetworkName
 
 #include "init.h"
 #include <startoptionsmain.h>

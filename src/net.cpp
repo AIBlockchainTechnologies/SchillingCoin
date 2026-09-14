@@ -11,6 +11,7 @@
 #endif
 
 #include "net.h"
+#include "netbase.h"
 #include "main.h"
 #include "addrman.h"
 #include "chainparams.h"

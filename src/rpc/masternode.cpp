@@ -16,6 +16,7 @@
 #include "utilmoneystr.h"
 #include "wallet/wallet.h"
 #include "script/standard.h"
+#include "netbase.h" // <-- REQUIRED for SplitHostPort, GetNetworkName, GetProxy, proxyType
 
 #include <univalue.h>
 #include <boost/tokenizer.hpp>

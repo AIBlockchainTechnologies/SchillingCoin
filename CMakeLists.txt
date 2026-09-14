@@ -481,6 +481,7 @@ set(COMMON_SOURCES
         ./src/hash.cpp
         ./src/key.cpp
         ./src/keystore.cpp
+        ./src/netaddress.cpp
         ./src/netbase.cpp
         ./src/protocol.cpp
         ./src/pubkey.cpp

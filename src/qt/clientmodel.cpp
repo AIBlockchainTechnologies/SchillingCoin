@@ -19,7 +19,8 @@
 #include "masternode-sync.h"
 #include "masternodeman.h"
 #include "net.h"
-#include "netbase.h"
+#include "netaddress.h"
+#include "netbase.h" // REQUIRED for proxyType, GetProxy, IsReachable
 #include "guiinterface.h"
 #include "util.h"
 

@@ -395,6 +395,7 @@ SOURCES += src/activemasternode.cpp \
            src/merkleblock.cpp \
            src/miner.cpp \
            src/net.cpp \
+           src/netaddress.cpp \
            src/netbase.cpp \
            src/noui.cpp \
            src/pow.cpp \

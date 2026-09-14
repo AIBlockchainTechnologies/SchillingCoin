@@ -12,7 +12,8 @@
 #include "main.h"
 #include "masternode-sync.h"
 #include "net.h"
-#include "netbase.h"
+#include "netaddress.h"
+#include "netbase.h" // <-- REQUIRED for proxyType, GetProxy, GetNetworkName, SplitHostPort
 #include "rpc/server.h"
 #include "timedata.h"
 #include "util.h"

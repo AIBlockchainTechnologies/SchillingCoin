@@ -7,8 +7,9 @@
 
 #include "torcontrol.h"
 #include "utilstrencodings.h"
-#include "netbase.h"
+#include "netaddress.h"
 #include "net.h"
+#include "netbase.h"
 #include "util.h"
 #include "crypto/hmac_sha256.h"
 

@@ -34,6 +34,7 @@
 #include "messagesigner.h"
 #include "miner.h"
 #include "net.h"
+#include "netbase.h"
 #include "rpc/server.h"
 #include "script/standard.h"
 #include "scheduler.h"
