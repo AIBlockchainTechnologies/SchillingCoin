@@ -98,6 +98,11 @@ enum BindFlags {
 static const char* FEE_ESTIMATES_FILENAME = "fee_estimates.dat";
 CClientUIInterface uiInterface;
 
+// === RPC / UI callback connection handles (Bitcoin-style) ===
+static boost::signals2::connection g_connRPCNotifyBlockChange;
+static boost::signals2::connection g_connBlockNotifyGenesisWait;
+static boost::signals2::connection g_connBlockNotifyCallback;
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // Shutdown
@@ -339,12 +344,15 @@ bool static Bind(const CService& addr, unsigned int flags)
 
 void OnRPCStarted()
 {
-    uiInterface.NotifyBlockTip.connect(RPCNotifyBlockChange);
+    g_connRPCNotifyBlockChange =
+        uiInterface.NotifyBlockTip.connect(&RPCNotifyBlockChange);
 }
 
 void OnRPCStopped()
 {
-    uiInterface.NotifyBlockTip.disconnect(RPCNotifyBlockChange);
+    if (g_connRPCNotifyBlockChange.connected())
+        g_connRPCNotifyBlockChange.disconnect();
+
     //RPCNotifyBlockChange(0);
     g_best_block_cv.notify_all();
     LogPrint("rpc", "RPC stopped.\n");
@@ -651,7 +659,6 @@ static void BlockNotifyGenesisWait(bool, const CBlockIndex *pBlockIndex)
 }
 
 ////////////////////////////////////////////////////
-
 
 struct CImportingNow {
     CImportingNow()
@@ -1731,13 +1738,16 @@ bool AppInit2(const std::vector<std::string>& words)
     // Either install a handler to notify us when genesis activates, or set fHaveGenesis directly.
     // No locking, as this happens before any background thread is started.
     if (chainActive.Tip() == nullptr) {
-        uiInterface.NotifyBlockTip.connect(BlockNotifyGenesisWait);
+        g_connBlockNotifyGenesisWait =
+            uiInterface.NotifyBlockTip.connect(&BlockNotifyGenesisWait);
     } else {
         fHaveGenesis = true;
     }
 
-    if (mapArgs.count("-blocknotify"))
-        uiInterface.NotifyBlockTip.connect(BlockNotifyCallback);
+    if (mapArgs.count("-blocknotify")) {
+        g_connBlockNotifyCallback =
+            uiInterface.NotifyBlockTip.connect(&BlockNotifyCallback);
+    }
 
     if (mapArgs.count("-blocksizenotify"))
         uiInterface.NotifyBlockSize.connect(BlockSizeNotifyCallback);
@@ -1761,7 +1771,9 @@ bool AppInit2(const std::vector<std::string>& words)
         while (!fHaveGenesis) {
             condvar_GenesisWait.wait(lockG);
         }
-        uiInterface.NotifyBlockTip.disconnect(BlockNotifyGenesisWait);
+
+        if (g_connBlockNotifyGenesisWait.connected())
+            g_connBlockNotifyGenesisWait.disconnect();
     }
 
     // ********************************************************* Step 10: setup masternodes and caches

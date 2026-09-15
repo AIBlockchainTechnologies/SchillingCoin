@@ -1,7 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -127,12 +127,15 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
         certList = QSslCertificate::fromPath(certFile);
         // Use those certificates when fetching payment requests, too:
         QSslConfiguration::defaultConfiguration().setCaCertificates(certList);
-    } else
+    } else {
         certList = QSslConfiguration::systemCaCertificates();
+    }
 
     int nRootCerts = 0;
     const QDateTime currentTime = QDateTime::currentDateTime();
-    Q_FOREACH (const QSslCertificate& cert, certList) {
+
+    // Modern C++ loop replacing Q_FOREACH
+    for (const QSslCertificate& cert : certList) {
         if (currentTime < cert.effectiveDate() || currentTime > cert.expiryDate()) {
             ReportInvalidCertificate(cert);
             continue;
@@ -143,6 +146,7 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
             ReportInvalidCertificate(cert);
             continue;
         }
+
         QByteArray certData = cert.toDer();
         const unsigned char* data = (const unsigned char*)certData.data();
 
@@ -156,6 +160,7 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
             continue;
         }
     }
+
     qWarning() << "PaymentServer::LoadRootCAs : Loaded " << nRootCerts << " root certificates";
 
     // Project for another day:
@@ -222,16 +227,11 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
     }
 }
 
-//
-// Sending to the server is done synchronously, at startup.
-// If the server isn't already running, startup continues,
-// and the items in savedPaymentRequest will be handled
-// when uiReady() is called.
-//
 bool PaymentServer::ipcSendCommandLine()
 {
     bool fResult = false;
-    Q_FOREACH (const QString& r, savedPaymentRequests) {
+
+    for (const QString& r : savedPaymentRequests) {
         QLocalSocket* socket = new QLocalSocket();
         socket->connectToServer(ipcServerName(), QIODevice::WriteOnly);
         if (!socket->waitForConnected(BITCOIN_IPC_CONNECT_TIMEOUT)) {
@@ -350,9 +350,11 @@ void PaymentServer::uiReady()
     initNetManager();
 
     saveURIs = false;
-    Q_FOREACH (const QString& s, savedPaymentRequests) {
+
+    for (const QString& s : savedPaymentRequests) {
         handleURIOrFile(s);
     }
+
     savedPaymentRequests.clear();
 }
 
@@ -476,23 +478,23 @@ bool PaymentServer::processPaymentRequest(PaymentRequestPlus& request, SendCoins
 
         // Payment request network matches client network?
         if (details.network() != Params().NetworkIDString()) {
-            Q_EMIT message(tr("Payment request rejected"), tr("Payment request network doesn't match client network."),
-                CClientUIInterface::MSG_ERROR);
-
+            Q_EMIT message(tr("Payment request rejected"),
+                           tr("Payment request network doesn't match client network."),
+                           CClientUIInterface::MSG_ERROR);
             return false;
         }
 
         // Expired payment request?
         if (details.has_expires() && (int64_t)details.expires() < GetTime()) {
-            Q_EMIT message(tr("Payment request rejected"), tr("Payment request has expired."),
-                CClientUIInterface::MSG_ERROR);
-
+            Q_EMIT message(tr("Payment request rejected"),
+                           tr("Payment request has expired."),
+                           CClientUIInterface::MSG_ERROR);
             return false;
         }
     } else {
-        Q_EMIT message(tr("Payment request error"), tr("Payment request is not initialized."),
-            CClientUIInterface::MSG_ERROR);
-
+        Q_EMIT message(tr("Payment request error"),
+                       tr("Payment request is not initialized."),
+                       CClientUIInterface::MSG_ERROR);
         return false;
     }
 
@@ -501,43 +503,46 @@ bool PaymentServer::processPaymentRequest(PaymentRequestPlus& request, SendCoins
 
     request.getMerchant(certStore.get(), recipient.authenticatedMerchant);
 
-    QList<std::pair<CScript, CAmount> > sendingTos = request.getPayTo();
+    QList<std::pair<CScript, CAmount>> sendingTos = request.getPayTo();
     QStringList addresses;
 
-    Q_FOREACH (const PAIRTYPE(CScript, CAmount) & sendingTo, sendingTos) {
+    // Modern C++ loop replacing Q_FOREACH
+    for (const PAIRTYPE(CScript, CAmount)& sendingTo : sendingTos) {
+
         // Extract and check destination addresses
         CTxDestination dest;
         if (ExtractDestination(sendingTo.first, dest)) {
-            // Append destination address
             addresses.append(QString::fromStdString(CBitcoinAddress(dest).ToString()));
         } else if (!recipient.authenticatedMerchant.isEmpty()) {
-            // Insecure payments to custom schillingcoin addresses are not supported
-            // (there is no good way to tell the user where they are paying in a way
-            // they'd have a chance of understanding).
             Q_EMIT message(tr("Payment request rejected"),
-                tr("Unverified payment requests to custom payment scripts are unsupported."),
-                CClientUIInterface::MSG_ERROR);
+                           tr("Unverified payment requests to custom payment scripts are unsupported."),
+                           CClientUIInterface::MSG_ERROR);
             return false;
         }
 
         // Extract and check amounts
         CTxOut txOut(sendingTo.second, sendingTo.first);
         if (txOut.IsDust(::minRelayTxFee)) {
-            Q_EMIT message(tr("Payment request error"), tr("Requested payment amount of %1 is too small (considered dust).").arg(BitcoinUnits::formatWithUnit(optionsModel->getDisplayUnit(), sendingTo.second)),
-                CClientUIInterface::MSG_ERROR);
-
+            Q_EMIT message(tr("Payment request error"),
+                           tr("Requested payment amount of %1 is too small (considered dust).")
+                               .arg(BitcoinUnits::formatWithUnit(optionsModel->getDisplayUnit(),
+                                                                 sendingTo.second)),
+                           CClientUIInterface::MSG_ERROR);
             return false;
         }
 
         recipient.amount += sendingTo.second;
     }
+
     // Store addresses and format them to fit nicely into the GUI
     recipient.address = addresses.join("<br />");
 
     if (!recipient.authenticatedMerchant.isEmpty()) {
-        qDebug() << "PaymentServer::processPaymentRequest : Secure payment request from " << recipient.authenticatedMerchant;
+        qDebug() << "PaymentServer::processPaymentRequest : Secure payment request from "
+                 << recipient.authenticatedMerchant;
     } else {
-        qDebug() << "PaymentServer::processPaymentRequest : Insecure payment request to " << addresses.join(", ");
+        qDebug() << "PaymentServer::processPaymentRequest : Insecure payment request to "
+                 << addresses.join(", ");
     }
 
     return true;
@@ -665,10 +670,12 @@ void PaymentServer::reportSslErrors(QNetworkReply* reply, const QList<QSslError>
     Q_UNUSED(reply);
 
     QString errString;
-    Q_FOREACH (const QSslError& err, errs) {
+
+    for (const QSslError& err : errs) {
         qWarning() << "PaymentServer::reportSslErrors : " << err;
         errString += err.errorString() + "\n";
     }
+
     Q_EMIT message(tr("Network request error"), errString, CClientUIInterface::MSG_ERROR);
 }
 

@@ -233,20 +233,25 @@ QString TransactionDesc::toHTML(CWallet* wallet, CWalletTx& wtx, TransactionReco
     strHTML += "<b>" + tr("Output index") + ":</b> " + QString::number(rec->getOutputIndex()) + "<br>";
 
     // Message from normal schillingcoin:URI (schillingcoin:XyZ...?message=example)
-    Q_FOREACH (const PAIRTYPE(std::string, std::string) & r, wtx.vOrderForm)
-        if (r.first == "Message")
-            strHTML += "<br><b>" + tr("Message") + ":</b><br>" + GUIUtil::HtmlEscape(r.second, true) + "<br>";
+    for (const PAIRTYPE(std::string, std::string)& r : wtx.vOrderForm) {
+        if (r.first == "Message") {
+            strHTML += "<br><b>" + tr("Message") + ":</b><br>"
+                       + GUIUtil::HtmlEscape(r.second, true) + "<br>";
+        }
+    }
 
     //
     // PaymentRequest info:
     //
-    Q_FOREACH (const PAIRTYPE(std::string, std::string) & r, wtx.vOrderForm) {
+    for (const PAIRTYPE(std::string, std::string)& r : wtx.vOrderForm) {
         if (r.first == "PaymentRequest") {
             PaymentRequestPlus req;
             req.parse(QByteArray::fromRawData(r.second.data(), r.second.size()));
             QString merchant;
-            if (req.getMerchant(PaymentServer::getCertStore(), merchant))
-                strHTML += "<b>" + tr("Merchant") + ":</b> " + GUIUtil::HtmlEscape(merchant) + "<br>";
+            if (req.getMerchant(PaymentServer::getCertStore(), merchant)) {
+                strHTML += "<b>" + tr("Merchant") + ":</b> "
+                           + GUIUtil::HtmlEscape(merchant) + "<br>";
+            }
         }
     }
 
