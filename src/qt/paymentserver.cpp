@@ -134,7 +134,6 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
     int nRootCerts = 0;
     const QDateTime currentTime = QDateTime::currentDateTime();
 
-    // Modern C++ loop replacing Q_FOREACH
     for (const QSslCertificate& cert : certList) {
         if (currentTime < cert.effectiveDate() || currentTime > cert.expiryDate()) {
             ReportInvalidCertificate(cert);
@@ -506,7 +505,6 @@ bool PaymentServer::processPaymentRequest(PaymentRequestPlus& request, SendCoins
     QList<std::pair<CScript, CAmount>> sendingTos = request.getPayTo();
     QStringList addresses;
 
-    // Modern C++ loop replacing Q_FOREACH
     for (const PAIRTYPE(CScript, CAmount)& sendingTo : sendingTos) {
 
         // Extract and check destination addresses
