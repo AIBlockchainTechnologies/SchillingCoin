@@ -576,7 +576,8 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
     CAmount nPayAmount = 0;
     bool fDust = false;
     CMutableTransaction txDummy;
-    Q_FOREACH (const CAmount& amount, CoinControlDialog::payAmounts) {
+
+    for (const CAmount& amount : CoinControlDialog::payAmounts) {
         nPayAmount += amount;
 
         if (amount > 0) {
@@ -606,8 +607,6 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
     model->getOutputs(vCoinControl, vOutputs);
 
     for (const COutput& out : vOutputs) {
-        // unselect already spent, very unlikely scenario, this could happen
-        // when selected are spent elsewhere, like rpc or another computer
         uint256 txhash = out.tx->GetHash();
         COutPoint outpt(txhash, out.i);
         if (model->isSpent(outpt)) {
@@ -615,16 +614,10 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
             continue;
         }
 
-        // Quantity
         nQuantity++;
-
-        // Amount
         nAmount += out.tx->vout[out.i].nValue;
-
-        // Priority
         dPriorityInputs += (double)out.tx->vout[out.i].nValue * (out.nDepth + 1);
 
-        // Bytes
         CTxDestination address;
         if (ExtractDestination(out.tx->vout[out.i].scriptPubKey, address)) {
             CPubKey pubkey;
@@ -633,31 +626,35 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
                 nBytesInputs += (pubkey.IsCompressed() ? 148 : 180);
                 if (!pubkey.IsCompressed())
                     nQuantityUncompressed++;
-            } else
-                nBytesInputs += 148; // in all error cases, simply assume 148 here
-        } else
+            } else {
+                nBytesInputs += 148;
+            }
+        } else {
             nBytesInputs += 148;
+        }
     }
 
-    // calculation
     if (nQuantity > 0) {
-        // Bytes
-        nBytes = nBytesInputs + ((CoinControlDialog::payAmounts.size() > 0 ? CoinControlDialog::payAmounts.size() + std::max(1, CoinControlDialog::nSplitBlockDummy) : 2) * 34) + 10; // always assume +1 output for change here
+        nBytes = nBytesInputs +
+                 ((CoinControlDialog::payAmounts.size() > 0
+                       ? CoinControlDialog::payAmounts.size() + std::max(1, CoinControlDialog::nSplitBlockDummy)
+                       : 2) * 34) +
+                 10;
 
-        // Priority
         double mempoolEstimatePriority = mempool.estimatePriority(nTxConfirmTarget);
-        dPriority = dPriorityInputs / (nBytes - nBytesInputs + (nQuantityUncompressed * 29)); // 29 = 180 - 151 (uncompressed public keys are over the limit. max 151 bytes of the input are ignored for priority)
+        dPriority = dPriorityInputs /
+                    (nBytes - nBytesInputs + (nQuantityUncompressed * 29));
         sPriorityLabel = CoinControlDialog::getPriorityLabel(dPriority, mempoolEstimatePriority);
 
-        // Fee
         nPayFee = CWallet::GetMinimumFee(nBytes, nTxConfirmTarget, mempool);
 
-        // IX Fee
-        if (coinControl->useSwiftTX) nPayFee = std::max(nPayFee, CENT);
-        // Allow free?
+        if (coinControl->useSwiftTX)
+            nPayFee = std::max(nPayFee, CENT);
+
         double dPriorityNeeded = mempoolEstimatePriority;
         if (dPriorityNeeded <= 0)
-            dPriorityNeeded = AllowFreeThreshold(); // not enough data, back to hard-coded
+            dPriorityNeeded = AllowFreeThreshold();
+
         fAllowFree = (dPriority >= dPriorityNeeded);
 
         if (fSendFreeTransactions)
@@ -667,7 +664,6 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
         if (nPayAmount > 0) {
             nChange = nAmount - nPayFee - nPayAmount;
 
-            // Never create dust outputs; if we would, just add the dust to the fee.
             if (nChange > 0 && nChange < CENT) {
                 CTxOut txout(nChange, (CScript)std::vector<unsigned char>(24, 0));
                 if (txout.IsDust(::minRelayTxFee)) {
@@ -680,13 +676,11 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
                 nBytes -= 34;
         }
 
-        // after fee
         nAfterFee = nAmount - nPayFee;
         if (nAfterFee < 0)
             nAfterFee = 0;
     }
 
-    // actually update labels
     int nDisplayUnit = BitcoinUnits::SCH;
     if (model && model->getOptionsModel())
         nDisplayUnit = model->getOptionsModel()->getDisplayUnit();
@@ -699,48 +693,52 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
     QLabel* l7 = dialog->findChild<QLabel*>("labelCoinControlLowOutput");
     QLabel* l8 = dialog->findChild<QLabel*>("labelCoinControlChange");
 
-    // enable/disable "dust" and "change"
     dialog->findChild<QLabel*>("labelCoinControlLowOutputText")->setEnabled(nPayAmount > 0);
     dialog->findChild<QLabel*>("labelCoinControlLowOutput")->setEnabled(nPayAmount > 0);
     dialog->findChild<QLabel*>("labelCoinControlChangeText")->setEnabled(nPayAmount > 0);
     dialog->findChild<QLabel*>("labelCoinControlChange")->setEnabled(nPayAmount > 0);
 
-    // stats
-    l1->setText(QString::number(nQuantity));                            // Quantity
-    l2->setText(BitcoinUnits::formatWithUnit(nDisplayUnit, nAmount));   // Amount
-    l3->setText(BitcoinUnits::formatWithUnit(nDisplayUnit, nPayFee));   // Fee
-    l4->setText(BitcoinUnits::formatWithUnit(nDisplayUnit, nAfterFee)); // After Fee
-    l5->setText(((nBytes > 0) ? "~" : "") + QString::number(nBytes));   // Bytes
-    l7->setText(fDust ? tr("yes") : tr("no"));                          // Dust
-    l8->setText(BitcoinUnits::formatWithUnit(nDisplayUnit, nChange));   // Change
-    if (nPayFee > 0 && !(payTxFee.GetFeePerK() > 0 && fPayAtLeastCustomFee && nBytes < 1000)) {
+    l1->setText(QString::number(nQuantity));
+    l2->setText(BitcoinUnits::formatWithUnit(nDisplayUnit, nAmount));
+    l3->setText(BitcoinUnits::formatWithUnit(nDisplayUnit, nPayFee));
+    l4->setText(BitcoinUnits::formatWithUnit(nDisplayUnit, nAfterFee));
+    l5->setText(((nBytes > 0) ? "~" : "") + QString::number(nBytes));
+    l7->setText(fDust ? tr("yes") : tr("no"));
+    l8->setText(BitcoinUnits::formatWithUnit(nDisplayUnit, nChange));
+
+    if (nPayFee > 0 &&
+        !(payTxFee.GetFeePerK() > 0 && fPayAtLeastCustomFee && nBytes < 1000)) {
         l3->setText("~" + l3->text());
         l4->setText("~" + l4->text());
         if (nChange > 0)
             l8->setText("~" + l8->text());
     }
 
-    // turn labels "red"
-    l5->setStyleSheet((nBytes >= MAX_FREE_TRANSACTION_CREATE_SIZE) ? "color:red;" : ""); // Bytes >= 1000
-    l7->setStyleSheet((fDust) ? "color:red;" : "");                                      // Dust = "yes"
+    l5->setStyleSheet((nBytes >= MAX_FREE_TRANSACTION_CREATE_SIZE) ? "color:red;" : "");
+    l7->setStyleSheet((fDust) ? "color:red;" : "");
 
-    // tool tips
     QString toolTip1 = tr("This label turns red, if the transaction size is greater than 1000 bytes.") + "<br /><br />";
-    toolTip1 += tr("This means a fee of at least %1 per kB is required.").arg(BitcoinUnits::formatWithUnit(nDisplayUnit, CWallet::minTxFee.GetFeePerK())) + "<br /><br />";
+    toolTip1 += tr("This means a fee of at least %1 per kB is required.")
+                    .arg(BitcoinUnits::formatWithUnit(nDisplayUnit, CWallet::minTxFee.GetFeePerK())) +
+                "<br /><br />";
     toolTip1 += tr("Can vary +/- 1 byte per input.");
 
     QString toolTip2 = tr("Transactions with higher priority are more likely to get included into a block.") + "<br /><br />";
     toolTip2 += tr("This label turns red, if the priority is smaller than \"medium\".") + "<br /><br />";
-    toolTip2 += tr("This means a fee of at least %1 per kB is required.").arg(BitcoinUnits::formatWithUnit(nDisplayUnit, CWallet::minTxFee.GetFeePerK()));
+    toolTip2 += tr("This means a fee of at least %1 per kB is required.")
+                    .arg(BitcoinUnits::formatWithUnit(nDisplayUnit, CWallet::minTxFee.GetFeePerK()));
 
-    QString toolTip3 = tr("This label turns red, if any recipient receives an amount smaller than %1.").arg(BitcoinUnits::formatWithUnit(nDisplayUnit, ::minRelayTxFee.GetFee(546)));
+    QString toolTip3 = tr("This label turns red, if any recipient receives an amount smaller than %1.")
+                           .arg(BitcoinUnits::formatWithUnit(nDisplayUnit, ::minRelayTxFee.GetFee(546)));
 
-    // how many satoshis the estimated fee can vary per byte we guess wrong
     double dFeeVary;
     if (payTxFee.GetFeePerK() > 0)
         dFeeVary = (double)std::max(CWallet::minTxFee.GetFeePerK(), payTxFee.GetFeePerK()) / 1000;
     else
-        dFeeVary = (double)std::max(CWallet::minTxFee.GetFeePerK(), mempool.estimateFee(nTxConfirmTarget).GetFeePerK()) / 1000;
+        dFeeVary = (double)std::max(CWallet::minTxFee.GetFeePerK(),
+                                    mempool.estimateFee(nTxConfirmTarget).GetFeePerK()) /
+                   1000;
+
     QString toolTip4 = tr("Can vary +/- %1 uSCH per input.").arg(dFeeVary);
 
     l3->setToolTip(toolTip4);
@@ -748,13 +746,13 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
     l5->setToolTip(toolTip1);
     l7->setToolTip(toolTip3);
     l8->setToolTip(toolTip4);
+
     dialog->findChild<QLabel*>("labelCoinControlFeeText")->setToolTip(l3->toolTip());
     dialog->findChild<QLabel*>("labelCoinControlAfterFeeText")->setToolTip(l4->toolTip());
     dialog->findChild<QLabel*>("labelCoinControlBytesText")->setToolTip(l5->toolTip());
     dialog->findChild<QLabel*>("labelCoinControlLowOutputText")->setToolTip(l7->toolTip());
     dialog->findChild<QLabel*>("labelCoinControlChangeText")->setToolTip(l8->toolTip());
 
-    // Insufficient funds
     QLabel* label = dialog->findChild<QLabel*>("labelCoinControlInsuffFunds");
     if (label)
         label->setVisible(nChange < 0);

@@ -61,7 +61,10 @@ TopBar::TopBar(SchillingCoinGUI* _mainWindow, QWidget *parent) :
     setCssProperty(lblTitles, "text-title-topbar");
     QFont font;
     font.setWeight(QFont::Light);
-    Q_FOREACH (QWidget* w, lblTitles) { w->setFont(font); }
+
+    for (QWidget* w : lblTitles) {
+        w->setFont(font);
+    }
 
     // Amount information top
     ui->widgetTopAmount->setVisible(false);
@@ -110,10 +113,10 @@ TopBar::TopBar(SchillingCoinGUI* _mainWindow, QWidget *parent) :
 
     ui->pushButtonLock->setButtonClassStyle("cssClass", "btn-check-lock");
 
-    if(isLightTheme()){
+    if (isLightTheme()) {
         ui->pushButtonTheme->setButtonClassStyle("cssClass", "btn-check-theme-light");
         ui->pushButtonTheme->setButtonText("Light Theme");
-    }else{
+    } else {
         ui->pushButtonTheme->setButtonClassStyle("cssClass", "btn-check-theme-dark");
         ui->pushButtonTheme->setButtonText("Dark Theme");
     }
@@ -124,15 +127,14 @@ TopBar::TopBar(SchillingCoinGUI* _mainWindow, QWidget *parent) :
     // QR image
     QPixmap pixmap("://img-qr-test");
     ui->btnQr->setIcon(
-                QIcon(pixmap.scaled(
-                         70,
-                         70,
-                         Qt::KeepAspectRatio))
-                );
+        QIcon(pixmap.scaled(
+            70,
+            70,
+            Qt::KeepAspectRatio))
+    );
 
     ui->pushButtonLock->setButtonText("Wallet Locked  ");
     ui->pushButtonLock->setButtonClassStyle("cssClass", "btn-check-status-lock");
-
 
     connect(ui->pushButtonQR, SIGNAL(clicked()), this, SLOT(onBtnReceiveClicked()));
     connect(ui->btnQr, SIGNAL(clicked()), this, SLOT(onBtnReceiveClicked()));
@@ -143,14 +145,13 @@ TopBar::TopBar(SchillingCoinGUI* _mainWindow, QWidget *parent) :
     connect(ui->pushButtonHDEnabled, SIGNAL(Mouse_Pressed()), this, SLOT(onHDEnabledClicked()));
     connect(ui->pushButtonSync, &ExpandableButton::Mouse_HoverLeave, this, &TopBar::refreshProgressBarSize);
     connect(ui->pushButtonSync, &ExpandableButton::Mouse_Hover, this, &TopBar::refreshProgressBarSize);
-    connect(ui->pushButtonSync, &ExpandableButton::Mouse_Pressed, [this](){window->goToSettingsInfo();});
-    connect(ui->pushButtonConnection, &ExpandableButton::Mouse_Pressed, [this](){window->openNetworkMonitor();});
+    connect(ui->pushButtonSync, &ExpandableButton::Mouse_Pressed, [this](){ window->goToSettingsInfo(); });
+    connect(ui->pushButtonConnection, &ExpandableButton::Mouse_Pressed, [this](){ window->openNetworkMonitor(); });
     connect(ui->pushButtonHardfork, &ExpandableButton::Mouse_HoverLeave, this, &TopBar::refreshHardforkSize);
     connect(ui->pushButtonHardfork, &ExpandableButton::Mouse_Hover, this, &TopBar::refreshHardforkSize);
 
     updateHDStatus();
-
-	loadBanner();
+    loadBanner();
 }
 
 void TopBar::loadBanner() {

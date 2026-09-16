@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -274,8 +274,11 @@ void setCssBtnSecondary(QPushButton *btn, bool forceUpdate){
     setCssProperty(btn, "btn-secundary", forceUpdate);
 }
 
-void setCssTextBodyDialog(std::initializer_list<QWidget*> args){
-    Q_FOREACH (QWidget* w, args) { setCssTextBodyDialog(w); }
+void setCssTextBodyDialog(std::initializer_list<QWidget*> args)
+{
+    for (QWidget* w : args) {
+        setCssTextBodyDialog(w);
+    }
 }
 
 void setCssTextBodyDialog(QWidget* widget) {
@@ -290,8 +293,11 @@ void setCssSubtitleScreen(QWidget* wid) {
     setCssProperty(wid, "text-subtitle", false);
 }
 
-void setCssProperty(std::initializer_list<QWidget*> args, QString value){
-    Q_FOREACH (QWidget* w, args) { setCssProperty(w, value); }
+void setCssProperty(std::initializer_list<QWidget*> args, QString value)
+{
+    for (QWidget* w : args) {
+        setCssProperty(w, value);
+    }
 }
 
 void setCssProperty(QWidget *wid, QString value, bool forceUpdate){
@@ -304,6 +310,9 @@ void forceUpdateStyle(QWidget *widget, bool forceUpdate){
         updateStyle(widget);
 }
 
-void forceUpdateStyle(std::initializer_list<QWidget*> args){
-    Q_FOREACH (QWidget* w, args) { forceUpdateStyle(w, true); }
+void forceUpdateStyle(std::initializer_list<QWidget*> args)
+{
+    for (QWidget* w : args) {
+        forceUpdateStyle(w, true);
+    }
 }

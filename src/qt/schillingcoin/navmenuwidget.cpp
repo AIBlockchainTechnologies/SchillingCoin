@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -133,14 +133,17 @@ void NavMenuWidget::onReceiveClicked(){
 
 void NavMenuWidget::onNavSelected(QWidget* active, bool startup) {
     QString start = "btn-nav-";
-    Q_FOREACH (QWidget* w, btns) {
+
+    for (QWidget* w : btns) {
         QString clazz = start + w->property("name").toString();
         if (w == active) {
             clazz += "-active";
         }
         setCssProperty(w, clazz);
     }
-    if (!startup) updateButtonStyles();
+
+    if (!startup)
+        updateButtonStyles();
 }
 
 void NavMenuWidget::selectSettings() {

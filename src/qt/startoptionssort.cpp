@@ -1,7 +1,9 @@
 //
 // Created by Kolby on 6/19/2019.
 //
-
+// Copyright (c) 2026 The SchillingCoin developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <startoptionssort.h>
 #include <ui_startoptionssort.h>
@@ -23,22 +25,25 @@ CustomRectItem::CustomRectItem(QGraphicsItem *parent):
     setFlags(QGraphicsItem::ItemIsSelectable);
 }
 
-void StartOptionsSort::keyPressEvent(QKeyEvent *event){
-    Q_FOREACH(QGraphicsItem *item, scene->selectedItems())
-    if(event->key() == Qt::Key_Backspace){
+void StartOptionsSort::keyPressEvent(QKeyEvent *event)
+{
+    for (QGraphicsItem* item : scene->selectedItems()) {
+        if (event->key() == Qt::Key_Backspace) {
 
-        if(CustomRectItem *rItem = qgraphicsitem_cast<CustomRectItem*> (item)){
-            for (auto const& i : labelsList)
-            {
-                if (i->count() < 4) {
-                    i->addItem(rItem->text());
-                    rItem->setText(QString());
-                    break;
+            if (CustomRectItem* rItem = qgraphicsitem_cast<CustomRectItem*>(item)) {
+                for (auto const& i : labelsList) {
+                    if (i->count() < 4) {
+                        i->addItem(rItem->text());
+                        rItem->setText(QString());
+                        break;
+                    }
                 }
             }
+
+            scene->clearSelection();
         }
-        scene->clearSelection();
     }
+
     QWidget::keyPressEvent(event);
 }
 
@@ -207,12 +212,16 @@ StartOptionsSort::StartOptionsSort(std::vector<std::string> Words, int rows, QWi
 
 }
 
-std::list<QString> StartOptionsSort::getOrderedStrings(){
+std::list<QString> StartOptionsSort::getOrderedStrings()
+{
     std::list<QString> list;
-    Q_FOREACH(QGraphicsItem *item, scene->items())
-    if(CustomRectItem *rItem = qgraphicsitem_cast<CustomRectItem*> (item)) {
-        list.push_back(rItem->text());
+
+    for (QGraphicsItem* item : scene->items()) {
+        if (CustomRectItem* rItem = qgraphicsitem_cast<CustomRectItem*>(item)) {
+            list.push_back(rItem->text());
+        }
     }
+
     return list;
 }
 

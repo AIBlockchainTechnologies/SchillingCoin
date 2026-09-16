@@ -125,9 +125,6 @@ public:
 
 #include "rpcconsole.moc"
 
-/**
- * Split shell command line into a list of arguments.
- */
 bool parseCommandLine(std::vector<std::string>& args, const std::string& strCommand)
 {
     enum CmdParseState {
@@ -140,14 +137,22 @@ bool parseCommandLine(std::vector<std::string>& args, const std::string& strComm
     } state = STATE_EATING_SPACES;
 
     std::string curarg;
-    Q_FOREACH(char ch, strCommand) {
+
+    for (char ch : strCommand) {
         switch (state) {
+
         case STATE_ARGUMENT:
         case STATE_EATING_SPACES:
             switch (ch) {
-            case '"': state = STATE_DOUBLEQUOTED; break;
-            case '\'': state = STATE_SINGLEQUOTED; break;
-            case '\\': state = STATE_ESCAPE_OUTER; break;
+            case '"':
+                state = STATE_DOUBLEQUOTED;
+                break;
+            case '\'':
+                state = STATE_SINGLEQUOTED;
+                break;
+            case '\\':
+                state = STATE_ESCAPE_OUTER;
+                break;
             case ' ':
             case '\n':
             case '\t':
@@ -164,14 +169,19 @@ bool parseCommandLine(std::vector<std::string>& args, const std::string& strComm
             break;
 
         case STATE_SINGLEQUOTED:
-            if (ch == '\'') state = STATE_ARGUMENT;
-            else curarg += ch;
+            if (ch == '\'')
+                state = STATE_ARGUMENT;
+            else
+                curarg += ch;
             break;
 
         case STATE_DOUBLEQUOTED:
-            if (ch == '"') state = STATE_ARGUMENT;
-            else if (ch == '\\') state = STATE_ESCAPE_DOUBLEQUOTED;
-            else curarg += ch;
+            if (ch == '"')
+                state = STATE_ARGUMENT;
+            else if (ch == '\\')
+                state = STATE_ESCAPE_DOUBLEQUOTED;
+            else
+                curarg += ch;
             break;
 
         case STATE_ESCAPE_OUTER:
@@ -180,7 +190,8 @@ bool parseCommandLine(std::vector<std::string>& args, const std::string& strComm
             break;
 
         case STATE_ESCAPE_DOUBLEQUOTED:
-            if (ch != '"' && ch != '\\') curarg += '\\';
+            if (ch != '"' && ch != '\\')
+                curarg += '\\';
             curarg += ch;
             state = STATE_DOUBLEQUOTED;
             break;

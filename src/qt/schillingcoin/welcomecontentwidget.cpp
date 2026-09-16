@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -173,21 +173,31 @@ WelcomeContentWidget::WelcomeContentWidget(QWidget *parent) :
     move(QApplication::desktop()->screenGeometry().center() - r.center());
 }
 
-void WelcomeContentWidget::initLanguages(){
+void WelcomeContentWidget::initLanguages()
+{
     /* Language selector */
     QDir translations(":translations");
     ui->comboBoxLanguage->addItem(QString("(") + tr("default") + QString(")"), QVariant(""));
-    Q_FOREACH (const QString& langStr, translations.entryList()) {
+
+    for (const QString& langStr : translations.entryList()) {
         QLocale locale(langStr);
 
         /** check if the locale name consists of 2 parts (language_country) */
-        if(langStr.contains("_")){
+        if (langStr.contains("_")) {
             /** display language strings as "native language - native country (locale name)", e.g. "Deutsch - Deutschland (de)" */
-            ui->comboBoxLanguage->addItem(locale.nativeLanguageName() + QString(" - ") + locale.nativeCountryName() + QString(" (") + langStr + QString(")"), QVariant(langStr));
-        }
-        else{
+            ui->comboBoxLanguage->addItem(
+                locale.nativeLanguageName() + QString(" - ") +
+                locale.nativeCountryName() + QString(" (") +
+                langStr + QString(")"),
+                QVariant(langStr)
+            );
+        } else {
             /** display language strings as "native language (locale name)", e.g. "Deutsch (de)" */
-            ui->comboBoxLanguage->addItem(locale.nativeLanguageName() + QString(" (") + langStr + QString(")"), QVariant(langStr));
+            ui->comboBoxLanguage->addItem(
+                locale.nativeLanguageName() + QString(" (") +
+                langStr + QString(")"),
+                QVariant(langStr)
+            );
         }
     }
 }
