@@ -27,7 +27,7 @@
 #include <QFile>
 #include <QFileOpenEvent>
 #include <QHash>
-#include <QList>
+#include <QList> // REQUIRED for sslErrors(QList<QSslError>)
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QNetworkAccessManager>
@@ -41,6 +41,7 @@
 #include <QTextDocument>
 #include <QUrlQuery>
 
+#include <vector> // Modern replacement for all internal QList usage
 
 const int BITCOIN_IPC_CONNECT_TIMEOUT = 1000; // milliseconds
 const QString BITCOIN_IPC_PREFIX("schillingcoin:");
@@ -66,7 +67,6 @@ struct X509Deleter {
 
 namespace // Anon namespace
 {
-
     std::unique_ptr<X509_STORE, X509StoreDeleter> certStore;
 }
 
@@ -93,11 +93,16 @@ static QString ipcServerName()
 // the main GUI window is up and ready to ask the user
 // to send payment.
 
-static QList<QString> savedPaymentRequests;
+// Modernized: QList<QString> → std::vector<QString>
+static std::vector<QString> savedPaymentRequests;
 
 static void ReportInvalidCertificate(const QSslCertificate& cert)
 {
-    qDebug() << QString("%1: Payment server found an invalid certificate: ").arg(__func__) << cert.serialNumber() << cert.subjectInfo(QSslCertificate::CommonName) << cert.subjectInfo(QSslCertificate::DistinguishedNameQualifier) << cert.subjectInfo(QSslCertificate::OrganizationalUnitName);
+    qDebug() << QString("%1: Payment server found an invalid certificate: ").arg(__func__)
+             << cert.serialNumber()
+             << cert.subjectInfo(QSslCertificate::CommonName)
+             << cert.subjectInfo(QSslCertificate::DistinguishedNameQualifier)
+             << cert.subjectInfo(QSslCertificate::OrganizationalUnitName);
 }
 
 //
@@ -121,14 +126,16 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
     if (certFile.isEmpty())
         return; // Empty store
 
-    QList<QSslCertificate> certList;
+    // Modernized: QList<QSslCertificate> → std::vector<QSslCertificate>
+    std::vector<QSslCertificate> certList;
 
     if (certFile != "-system-") {
-        certList = QSslCertificate::fromPath(certFile);
-        // Use those certificates when fetching payment requests, too:
-        QSslConfiguration::defaultConfiguration().setCaCertificates(certList);
+        auto list = QSslCertificate::fromPath(certFile);
+        certList.assign(list.begin(), list.end());
+        QSslConfiguration::defaultConfiguration().setCaCertificates(list);
     } else {
-        certList = QSslConfiguration::systemCaCertificates();
+        auto list = QSslConfiguration::systemCaCertificates();
+        certList.assign(list.begin(), list.end());
     }
 
     int nRootCerts = 0;
@@ -151,8 +158,6 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
 
         std::unique_ptr<X509, X509Deleter> x509(d2i_X509(0, &data, certData.size()));
         if (x509 && X509_STORE_add_cert(certStore.get(), x509.get())) {
-            // Note: X509_STORE increases the reference count to the X509 object,
-            // we still have to release our reference to it.
             ++nRootCerts;
         } else {
             ReportInvalidCertificate(cert);
@@ -161,15 +166,6 @@ void PaymentServer::LoadRootCAs(X509_STORE* _store)
     }
 
     qWarning() << "PaymentServer::LoadRootCAs : Loaded " << nRootCerts << " root certificates";
-
-    // Project for another day:
-    // Fetch certificate revocation lists, and add them to certStore.
-    // Issues to consider:
-    //   performance (start a thread to fetch in background?)
-    //   privacy (fetch through tor/proxy so IP address isn't revealed)
-    //   would it be easier to just use a compiled-in blacklist?
-    //    or use Qt's blacklist?
-    //   "certificate stapling" with server-side caching is more efficient
 }
 
 //
@@ -194,7 +190,7 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
         // will start a mainnet instance and throw a "wrong network" error.
         if (arg.startsWith(BITCOIN_IPC_PREFIX, Qt::CaseInsensitive)) // schillingcoin: URI
         {
-            savedPaymentRequests.append(arg);
+            savedPaymentRequests.push_back(arg);
 
             SendCoinsRecipient r;
             if (GUIUtil::parseBitcoinURI(arg, &r) && !r.address.isEmpty()) {
@@ -208,7 +204,7 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
             }
         } else if (QFile::exists(arg)) // Filename
         {
-            savedPaymentRequests.append(arg);
+            savedPaymentRequests.push_back(arg);
 
             PaymentRequestPlus request;
             if (readPaymentRequestFromFile(arg, request)) {
@@ -219,8 +215,6 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
                 }
             }
         } else {
-            // Printing to debug.log is about the best we can do here, the
-            // GUI hasn't started yet so we can't pop up a message box.
             qWarning() << "PaymentServer::ipcSendCommandLine : Payment request file does not exist: " << arg;
         }
     }
@@ -360,7 +354,7 @@ void PaymentServer::uiReady()
 void PaymentServer::handleURIOrFile(const QString& s)
 {
     if (saveURIs) {
-        savedPaymentRequests.append(s);
+        savedPaymentRequests.push_back(s);   // Modernized
         return;
     }
 
@@ -440,10 +434,6 @@ void PaymentServer::handleURIConnection()
     handleURIOrFile(msg);
 }
 
-//
-// Warning: readPaymentRequestFromFile() is used in ipcSendCommandLine()
-// so don't use "emit message()", but "QMessageBox::"!
-//
 bool PaymentServer::readPaymentRequestFromFile(const QString& filename, PaymentRequestPlus& request)
 {
     QFile f(filename);
@@ -502,7 +492,19 @@ bool PaymentServer::processPaymentRequest(PaymentRequestPlus& request, SendCoins
 
     request.getMerchant(certStore.get(), recipient.authenticatedMerchant);
 
-    QList<std::pair<CScript, CAmount>> sendingTos = request.getPayTo();
+    //
+    // Modernized: QList<std::pair<CScript, CAmount>> → std::vector<std::pair<CScript, CAmount>>
+    // Qt API returns QList, so we must explicitly convert it.
+    //
+    QList<std::pair<CScript, CAmount>> qtSendingTos = request.getPayTo();
+
+    std::vector<std::pair<CScript, CAmount>> sendingTos;
+    sendingTos.reserve(qtSendingTos.size());
+
+    for (const auto& it : qtSendingTos) {
+        sendingTos.push_back(it);
+    }
+
     QStringList addresses;
 
     for (const PAIRTYPE(CScript, CAmount)& sendingTo : sendingTos) {

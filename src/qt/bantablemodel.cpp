@@ -1,22 +1,20 @@
 // Copyright (c) 2011-2015 The Bitcoin Core developers
 // Copyright (c) 2018 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "bantablemodel.h"
-
 #include "clientmodel.h"
 #include "guiconstants.h"
 #include "guiutil.h"
-
 #include "sync.h"
 #include "utiltime.h"
 
 #include <algorithm>
+#include <vector>
 
 #include <QDebug>
-#include <QList>
 
 bool BannedNodeLessThan::operator()(const CCombinedBan& left, const CCombinedBan& right) const
 {
@@ -42,9 +40,11 @@ class BanTablePriv
 {
 public:
     /** Local cache of peer information */
-    QList<CCombinedBan> cachedBanlist;
+    std::vector<CCombinedBan> cachedBanlist;   // modernized from QList
+
     /** Column to sort nodes by */
     int sortColumn;
+
     /** Order (ascending or descending) to sort nodes by */
     Qt::SortOrder sortOrder;
 
@@ -56,17 +56,19 @@ public:
 
         cachedBanlist.clear();
         cachedBanlist.reserve(banMap.size());
+
         for (banmap_t::iterator it = banMap.begin(); it != banMap.end(); it++)
         {
             CCombinedBan banEntry;
             banEntry.subnet = (*it).first;
             banEntry.banEntry = (*it).second;
-            cachedBanlist.append(banEntry);
+            cachedBanlist.push_back(banEntry);   // modernized from append()
         }
 
         if (sortColumn >= 0)
-            // sort cachedBanlist (use stable sort to prevent rows jumping around unneceesarily)
-            std::stable_sort(cachedBanlist.begin(), cachedBanlist.end(), BannedNodeLessThan(sortColumn, sortOrder));
+            // sort cachedBanlist (use stable sort to prevent rows jumping around unnecessarily)
+            std::stable_sort(cachedBanlist.begin(), cachedBanlist.end(),
+                             BannedNodeLessThan(sortColumn, sortOrder));
     }
 
     int size() const
@@ -74,9 +76,9 @@ public:
         return cachedBanlist.size();
     }
 
-    CCombinedBan *index(int idx)
+    CCombinedBan* index(int idx)
     {
-        if (idx >= 0 && idx < cachedBanlist.size())
+        if (idx >= 0 && idx < (int)cachedBanlist.size())
             return &cachedBanlist[idx];
 
         return 0;
@@ -182,7 +184,5 @@ void BanTableModel::sort(int column, Qt::SortOrder order)
 
 bool BanTableModel::shouldShow()
 {
-    if (priv->size() > 0)
-        return true;
-    return false;
+    return priv->size() > 0;
 }

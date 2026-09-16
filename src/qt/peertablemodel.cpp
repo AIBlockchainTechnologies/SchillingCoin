@@ -14,9 +14,9 @@
 #include "sync.h"
 
 #include <algorithm>
+#include <vector>
 
 #include <QDebug>
-#include <QList>
 #include <QTimer>
 
 bool NodeLessThan::operator()(const CNodeCombinedStats& left, const CNodeCombinedStats& right) const
@@ -44,7 +44,7 @@ class PeerTablePriv
 {
 public:
     /** Local cache of peer information */
-    QList<CNodeCombinedStats> cachedNodeStats;
+    std::vector<CNodeCombinedStats> cachedNodeStats;
     /** Column to sort nodes by */
     int sortColumn;
     /** Order (ascending or descending) to sort nodes by */
@@ -71,7 +71,7 @@ public:
                 stats.nodeStateStats.nCommonHeight = -1;
                 stats.fNodeStateStatsAvailable = false;
                 pnode->copyStats(stats.nodeStats);
-                cachedNodeStats.append(stats);
+                cachedNodeStats.push_back(stats);
             }
         }
 
@@ -86,7 +86,8 @@ public:
 
         if (sortColumn >= 0)
             // sort cacheNodeStats (use stable sort to prevent rows jumping around unneceesarily)
-            std::stable_sort(cachedNodeStats.begin(), cachedNodeStats.end(), NodeLessThan(sortColumn, sortOrder));
+            std::stable_sort(cachedNodeStats.begin(), cachedNodeStats.end(),
+                             NodeLessThan(sortColumn, sortOrder));
 
         // build index map
         mapNodeRows.clear();
@@ -97,15 +98,15 @@ public:
 
     int size()
     {
-        return cachedNodeStats.size();
+        return static_cast<int>(cachedNodeStats.size());
     }
 
     CNodeCombinedStats* index(int idx)
     {
-        if (idx >= 0 && idx < cachedNodeStats.size()) {
+        if (idx >= 0 && idx < static_cast<int>(cachedNodeStats.size())) {
             return &cachedNodeStats[idx];
         } else {
-            return 0;
+            return nullptr;
         }
     }
 };
@@ -148,7 +149,6 @@ int PeerTableModel::columnCount(const QModelIndex& parent) const
 {
     Q_UNUSED(parent);
     return columns.length();
-    ;
 }
 
 QVariant PeerTableModel::data(const QModelIndex& index, int role) const
@@ -169,7 +169,7 @@ QVariant PeerTableModel::data(const QModelIndex& index, int role) const
         }
     } else if (role == Qt::TextAlignmentRole) {
         if (index.column() == Ping)
-            return (int)(Qt::AlignRight | Qt::AlignVCenter);
+            return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter);
     }
 
     return QVariant();
@@ -188,7 +188,7 @@ QVariant PeerTableModel::headerData(int section, Qt::Orientation orientation, in
 Qt::ItemFlags PeerTableModel::flags(const QModelIndex& index) const
 {
     if (!index.isValid())
-        return 0;
+        return Qt::NoItemFlags;
 
     Qt::ItemFlags retval = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
     return retval;

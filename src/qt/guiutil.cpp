@@ -1,7 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -61,7 +61,7 @@
 #include <QThread>
 #include <QUrlQuery>
 #include <QMouseEvent>
-
+#include <QList>            // REQUIRED: queryItems() returns QList<QPair<QString, QString>>
 
 #if BOOST_FILESYSTEM_VERSION >= 3
 static boost::filesystem::detail::utf8_codecvt_facet utf8;
@@ -130,8 +130,6 @@ void setupAddressWidget(QValidatedLineEdit* widget, QWidget* parent)
     parent->setFocusProxy(widget);
 
     widget->setFont(bitcoinAddressFont());
-    // We don't want translators to use own addresses in translations
-    // and this is the only place, where this address is supplied.
     widget->setPlaceholderText(QObject::tr("Enter SchillingCoin address (e.g. %1)").arg("SPWQe2aq11kgZwwG3pn7PMNFy3JHneZ5EJ"));
     widget->setValidator(new BitcoinAddressEntryValidator(parent));
     widget->setCheckValidator(new BitcoinAddressCheckValidator(parent));
@@ -160,32 +158,48 @@ bool parseBitcoinURI(const QUrl& uri, SendCoinsRecipient* out)
 
     SendCoinsRecipient rv;
     rv.address = uri.path();
-    // Trim any following forward slash which may have been added by the OS
     if (rv.address.endsWith("/")) {
         rv.address.truncate(rv.address.length() - 1);
     }
     rv.amount = 0;
 
     QUrlQuery uriQuery(uri);
-    QList<QPair<QString, QString> > items = uriQuery.queryItems();
-    for (QList<QPair<QString, QString> >::iterator i = items.begin(); i != items.end(); i++)
+
+    //
+    // Modernized: QList → std::vector (explicit conversion required)
+    //
+    QList<QPair<QString, QString>> qtItems = uriQuery.queryItems();
+
+    std::vector<QPair<QString, QString>> items;
+    items.reserve(qtItems.size());
+
+    for (const auto& it : qtItems) {
+        items.push_back(it);
+    }
+
+    //
+    // Modernized: range-for loop
+    //
+    for (const auto& i : items)
     {
         bool fShouldReturnFalse = false;
-        if (i->first.startsWith("req-")) {
-            i->first.remove(0, 4);
+
+        if (i.first.startsWith("req-")) {
+            QString key = i.first;
+            key.remove(0, 4);
             fShouldReturnFalse = true;
         }
 
-        if (i->first == "label") {
-            rv.label = i->second;
+        if (i.first == "label") {
+            rv.label = i.second;
             fShouldReturnFalse = false;
         }
-        if (i->first == "message") {
-            rv.message = i->second;
+        if (i.first == "message") {
+            rv.message = i.second;
             fShouldReturnFalse = false;
-        } else if (i->first == "amount") {
-            if (!i->second.isEmpty()) {
-                if (!BitcoinUnits::parse(BitcoinUnits::SCH, i->second, &rv.amount)) {
+        } else if (i.first == "amount") {
+            if (!i.second.isEmpty()) {
+                if (!BitcoinUnits::parse(BitcoinUnits::SCH, i.second, &rv.amount)) {
                     return false;
                 }
             }
@@ -195,6 +209,7 @@ bool parseBitcoinURI(const QUrl& uri, SendCoinsRecipient* out)
         if (fShouldReturnFalse)
             return false;
     }
+
     if (out) {
         *out = rv;
     }
