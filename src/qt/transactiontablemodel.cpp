@@ -27,291 +27,249 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QIcon>
-#include <QList>
 #include <QtConcurrent/QtConcurrent>
 #include <QFuture>
 #include <QThreadPool>
 
-#define SINGLE_THREAD_MAX_TXES_SIZE 4000
+#include <vector>
 
-// Maximum amount of loaded records in ram in the first load.
-// If the user has more and want to load them:
-// TODO, add load on demand in pages (not every tx loaded all the time into the records list).
+#define SINGLE_THREAD_MAX_TXES_SIZE 4000
 #define MAX_AMOUNT_LOADED_RECORDS 20000
 
-// Amount column is right-aligned it contains numbers
 static int column_alignments[] = {
-    Qt::AlignLeft | Qt::AlignVCenter, /* status */
-    Qt::AlignLeft | Qt::AlignVCenter, /* watchonly */
-    Qt::AlignLeft | Qt::AlignVCenter, /* date */
-    Qt::AlignLeft | Qt::AlignVCenter, /* type */
-    Qt::AlignLeft | Qt::AlignVCenter, /* address */
-    Qt::AlignRight | Qt::AlignVCenter /* amount */
+    Qt::AlignLeft | Qt::AlignVCenter,
+    Qt::AlignLeft | Qt::AlignVCenter,
+    Qt::AlignLeft | Qt::AlignVCenter,
+    Qt::AlignLeft | Qt::AlignVCenter,
+    Qt::AlignLeft | Qt::AlignVCenter,
+    Qt::AlignRight | Qt::AlignVCenter
 };
 
-// Comparison operator for sort/binary search of model tx list
 struct TxLessThan {
-    bool operator()(const TransactionRecord& a, const TransactionRecord& b) const
-    {
-        return a.hash < b.hash;
-    }
-    bool operator()(const TransactionRecord& a, const uint256& b) const
-    {
-        return a.hash < b;
-    }
-    bool operator()(const uint256& a, const TransactionRecord& b) const
-    {
-        return a < b.hash;
-    }
+    bool operator()(const TransactionRecord& a, const TransactionRecord& b) const { return a.hash < b.hash; }
+    bool operator()(const TransactionRecord& a, const uint256& b) const { return a.hash < b; }
+    bool operator()(const uint256& a, const TransactionRecord& b) const { return a < b.hash; }
 };
 
 struct ConvertTxToVectorResult
 {
-    QList<TransactionRecord> records;
+    std::vector<TransactionRecord> records;
     qint64 nFirstLoadedTxTime{0};
 };
 
-// Private implementation
 class TransactionTablePriv
 {
 public:
-    TransactionTablePriv(CWallet* wallet, TransactionTableModel* parent) : wallet(wallet),
-                                                                           parent(parent)
+    TransactionTablePriv(CWallet* wallet, TransactionTableModel* parent) :
+        wallet(wallet), parent(parent)
     {
     }
 
     CWallet* wallet;
     TransactionTableModel* parent;
 
-    /* Local cache of wallet.
-     * As it is in the same order as the CWallet, by definition
-     * this is sorted by sha256.
-     */
-    QList<TransactionRecord> cachedWallet;
-
-    /**
-     * Time of the oldest transaction loaded into the model.
-     * It can or not be the first tx in the wallet, the model only loads the last 20k txs.
-     */
+    std::vector<TransactionRecord> cachedWallet;
     qint64 nFirstLoadedTxTime{0};
 
-    /* Query entire wallet anew from core.
-     */
     void refreshWallet()
     {
         qDebug() << "TransactionTablePriv::refreshWallet";
         cachedWallet.clear();
 
         std::vector<CWalletTx> walletTxes = wallet->getWalletTxs();
-
-        // Divide the work between multiple threads to speedup the process if the vector is larger than 4k txes
         std::size_t txesSize = walletTxes.size();
+
         if (txesSize > SINGLE_THREAD_MAX_TXES_SIZE) {
 
-            // First check if the amount of txs exceeds the UI limit
             if (txesSize > MAX_AMOUNT_LOADED_RECORDS) {
-                // Sort the txs by date just to be really really sure that them are ordered.
-                // (this extra calculation should be removed in the future if can ensure that
-                // txs are stored in order in the db, which is what should be happening)
                 sort(walletTxes.begin(), walletTxes.end(),
-                        [](const CWalletTx & a, const CWalletTx & b) -> bool {
-                         return a.GetTxTime() > b.GetTxTime();
-                     });
+                     [](const CWalletTx& a, const CWalletTx& b) { return a.GetTxTime() > b.GetTxTime(); });
 
-                // Only latest ones.
-                walletTxes = std::vector<CWalletTx>(walletTxes.begin(), walletTxes.begin() + MAX_AMOUNT_LOADED_RECORDS);
+                walletTxes = std::vector<CWalletTx>(walletTxes.begin(),
+                                                    walletTxes.begin() + MAX_AMOUNT_LOADED_RECORDS);
                 txesSize = walletTxes.size();
-            };
+            }
 
-            // Simple way to get the processors count
-            std::size_t threadsCount = (QThreadPool::globalInstance()->maxThreadCount() / 2 ) + 1;
-
-            // Size of the tx subsets
-            std::size_t const subsetSize = txesSize / (threadsCount + 1);
+            std::size_t threadsCount = (QThreadPool::globalInstance()->maxThreadCount() / 2) + 1;
+            std::size_t subsetSize = txesSize / (threadsCount + 1);
             std::size_t totalSumSize = 0;
-            QList<QFuture<ConvertTxToVectorResult>> tasks;
 
-            // Subsets + run task
+            std::vector<QFuture<ConvertTxToVectorResult>> tasks;
+
             for (std::size_t i = 0; i < threadsCount; ++i) {
-                tasks.append(
-                        QtConcurrent::run(
-                                convertTxToRecords,
-                                this,
-                                wallet,
-                                std::vector<CWalletTx>(walletTxes.begin() + totalSumSize, walletTxes.begin() + totalSumSize + subsetSize)
-                        )
-                 );
+                tasks.push_back(
+                    QtConcurrent::run(
+                        convertTxToRecords,
+                        this,
+                        wallet,
+                        std::vector<CWalletTx>(walletTxes.begin() + totalSumSize,
+                                               walletTxes.begin() + totalSumSize + subsetSize)
+                    )
+                );
                 totalSumSize += subsetSize;
             }
 
-            // Now take the remaining ones and do the work here
-            std::size_t const remainingSize = txesSize - totalSumSize;
+            std::size_t remainingSize = txesSize - totalSumSize;
             auto res = convertTxToRecords(this, wallet,
-                                              std::vector<CWalletTx>(walletTxes.end() - remainingSize, walletTxes.end())
-            );
-            cachedWallet.append(res.records);
+                                          std::vector<CWalletTx>(walletTxes.end() - remainingSize,
+                                                                 walletTxes.end()));
+
+            cachedWallet.insert(cachedWallet.end(), res.records.begin(), res.records.end());
             nFirstLoadedTxTime = res.nFirstLoadedTxTime;
 
-            for (auto &future : tasks) {
+            for (auto& future : tasks) {
                 future.waitForFinished();
                 ConvertTxToVectorResult convertRes = future.result();
-                cachedWallet.append(convertRes.records);
-                if (nFirstLoadedTxTime > convertRes.nFirstLoadedTxTime) {
+
+                cachedWallet.insert(cachedWallet.end(),
+                                    convertRes.records.begin(),
+                                    convertRes.records.end());
+
+                if (nFirstLoadedTxTime > convertRes.nFirstLoadedTxTime)
                     nFirstLoadedTxTime = convertRes.nFirstLoadedTxTime;
-                }
             }
+
         } else {
-            // Single thread flow
             ConvertTxToVectorResult convertRes = convertTxToRecords(this, wallet, walletTxes);
-            cachedWallet.append(convertRes.records);
+            cachedWallet.insert(cachedWallet.end(),
+                                convertRes.records.begin(),
+                                convertRes.records.end());
             nFirstLoadedTxTime = convertRes.nFirstLoadedTxTime;
         }
     }
 
-    static ConvertTxToVectorResult convertTxToRecords(TransactionTablePriv* tablePriv, const CWallet* wallet, const std::vector<CWalletTx>& walletTxes) {
+    static ConvertTxToVectorResult convertTxToRecords(TransactionTablePriv* tablePriv,
+                                                      const CWallet* wallet,
+                                                      const std::vector<CWalletTx>& walletTxes)
+    {
         Q_UNUSED(tablePriv);
         ConvertTxToVectorResult res;
 
-        for (const auto &tx : walletTxes) {
-            QList<TransactionRecord> records = TransactionRecord::decomposeTransaction(wallet, tx);
-            if (!records.isEmpty()) {
-                qint64 time = records.first().time;
-                if (res.nFirstLoadedTxTime == 0 || res.nFirstLoadedTxTime > time) {
+        for (const auto& tx : walletTxes) {
+            std::vector<TransactionRecord> records =
+                TransactionRecord::decomposeTransaction(wallet, tx);
+
+            if (!records.empty()) {
+                qint64 time = records.front().time;
+                if (res.nFirstLoadedTxTime == 0 || res.nFirstLoadedTxTime > time)
                     res.nFirstLoadedTxTime = time;
-                }
             }
 
-            res.records.append(records);
+            res.records.insert(res.records.end(), records.begin(), records.end());
         }
 
         return res;
     }
 
-    /* Update our model of the wallet incrementally, to synchronize our model of the wallet
-       with that of the core.
-
-       Call with transaction that was added, removed or changed.
-     */
     void updateWallet(const uint256& hash, int status, bool showTransaction, TransactionRecord& ret)
     {
-        qDebug() << "TransactionTablePriv::updateWallet : " + QString::fromStdString(hash.ToString()) + " " + QString::number(status);
+        qDebug() << "TransactionTablePriv::updateWallet : "
+                 << QString::fromStdString(hash.ToString()) << " " << status;
 
-        // Find bounds of this transaction in model
-        QList<TransactionRecord>::iterator lower = std::lower_bound(
-            cachedWallet.begin(), cachedWallet.end(), hash, TxLessThan());
-        QList<TransactionRecord>::iterator upper = std::upper_bound(
-            cachedWallet.begin(), cachedWallet.end(), hash, TxLessThan());
-        int lowerIndex = (lower - cachedWallet.begin());
-        int upperIndex = (upper - cachedWallet.begin());
+        auto lower = std::lower_bound(cachedWallet.begin(), cachedWallet.end(), hash, TxLessThan());
+        auto upper = std::upper_bound(cachedWallet.begin(), cachedWallet.end(), hash, TxLessThan());
+
+        int lowerIndex = lower - cachedWallet.begin();
+        int upperIndex = upper - cachedWallet.begin();
         bool inModel = (lower != upper);
 
         if (status == CT_UPDATED) {
             if (showTransaction && !inModel)
-                status = CT_NEW; /* Not in model, but want to show, treat as new */
+                status = CT_NEW;
             if (!showTransaction && inModel)
-                status = CT_DELETED; /* In model, but want to hide, treat as deleted */
+                status = CT_DELETED;
         }
 
-        qDebug() << "    inModel=" + QString::number(inModel) +
-                        " Index=" + QString::number(lowerIndex) + "-" + QString::number(upperIndex) +
-                        " showTransaction=" + QString::number(showTransaction) + " derivedStatus=" + QString::number(status);
+        qDebug() << "    inModel=" << inModel
+                 << " Index=" << lowerIndex << "-" << upperIndex
+                 << " showTransaction=" << showTransaction
+                 << " derivedStatus=" << status;
 
         switch (status) {
-            case CT_NEW:
-                if (inModel) {
-                    qWarning() << "TransactionTablePriv::updateWallet : Warning: Got CT_NEW, but transaction is already in model";
+        case CT_NEW:
+            if (inModel) {
+                qWarning() << "TransactionTablePriv::updateWallet : Warning: Got CT_NEW but already in model";
+                break;
+            }
+            if (showTransaction) {
+                LOCK2(cs_main, wallet->cs_wallet);
+
+                auto mi = wallet->mapWallet.find(hash);
+                if (mi == wallet->mapWallet.end()) {
+                    qWarning() << "TransactionTablePriv::updateWallet : Warning: Got CT_NEW but not in wallet";
                     break;
                 }
-                if (showTransaction) {
-                    LOCK2(cs_main, wallet->cs_wallet);
-                    // Find transaction in wallet
-                    auto mi = wallet->mapWallet.find(hash);
-                    if (mi == wallet->mapWallet.end()) {
-                        qWarning() << "TransactionTablePriv::updateWallet : Warning: Got CT_NEW, but transaction is not in wallet";
-                        break;
-                    }
-                    const CWalletTx& wtx = mi->second;
 
-                    // As old transactions are still getting updated (+20k range),
-                    // do not add them if we deliberately didn't load them at startup.
-                    if (cachedWallet.size() >= MAX_AMOUNT_LOADED_RECORDS && wtx.GetTxTime() < nFirstLoadedTxTime) {
-                        return;
+                const CWalletTx& wtx = mi->second;
+
+                if (cachedWallet.size() >= MAX_AMOUNT_LOADED_RECORDS &&
+                    wtx.GetTxTime() < nFirstLoadedTxTime)
+                    return;
+
+                std::vector<TransactionRecord> toInsert =
+                    TransactionRecord::decomposeTransaction(wallet, wtx);
+
+                if (!toInsert.empty()) {
+                    parent->beginInsertRows(QModelIndex(),
+                                            lowerIndex,
+                                            lowerIndex + toInsert.size() - 1);
+
+                    int insert_idx = lowerIndex;
+                    for (const TransactionRecord& rec : toInsert) {
+                        cachedWallet.insert(cachedWallet.begin() + insert_idx, rec);
+                        insert_idx++;
+                        ret = rec;
                     }
 
-                    // Added -- insert at the right position
-                    QList<TransactionRecord> toInsert =
-                        TransactionRecord::decomposeTransaction(wallet, wtx);
-                    if (!toInsert.isEmpty()) { /* only if something to insert */
-                        parent->beginInsertRows(QModelIndex(), lowerIndex, lowerIndex + toInsert.size() - 1);
-                        int insert_idx = lowerIndex;
-                        for (const TransactionRecord& rec : toInsert) {
-                            cachedWallet.insert(insert_idx, rec);
-                            insert_idx += 1;
-                            ret = rec; // Return record
-                        }
-                        parent->endInsertRows();
-                    }
+                    parent->endInsertRows();
                 }
+            }
+            break;
+
+        case CT_DELETED:
+            if (!inModel) {
+                qWarning() << "TransactionTablePriv::updateWallet : Warning: Got CT_DELETED but not in model";
                 break;
-            case CT_DELETED:
-                if (!inModel) {
-                    qWarning() << "TransactionTablePriv::updateWallet : Warning: Got CT_DELETED, but transaction is not in model";
-                    break;
-                }
-                // Removed -- remove entire transaction from table
-                parent->beginRemoveRows(QModelIndex(), lowerIndex, upperIndex - 1);
-                cachedWallet.erase(lower, upper);
-                parent->endRemoveRows();
-                break;
-            case CT_UPDATED:
-                // Miscellaneous updates -- nothing to do, status update will take care of this, and is only computed for
-                // visible transactions.
-                break;
+            }
+
+            parent->beginRemoveRows(QModelIndex(), lowerIndex, upperIndex - 1);
+            cachedWallet.erase(lower, upper);
+            parent->endRemoveRows();
+            break;
+
+        case CT_UPDATED:
+            break;
         }
     }
 
-    int size()
-    {
-        return cachedWallet.size();
-    }
+    int size() { return cachedWallet.size(); }
 
     TransactionRecord* index(int idx)
     {
-        if (idx >= 0 && idx < cachedWallet.size()) {
+        if (idx >= 0 && idx < (int)cachedWallet.size()) {
             TransactionRecord* rec = &cachedWallet[idx];
 
-            // Get required locks upfront. This avoids the GUI from getting
-            // stuck if the core is holding the locks for a longer time - for
-            // example, during a wallet rescan.
-            //
-            // If a status update is needed (blocks came in since last check),
-            //  update the status of this transaction from the wallet. Otherwise,
-            // simply re-use the cached status.
             TRY_LOCK(cs_main, lockMain);
             if (lockMain) {
                 TRY_LOCK(wallet->cs_wallet, lockWallet);
                 if (lockWallet && rec->statusUpdateNeeded()) {
-                    std::map<uint256, CWalletTx>::iterator mi = wallet->mapWallet.find(rec->hash);
-
-                    if (mi != wallet->mapWallet.end()) {
+                    auto mi = wallet->mapWallet.find(rec->hash);
+                    if (mi != wallet->mapWallet.end())
                         rec->updateStatus(mi->second);
-                    }
                 }
             }
             return rec;
         }
-        return 0;
+        return nullptr;
     }
 
     QString describe(TransactionRecord* rec, int unit)
     {
-        {
-            LOCK2(cs_main, wallet->cs_wallet);
-            std::map<uint256, CWalletTx>::iterator mi = wallet->mapWallet.find(rec->hash);
-            if (mi != wallet->mapWallet.end()) {
-                return TransactionDesc::toHTML(wallet, mi->second, rec, unit);
-            }
-        }
+        LOCK2(cs_main, wallet->cs_wallet);
+        auto mi = wallet->mapWallet.find(rec->hash);
+        if (mi != wallet->mapWallet.end())
+            return TransactionDesc::toHTML(wallet, mi->second, rec, unit);
+
         return QString();
     }
 };

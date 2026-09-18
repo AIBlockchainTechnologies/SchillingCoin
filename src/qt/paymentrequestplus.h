@@ -1,6 +1,6 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,8 +17,8 @@
 #include <openssl/x509.h>
 
 #include <QByteArray>
-#include <QList>
 #include <QString>
+#include <vector>
 
 //
 // Wraps dumb protocol buffer paymentRequest
@@ -35,12 +35,13 @@ public:
 
     bool IsInitialized() const;
     QString getPKIType() const;
+
     // Returns true if merchant's identity is authenticated, and
     // returns human-readable merchant identity in merchant
     bool getMerchant(X509_STORE* certStore, QString& merchant) const;
 
     // Returns list of outputs, amount
-    QList<std::pair<CScript, CAmount> > getPayTo() const;
+    std::vector<std::pair<CScript, CAmount>> getPayTo() const;
 
     const payments::PaymentDetails& getDetails() const { return details; }
 

@@ -5,15 +5,14 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "walletmodeltransaction.h"
-
 #include "wallet/wallet.h"
 
-WalletModelTransaction::WalletModelTransaction(const QList<SendCoinsRecipient>& recipients) : recipients(recipients),
-                                                                                              walletTransaction(0),
-                                                                                              keyChange(0),
-                                                                                              fee(0)
+WalletModelTransaction::WalletModelTransaction(const std::vector<SendCoinsRecipient>& recipientsIn) :
+    recipients(recipientsIn),
+    walletTransaction(new CWalletTx()),
+    keyChange(nullptr),
+    fee(0)
 {
-    walletTransaction = new CWalletTx();
 }
 
 WalletModelTransaction::~WalletModelTransaction()
@@ -22,7 +21,7 @@ WalletModelTransaction::~WalletModelTransaction()
     delete walletTransaction;
 }
 
-QList<SendCoinsRecipient> WalletModelTransaction::getRecipients()
+std::vector<SendCoinsRecipient> WalletModelTransaction::getRecipients()
 {
     return recipients;
 }
@@ -34,7 +33,8 @@ CWalletTx* WalletModelTransaction::getTransaction()
 
 unsigned int WalletModelTransaction::getTransactionSize()
 {
-    return (!walletTransaction ? 0 : (::GetSerializeSize(*(CTransaction*)walletTransaction, SER_NETWORK, PROTOCOL_VERSION)));
+    return (!walletTransaction ? 0 :
+            (::GetSerializeSize(*(CTransaction*)walletTransaction, SER_NETWORK, PROTOCOL_VERSION)));
 }
 
 CAmount WalletModelTransaction::getTransactionFee()

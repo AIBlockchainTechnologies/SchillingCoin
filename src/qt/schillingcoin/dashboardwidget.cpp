@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,8 +14,6 @@
 #include "utiltime.h"
 #include <QPainter>
 #include <QModelIndex>
-#include <QList>
-#include <QGraphicsLayout>
 
 #define DECORATION_SIZE 65
 #define NUM_ITEMS 3
@@ -689,18 +687,26 @@ std::pair<int, int> DashboardWidget::getChartRange(QMap<int, std::pair<qint64, q
     switch (chartShow) {
         case YEAR:
             return std::make_pair(1, 13);
+
         case ALL: {
-            QList<int> keys = amountsBy.uniqueKeys();
-            if (keys.isEmpty()) {
-                // This should never happen, ALL means from the beginning of time and if this is called then it must have at least one stake..
+            // Convert Qt QList<int> → std::vector<int>
+            const QList<int> keysQt = amountsBy.uniqueKeys();
+            if (keysQt.isEmpty()) {
                 inform(tr("Error loading chart, invalid data"));
                 return std::make_pair(0, 0);
             }
-            qSort(keys);
-            return std::make_pair(keys.first(), keys.last() + 1);
+
+            std::vector<int> keys(keysQt.begin(), keysQt.end());
+
+            // Modern STL Sort
+            std::sort(keys.begin(), keys.end());
+
+            return std::make_pair(keys.front(), keys.back() + 1);
         }
+
         case MONTH:
             return std::make_pair(dayStart, dayStart + 9);
+
         default:
             inform(tr("Error loading chart, invalid show option"));
             return std::make_pair(0, 0);

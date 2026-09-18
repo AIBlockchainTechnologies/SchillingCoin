@@ -33,7 +33,7 @@
 #include <QString>
 #include <QTreeWidget>
 
-QList<CAmount> CoinControlDialog::payAmounts;
+std::vector<CAmount> CoinControlDialog::payAmounts;
 int CoinControlDialog::nSplitBlockDummy;
 CCoinControl* CoinControlDialog::coinControl = new CCoinControl();
 

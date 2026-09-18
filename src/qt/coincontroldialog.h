@@ -1,6 +1,6 @@
 // Copyright (c) 2011-2013 The Bitcoin developers
 // Copyright (c) 2017-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,11 +13,11 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QDialog>
-#include <QList>
 #include <QMenu>
 #include <QPoint>
 #include <QString>
 #include <QTreeWidgetItem>
+#include <vector>
 
 class WalletModel;
 
@@ -53,11 +53,10 @@ public:
     void updateView();
     void refreshDialog();
 
-    // static because also called from sendcoinsdialog
     static void updateLabels(WalletModel*, QDialog*);
     static QString getPriorityLabel(double dPriority, double mempoolEstimatePriority);
 
-    static QList<CAmount> payAmounts;
+    static std::vector<CAmount> payAmounts;
     static CCoinControl* coinControl;
     static int nSplitBlockDummy;
 
@@ -68,7 +67,7 @@ private:
     int sortColumn;
     Qt::SortOrder sortOrder;
     bool fMultisigEnabled;
-    bool fSelectAllToggled{true};     // false when pushButtonSelectAll text is "Unselect All"
+    bool fSelectAllToggled{true};
 
     QMenu* contextMenu;
     QTreeWidgetItem* contextMenuItem;

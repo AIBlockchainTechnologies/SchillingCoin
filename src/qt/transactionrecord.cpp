@@ -14,20 +14,27 @@
 
 #include <algorithm>
 #include <stdint.h>
+#include <vector>
 
 /*
- * Decompose CWallet transaction to model transaction records.
+ * Decompose a wallet transaction into individual TransactionRecord entries
+ * for use by the Qt transaction model.
  */
-QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* wallet, const CWalletTx& wtx)
+std::vector<TransactionRecord> TransactionRecord::decomposeTransaction(
+        const CWallet* wallet,
+        const CWalletTx& wtx)
 {
-    QList<TransactionRecord> parts;
-    int64_t nTime = wtx.GetTxTime();
-    CAmount nCredit = wtx.GetCredit(ISMINE_ALL);
-    CAmount nDebit = wtx.GetDebit(ISMINE_ALL);
-    CAmount nNet = nCredit - nDebit;
-    uint256 hash = wtx.GetHash();
-    std::map<std::string, std::string> mapValue = wtx.mapValue;
+    std::vector<TransactionRecord> parts;
+    parts.reserve(4);
 
+    const int64_t nTime   = wtx.GetTxTime();
+    const CAmount nCredit = wtx.GetCredit(ISMINE_ALL);
+    const CAmount nDebit  = wtx.GetDebit(ISMINE_ALL);
+    const CAmount nNet    = nCredit - nDebit;
+    const uint256 hash    = wtx.GetHash();
+    const std::map<std::string, std::string>& mapValue = wtx.mapValue;
+
+    // --- Coin stake -----------------------------------------------------------
     if (wtx.IsCoinStake()) {
         TransactionRecord sub(hash, nTime, wtx.GetTotalSize());
 
@@ -36,195 +43,220 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* 
             return parts;
 
         if (isminetype mine = wallet->IsMine(wtx.vout[1])) {
-            // Check for cold stakes.
+            // Cold-stake path
             if (wtx.HasP2CSOutputs()) {
                 sub.credit = nCredit;
-                sub.debit = -nDebit;
+                sub.debit  = -nDebit;
                 loadHotOrColdStakeOrContract(wallet, wtx, sub);
-                parts.append(sub);
+                parts.push_back(sub);
                 return parts;
             } else {
-                // SCH stake reward
-                sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
-                sub.type = TransactionRecord::StakeMint;
+                // Regular SCH stake reward
+                sub.involvesWatchAddress = (mine & ISMINE_WATCH_ONLY);
+                sub.type    = TransactionRecord::StakeMint;
                 sub.address = CBitcoinAddress(address).ToString();
-                sub.credit = nNet;
+                sub.credit  = nNet;
             }
         } else {
             // Masternode reward
             CTxDestination destMN;
-            int nIndexMN = wtx.vout.size() - 1;
-            if (ExtractDestination(wtx.vout[nIndexMN].scriptPubKey, destMN) && IsMine(*wallet, destMN)) {
-                isminetype mine = wallet->IsMine(wtx.vout[nIndexMN]);
-                sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
-                sub.type = TransactionRecord::MNReward;
+            const int nIndexMN = static_cast<int>(wtx.vout.size()) - 1;
+            if (ExtractDestination(wtx.vout[nIndexMN].scriptPubKey, destMN) &&
+                IsMine(*wallet, destMN))
+            {
+                isminetype mineMN = wallet->IsMine(wtx.vout[nIndexMN]);
+                sub.involvesWatchAddress = (mineMN & ISMINE_WATCH_ONLY);
+                sub.type    = TransactionRecord::MNReward;
                 sub.address = CBitcoinAddress(destMN).ToString();
-                sub.credit = wtx.vout[nIndexMN].nValue;
+                sub.credit  = wtx.vout[nIndexMN].nValue;
             }
         }
 
-        parts.append(sub);
-    } else if (wtx.HasP2CSOutputs()) {
-        // Delegate tx.
+        parts.push_back(sub);
+    }
+    // --- Delegation (P2CS outputs) -------------------------------------------
+    else if (wtx.HasP2CSOutputs()) {
         TransactionRecord sub(hash, nTime, wtx.GetTotalSize());
         sub.credit = nCredit;
-        sub.debit = -nDebit;
+        sub.debit  = -nDebit;
         loadHotOrColdStakeOrContract(wallet, wtx, sub, true);
-        parts.append(sub);
+        parts.push_back(sub);
         return parts;
-    } else if (wtx.HasP2CSInputs()) {
-        // Delegation unlocked
+    }
+    // --- Delegation unlock (P2CS inputs) -------------------------------------
+    else if (wtx.HasP2CSInputs()) {
         TransactionRecord sub(hash, nTime, wtx.GetTotalSize());
         loadUnlockColdStake(wallet, wtx, sub);
-        parts.append(sub);
+        parts.push_back(sub);
         return parts;
-    } else if (nNet > 0 || wtx.IsCoinBase()) {
-        //
-        // Credit
-        //
+    }
+    // --- Pure credit or coinbase ---------------------------------------------
+    else if (nNet > 0 || wtx.IsCoinBase()) {
         for (const CTxOut& txout : wtx.vout) {
             isminetype mine = wallet->IsMine(txout);
-            if (mine) {
-                TransactionRecord sub(hash, nTime, wtx.GetTotalSize());
-                CTxDestination address;
-                sub.idx = parts.size(); // sequence number
-                sub.credit = txout.nValue;
-                sub.involvesWatchAddress = mine & ISMINE_WATCH_ONLY;
-                if (ExtractDestination(txout.scriptPubKey, address) && IsMine(*wallet, address)) {
-                    // Received by SchillingCoin Address
-                    sub.type = TransactionRecord::RecvWithAddress;
-                    sub.address = CBitcoinAddress(address).ToString();
-                } else {
-                    // Received by IP connection (deprecated), multisig, or other non-simple tx
-                    sub.type = TransactionRecord::RecvFromOther;
-                    sub.address = mapValue["from"];
-                }
-                if (wtx.IsCoinBase()) {
-                    // Generated
-                    sub.type = TransactionRecord::Generated;
-                }
+            if (!mine)
+                continue;
 
-                parts.append(sub);
+            TransactionRecord sub(hash, nTime, wtx.GetTotalSize());
+            CTxDestination address;
+
+            sub.idx   = static_cast<int>(parts.size()); // sequence index
+            sub.credit = txout.nValue;
+            sub.involvesWatchAddress = (mine & ISMINE_WATCH_ONLY);
+
+            if (ExtractDestination(txout.scriptPubKey, address) &&
+                IsMine(*wallet, address))
+            {
+                // Received to a standard SCH address
+                sub.type    = TransactionRecord::RecvWithAddress;
+                sub.address = CBitcoinAddress(address).ToString();
+            } else {
+                // Received via non-standard means (IP, multisig, etc.)
+                sub.type    = TransactionRecord::RecvFromOther;
+                auto itFrom = mapValue.find("from");
+                sub.address = (itFrom != mapValue.end()) ? itFrom->second : "";
             }
+
+            if (wtx.IsCoinBase())
+                sub.type = TransactionRecord::Generated;
+
+            parts.push_back(sub);
         }
-    } else {
+    }
+    // --- Debits / mixed transactions -----------------------------------------
+    else {
         bool involvesWatchAddress = false;
         isminetype fAllFromMe = ISMINE_SPENDABLE;
+
+        // Inputs: determine if all from wallet and whether any are watch-only
         for (const CTxIn& txin : wtx.vin) {
             isminetype mine = wallet->IsMine(txin);
-            if (mine & ISMINE_WATCH_ONLY) involvesWatchAddress = true;
-            if (fAllFromMe > mine) fAllFromMe = mine;
+            if (mine & ISMINE_WATCH_ONLY)
+                involvesWatchAddress = true;
+            if (fAllFromMe > mine)
+                fAllFromMe = mine;
         }
 
         isminetype fAllToMe = ISMINE_SPENDABLE;
         int nToMe = 0;
+
+        // Outputs: determine if all to wallet and whether any are watch-only
         for (const CTxOut& txout : wtx.vout) {
-            if (wallet->IsMine(txout)) {
-                nToMe++;
-            }
+            if (wallet->IsMine(txout))
+                ++nToMe;
+
             isminetype mine = wallet->IsMine(txout);
-            if (mine & ISMINE_WATCH_ONLY) involvesWatchAddress = true;
-            if (fAllToMe > mine) fAllToMe = mine;
+            if (mine & ISMINE_WATCH_ONLY)
+                involvesWatchAddress = true;
+            if (fAllToMe > mine)
+                fAllToMe = mine;
         }
 
+        // Payment to self
         if (fAllFromMe && fAllToMe) {
-            // Payment to self
             TransactionRecord sub(hash, nTime, wtx.GetTotalSize());
-            sub.type = TransactionRecord::SendToSelf;
+            sub.type    = TransactionRecord::SendToSelf;
             sub.address = "";
 
-            // Label for payment to self
             CTxDestination address;
-            if (ExtractDestination(wtx.vout[0].scriptPubKey, address)) {
+            if (ExtractDestination(wtx.vout[0].scriptPubKey, address))
                 sub.address = CBitcoinAddress(address).ToString();
-            }
 
-            CAmount nChange = wtx.GetChange();
+            const CAmount nChange = wtx.GetChange();
+            sub.debit  = -(nDebit - nChange);
+            sub.credit =  (nCredit - nChange);
 
-            sub.debit = -(nDebit - nChange);
-            sub.credit = nCredit - nChange;
-            parts.append(sub);
-            parts.last().involvesWatchAddress = involvesWatchAddress;
-        } else if (fAllFromMe) {
-            //
-            // Debit
-            //
+            parts.push_back(sub);
+            parts.back().involvesWatchAddress = involvesWatchAddress;
+        }
+        // Pure debit (send to others)
+        else if (fAllFromMe) {
             CAmount nTxFee = nDebit - wtx.GetValueOut();
 
-            for (unsigned int nOut = 0; nOut < wtx.vout.size(); nOut++) {
+            for (unsigned int nOut = 0; nOut < wtx.vout.size(); ++nOut) {
                 const CTxOut& txout = wtx.vout[nOut];
-                TransactionRecord sub(hash, nTime, wtx.GetTotalSize());
-                sub.idx = parts.size();
-                sub.involvesWatchAddress = involvesWatchAddress;
 
-                if (wallet->IsMine(txout)) {
-                    // Ignore change back to self
+                // Skip change back to self
+                if (wallet->IsMine(txout))
                     continue;
-                }
+
+                TransactionRecord sub(hash, nTime, wtx.GetTotalSize());
+                sub.idx = static_cast<int>(parts.size());
+                sub.involvesWatchAddress = involvesWatchAddress;
 
                 CTxDestination address;
                 if (ExtractDestination(txout.scriptPubKey, address)) {
-                    // Sent to SchillingCoin Address
-                    sub.type = TransactionRecord::SendToAddress;
+                    sub.type    = TransactionRecord::SendToAddress;
                     sub.address = CBitcoinAddress(address).ToString();
                 } else {
-                    // Sent to IP, or other non-address transaction
-                    sub.type = TransactionRecord::SendToOther;
-                    sub.address = mapValue["to"];
+                    sub.type    = TransactionRecord::SendToOther;
+                    auto itTo   = mapValue.find("to");
+                    sub.address = (itTo != mapValue.end()) ? itTo->second : "";
                 }
 
                 CAmount nValue = txout.nValue;
-                /* Add fee to first output */
                 if (nTxFee > 0) {
                     nValue += nTxFee;
                     nTxFee = 0;
                 }
-                sub.debit = -nValue;
 
-                parts.append(sub);
+                sub.debit = -nValue;
+                parts.push_back(sub);
             }
-        } else {
-            //
-            // Mixed debit transaction, can't break down payees
-            //
-            parts.append(TransactionRecord(hash, nTime, wtx.GetTotalSize(), TransactionRecord::Other, "", nNet, 0));
-            parts.last().involvesWatchAddress = involvesWatchAddress;
+        }
+        // Mixed / complex transaction
+        else {
+            TransactionRecord sub(
+                hash,
+                nTime,
+                wtx.GetTotalSize(),
+                TransactionRecord::Other,
+                "",
+                nNet,
+                0
+            );
+            sub.involvesWatchAddress = involvesWatchAddress;
+            parts.push_back(sub);
         }
     }
 
     return parts;
 }
 
-void TransactionRecord::loadUnlockColdStake(const CWallet* wallet, const CWalletTx& wtx, TransactionRecord& record)
+// -----------------------------------------------------------------------------
+// Cold-stake unlock helper
+// -----------------------------------------------------------------------------
+void TransactionRecord::loadUnlockColdStake(
+        const CWallet* wallet,
+        const CWalletTx& wtx,
+        TransactionRecord& record)
 {
     record.involvesWatchAddress = false;
 
-    // Get the p2cs
     const CScript* p2csScript = nullptr;
     bool isSpendable = false;
 
-    for (const auto &input : wtx.vin) {
+    for (const auto& input : wtx.vin) {
         const CWalletTx* tx = wallet->GetWalletTx(input.prevout.hash);
         if (tx && tx->vout[input.prevout.n].scriptPubKey.IsPayToColdStaking()) {
             p2csScript = &tx->vout[input.prevout.n].scriptPubKey;
-            isSpendable = wallet->IsMine(input) & ISMINE_SPENDABLE_ALL;
+            isSpendable = (wallet->IsMine(input) & ISMINE_SPENDABLE_ALL);
             break;
         }
     }
 
     if (isSpendable) {
-        // owner unlocked the cold stake
-        record.type = TransactionRecord::P2CSUnlockOwner;
-        record.debit = -(wtx.GetStakeDelegationDebit());
-        record.credit = wtx.GetCredit(ISMINE_ALL);
+        // Owner unlocking their cold stake
+        record.type   = TransactionRecord::P2CSUnlockOwner;
+        record.debit  = -(wtx.GetStakeDelegationDebit());
+        record.credit =  (wtx.GetCredit(ISMINE_ALL));
     } else {
-        // hot node watching the unlock
-        record.type = TransactionRecord::P2CSUnlockStaker;
-        record.debit = -(wtx.GetColdStakingDebit());
+        // Hot node observing the unlock
+        record.type   = TransactionRecord::P2CSUnlockStaker;
+        record.debit  = -(wtx.GetColdStakingDebit());
         record.credit = -(wtx.GetColdStakingCredit());
     }
 
-    // Extract and set the owner address
     ExtractAddress(*p2csScript, false, record.address);
 }
 

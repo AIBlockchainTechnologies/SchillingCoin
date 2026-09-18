@@ -343,7 +343,7 @@ bool WalletModel::updateAddressBookLabels(const CTxDestination& dest, const std:
 WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransaction& transaction, const CCoinControl* coinControl)
 {
     CAmount total = 0;
-    QList<SendCoinsRecipient> recipients = transaction.getRecipients();
+    std::vector<SendCoinsRecipient> recipients = transaction.getRecipients();
     std::vector<std::pair<CScript, CAmount> > vecSend;
 
     if (recipients.empty()) {
@@ -487,10 +487,10 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
     {
         LOCK2(cs_main, wallet->cs_wallet);
         CWalletTx* newTx = transaction.getTransaction();
-        QList<SendCoinsRecipient> recipients = transaction.getRecipients();
+        std::vector<SendCoinsRecipient> recipients = transaction.getRecipients();
 
         // Guard: ensure recipients exist before indexing
-        if (recipients.isEmpty()) {
+        if (recipients.empty()) {
             return TransactionCommitFailed;
         }
 

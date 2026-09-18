@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -50,7 +50,6 @@ SendWidget::SendWidget(SchillingCoinGUI* parent) :
     ui->labelSubtitleAddress->setText(tr("SchillingCoin address or contact label"));
     setCssProperty(ui->labelSubtitleAddress, "text-title");
 
-
     /* Amount */
     ui->labelSubtitleAmount->setText(tr("Amount"));
     setCssProperty(ui->labelSubtitleAmount, "text-title");
@@ -90,7 +89,6 @@ SendWidget::SendWidget(SchillingCoinGUI* parent) :
     setCssProperty(ui->coinWidget, "container-coin-type");
     setCssProperty(ui->labelLine, "container-divider");
 
-
     // Total Send
     ui->labelTitleTotalSend->setText(tr("Total to send"));
     setCssProperty(ui->labelTitleTotalSend, "text-title");
@@ -100,7 +98,6 @@ SendWidget::SendWidget(SchillingCoinGUI* parent) :
 
     // Total Remaining
     setCssProperty(ui->labelTitleTotalRemaining, "text-title");
-
     setCssProperty(ui->labelAmountRemaining, "text-body1");
 
     // Icon Send
@@ -139,13 +136,14 @@ void SendWidget::refreshView(){
 void SendWidget::refreshAmounts() {
 
     CAmount total = 0;
-    QMutableListIterator<SendMultiRow*> it(entries);
-    while (it.hasNext()) {
-        SendMultiRow* entry = it.next();
+
+    for (SendMultiRow* entry : entries) {
+        if (!entry) continue;
         CAmount amount = entry->getAmountValue();
         if (amount > 0)
             total += amount;
     }
+
     nDisplayUnit = walletModel->getOptionsModel()->getDisplayUnit();
     ui->labelAmountSend->setText(GUIUtil::formatBalance(total, nDisplayUnit));
 
@@ -163,7 +161,7 @@ void SendWidget::refreshAmounts() {
             GUIUtil::formatBalance(
                     totalAmount,
                     nDisplayUnit
-                    )
+            )
     );
 }
 
@@ -180,28 +178,22 @@ void SendWidget::loadWalletModel() {
         // display unit
         nDisplayUnit = walletModel->getOptionsModel()->getDisplayUnit();
 
-        for(SendMultiRow *entry : entries){
-            if(entry){
+        for (SendMultiRow* entry : entries) {
+            if (entry) {
                 entry->setWalletModel(walletModel);
             }
         }
 
         // Refresh view
         refreshView();
-
-        // TODO: This only happen when the coin control features are modified in other screen, check before do this if the wallet has another screen modifying it.
-        // Coin Control
-        //connect(model->getOptionsModel(), SIGNAL(coinControlFeaturesChanged(bool)), this, SLOT(coinControlFeatureChanged(bool)));
-        //ui->frameCoinControl->setVisible(model->getOptionsModel()->getCoinControlFeatures());
-        //coinControlUpdateLabels();
     }
 }
 
 void SendWidget::clearAll(){
     onResetCustomOptions(false);
-    if(customFeeDialog) customFeeDialog->clear();
+    if (customFeeDialog) customFeeDialog->clear();
     ui->pushButtonFee->setText(tr("Customize Fee"));
-    if(walletModel) walletModel->setWalletDefaultFee();
+    if (walletModel) walletModel->setWalletDefaultFee();
     clearEntries();
     refreshAmounts();
 }
@@ -216,7 +208,7 @@ void SendWidget::onResetCustomOptions(bool fRefreshAmounts){
 }
 
 void SendWidget::clearEntries(){
-    int num = entries.length();
+    int num = static_cast<int>(entries.size());
     for (int i = 0; i < num; ++i) {
         ui->scrollAreaWidgetContents->layout()->takeAt(0)->widget()->deleteLater();
     }
@@ -226,28 +218,28 @@ void SendWidget::clearEntries(){
 }
 
 void SendWidget::addEntry(){
-    if(entries.isEmpty()){
+    if (entries.empty()) {
         createEntry();
     } else {
-        if (entries.length() == 1) {
-            SendMultiRow *entry = entries.at(0);
+        if (entries.size() == 1) {
+            SendMultiRow* entry = entries[0];
             entry->hideLabels();
             entry->setNumber(1);
-        }else if(entries.length() == MAX_SEND_POPUP_ENTRIES){
+        } else if (entries.size() == MAX_SEND_POPUP_ENTRIES) {
             inform(tr("Maximum amount of outputs reached"));
             return;
         }
 
-        SendMultiRow *sendMultiRow = createEntry();
-        sendMultiRow->setNumber(entries.length());
+        SendMultiRow* sendMultiRow = createEntry();
+        sendMultiRow->setNumber(static_cast<int>(entries.size()));
         sendMultiRow->hideLabels();
     }
 }
 
 SendMultiRow* SendWidget::createEntry(){
-    SendMultiRow *sendMultiRow = new SendMultiRow(this);
-    if(this->walletModel) sendMultiRow->setWalletModel(this->walletModel);
-    entries.append(sendMultiRow);
+    SendMultiRow* sendMultiRow = new SendMultiRow(this);
+    if (this->walletModel) sendMultiRow->setWalletModel(this->walletModel);
+    entries.push_back(sendMultiRow);
     ui->scrollAreaWidgetContents->layout()->addWidget(sendMultiRow);
     connect(sendMultiRow, &SendMultiRow::onContactsClicked, this, &SendWidget::onContactsClicked);
     connect(sendMultiRow, &SendMultiRow::onMenuClicked, this, &SendWidget::onMenuClicked);
@@ -258,7 +250,7 @@ SendMultiRow* SendWidget::createEntry(){
 void SendWidget::onAddEntryClicked(){
     // Check prev valid entries before add a new one.
     for (SendMultiRow* entry : entries){
-        if(!entry || !entry->validate()) {
+        if (!entry || !entry->validate()) {
             inform(tr("Invalid entry, previous entries must be valid before add a new one"));
             return;
         }
@@ -271,26 +263,25 @@ void SendWidget::resizeEvent(QResizeEvent *event){
     QWidget::resizeEvent(event);
 }
 
-
 void SendWidget::onSendClicked(){
 
     if (!walletModel || !walletModel->getOptionsModel())
         return;
 
-    QList<SendCoinsRecipient> recipients;
+    std::vector<SendCoinsRecipient> recipients;
 
     for (SendMultiRow* entry : entries){
         // TODO: Check UTXO splitter here..
         // Validate send..
-        if(entry && entry->validate()) {
-            recipients.append(entry->getValue());
-        }else{
+        if (entry && entry->validate()) {
+            recipients.push_back(entry->getValue());
+        } else {
             inform(tr("Invalid entry"));
             return;
         }
     }
 
-    if (recipients.isEmpty()) {
+    if (recipients.empty()) {
         inform(tr("No set recipients"));
         return;
     }
@@ -302,12 +293,12 @@ void SendWidget::onSendClicked(){
         return;
     }
 
-    if(send(recipients)) {
+    if (send(recipients)) {
         updateEntryLabels(recipients);
     }
 }
 
-bool SendWidget::send(QList<SendCoinsRecipient> recipients){
+bool SendWidget::send(const std::vector<SendCoinsRecipient>& recipients){
     // prepare transaction for getting txFee earlier
     WalletModelTransaction currentTransaction(recipients);
     WalletModel::SendCoinsReturn prepareStatus;
@@ -340,7 +331,7 @@ bool SendWidget::send(QList<SendCoinsRecipient> recipients){
     dialog->adjustSize();
     openDialogWithOpaqueBackgroundY(dialog, window, 3, 5);
 
-    if(dialog->isConfirm()){
+    if (dialog->isConfirm()){
         // now send the prepared transaction
         WalletModel::SendCoinsReturn sendStatus = dialog->getStatus();
         // process sendStatus and on error generate message shown to user
@@ -362,16 +353,21 @@ bool SendWidget::send(QList<SendCoinsRecipient> recipients){
     return false;
 }
 
-QString SendWidget::recipientsToString(QList<SendCoinsRecipient> recipients){
+QString SendWidget::recipientsToString(const std::vector<SendCoinsRecipient>& recipients){
     QString s = "";
-    for (SendCoinsRecipient rec : recipients){
-        s += rec.address + " -> " + BitcoinUnits::formatWithUnit(walletModel->getOptionsModel()->getDisplayUnit(), rec.amount, false, BitcoinUnits::separatorAlways) + "\n";
+    for (const SendCoinsRecipient& rec : recipients){
+        s += rec.address + " -> " +
+             BitcoinUnits::formatWithUnit(walletModel->getOptionsModel()->getDisplayUnit(),
+                                          rec.amount,
+                                          false,
+                                          BitcoinUnits::separatorAlways) +
+             "\n";
     }
     return s;
 }
 
-void SendWidget::updateEntryLabels(QList<SendCoinsRecipient> recipients){
-    for (SendCoinsRecipient rec : recipients){
+void SendWidget::updateEntryLabels(const std::vector<SendCoinsRecipient>& recipients){
+    for (const SendCoinsRecipient& rec : recipients){
         QString label = rec.label;
         if(!label.isNull()) {
             QString labelOld = walletModel->getAddressTableModel()->labelForAddress(rec.address);
@@ -387,10 +383,8 @@ void SendWidget::updateEntryLabels(QList<SendCoinsRecipient> recipients){
                 }
             }
         }
-
     }
 }
-
 
 void SendWidget::onChangeAddressClicked(){
     showHideOp(true);
@@ -428,7 +422,7 @@ void SendWidget::onOpenUriClicked(){
             return;
         }
 
-        int listSize = entries.size();
+        int listSize = static_cast<int>(entries.size());
         if (listSize == 1) {
             SendMultiRow *entry = entries[0];
             entry->setAddressAndLabelOrDescription(rcp.address, rcp.message);
@@ -610,7 +604,6 @@ void SendWidget::onContactMultiClicked(){
         }
         dialog->deleteLater();
     }
-
 }
 
 void SendWidget::onDeleteClicked(){
@@ -619,20 +612,25 @@ void SendWidget::onDeleteClicked(){
         focusedEntry->deleteLater();
         int entryNumber = focusedEntry->getNumber();
 
-        // remove selected entry and update row number for the others
-        QMutableListIterator<SendMultiRow*> it(entries);
-        while (it.hasNext()) {
-            SendMultiRow* entry = it.next();
-            if (focusedEntry == entry){
-                it.remove();
-            } else if (focusedEntry && entry->getNumber() > entryNumber){
+        // remove selected entry
+        for (size_t i = 0; i < entries.size(); ++i) {
+            SendMultiRow* entry = entries[i];
+            if (entry == focusedEntry) {
+                entries.erase(entries.begin() + static_cast<std::ptrdiff_t>(i));
+                break;
+            }
+        }
+
+        // update row numbers for the others
+        for (SendMultiRow* entry : entries) {
+            if (entry->getNumber() > entryNumber) {
                 entry->setNumber(entry->getNumber() - 1);
             }
         }
 
         if (entries.size() == 1) {
-            SendMultiRow* sendMultiRow = QMutableListIterator<SendMultiRow*>(entries).next();
-            sendMultiRow->setNumber(entries.length());
+            SendMultiRow* sendMultiRow = entries[0];
+            sendMultiRow->setNumber(static_cast<int>(entries.size()));
             sendMultiRow->showLabels();
         }
 

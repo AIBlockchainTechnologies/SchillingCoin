@@ -1,7 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,17 +14,19 @@
 
 #include <iostream>
 
-BitcoinUnits::BitcoinUnits(QObject* parent) : QAbstractListModel(parent),
-                                              unitlist(availableUnits())
+BitcoinUnits::BitcoinUnits(QObject* parent) :
+    QAbstractListModel(parent),
+    unitlist(availableUnits())
 {
 }
 
-QList<BitcoinUnits::Unit> BitcoinUnits::availableUnits()
+std::vector<BitcoinUnits::Unit> BitcoinUnits::availableUnits()
 {
-    QList<BitcoinUnits::Unit> unitlist;
-    unitlist.append(SCH);
-    unitlist.append(mSCH);
-    unitlist.append(uSCH);
+    std::vector<BitcoinUnits::Unit> unitlist;
+    unitlist.reserve(3);
+    unitlist.push_back(SCH);
+    unitlist.push_back(mSCH);
+    unitlist.push_back(uSCH);
     return unitlist;
 }
 
@@ -138,11 +140,9 @@ int BitcoinUnits::decimals(int unit)
 
 QString BitcoinUnits::format(int unit, const CAmount& nIn, bool fPlus, SeparatorStyle separators, bool cleanRemainderZeros)
 {
-    // Note: not using straight sprintf here because we do NOT want
-    // localized number formatting.
-    if (!valid(unit)){
-        return QString(); // Refuse to format invalid unit
-    }
+    if (!valid(unit))
+        return QString();
+
     qint64 n = (qint64)nIn;
     qint64 coin = factor(unit);
     int num_decimals = decimals(unit);
@@ -152,8 +152,6 @@ QString BitcoinUnits::format(int unit, const CAmount& nIn, bool fPlus, Separator
     QString quotient_str = QString::number(quotient);
     QString remainder_str = QString::number(remainder).rightJustified(num_decimals, '0');
 
-    // Use SI-style thin space separators as these are locale independent and can't be
-    // confused with the decimal marker.
     QChar thin_sp(THIN_SP_CP);
     int q_size = quotient_str.size();
     if (separators == separatorAlways || (separators == separatorStandard && q_size > 4))
@@ -168,13 +166,12 @@ QString BitcoinUnits::format(int unit, const CAmount& nIn, bool fPlus, Separator
     if (num_decimals <= 0)
         return quotient_str;
 
-    if(cleanRemainderZeros) {
-        // Clean remainder
+    if (cleanRemainderZeros) {
         QString cleanRemainder = remainder_str;
         for (int i = (remainder_str.length() - 1); i > 1; i--) {
-            if (remainder_str.at(i) == QChar('0')) {
+            if (remainder_str.at(i) == QChar('0'))
                 cleanRemainder = cleanRemainder.left(cleanRemainder.lastIndexOf("0"));
-            } else
+            else
                 break;
         }
         return quotient_str + QString(".") + cleanRemainder;
@@ -182,22 +179,6 @@ QString BitcoinUnits::format(int unit, const CAmount& nIn, bool fPlus, Separator
 
     return quotient_str + QString(".") + remainder_str;
 }
-
-
-// TODO: Review all remaining calls to BitcoinUnits::formatWithUnit to
-// TODO: determine whether the output is used in a plain text context
-// TODO: or an HTML context (and replace with
-// TODO: BtcoinUnits::formatHtmlWithUnit in the latter case). Hopefully
-// TODO: there aren't instances where the result could be used in
-// TODO: either context.
-
-// NOTE: Using formatWithUnit in an HTML context risks wrapping
-// quantities at the thousands separator. More subtly, it also results
-// in a standard space rather than a thin space, due to a bug in Qt's
-// XML whitespace canonicalisation
-//
-// Please take care to use formatHtmlWithUnit instead, when
-// appropriate.
 
 QString BitcoinUnits::formatWithUnit(int unit, const CAmount& amount, bool plussign, SeparatorStyle separators)
 {
@@ -217,14 +198,13 @@ QString BitcoinUnits::floorWithUnit(int unit, const CAmount& amount, bool plussi
     int digits = settings.value("digits").toInt();
 
     QString result = format(unit, amount, plussign, separators, cleanRemainderZeros);
-    if(decimals(unit) > digits) {
+    if (decimals(unit) > digits) {
         if (!cleanRemainderZeros) {
             result.chop(decimals(unit) - digits);
         } else {
             int lenght = result.mid(result.indexOf("."), result.length() - 1).length() - 1;
-            if (lenght > digits) {
+            if (lenght > digits)
                 result.chop(lenght - digits);
-            }
         }
     }
 
@@ -241,43 +221,41 @@ QString BitcoinUnits::floorHtmlWithUnit(int unit, const CAmount& amount, bool pl
 bool BitcoinUnits::parse(int unit, const QString& value, CAmount* val_out)
 {
     if (!valid(unit) || value.isEmpty())
-        return false; // Refuse to parse invalid unit or empty string
-    int num_decimals = decimals(unit);
+        return false;
 
-    // Ignore spaces and thin spaces when parsing
+    int num_decimals = decimals(unit);
     QStringList parts = removeSpaces(value).replace(",", ".").split(".");
 
-    if (parts.size() > 2) {
-        return false; // More than one dot
-    }
+    if (parts.size() > 2)
+        return false;
+
     QString whole = parts[0];
     QString decimals;
 
-    if (parts.size() > 1) {
+    if (parts.size() > 1)
         decimals = parts[1];
-    }
-    if (decimals.size() > num_decimals) {
-        return false; // Exceeds max precision
-    }
+
+    if (decimals.size() > num_decimals)
+        return false;
+
     bool ok = false;
     QString str = whole + decimals.leftJustified(num_decimals, '0');
 
-    if (str.size() > 18) {
-        return false; // Longer numbers will exceed 63 bits
-    }
+    if (str.size() > 18)
+        return false;
+
     CAmount retvalue(str.toLongLong(&ok));
-    if (val_out) {
+    if (val_out)
         *val_out = retvalue;
-    }
+
     return ok;
 }
 
 QString BitcoinUnits::getAmountColumnTitle(int unit)
 {
     QString amountTitle = QObject::tr("Amount");
-    if (BitcoinUnits::valid(unit)) {
+    if (BitcoinUnits::valid(unit))
         amountTitle += " (" + BitcoinUnits::name(unit) + ")";
-    }
     return amountTitle;
 }
 

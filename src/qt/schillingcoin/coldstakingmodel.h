@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -84,7 +84,7 @@ private:
     /**
      * List with all of the grouped delegations received by this wallet
      */
-    QList<CSDelegation> cachedDelegations;
+    std::vector<CSDelegation> cachedDelegations;
     CAmount cachedAmount;
 
     bool parseCSDelegation(const CTxOut& out, CSDelegation& ret, const QString& txId, const int& utxoIndex);

@@ -1,6 +1,6 @@
 // Copyright (c) 2011-2013 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,8 +10,10 @@
 #include <QFile>
 #include <QTextStream>
 
-CSVModelWriter::CSVModelWriter(const QString& filename, QObject* parent) : QObject(parent),
-                                                                           filename(filename), model(0)
+CSVModelWriter::CSVModelWriter(const QString& filename, QObject* parent) :
+    QObject(parent),
+    filename(filename),
+    model(0)
 {
 }
 
@@ -27,7 +29,8 @@ void CSVModelWriter::addColumn(const QString& title, int column, int role)
     col.column = column;
     col.role = role;
 
-    columns.append(col);
+    // QList → std::vector modernization
+    columns.push_back(col);
 }
 
 static void writeValue(QTextStream& f, const QString& value)
@@ -52,6 +55,7 @@ bool CSVModelWriter::write()
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
         return false;
+
     QTextStream out(&file);
 
     int numRows = 0;
@@ -60,7 +64,7 @@ bool CSVModelWriter::write()
     }
 
     // Header row
-    for (int i = 0; i < columns.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(columns.size()); ++i) {
         if (i != 0) {
             writeSep(out);
         }
@@ -70,7 +74,7 @@ bool CSVModelWriter::write()
 
     // Data rows
     for (int j = 0; j < numRows; ++j) {
-        for (int i = 0; i < columns.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(columns.size()); ++i) {
             if (i != 0) {
                 writeSep(out);
             }
@@ -81,6 +85,5 @@ bool CSVModelWriter::write()
     }
 
     file.close();
-
     return file.error() == QFile::NoError;
 }

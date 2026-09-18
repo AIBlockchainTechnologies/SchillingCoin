@@ -1,14 +1,14 @@
 // Copyright (c) 2011-2013 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef BITCOIN_QT_CSVMODELWRITER_H
 #define BITCOIN_QT_CSVMODELWRITER_H
 
-#include <QList>
 #include <QObject>
+#include <vector>
 
 QT_BEGIN_NAMESPACE
 class QAbstractItemModel;
@@ -41,7 +41,9 @@ private:
         int column;
         int role;
     };
-    QList<Column> columns;
+
+    // QList → std::vector (only change)
+    std::vector<Column> columns;
 };
 
 #endif // BITCOIN_QT_CSVMODELWRITER_H

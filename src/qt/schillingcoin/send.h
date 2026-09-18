@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,6 +16,8 @@
 #include "walletmodel.h"
 #include "coincontroldialog.h"
 #include "qt/schillingcoin/tooltipmenu.h"
+
+#include <vector>
 
 static const int MAX_SEND_POPUP_ENTRIES = 8;
 
@@ -43,7 +45,6 @@ public:
     void loadWalletModel() override;
 
 Q_SIGNALS:
-    /** Signal raised when a URI was entered or dragged to the GUI */
     void receivedURI(const QString& uri);
 
 public Q_SLOTS:
@@ -70,6 +71,7 @@ private Q_SLOTS:
     void onContactMultiClicked();
     void onDeleteClicked();
     void onResetCustomOptions(bool fRefreshAmounts);
+
 private:
     Ui::send *ui;
     QPushButton *coinIcon;
@@ -79,21 +81,25 @@ private:
     bool isCustomFeeSelected = false;
 
     int nDisplayUnit;
-    QList<SendMultiRow*> entries;
+
+    // QList → std::vector modernization
+    std::vector<SendMultiRow*> entries;
+
     CoinControlDialog *coinControlDialog = nullptr;
 
     ContactsDropdown *menuContacts = nullptr;
     TooltipMenu *menu = nullptr;
-    // Current focus entry
+
     SendMultiRow* focusedEntry = nullptr;
 
     bool isSCH = true;
     void resizeMenu();
-    QString recipientsToString(QList<SendCoinsRecipient> recipients);
-    SendMultiRow* createEntry();
-    bool send(QList<SendCoinsRecipient> recipients);
-    void updateEntryLabels(QList<SendCoinsRecipient> recipients);
 
+    // QList → std::vector modernization
+    QString recipientsToString(const std::vector<SendCoinsRecipient>& recipients);
+    SendMultiRow* createEntry();
+    bool send(const std::vector<SendCoinsRecipient>& recipients);
+    void updateEntryLabels(const std::vector<SendCoinsRecipient>& recipients);
 };
 
 #endif // SEND_H

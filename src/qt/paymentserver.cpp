@@ -496,7 +496,10 @@ bool PaymentServer::processPaymentRequest(PaymentRequestPlus& request, SendCoins
     // Modernized: QList<std::pair<CScript, CAmount>> → std::vector<std::pair<CScript, CAmount>>
     // Qt API returns QList, so we must explicitly convert it.
     //
-    QList<std::pair<CScript, CAmount>> qtSendingTos = request.getPayTo();
+    QList<std::pair<CScript, CAmount>> qtSendingTos;
+    for (const auto& p : request.getPayTo()) {
+        qtSendingTos.append(p);
+    }
 
     std::vector<std::pair<CScript, CAmount>> sendingTos;
     sendingTos.reserve(qtSendingTos.size());

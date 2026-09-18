@@ -11,7 +11,7 @@
 #include "amount.h"
 #include "uint256.h"
 
-#include <QList>
+#include <vector>
 #include <QString>
 
 class CWallet;
@@ -115,7 +115,7 @@ public:
 
     /** Decompose CWallet transaction to model transaction records.
      */
-    static QList<TransactionRecord> decomposeTransaction(const CWallet* wallet, const CWalletTx& wtx);
+    static std::vector<TransactionRecord> decomposeTransaction(const CWallet* wallet, const CWalletTx& wtx);
 
     /// Helpers
     static bool ExtractAddress(const CScript& scriptPubKey, bool fColdStake, std::string& addressStr);

@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -15,9 +15,12 @@
 
 #include <atomic>
 #include <cstdlib>
+#include <vector>
+
 #include <QWidget>
 #include <QLineEdit>
 #include <QMap>
+#include <QStringList>
 
 #if defined(HAVE_CONFIG_H)
 #include "config/schillingcoin-config.h" /* for USE_QTCHARTS */
@@ -33,7 +36,6 @@
 #include <QtCharts/QValueAxis>
 
 QT_CHARTS_USE_NAMESPACE
-
 using namespace QtCharts;
 
 #endif
@@ -58,7 +60,6 @@ public:
 
 Q_SIGNALS:
     void Mouse_Pressed();
-
 };
 
 enum SortTx {
@@ -83,8 +84,11 @@ public:
     qreal maxValue = 0;
     qint64 totalStakes = 0;
     qint64 totalMNRewards = 0;
-    QList<qreal> valuesStakes;
-    QList<qreal> valuesMNRewards;
+
+    // QList → std::vector modernization
+    std::vector<qreal> valuesStakes;
+    std::vector<qreal> valuesMNRewards;
+
     QStringList xLabels;
 };
 
@@ -108,14 +112,12 @@ public:
 
 public Q_SLOTS:
     void walletSynced(bool isSync);
-    /**
-     * Show incoming transaction notification for new transactions.
-     * The new items are those between start and end inclusive, under the given parent item.
-    */
     void processNewTransaction(const QModelIndex& parent, int start, int /*end*/);
+
 Q_SIGNALS:
-    /** Notify that a new transaction appeared */
-    void incomingTransaction(const QString& date, int unit, const CAmount& amount, const QString& type, const QString& address);
+    void incomingTransaction(const QString& date, int unit, const CAmount& amount,
+                             const QString& type, const QString& address);
+
 private Q_SLOTS:
     void handleTransactionClicked(const QModelIndex &index);
     void changeTheme(bool isLightTheme, QString &theme) override;
@@ -123,7 +125,8 @@ private Q_SLOTS:
     void onSortTypeChanged(const QString& value);
     void updateDisplayUnit();
     void showList();
-    void onTxArrived(const QString& hash, const bool& isCoinStake, const bool& isCSAnyType, const bool& isMasternodeReward);
+    void onTxArrived(const QString& hash, const bool& isCoinStake,
+                     const bool& isCSAnyType, const bool& isMasternodeReward);
 
 #ifdef USE_QTCHARTS
     void windowResizeEvent(QResizeEvent *event);
@@ -147,7 +150,6 @@ private:
     int64_t lastRefreshTime = 0;
     std::atomic<bool> isLoading;
 
-    // Chart
     TransactionFilterProxy* stakesFilter = nullptr;
     bool isChartInitialized = false;
     QChartView *chartView = nullptr;

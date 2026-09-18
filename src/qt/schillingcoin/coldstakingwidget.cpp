@@ -434,7 +434,6 @@ void ColdStakingWidget::onSendClicked() {
         return;
     }
 
-
     bool isStakingAddressFromThisWallet = walletModel->isMine(dest.address);
     bool isOwnerAddressFromThisWallet = isOwnerEmpty || walletModel->isMine(inputOwner);
 
@@ -455,20 +454,20 @@ void ColdStakingWidget::onSendClicked() {
     // Unlock wallet
     WalletModel::UnlockContext ctx(walletModel->requestUnlock());
     if (!ctx.isValid()) {
-        // Unlock wallet was cancelled
         inform(tr("Cannot send delegation, wallet locked"));
         return;
     }
 
     dest.ownerAddress = inputOwner;
-    QList<SendCoinsRecipient> recipients;
-    recipients.append(dest);
+
+    // QList → std::vector modernization
+    std::vector<SendCoinsRecipient> recipients;
+    recipients.push_back(dest);
 
     // Prepare transaction for getting txFee earlier
     WalletModelTransaction currentTransaction(recipients);
     WalletModel::SendCoinsReturn prepareStatus = walletModel->prepareTransaction(currentTransaction, CoinControlDialog::coinControl);
 
-    // process prepareStatus and on error generate message shown to user
     GuiTransactionsUtils::ProcessSendCoinsReturnAndInform(
             this,
             prepareStatus,
@@ -490,9 +489,8 @@ void ColdStakingWidget::onSendClicked() {
     openDialogWithOpaqueBackgroundY(dialog, window, 3, 5);
 
     if(dialog->isConfirm()){
-        // now send the prepared transaction
         WalletModel::SendCoinsReturn sendStatus = dialog->getStatus();
-        // process sendStatus and on error generate message shown to user
+
         GuiTransactionsUtils::ProcessSendCoinsReturnAndInform(
                 this,
                 sendStatus,

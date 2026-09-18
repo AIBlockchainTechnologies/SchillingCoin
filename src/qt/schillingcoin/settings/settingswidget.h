@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -99,9 +99,11 @@ private:
 
     QDataWidgetMapper* mapper;
 
-    QList<QPushButton*> options;
+    // Modernized: QList → std::vector
+    std::vector<QPushButton*> options;
+
     // Map of: menu button -> sub menu items
-    QMap <QPushButton*, QWidget*> menus;
+    QMap<QPushButton*, QWidget*> menus;
 
     void selectOption(QPushButton* option);
     bool openStandardDialog(const QString& title = "", const QString& body = "", const QString& okBtn = "OK", const QString& cancelBtn = "");

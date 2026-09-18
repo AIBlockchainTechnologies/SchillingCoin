@@ -1,7 +1,7 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,6 +12,7 @@
 
 #include <QAbstractListModel>
 #include <QString>
+#include <vector>
 
 // U+2009 THIN SPACE = UTF-8 E2 80 89
 #define REAL_THIN_SP_CP 0x2009
@@ -37,13 +38,8 @@
 #define FIGURE_SP_UTF8 "\xE2\x80\x87"
 #define FIGURE_SP_HTML "&#8199;"
 
-// QMessageBox seems to have a bug whereby it doesn't display thin/hair spaces
-// correctly.  Workaround is to display a space in a small font.  If you
-// change this, please test that it doesn't cause the parent span to start
-// wrapping.
 #define HTML_HACK_SP "<span style='white-space: nowrap; font-size: 6pt'> </span>"
 
-// Define THIN_SP_* variables to be our preferred type of thin space
 #define THIN_SP_CP REAL_THIN_SP_CP
 #define THIN_SP_UTF8 REAL_THIN_SP_UTF8
 #define THIN_SP_HTML HTML_HACK_SP
@@ -58,9 +54,6 @@ class BitcoinUnits : public QAbstractListModel
 public:
     explicit BitcoinUnits(QObject* parent);
 
-    /** SchillingCoin units.
-      @note Source: https://en.bitcoin.it/wiki/Units . Please add only sensible ones
-     */
     enum Unit {
         SCH,
         mSCH,
@@ -73,49 +66,41 @@ public:
         separatorAlways
     };
 
-    //! @name Static API
-    //! Unit conversion and formatting
-    ///@{
+    /// Static API
 
     //! Get list of units, for drop-down box
-    static QList<Unit> availableUnits();
-    //! Is unit ID valid?
-    static bool valid(int unit);
-    //! Identifier, e.g. for image names
-    static QString id(int unit);
-    //! Short name
-    static QString name(int unit);
-    //! Longer description
-    static QString description(int unit);
-    //! Number of Satoshis (1e-8) per unit
-    static qint64 factor(int unit);
-    //! Number of decimals left
-    static int decimals(int unit);
-    //! Format as string
-    static QString format(int unit, const CAmount& amount, bool plussign = false, SeparatorStyle separators = separatorStandard, bool cleanRemainderZeros = true);
-    static QString simpleFormat(int unit, const CAmount& amount, bool plussign = false, SeparatorStyle separators = separatorStandard);
-    //! Format as string (with unit)
-    static QString formatWithUnit(int unit, const CAmount& amount, bool plussign = false, SeparatorStyle separators = separatorStandard);
-    static QString formatHtmlWithUnit(int unit, const CAmount& amount, bool plussign = false, SeparatorStyle separators = separatorStandard);
-    //! Format as string (with unit) but floor value up to "digits" settings
-    static QString floorWithUnit(int unit, const CAmount& amount, bool plussign = false, SeparatorStyle separators = separatorStandard, bool cleanRemainderZeros = false);
-    static QString floorHtmlWithUnit(int unit, const CAmount& amount, bool plussign = false, SeparatorStyle separators = separatorStandard, bool cleanRemainderZeros = false);
-    //! Parse string to coin amount
-    static bool parse(int unit, const QString& value, CAmount* val_out);
-    //! Gets title for amount column including current display unit if optionsModel reference available */
-    static QString getAmountColumnTitle(int unit);
-    ///@}
+    static std::vector<Unit> availableUnits();
 
-    //! @name AbstractListModel implementation
-    //! List model for unit drop-down selection box.
-    ///@{
+    static bool valid(int unit);
+    static QString id(int unit);
+    static QString name(int unit);
+    static QString description(int unit);
+    static qint64 factor(int unit);
+    static int decimals(int unit);
+    static QString format(int unit, const CAmount& amount, bool plussign = false,
+                          SeparatorStyle separators = separatorStandard,
+                          bool cleanRemainderZeros = true);
+    static QString simpleFormat(int unit, const CAmount& amount, bool plussign = false,
+                                SeparatorStyle separators = separatorStandard);
+    static QString formatWithUnit(int unit, const CAmount& amount, bool plussign = false,
+                                  SeparatorStyle separators = separatorStandard);
+    static QString formatHtmlWithUnit(int unit, const CAmount& amount, bool plussign = false,
+                                      SeparatorStyle separators = separatorStandard);
+    static QString floorWithUnit(int unit, const CAmount& amount, bool plussign = false,
+                                 SeparatorStyle separators = separatorStandard,
+                                 bool cleanRemainderZeros = false);
+    static QString floorHtmlWithUnit(int unit, const CAmount& amount, bool plussign = false,
+                                     SeparatorStyle separators = separatorStandard,
+                                     bool cleanRemainderZeros = false);
+    static bool parse(int unit, const QString& value, CAmount* val_out);
+    static QString getAmountColumnTitle(int unit);
+
     enum RoleIndex {
-        /** Unit identifier */
         UnitRole = Qt::UserRole
     };
+
     int rowCount(const QModelIndex& parent) const;
     QVariant data(const QModelIndex& index, int role) const;
-    ///@}
 
     static QString removeSpaces(QString text)
     {
@@ -127,12 +112,12 @@ public:
         return text;
     }
 
-    //! Return maximum number of base units (Satoshis)
     static CAmount maxMoney();
 
 private:
-    QList<BitcoinUnits::Unit> unitlist;
+    std::vector<Unit> unitlist;
 };
+
 typedef BitcoinUnits::Unit BitcoinUnit;
 
 #endif // BITCOIN_QT_BITCOINUNITS_H

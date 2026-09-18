@@ -1,4 +1,5 @@
 // Copyright (c) 2011-2013 The Bitcoin developers
+// copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,9 +9,9 @@
 #include "walletmodel.h"
 
 #include <QObject>
+#include <vector>
 
 class SendCoinsRecipient;
-
 class CReserveKey;
 class CWallet;
 class CWalletTx;
@@ -19,10 +20,10 @@ class CWalletTx;
 class WalletModelTransaction
 {
 public:
-    explicit WalletModelTransaction(const QList<SendCoinsRecipient>& recipients);
+    explicit WalletModelTransaction(const std::vector<SendCoinsRecipient>& recipients);
     ~WalletModelTransaction();
 
-    QList<SendCoinsRecipient> getRecipients();
+    std::vector<SendCoinsRecipient> getRecipients();
 
     CWalletTx* getTransaction();
     unsigned int getTransactionSize();
@@ -36,7 +37,7 @@ public:
     CReserveKey* getPossibleKeyChange();
 
 private:
-    const QList<SendCoinsRecipient> recipients;
+    const std::vector<SendCoinsRecipient> recipients;
     CWalletTx* walletTransaction;
     CReserveKey* keyChange;
     CAmount fee;
