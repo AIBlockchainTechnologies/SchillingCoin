@@ -187,8 +187,6 @@ HEADERS += src/activemasternode.h \
            src/qt/optionsdialog.h \
            src/qt/optionsmodel.h \
            src/qt/overviewpage.h \
-           src/qt/paymentrequest.pb.h \
-           src/qt/paymentrequestplus.h \
            src/qt/paymentserver.h \
            src/qt/peertablemodel.h \
            src/qt/qvalidatedlineedit.h \
@@ -263,7 +261,6 @@ HEADERS += src/activemasternode.h \
            src/leveldb/util/testharness.h \
            src/leveldb/util/testutil.h \
            src/qt/forms/ui_aboutdialog.h \
-           src/qt/test/paymentrequestdata.h \
            src/qt/test/paymentservertests.h \
            src/qt/test/uritests.h \
            src/secp256k1/include/secp256k1.h \
@@ -479,8 +476,6 @@ SOURCES += src/activemasternode.cpp \
            src/qt/optionsdialog.cpp \
            src/qt/optionsmodel.cpp \
            src/qt/overviewpage.cpp \
-           src/qt/paymentrequest.pb.cc \
-           src/qt/paymentrequestplus.cpp \
            src/qt/paymentserver.cpp \
            src/qt/peertablemodel.cpp \
            src/qt/qvalidatedlineedit.cpp \

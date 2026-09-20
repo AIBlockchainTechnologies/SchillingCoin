@@ -243,17 +243,8 @@ QString TransactionDesc::toHTML(CWallet* wallet, CWalletTx& wtx, TransactionReco
     //
     // PaymentRequest info:
     //
-    for (const PAIRTYPE(std::string, std::string)& r : wtx.vOrderForm) {
-        if (r.first == "PaymentRequest") {
-            PaymentRequestPlus req;
-            req.parse(QByteArray::fromRawData(r.second.data(), r.second.size()));
-            QString merchant;
-            if (req.getMerchant(PaymentServer::getCertStore(), merchant)) {
-                strHTML += "<b>" + tr("Merchant") + ":</b> "
-                           + GUIUtil::HtmlEscape(merchant) + "<br>";
-            }
-        }
-    }
+    // BIP-70 PaymentRequest merchant display removed.
+    // SCH is being modernized toward BIP-21 URI
 
     if (wtx.IsCoinBase()) {
         //quint32 numBlocksToMaturity = Params().GetConsensus().nCoinbaseMaturity + 1;

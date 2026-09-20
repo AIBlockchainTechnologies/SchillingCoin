@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -149,30 +149,23 @@ bool SendMultiRow::validate()
     if (!walletModel)
         return false;
 
-    // Check input validity
     bool retval = true;
 
-    // Skip checks for payment request
-    if (recipient.paymentRequest.IsInitialized())
-        return retval;
-
-    // Check address validity, returns false if it's invalid
     QString address = ui->lineEditAddress->text();
-    if (address.isEmpty()){
+    if (address.isEmpty()) {
         retval = false;
         setCssProperty(ui->lineEditAddress, "edit-primary-multi-book-error", true);
-    } else
+    } else {
         retval = addressChanged(address);
+    }
 
     CAmount value = getAmountValue(ui->lineEditAmount->text());
 
-    // Sending a zero amount is invalid
     if (value <= 0) {
         setCssEditLine(ui->lineEditAmount, false, true);
         retval = false;
     }
 
-    // Reject dust outputs:
     if (retval && GUIUtil::isDust(address, value)) {
         setCssEditLine(ui->lineEditAmount, false, true);
         retval = false;
@@ -181,15 +174,11 @@ bool SendMultiRow::validate()
     return retval;
 }
 
-SendCoinsRecipient SendMultiRow::getValue() {
-    // Payment request
-    if (recipient.paymentRequest.IsInitialized())
-        return recipient;
-
-    // Normal payment
+SendCoinsRecipient SendMultiRow::getValue()
+{
     recipient.address = getAddress();
     recipient.label = ui->lineEditDescription->text();
-    recipient.amount = getAmountValue();;
+    recipient.amount = getAmountValue();
     return recipient;
 }
 

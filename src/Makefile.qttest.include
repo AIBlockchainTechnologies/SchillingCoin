@@ -13,7 +13,6 @@ endif
 
 TEST_QT_H = \
   qt/test/uritests.h \
-  qt/test/paymentrequestdata.h \
   qt/test/paymentservertests.h
 
 qt_test_test_schillingcoin_qt_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(BITCOIN_QT_INCLUDES) \
