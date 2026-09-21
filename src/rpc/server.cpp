@@ -353,9 +353,9 @@ static const CRPCCommand vRPCCommands[] =
         {"hidden", "invalidateblock", &invalidateblock, true, true, false},
         {"hidden", "reconsiderblock", &reconsiderblock, true, true, false},
         {"hidden", "setmocktime", &setmocktime, true, false, false},
-        { "hidden",             "waitfornewblock",        &waitfornewblock,        true,  true,  false  },
-        { "hidden",             "waitforblock",           &waitforblock,           true,  true,  false  },
-        { "hidden",             "waitforblockheight",     &waitforblockheight,     true,  true,  false  },
+        {"hidden", "waitfornewblock", &waitfornewblock, true, true, false},
+        {"hidden", "waitforblock", &waitforblock, true, true, false},
+        {"hidden", "waitforblockheight", &waitforblockheight, true, true, false},
 
         /* SchillingCoin features */
         {"schillingcoin", "listmasternodes", &listmasternodes, true, true, false},
@@ -373,18 +373,7 @@ static const CRPCCommand vRPCCommands[] =
         {"schillingcoin", "getmasternodestatus", &getmasternodestatus, true, true, false},
         {"schillingcoin", "getmasternodewinners", &getmasternodewinners, true, true, false},
         {"schillingcoin", "getmasternodescores", &getmasternodescores, true, true, false},
-        {"schillingcoin", "preparebudget", &preparebudget, true, true, false},
-        {"schillingcoin", "submitbudget", &submitbudget, true, true, false},
-        {"schillingcoin", "mnbudgetvote", &mnbudgetvote, true, true, false},
-        {"schillingcoin", "getbudgetvotes", &getbudgetvotes, true, true, false},
-        {"schillingcoin", "getnextsuperblock", &getnextsuperblock, true, true, false},
-        {"schillingcoin", "getbudgetprojection", &getbudgetprojection, true, true, false},
-        {"schillingcoin", "getbudgetinfo", &getbudgetinfo, true, true, false},
-        {"schillingcoin", "mnbudgetrawvote", &mnbudgetrawvote, true, true, false},
-        {"schillingcoin", "mnfinalbudget", &mnfinalbudget, true, true, false},
-        {"schillingcoin", "checkbudgets", &checkbudgets, true, true, false},
         {"schillingcoin", "mnsync", &mnsync, true, true, false},
-        {"schillingcoin", "spork", &spork, true, true, false},
         {"schillingcoin", "getpoolinfo", &getpoolinfo, true, true, false},
 
 #ifdef ENABLE_WALLET

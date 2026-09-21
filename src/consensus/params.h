@@ -40,12 +40,6 @@ struct Params {
     int nTimeSlotLength;
     std::string strObfuscationPoolDummyAddress;
 
-    // SPORK keys
-	std::string strSporkPubKey;
-	std::string strSporkPubKeyOld;
-	int64_t nTime_EnforceNewSporkKey;
-	int64_t nTime_RejectOldSporkKey;
-
     // height-based activations
     int height_last_PoW;
     int height_last_ZC_AccumCheckpoint;
@@ -93,7 +87,6 @@ struct Params {
         // with stake modifier V2+, we require the utxo to be nStakeMinDepth deep in the chain
         return (contextHeight - utxoFromBlockHeight >= nStakeMinDepth);
     }
-
 
     /*
      * (Legacy) Zerocoin consensus params

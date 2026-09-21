@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,7 +17,6 @@
 
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 #include <univalue.h>
-
 
 class CRPCConvertParam
 {
@@ -119,14 +118,6 @@ static const CRPCConvertParam vRPCConvertParams[] =
         {"prioritisetransaction", 2},
         {"setban", 2},
         {"setban", 3},
-        {"spork", 1},
-        {"preparebudget", 2},
-        {"preparebudget", 3},
-        {"preparebudget", 5},
-        {"submitbudget", 2},
-        {"submitbudget", 3},
-        {"submitbudget", 5},
-        {"submitbudget", 7},
         // disabled until removal of the legacy 'masternode' command
         //{"startmasternode", 1},
         {"mnvoteraw", 1},

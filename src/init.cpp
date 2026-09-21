@@ -25,7 +25,6 @@
 #include "httprpc.h"
 #include "key.h"
 #include "main.h"
-#include "masternode-budget.h"
 #include "masternode-payments.h"
 #include "masternodeconfig.h"
 #include "forgeman.h"
@@ -208,7 +207,6 @@ void PrepareShutdown()
 #endif
     StopNode();
     DumpMasternodes();
-    DumpBudgets();
     DumpMasternodePayments();
     UnregisterNodeSignals(GetNodeSignals());
 
@@ -1752,7 +1750,6 @@ bool AppInit2(const std::vector<std::string>& words)
     if (mapArgs.count("-blocksizenotify"))
         uiInterface.NotifyBlockSize.connect(BlockSizeNotifyCallback);
 
-    // scan for better chains in the block chain database, that are not yet connected in the active best chain
     CValidationState state;
     if (!ActivateBestChain(state))
         strErrors << "Failed to connect best block";
@@ -1764,7 +1761,6 @@ bool AppInit2(const std::vector<std::string>& words)
     }
     threadGroup.create_thread(boost::bind(&ThreadImport, vImportFiles));
 
-    // Wait for genesis block to be processed
     LogPrintf("Waiting for genesis block to be imported...\n");
     {
         std::unique_lock<std::mutex> lockG(cs_GenesisWait);
@@ -1791,25 +1787,6 @@ bool AppInit2(const std::vector<std::string>& words)
         else
             LogPrintf("file format is unknown or invalid, please fix it manually\n");
     }
-
-    uiInterface.InitMessage(_("Loading budget cache..."));
-
-    CBudgetDB budgetdb;
-    CBudgetDB::ReadResult readResult2 = budgetdb.Read(budget);
-
-    if (readResult2 == CBudgetDB::FileError)
-        LogPrintf("Missing budget cache - budget.dat, will try to recreate\n");
-    else if (readResult2 != CBudgetDB::Ok) {
-        LogPrintf("Error reading budget.dat: ");
-        if (readResult2 == CBudgetDB::IncorrectFormat)
-            LogPrintf("magic is ok but data has invalid format, will try to recreate\n");
-        else
-            LogPrintf("file format is unknown or invalid, please fix it manually\n");
-    }
-
-    // flag our cached items so we send them to our peers
-    budget.ResetSync();
-    budget.ClearSeen();
 
     uiInterface.InitMessage(_("Loading masternode payment cache..."));
 
@@ -1864,9 +1841,6 @@ bool AppInit2(const std::vector<std::string>& words)
         }
     }
 
-    // get the mode of budget voting for this masternode
-    strBudgetMode = GetArg("-budgetvotemode", "auto");
-
     if (GetBoolArg("-mnconflock", true) && pwalletMain) {
         LOCK(pwalletMain->cs_wallet);
         LogPrintf("Locking Masternodes:\n");
@@ -1879,16 +1853,12 @@ bool AppInit2(const std::vector<std::string>& words)
         }
     }
 
-    // SwiftTX v2 and Obfuscation removed: no SwiftTX depth config, no obfuscation pool, no denominations
-
-    // lite mode disables all Masternode-related functionality
     fLiteMode = GetBoolArg("-litemode", false);
     if (fMasterNode && fLiteMode) {
         return InitError("You can not start a masternode in litemode");
     }
 
     LogPrintf("fLiteMode %d\n", fLiteMode);
-    LogPrintf("Budget Mode %s\n", strBudgetMode.c_str());
 
     if (ShutdownRequested()) {
         LogPrintf("Shutdown requested. Exiting.\n");

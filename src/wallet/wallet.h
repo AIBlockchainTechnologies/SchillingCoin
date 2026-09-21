@@ -487,9 +487,6 @@ public:
 
     std::set<CTxDestination> GetAccountAddresses(std::string strAccount) const;
 
-    bool GetBudgetSystemCollateralTX(CWalletTx& tx, uint256 hash, bool useIX);
-    bool GetBudgetFinalizationCollateralTX(CWalletTx& tx, uint256 hash, bool useIX); // Only used for budget finalization
-
     bool IsDenominated(const CTxIn& txin) const;
 
     bool IsDenominatedAmount(CAmount nInputAmount) const;

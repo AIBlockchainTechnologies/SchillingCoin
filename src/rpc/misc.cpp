@@ -29,8 +29,6 @@
 
 #include <univalue.h>
 
-// Spork subsystem removed: no CSporkDef or sporkDefs available in this build.
-
 /**
  * @note Do not add or change anything in the information returned by this
  * method. `getinfo` exists for backwards-compatibility only. It combines
@@ -182,26 +180,22 @@ UniValue mnsync(const UniValue& params, bool fHelp)
             "  \"IsBlockchainSynced\": true|false,    (boolean) 'true' if blockchain is synced\n"
             "  \"lastMasternodeList\": xxxx,        (numeric) Timestamp of last MN list message\n"
             "  \"lastMasternodeWinner\": xxxx,      (numeric) Timestamp of last MN winner message\n"
-            "  \"lastBudgetItem\": xxxx,            (numeric) Timestamp of last MN budget message\n"
             "  \"lastFailure\": xxxx,           (numeric) Timestamp of last failed sync\n"
             "  \"nCountFailures\": n,           (numeric) Number of failed syncs (total)\n"
             "  \"sumMasternodeList\": n,        (numeric) Number of MN list messages (total)\n"
             "  \"sumMasternodeWinner\": n,      (numeric) Number of MN winner messages (total)\n"
-            "  \"sumBudgetItemProp\": n,        (numeric) Number of MN budget messages (total)\n"
-            "  \"sumBudgetItemFin\": n,         (numeric) Number of MN budget finalization messages (total)\n"
             "  \"countMasternodeList\": n,      (numeric) Number of MN list messages (local)\n"
             "  \"countMasternodeWinner\": n,    (numeric) Number of MN winner messages (local)\n"
-            "  \"countBudgetItemProp\": n,      (numeric) Number of MN budget messages (local)\n"
-            "  \"countBudgetItemFin\": n,       (numeric) Number of MN budget finalization messages (local)\n"
             "  \"RequestedMasternodeAssets\": n, (numeric) Status code of last sync phase\n"
             "  \"RequestedMasternodeAttempt\": n, (numeric) Status code of last sync attempt\n"
             "}\n"
 
             "\nResult ('reset' mode):\n"
-            "\"status\"     (string) 'success'\n"
+            "\"success\"     (string) reset completed\n"
 
             "\nExamples:\n" +
-            HelpExampleCli("mnsync", "\"status\"") + HelpExampleRpc("mnsync", "\"status\""));
+            HelpExampleCli("mnsync", "\"status\"") +
+            HelpExampleRpc("mnsync", "\"status\""));
     }
 
     if (strMode == "status") {
@@ -210,17 +204,12 @@ UniValue mnsync(const UniValue& params, bool fHelp)
         obj.push_back(Pair("IsBlockchainSynced", masternodeSync.IsBlockchainSynced()));
         obj.push_back(Pair("lastMasternodeList", masternodeSync.lastMasternodeList));
         obj.push_back(Pair("lastMasternodeWinner", masternodeSync.lastMasternodeWinner));
-        obj.push_back(Pair("lastBudgetItem", masternodeSync.lastBudgetItem));
         obj.push_back(Pair("lastFailure", masternodeSync.lastFailure));
         obj.push_back(Pair("nCountFailures", masternodeSync.nCountFailures));
         obj.push_back(Pair("sumMasternodeList", masternodeSync.sumMasternodeList));
         obj.push_back(Pair("sumMasternodeWinner", masternodeSync.sumMasternodeWinner));
-        obj.push_back(Pair("sumBudgetItemProp", masternodeSync.sumBudgetItemProp));
-        obj.push_back(Pair("sumBudgetItemFin", masternodeSync.sumBudgetItemFin));
         obj.push_back(Pair("countMasternodeList", masternodeSync.countMasternodeList));
         obj.push_back(Pair("countMasternodeWinner", masternodeSync.countMasternodeWinner));
-        obj.push_back(Pair("countBudgetItemProp", masternodeSync.countBudgetItemProp));
-        obj.push_back(Pair("countBudgetItemFin", masternodeSync.countBudgetItemFin));
         obj.push_back(Pair("RequestedMasternodeAssets", masternodeSync.RequestedMasternodeAssets));
         obj.push_back(Pair("RequestedMasternodeAttempt", masternodeSync.RequestedMasternodeAttempt));
 
@@ -231,6 +220,7 @@ UniValue mnsync(const UniValue& params, bool fHelp)
         masternodeSync.Reset();
         return "success";
     }
+
     return "failure";
 }
 
@@ -278,61 +268,6 @@ public:
     }
 };
 #endif
-
-/*
-    Used for updating/reading spork settings on the network
-    NOTE: Spork subsystem removed in this build. Show/active return safe defaults.
-*/
-
-UniValue spork(const UniValue& params, bool fHelp)
-{
-    // SPORK subsystem removed in this build.
-    // If you want to expose known spork names, populate sporkNames with string literals.
-    static const std::vector<std::string> sporkNames = {}; // e.g. {"SPORK_1", "SPORK_2"}
-
-    if (params.size() == 1 && params[0].get_str() == "show") {
-        UniValue ret(UniValue::VOBJ);
-        for (const auto& name : sporkNames) {
-            // Report default value 0 for all sporks (safe stub).
-            ret.push_back(Pair(name, (int64_t)0));
-        }
-        return ret;
-    } else if (params.size() == 1 && params[0].get_str() == "active") {
-        UniValue ret(UniValue::VOBJ);
-        for (const auto& name : sporkNames) {
-            // Report all sporks as inactive.
-            ret.push_back(Pair(name, false));
-        }
-        return ret;
-    } else if (params.size() == 2) {
-        // Update operations are not available because the spork subsystem was removed.
-        throw JSONRPCError(RPC_MISC_ERROR, "Spork subsystem removed in this build; update operations unavailable");
-    }
-
-    throw std::runtime_error(
-        "spork \"name\" ( value )\n"
-        "\nReturn spork values or their active state.\n"
-
-        "\nArguments:\n"
-        "1. \"name\"        (string, required)  \"show\" to show values, \"active\" to show active state.\n"
-        "2. value           (numeric, required when updating a spork) The new value for the spork.\n"
-
-        "\nResult (show):\n"
-        "{\n"
-        "  \"spork_name\": nnn      (key/value) Key is the spork name, value is it's current value.\n"
-        "}\n"
-
-        "\nResult (active):\n"
-        "{\n"
-        "  \"spork_name\": true|false      (key/value) Key is the spork name, value is a boolean for it's active state.\n"
-        "}\n"
-
-        "\nResult (name):\n"
-        " \"success|failure\"       (string) Whether or not the update succeeded.\n"
-
-        "\nExamples:\n" +
-        HelpExampleCli("spork", "show") + HelpExampleRpc("spork", "show"));
-}
 
 UniValue validateaddress(const UniValue& params, bool fHelp)
 {

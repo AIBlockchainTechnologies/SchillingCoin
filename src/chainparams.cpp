@@ -234,12 +234,6 @@ public:
         consensus.nTimeSlotLength = 15;
         consensus.strObfuscationPoolDummyAddress = "Scax8jHDQ1s2kHVjysEoTQncVdUrNBuXtp";
 
-        // SPORK Keys
-		consensus.strSporkPubKey = "04b6ef7dbbbc8001e6ab7b2cda0d8359d0f0fd72ea70892a03a117048e7f3eac9448395d260b78535bfe475e9156942d156801c7c65de459037252b953e6f729cf";
-		consensus.strSporkPubKeyOld = "0459eede7626441f7802af2736cb3a4aeb3e1f95070cde39d068a4f16525ee8fdd3c075f29f9e115aeb91952239194aa6ac19765574fed8a0d7f174f2b450e9630";
-		consensus.nTime_EnforceNewSporkKey = 1602237600; //!> Friday, 9 October 2020 10:00:00 AM GMT
-		consensus.nTime_RejectOldSporkKey = 1604138400; //!> Saturday, 31 October 2020 10:00:00 AM GMT
-
         // Height-Based Activations
         consensus.height_last_PoW = 100;
         consensus.height_RHF = 1040000;
@@ -347,12 +341,6 @@ public:
         consensus.nTimeSlotLength = 15;
         consensus.strObfuscationPoolDummyAddress = "y57cqfGRkekRyDRNeJiLtYVEbvhXrNbmox";
 
-        // SPORK Keys
-		consensus.strSporkPubKey = "041a3041a1018f6495fc808c044481f0d446be6560e593277a34b258537f77922661f983952cb71a9d1b8948b6e1611fcd28507989d23833f0ba3b5d60c7f289cf";
-		consensus.strSporkPubKeyOld = "041a3041a1018f6495fc808c044481f0d446be6560e593277a34b258537f77922661f983952cb71a9d1b8948b6e1611fcd28507989d23833f0ba3b5d60c7f289cf";
-		consensus.nTime_EnforceNewSporkKey = 1566860400; //!> August 26, 2019 11:00:00 PM GMT
-		consensus.nTime_RejectOldSporkKey = 1569538800; //!> September 26, 2019 11:00:00 PM GMT
-
         // Height Based Activations
         consensus.height_last_PoW = 200;
         consensus.height_last_ZC_AccumCheckpoint = 1106090;
@@ -455,16 +443,6 @@ public:
         consensus.nTargetSpacing = 1 * 60;
         consensus.nTimeSlotLength = 15;
         consensus.strObfuscationPoolDummyAddress = "y57cqfGRkekRyDRNeJiLtYVEbvhXrNbmox";
-
-        /* Spork Key for RegTest:
-        WIF private key: 932HEevBSujW2ud7RfB1YF91AFygbBRQj3de3LyaCRqNzKKgWXi
-        private key hex: bd4960dcbd9e7f2223f24e7164ecb6f1fe96fc3a416f5d3a830ba5720c84b8ca
-        Address: yCvUVd72w7xpimf981m114FSFbmAmne7j9
-        */
-		consensus.strSporkPubKey = "043969b1b0e6f327de37f297a015d37e2235eaaeeb3933deecd8162c075cee0207b13537618bde640879606001a8136091c62ec272dd0133424a178704e6e75bb7";
-		consensus.strSporkPubKeyOld = "043969b1b0e6f327de37f297a015d37e2235eaaeeb3933deecd8162c075cee0207b13537618bde640879606001a8136091c62ec272dd0133424a178704e6e75bb7";
-		consensus.nTime_EnforceNewSporkKey = 1566860400; //!> August 26, 2019 11:00:00 PM GMT
-		consensus.nTime_RejectOldSporkKey = 1569538800; //!> September 26, 2019 11:00:00 PM GMT
 
         // height based activations
         consensus.height_last_PoW = 250;
