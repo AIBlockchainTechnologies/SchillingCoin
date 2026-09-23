@@ -511,6 +511,7 @@ set(UTIL_SOURCES
         ./src/random.cpp
         ./src/rpc/protocol.cpp
         ./src/sync.cpp
+        ./src/threadinterrupt.cpp
         ./src/uint256.cpp
         ./src/util/threadnames.cpp
         ./src/util.cpp

@@ -21,6 +21,7 @@
 #include "scheduler.h"
 #include "guiinterface.h"
 #include "masternode-sync.h"
+#include "threadinterrupt.h"
 
 #ifdef WIN32
 #include <string.h>
@@ -107,6 +108,7 @@ RecursiveMutex cs_nLastNodeId;
 
 static CSemaphore* semOutbound = NULL;
 boost::condition_variable messageHandlerCondition;
+static CThreadInterrupt interruptNet;
 
 // Signals for message handling
 static CNodeSignals g_signals;
@@ -873,7 +875,7 @@ static std::list<CNode*> vNodesDisconnected;
 void ThreadSocketHandler()
 {
     unsigned int nPrevNodeCount = 0;
-    while (true) {
+    while (!interruptNet) {
         //
         // Disconnect nodes
         //
@@ -930,7 +932,7 @@ void ThreadSocketHandler()
             LOCK(cs_vNodes);
             vNodesSize = vNodes.size();
         }
-        if(vNodesSize != nPrevNodeCount) {
+        if (vNodesSize != nPrevNodeCount) {
             nPrevNodeCount = vNodesSize;
             uiInterface.NotifyNumConnectionsChanged(nPrevNodeCount);
         }
@@ -999,7 +1001,9 @@ void ThreadSocketHandler()
 
         int nSelect = select(have_fds ? hSocketMax + 1 : 0,
             &fdsetRecv, &fdsetSend, &fdsetError, &timeout);
-        boost::this_thread::interruption_point();
+
+        if (interruptNet)
+            return;
 
         if (nSelect == SOCKET_ERROR) {
             if (have_fds) {
@@ -1010,7 +1014,8 @@ void ThreadSocketHandler()
             }
             FD_ZERO(&fdsetSend);
             FD_ZERO(&fdsetError);
-            MilliSleep(timeout.tv_usec / 1000);
+            if (!interruptNet.sleep_for(std::chrono::milliseconds(timeout.tv_usec / 1000)))
+                return;
         }
 
         //
@@ -1072,8 +1077,13 @@ void ThreadSocketHandler()
             for (CNode* pnode : vNodesCopy)
                 pnode->AddRef();
         }
+
+        bool interrupted = false;
         for (CNode* pnode : vNodesCopy) {
-            boost::this_thread::interruption_point();
+            if (interruptNet) {
+                interrupted = true;
+                break;
+            }
 
             //
             // Receive
@@ -1147,9 +1157,11 @@ void ThreadSocketHandler()
             for (CNode* pnode : vNodesCopy)
                 pnode->Release();
         }
+
+        if (interrupted)
+            return;
     }
 }
-
 
 #ifdef USE_UPNP
 void ThreadMapPort()
@@ -1259,13 +1271,13 @@ void MapPort(bool)
 }
 #endif
 
-
 void ThreadDNSAddressSeed()
 {
     // goal: only query DNS seeds if address need is acute
     if ((addrman.size() > 0) &&
         (!GetBoolArg("-forcednsseed", false))) {
-        MilliSleep(11 * 1000);
+        if (!interruptNet.sleep_for(std::chrono::seconds(11)))
+            return;
 
         LOCK(cs_vNodes);
         if (vNodes.size() >= 2) {
@@ -1280,14 +1292,21 @@ void ThreadDNSAddressSeed()
     LogPrintf("Loading addresses from DNS seeds (could take a while)\n");
 
     for (const CDNSSeedData& seed : vSeeds) {
+        if (interruptNet)
+            return;
+
         if (HaveNameProxy()) {
             AddOneShot(seed.host);
         } else {
             std::vector<CNetAddr> vIPs;
             std::vector<CAddress> vAdd;
             uint64_t requiredServiceBits = NODE_NETWORK;
+
             if (LookupHost(seed.getHost(requiredServiceBits).c_str(), vIPs, 0, true)) {
                 for (CNetAddr& ip : vIPs) {
+                    if (interruptNet)
+                        return;
+
                     int nOneDay = 24 * 3600;
                     CAddress addr = CAddress(CService(ip, Params().GetDefaultPort()), requiredServiceBits);
                     addr.nTime = GetTime() - 3 * nOneDay - GetRand(4 * nOneDay); // use a random age between 3 and 7 days old
@@ -1295,11 +1314,15 @@ void ThreadDNSAddressSeed()
                     found++;
                 }
             }
+
             // TODO: The seed name resolve may fail, yielding an IP of [::], which results in
             // addrman assigning the same source to results from different seeds.
             // This should switch to a hard-coded stable dummy IP for each seed name, so that the
             // resolve is not required at all.
             if (!vIPs.empty()) {
+                if (interruptNet)
+                    return;
+
                 CService seedSource;
                 Lookup(seed.name.c_str(), seedSource, 0, true);
                 addrman.Add(vAdd, seedSource);
@@ -1309,7 +1332,6 @@ void ThreadDNSAddressSeed()
 
     LogPrintf("%d addresses found from DNS seeds\n", found);
 }
-
 
 void DumpAddresses()
 {
@@ -1350,28 +1372,33 @@ void ThreadOpenConnections()
 {
     // Connect to specific addresses
     if (mapArgs.count("-connect") && mapMultiArgs["-connect"].size() > 0) {
-        for (int64_t nLoop = 0;; nLoop++) {
+        for (int64_t nLoop = 0; !interruptNet; nLoop++) {
             ProcessOneShot();
             for (std::string strAddr : mapMultiArgs["-connect"]) {
                 CAddress addr;
                 OpenNetworkConnection(addr, false, NULL, strAddr.c_str());
                 for (int i = 0; i < 10 && i < nLoop; i++) {
-                    MilliSleep(500);
+                    if (!interruptNet.sleep_for(std::chrono::milliseconds(500)))
+                        return;
                 }
             }
-            MilliSleep(500);
+            if (!interruptNet.sleep_for(std::chrono::milliseconds(500)))
+                return;
         }
     }
 
     // Initiate network connections
     int64_t nStart = GetTime();
-    while (true) {
+    while (!interruptNet) {
         ProcessOneShot();
 
-        MilliSleep(500);
+        if (!interruptNet.sleep_for(std::chrono::milliseconds(500)))
+            return;
 
         CSemaphoreGrant grant(*semOutbound);
-        boost::this_thread::interruption_point();
+
+        if (interruptNet)
+            return;
 
         // Add seed nodes if DNS seeds are all down (an infrastructure attack?).
         if (addrman.size() == 0 && (GetTime() - nStart > 60)) {
@@ -1383,13 +1410,8 @@ void ThreadOpenConnections()
             }
         }
 
-        //
-        // Choose an address to connect to based on most recently seen
-        //
         CAddress addrConnect;
 
-        // Only connect out to one peer per network group (/16 for IPv4).
-        // Do this here so we don't have to critsect vNodes inside mapAddresses critsect.
         int nOutbound = 0;
         std::set<std::vector<unsigned char> > setConnected;
         {
@@ -1408,13 +1430,9 @@ void ThreadOpenConnections()
         while (true) {
             CAddrInfo addr = addrman.Select();
 
-            // if we selected an invalid address, restart
             if (!addr.IsValid() || setConnected.count(addr.GetGroup()) || IsLocal(addr))
                 break;
 
-            // If we didn't find an appropriate destination after trying 100 addresses fetched from addrman,
-            // stop this loop, and let the outer loop run again (which sleeps, adds seed nodes, recalculates
-            // already-connected network ranges, ...) before trying new addrman addresses.
             nTries++;
             if (nTries > 100)
                 break;
@@ -1422,11 +1440,9 @@ void ThreadOpenConnections()
             if (IsLimited(addr))
                 continue;
 
-            // only consider very recently tried nodes after 30 failed attempts
             if (nANow - addr.nLastTry < 600 && nTries < 30)
                 continue;
 
-            // do not allow non-default ports, unless after 50 invalid addresses selected already
             if (addr.GetPort() != Params().GetDefaultPort() && nTries < 50)
                 continue;
 
@@ -1447,7 +1463,7 @@ void ThreadOpenAddedConnections()
     }
 
     if (HaveNameProxy()) {
-        while (true) {
+        while (!interruptNet) {
             std::list<std::string> lAddresses(0);
             {
                 LOCK(cs_vAddedNodes);
@@ -1458,13 +1474,17 @@ void ThreadOpenAddedConnections()
                 CAddress addr;
                 CSemaphoreGrant grant(*semOutbound);
                 OpenNetworkConnection(addr, false, &grant, strAddNode.c_str());
-                MilliSleep(500);
+
+                if (!interruptNet.sleep_for(std::chrono::milliseconds(500)))
+                    return;
             }
-            MilliSleep(120000); // Retry every 2 minutes
+
+            if (!interruptNet.sleep_for(std::chrono::minutes(2)))
+                return;
         }
     }
 
-    for (unsigned int i = 0; true; i++) {
+    for (unsigned int i = 0; !interruptNet; i++) {
         std::list<std::string> lAddresses(0);
         {
             LOCK(cs_vAddedNodes);
@@ -1484,8 +1504,7 @@ void ThreadOpenAddedConnections()
                 }
             }
         }
-        // Attempt to connect to each IP for each addnode entry until at least one is successful per addnode entry
-        // (keeping in mind that addnode entries can have many IPs if fNameLookup)
+
         {
             LOCK(cs_vNodes);
             for (CNode* pnode : vNodes)
@@ -1497,12 +1516,17 @@ void ThreadOpenAddedConnections()
                             break;
                         }
         }
+
         for (std::vector<CService>& vserv : lservAddressesToAdd) {
             CSemaphoreGrant grant(*semOutbound);
             OpenNetworkConnection(CAddress(vserv[i % vserv.size()]), false, &grant);
-            MilliSleep(500);
+
+            if (!interruptNet.sleep_for(std::chrono::milliseconds(500)))
+                return;
         }
-        MilliSleep(120000); // Retry every 2 minutes
+
+        if (!interruptNet.sleep_for(std::chrono::minutes(2)))
+            return;
     }
 }
 
@@ -1512,29 +1536,33 @@ bool OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSem
     //
     // Initiate outbound network connection
     //
-    boost::this_thread::interruption_point();
+    if (interruptNet)
+        return false;
+
     if (!pszDest) {
         if (IsLocal(addrConnect) ||
             FindNode((CNetAddr)addrConnect) || CNode::IsBanned(addrConnect) ||
             FindNode(addrConnect.ToStringIPPort()))
             return false;
-    } else if (FindNode(pszDest))
+    } else if (FindNode(pszDest)) {
         return false;
+    }
 
     CNode* pnode = ConnectNode(addrConnect, pszDest, false, fCountFailure);
-    boost::this_thread::interruption_point();
 
     if (!pnode)
         return false;
+
     if (grantOutbound)
         grantOutbound->MoveTo(pnode->grantOutbound);
+
     pnode->fNetworkNode = true;
+
     if (fOneShot)
         pnode->fOneShot = true;
 
     return true;
 }
-
 
 void ThreadMessageHandler()
 {
@@ -1542,7 +1570,7 @@ void ThreadMessageHandler()
     boost::unique_lock<boost::mutex> lock(condition_mutex);
 
     SetThreadPriority(THREAD_PRIORITY_BELOW_NORMAL);
-    while (true) {
+    while (!interruptNet) {
         std::vector<CNode*> vNodesCopy;
         {
             LOCK(cs_vNodes);
@@ -1558,8 +1586,14 @@ void ThreadMessageHandler()
             pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
 
         bool fSleep = true;
+        bool interrupted = false;
 
         for (CNode* pnode : vNodesCopy) {
+            if (interruptNet) {
+                interrupted = true;
+                break;
+            }
+
             if (pnode->fDisconnect)
                 continue;
 
@@ -1577,7 +1611,11 @@ void ThreadMessageHandler()
                     }
                 }
             }
-            boost::this_thread::interruption_point();
+
+            if (interruptNet) {
+                interrupted = true;
+                break;
+            }
 
             // Send messages
             {
@@ -1585,15 +1623,21 @@ void ThreadMessageHandler()
                 if (lockSend)
                     g_signals.SendMessages(pnode, pnode == pnodeTrickle || pnode->fWhitelisted);
             }
-            boost::this_thread::interruption_point();
-        }
 
+            if (interruptNet) {
+                interrupted = true;
+                break;
+            }
+        }
 
         {
             LOCK(cs_vNodes);
             for (CNode* pnode : vNodesCopy)
                 pnode->Release();
         }
+
+        if (interrupted)
+            return;
 
         if (fSleep)
             messageHandlerCondition.timed_wait(lock, boost::posix_time::microsec_clock::universal_time() + boost::posix_time::milliseconds(100));
@@ -1734,6 +1778,8 @@ void static Discover(boost::thread_group& threadGroup)
 
 void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
+    interruptNet.reset();
+
     uiInterface.InitMessage(_("Loading addresses..."));
     // Load addresses from peers.dat
     int64_t nStart = GetTimeMillis();
@@ -1774,10 +1820,6 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     Discover(threadGroup);
 
-    //
-    // Start threads
-    //
-
     if (!GetBoolArg("-dnsseed", true)) {
         LogPrintf("DNS seeding disabled\n");
     } else {
@@ -1805,7 +1847,12 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 bool StopNode()
 {
     LogPrintf("StopNode()\n");
+
+    interruptNet();
+    messageHandlerCondition.notify_all();
+
     MapPort(false);
+
     if (semOutbound)
         for (int i = 0; i < MAX_OUTBOUND_CONNECTIONS; i++)
             semOutbound->post();
