@@ -1732,12 +1732,6 @@ void static Discover(boost::thread_group& threadGroup)
 #endif
 }
 
-// Masternode sync thread wrapper
-void ThreadMasternodeSync()
-{
-    masternodeSync.Process();
-}
-
 void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
     uiInterface.InitMessage(_("Loading addresses..."));
@@ -1804,10 +1798,6 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     threadGroup.create_thread(
         boost::bind(&TraceThread<void (*)()>, "msghand", &ThreadMessageHandler));
-
-    // Masternode sync loop
-    threadGroup.create_thread(
-        boost::bind(&TraceThread<void (*)()>, "mnsync", &ThreadMasternodeSync));
 
     scheduler.scheduleEvery(&DumpData, DUMP_ADDRESSES_INTERVAL);
 }

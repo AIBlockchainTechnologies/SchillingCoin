@@ -1860,6 +1860,8 @@ bool AppInit2(const std::vector<std::string>& words)
 
     LogPrintf("fLiteMode %d\n", fLiteMode);
 
+    threadGroup.create_thread(boost::bind(&ThreadCheckMasternodes));
+
     if (ShutdownRequested()) {
         LogPrintf("Shutdown requested. Exiting.\n");
         return false;

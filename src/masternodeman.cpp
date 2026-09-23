@@ -896,3 +896,46 @@ std::string CMasternodeMan::ToString() const
 
     return info.str();
 }
+
+void ThreadCheckMasternodes()
+{
+    if (fLiteMode) return; // disable all Masternode related functionality
+
+    util::ThreadRename("schillingcoin-masternodeman");
+    LogPrintf("Masternodes thread started\n");
+
+    unsigned int c = 0;
+
+    try {
+        while (true) {
+            if (ShutdownRequested()) {
+                break;
+            }
+
+            MilliSleep(1000);
+            boost::this_thread::interruption_point();
+
+            // try to sync from all available nodes, one step at a time
+            {
+                LOCK(cs_main);
+                masternodeSync.Process();
+            }
+
+            if (masternodeSync.IsBlockchainSynced()) {
+                c++;
+
+                // check if we should activate or ping every few minutes,
+                // start right after sync is considered to be done
+                if (c % MASTERNODE_PING_SECONDS == 1)
+                    activeMasternode.ManageStatus();
+
+                if (c % 60 == 0) {
+                    mnodeman.CheckAndRemove();
+                    masternodePayments.CleanPaymentList();
+                }
+            }
+        }
+    } catch (boost::thread_interrupted&) {
+        // nothing, thread interrupted.
+    }
+}
