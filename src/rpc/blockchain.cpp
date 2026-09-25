@@ -134,13 +134,6 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
 
     result.push_back(Pair("moneysupply",ValueFromAmount(blockindex->nMoneySupply)));
 
-    UniValue zschObj(UniValue::VOBJ);
-    for (auto denom : libzerocoin::zerocoinDenomList) {
-        zschObj.push_back(Pair(std::to_string(denom), ValueFromAmount(blockindex->mapZerocoinSupply.at(denom) * (denom*COIN))));
-    }
-    zschObj.push_back(Pair("total", ValueFromAmount(blockindex->GetZerocoinSupply())));
-    result.push_back(Pair("zerocoinsupply", zschObj));
-
     //////////
     ////////// Coin stake data ////////////////
     /////////
@@ -495,18 +488,6 @@ UniValue getblock(const UniValue& params, bool fHelp)
             "  \"previousblockhash\" : \"hash\",  (string) The hash of the previous block\n"
             "  \"nextblockhash\" : \"hash\"       (string) The hash of the next block\n"
             "  \"moneysupply\" : \"supply\"       (numeric) The money supply when this block was added to the blockchain\n"
-            "  \"zerocoinsupply\" :\n"
-            "  {\n"
-            "     \"1\" : n,            (numeric) supply of 1 zSCH denomination\n"
-            "     \"5\" : n,            (numeric) supply of 5 zSCH denomination\n"
-            "     \"10\" : n,           (numeric) supply of 10 zSCH denomination\n"
-            "     \"50\" : n,           (numeric) supply of 50 zSCH denomination\n"
-            "     \"100\" : n,          (numeric) supply of 100 zSCH denomination\n"
-            "     \"500\" : n,          (numeric) supply of 500 zSCH denomination\n"
-            "     \"1000\" : n,         (numeric) supply of 1000 zSCH denomination\n"
-            "     \"5000\" : n,         (numeric) supply of 5000 zSCH denomination\n"
-            "     \"total\" : n,        (numeric) The total supply of all zSCH denominations\n"
-            "  },\n"
             "  \"stakeModifier\" : \"xxx\",       (string) Proof of Stake modifier\n"
             "  \"hashProofOfStake\" : \"hash\",   (string) Proof of Stake hash\n"
             "  }\n"
@@ -1108,61 +1089,47 @@ void validaterange(const UniValue& params, int& heightStart, int& heightEnd, int
     }
 }
 
-UniValue getblockindexstats(const UniValue& params, bool fHelp) {
+UniValue getblockindexstats(const UniValue& params, bool fHelp)
+{
     if (fHelp || params.size() < 2 || params.size() > 3)
         throw std::runtime_error(
-                "getblockindexstats height range ( fFeeOnly )\n"
-                "\nReturns aggregated BlockIndex data for blocks "
-                "\n[height, height+1, height+2, ..., height+range-1]\n"
-
-                "\nArguments:\n"
-                "1. height             (numeric, required) block height where the search starts.\n"
-                "2. range              (numeric, required) number of blocks to include.\n"
-                "3. fFeeOnly           (boolean, optional, default=False) return only fee info.\n"
-
-                "\nResult:\n"
-                "{\n"
-                "  \"first_block\": \"x\"            (integer) First counted block\n"
-                "  \"last_block\": \"x\"             (integer) Last counted block\n"
-                "  \"txcount\": xxxxx                (numeric) tx count (excluding coinbase/coinstake)\n"
-                "  \"txcount_all\": xxxxx            (numeric) tx count (including coinbase/coinstake)\n"
-                "  \"spendcount\": {             [if fFeeOnly=False]\n"
-                "        \"denom_1\": xxxx           (numeric) number of spends of denom_1 occurred over the block range\n"
-                "        \"denom_5\": xxxx           (numeric) number of spends of denom_5 occurred over the block range\n"
-                "         ...                    ... number of spends of other denominations: ..., 10, 50, 100, 500, 1000, 5000\n"
-                "  }\n"
-                "  \"txbytes\": xxxxx                (numeric) Sum of the size of all txes (zSCH excluded) over block range\n"
-                "  \"ttlfee\": xxxxx                 (numeric) Sum of the fee amount of all txes (zSCH mints excluded) over block range\n"
-                "  \"ttlfee_all\": xxxxx             (numeric) Sum of the fee amount of all txes (zSCH mints included) over block range\n"
-                "  \"feeperkb\": xxxxx               (numeric) Average fee per kb (excluding ZC TXes)\n"
-                "}\n"
-
-                "\nExamples:\n" +
-                HelpExampleCli("getblockindexstats", "1200000 1000") +
-                HelpExampleRpc("getblockindexstats", "1200000, 1000"));
+            "getblockindexstats height range ( fFeeOnly )\n"
+            "\nReturns aggregated BlockIndex data for blocks "
+            "\n[height, height+1, height+2, ..., height+range-1]\n"
+            "\nArguments:\n"
+            "1. height             (numeric, required) block height where the search starts.\n"
+            "2. range              (numeric, required) number of blocks to include.\n"
+            "3. fFeeOnly           (boolean, optional, default=false) retained for RPC compatibility.\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"Starting block\": x,    (numeric) First counted block\n"
+            "  \"Ending block\": x,      (numeric) Last counted block\n"
+            "  \"txcount\": x,           (numeric) Transaction count excluding coinbase/coinstake\n"
+            "  \"txcount_all\": x,       (numeric) Transaction count including coinbase/coinstake\n"
+            "  \"txbytes\": x,           (numeric) Total serialized size of counted transactions\n"
+            "  \"ttlfee\": \"x\",        (string) Total fees of counted transactions\n"
+            "  \"ttlfee_all\": \"x\",    (string) Total fees of counted transactions\n"
+            "  \"feeperkb\": \"x\"       (string) Average fee per kilobyte\n"
+            "}\n"
+            "\nExamples:\n" +
+            HelpExampleCli("getblockindexstats", "1200000 1000") +
+            HelpExampleRpc("getblockindexstats", "1200000, 1000"));
 
     int heightStart, heightEnd;
     validaterange(params, heightStart, heightEnd);
-    // return object
+
+    // Retain the optional third parameter for RPC compatibility.
+    if (params.size() > 2)
+        params[2].get_bool();
+
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("Starting block", heightStart));
     ret.push_back(Pair("Ending block", heightEnd));
 
-    bool fFeeOnly = false;
-    if (params.size() > 2) {
-        fFeeOnly = params[2].get_bool();
-    }
-
     CAmount nFees = 0;
-    CAmount nFees_all = 0;
     int64_t nBytes = 0;
     int64_t nTxCount = 0;
-    int64_t nTxCount_all = 0;
-
-    std::map<libzerocoin::CoinDenomination, int64_t> mapSpendCount;
-    for (auto& denom : libzerocoin::zerocoinDenomList) {
-        mapSpendCount.insert(std::make_pair(denom, 0));
-    }
+    int64_t nTxCountAll = 0;
 
     CBlockIndex* pindex = nullptr;
     {
@@ -1175,81 +1142,60 @@ UniValue getblockindexstats(const UniValue& params, bool fHelp) {
 
     while (true) {
         CBlock block;
-        if (!ReadBlockFromDisk(block, pindex)) {
+        if (!ReadBlockFromDisk(block, pindex))
             throw JSONRPCError(RPC_DATABASE_ERROR, "failed to read block from disk");
-        }
 
-        CAmount nValueIn = 0;
-        CAmount nValueOut = 0;
-        const int ntx = block.vtx.size();
-        nTxCount_all += ntx;
-        nTxCount = block.IsProofOfStake() ? nTxCount + ntx - 2 : nTxCount + ntx - 1;
+        const int nTx = block.vtx.size();
+        nTxCountAll += nTx;
+        nTxCount += block.IsProofOfStake() ? nTx - 2 : nTx - 1;
 
-        // loop through each tx in block and save size and fee
+        // Count ordinary transactions and calculate their fees.
         for (const CTransaction& tx : block.vtx) {
-            if (tx.IsCoinBase() || (tx.IsCoinStake() && !tx.HasZerocoinSpendInputs()))
+            if (tx.IsCoinBase() || tx.IsCoinStake())
                 continue;
 
-            // fetch input value from prevouts and count spends
-            for (unsigned int j = 0; j < tx.vin.size(); j++) {
-                if (tx.vin[j].IsZerocoinSpend()) {
-                    if (!fFeeOnly)
-                        mapSpendCount[libzerocoin::IntToZerocoinDenomination(tx.vin[j].nSequence)]++;
-                    continue;
-                }
+            CAmount nValueIn = 0;
+            CAmount nValueOut = 0;
 
-                COutPoint prevout = tx.vin[j].prevout;
+            for (const CTxIn& txin : tx.vin) {
+                const COutPoint& prevout = txin.prevout;
                 CTransaction txPrev;
                 uint256 hashBlock;
-                if(!GetTransaction(prevout.hash, txPrev, hashBlock, true))
+
+                if (!GetTransaction(prevout.hash, txPrev, hashBlock, true))
                     throw JSONRPCError(RPC_DATABASE_ERROR, "failed to read tx from disk");
+
+                if (prevout.n >= txPrev.vout.size())
+                    throw JSONRPCError(RPC_DATABASE_ERROR, "transaction prevout index out of range");
+
                 nValueIn += txPrev.vout[prevout.n].nValue;
             }
 
-            // zc spends have no fee
-            if (tx.HasZerocoinSpendInputs())
-                continue;
+            for (const CTxOut& txout : tx.vout)
+                nValueOut += txout.nValue;
 
-            // sum output values in nValueOut
-            for (unsigned int j = 0; j < tx.vout.size(); j++) {
-                nValueOut += tx.vout[j].nValue;
-            }
-
-            // update sums
-            nFees_all += nValueIn - nValueOut;
-            if (!tx.HasZerocoinMintOutputs()) {
-                nFees += nValueIn - nValueOut;
-                nBytes += tx.GetSerializeSize(SER_NETWORK, CLIENT_VERSION);
-            }
+            nFees += nValueIn - nValueOut;
+            nBytes += tx.GetSerializeSize(SER_NETWORK, CLIENT_VERSION);
         }
 
         if (pindex->nHeight < heightEnd) {
             LOCK(cs_main);
             pindex = chainActive.Next(pindex);
+            if (!pindex)
+                throw JSONRPCError(RPC_DATABASE_ERROR, "failed to advance block index");
         } else {
             break;
         }
     }
 
-    // get fee rate
-    CFeeRate nFeeRate = CFeeRate(nFees, nBytes);
+    const CFeeRate feeRate(nFees, nBytes);
 
-    // return UniValue object
-    ret.push_back(Pair("txcount", (int64_t)nTxCount));
-    ret.push_back(Pair("txcount_all", (int64_t)nTxCount_all));
-    if (!fFeeOnly) {
-        UniValue mint_obj(UniValue::VOBJ);
-        UniValue spend_obj(UniValue::VOBJ);
-        for (auto& denom : libzerocoin::zerocoinDenomList) {
-            spend_obj.push_back(Pair(strprintf("denom_%d", ZerocoinDenominationToInt(denom)), mapSpendCount[denom]));
-        }
-        ret.push_back(Pair("spendcount", spend_obj));
-    }
-    ret.push_back(Pair("txbytes", (int64_t)nBytes));
+    ret.push_back(Pair("txcount", nTxCount));
+    ret.push_back(Pair("txcount_all", nTxCountAll));
+    ret.push_back(Pair("txbytes", nBytes));
     ret.push_back(Pair("ttlfee", FormatMoney(nFees)));
-    ret.push_back(Pair("ttlfee_all", FormatMoney(nFees_all)));
-    ret.push_back(Pair("feeperkb", FormatMoney(nFeeRate.GetFeePerK())));
+    ret.push_back(Pair("ttlfee_all", FormatMoney(nFees)));
+    ret.push_back(Pair("feeperkb", FormatMoney(feeRate.GetFeePerK())));
 
     return ret;
-
 }

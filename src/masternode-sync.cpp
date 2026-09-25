@@ -200,14 +200,8 @@ void CMasternodeSync::Process()
 
     if (tick++ % MASTERNODE_SYNC_TIMEOUT != 0) return;
 
-    if (IsSynced()) {
-        // Resync if all masternodes are lost after sleep/wake or an earlier failure.
-        if (mnodeman.CountEnabled() == 0) {
-            Reset();
-        } else {
-            return;
-        }
-    }
+    if (IsSynced())
+        return;
 
     if (RequestedMasternodeAssets == MASTERNODE_SYNC_FAILED &&
         lastFailure + 60 < GetTime()) {
