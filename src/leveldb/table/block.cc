@@ -1,4 +1,5 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
+// Copyright (c) 2026 The Schillingcoin developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 //
@@ -54,7 +55,7 @@ static inline const char* DecodeEntry(const char* p, const char* limit,
                                       uint32_t* shared,
                                       uint32_t* non_shared,
                                       uint32_t* value_length) {
-  if (limit - p < 3) return NULL;
+  if (limit - p < 3) return nullptr;
   *shared = reinterpret_cast<const unsigned char*>(p)[0];
   *non_shared = reinterpret_cast<const unsigned char*>(p)[1];
   *value_length = reinterpret_cast<const unsigned char*>(p)[2];
@@ -62,13 +63,13 @@ static inline const char* DecodeEntry(const char* p, const char* limit,
     // Fast path: all three values are encoded in one byte each
     p += 3;
   } else {
-    if ((p = GetVarint32Ptr(p, limit, shared)) == NULL) return NULL;
-    if ((p = GetVarint32Ptr(p, limit, non_shared)) == NULL) return NULL;
-    if ((p = GetVarint32Ptr(p, limit, value_length)) == NULL) return NULL;
+    if ((p = GetVarint32Ptr(p, limit, shared)) == NULL) return nullptr;
+    if ((p = GetVarint32Ptr(p, limit, non_shared)) == NULL) return nullptr;
+    if ((p = GetVarint32Ptr(p, limit, value_length)) == NULL) return nullptr;
   }
 
   if (static_cast<uint32_t>(limit - p) < (*non_shared + *value_length)) {
-    return NULL;
+    return nullptr;
   }
   return p;
 }

@@ -1,4 +1,5 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
+// Copyright (c) 2026 The Schillingcoin developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
@@ -172,7 +173,7 @@ class Constructor {
 
   virtual const KVMap& data() { return data_; }
 
-  virtual DB* db() const { return NULL; }  // Overridden in DBConstructor
+  virtual DB* db() const { return nullptr; }  // Overridden in DBConstructor
 
  private:
   KVMap data_;

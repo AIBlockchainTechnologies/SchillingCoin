@@ -678,7 +678,7 @@ bool CMasternodePayments::ProcessBlock(int nBlockHeight)
     CMasternode* pmn =
         mnodeman.GetNextMasternodeInQueueForPayment(nBlockHeight, true, nCount);
 
-    if (pmn != NULL) {
+    if (pmn != nullptr) {
         LogPrint("masternode",
                  "CMasternodePayments::ProcessBlock() Found by FindOldestNotInVec \n");
 

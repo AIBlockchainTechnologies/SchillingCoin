@@ -1,4 +1,5 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
+// Copyright (c) 2026 The Schillingcoin developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
@@ -125,7 +126,7 @@ const char* GetVarint32PtrFallback(const char* p,
       return reinterpret_cast<const char*>(p);
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 bool GetVarint32(Slice* input, uint32_t* value) {
@@ -154,7 +155,7 @@ const char* GetVarint64Ptr(const char* p, const char* limit, uint64_t* value) {
       return reinterpret_cast<const char*>(p);
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 bool GetVarint64(Slice* input, uint64_t* value) {
@@ -173,8 +174,8 @@ const char* GetLengthPrefixedSlice(const char* p, const char* limit,
                                    Slice* result) {
   uint32_t len;
   p = GetVarint32Ptr(p, limit, &len);
-  if (p == NULL) return NULL;
-  if (p + len > limit) return NULL;
+  if (p == NULL) return nullptr;
+  if (p + len > limit) return nullptr;
   *result = Slice(p, len);
   return p + len;
 }

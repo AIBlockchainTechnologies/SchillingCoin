@@ -1,4 +1,5 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
+// Copyright (c) 2026 The Schillingcoin developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
@@ -1320,7 +1321,7 @@ Compaction* VersionSet::PickCompaction() {
     c = new Compaction(options_, level);
     c->inputs_[0].push_back(current_->file_to_compact_);
   } else {
-    return NULL;
+    return nullptr;
   }
 
   c->input_version_ = current_;
@@ -1417,7 +1418,7 @@ Compaction* VersionSet::CompactRange(
   std::vector<FileMetaData*> inputs;
   current_->GetOverlappingInputs(level, begin, end, &inputs);
   if (inputs.empty()) {
-    return NULL;
+    return nullptr;
   }
 
   // Avoid compacting too much in one shot in case the range is large.

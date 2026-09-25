@@ -1,4 +1,5 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
+// Copyright (c) 2026 The SchillingCoin developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 
@@ -155,7 +156,7 @@ leveldb_t* leveldb_open(
     char** errptr) {
   DB* db;
   if (SaveError(errptr, DB::Open(options->rep, std::string(name), &db))) {
-    return NULL;
+    return nullptr;
   }
   leveldb_t* result = new leveldb_t;
   result->rep = db;
@@ -245,7 +246,7 @@ char* leveldb_property_value(
     // We use strdup() since we expect human readable output.
     return strdup(tmp.c_str());
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 

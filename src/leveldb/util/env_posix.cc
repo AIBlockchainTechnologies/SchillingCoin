@@ -1,4 +1,5 @@
 // Copyright (c) 2011 The LevelDB Authors. All rights reserved.
+// Copyright (c) 2026 The Schillingcoin developers. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #if !defined(LEVELDB_PLATFORM_WINDOWS)
@@ -562,7 +563,7 @@ class PosixEnv : public Env {
   void BGThread();
   static void* BGThreadWrapper(void* arg) {
     reinterpret_cast<PosixEnv*>(arg)->BGThread();
-    return NULL;
+    return nullptr;
   }
 
   pthread_mutex_t mu_;
@@ -668,7 +669,7 @@ static void* StartThreadWrapper(void* arg) {
   StartThreadState* state = reinterpret_cast<StartThreadState*>(arg);
   state->user_function(state->arg);
   delete state;
-  return NULL;
+  return nullptr;
 }
 
 void PosixEnv::StartThread(void (*function)(void* arg), void* arg) {
