@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -34,6 +34,7 @@
 
 #include "init.h"
 #include "main.h"
+#include "fs.h"
 #include "rpc/server.h"
 #include "guiinterface.h"
 #include "util.h"
@@ -702,9 +703,14 @@ int main(int argc, char* argv[])
     // Check if the wallet exists or need to be created
     std::string strWalletFile = GetArg("-wallet", "wallet.dat");
     std::string strDataDir = GetDataDir().string();
+
     // Wallet file must be a plain filename without a directory
-    if (strWalletFile != boost::filesystem::basename(strWalletFile) + boost::filesystem::extension(strWalletFile)){
-        throw std::runtime_error(strprintf(_("Wallet %s resides outside data directory %s"), strWalletFile, strDataDir));
+    const fs::path walletPath(strWalletFile);
+    if (strWalletFile != walletPath.stem().string() + walletPath.extension().string()) {
+        throw std::runtime_error(
+            strprintf(_("Wallet %s resides outside data directory %s"),
+                      strWalletFile,
+                      strDataDir));
     }
 
     boost::filesystem::path pathBootstrap = GetDataDir() / strWalletFile;

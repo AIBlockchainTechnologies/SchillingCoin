@@ -32,7 +32,7 @@ void CActiveMasternode::ManageStatus()
     // need correct blocks to send ping
     if (!Params().IsRegTestNet() && !masternodeSync.IsBlockchainSynced()) {
         status = ACTIVE_MASTERNODE_SYNC_IN_PROCESS;
-        LogPrintf("CActiveMasternode::ManageStatus() - %s\n", GetStatus());
+        LogPrintf("CActiveMasternode::ManageStatus() - %s\n", GetStatusMessage());
         return;
     }
 
@@ -84,7 +84,7 @@ void CActiveMasternode::ManageStatus()
         LogPrintf("CActiveMasternode::ManageStatus() - Checking inbound connection to '%s'\n",
                   service.ToString());
 
-        CNode* pnode = ConnectNode((CAddress)service, NULL, false, true);
+        CNode* pnode = ConnectNode((CAddress)service, nullptr, false, true);
         if (!pnode) {
             notCapableReason = "Could not connect to " + service.ToString();
             LogPrintf("CActiveMasternode::ManageStatus() - not capable: %s\n", notCapableReason);
@@ -100,7 +100,7 @@ void CActiveMasternode::ManageStatus()
             if (GetInputAge(vin) < MASTERNODE_MIN_CONFIRMATIONS) {
                 status = ACTIVE_MASTERNODE_INPUT_TOO_NEW;
                 notCapableReason = strprintf("%s - %d confirmations",
-                                             GetStatus(), GetInputAge(vin));
+                                             GetStatusMessage(), GetInputAge(vin));
                 LogPrintf("CActiveMasternode::ManageStatus() - %s\n", notCapableReason);
                 return;
             }
@@ -148,7 +148,13 @@ void CActiveMasternode::ManageStatus()
     }
 }
 
-std::string CActiveMasternode::GetStatus()
+void CActiveMasternode::ResetStatus()
+{
+    status = ACTIVE_MASTERNODE_INITIAL;
+    ManageStatus();
+}
+
+std::string CActiveMasternode::GetStatusMessage() const
 {
     switch (status) {
     case ACTIVE_MASTERNODE_INITIAL:

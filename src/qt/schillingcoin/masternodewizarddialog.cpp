@@ -7,6 +7,7 @@
 #include "qt/schillingcoin/forms/ui_masternodewizarddialog.h"
 
 #include "activemasternode.h"
+#include "fs.h"
 #include "optionsmodel.h"
 #include "pairresult.h"
 #include "qt/schillingcoin/mnmodel.h"
@@ -254,7 +255,8 @@ bool MasterNodeWizardDialog::createMN()
 
     std::string strConfFile = "masternode.conf";
     std::string strDataDir = GetDataDir().string();
-    if (strConfFile != boost::filesystem::basename(strConfFile) + boost::filesystem::extension(strConfFile)) {
+    const fs::path confPath(strConfFile);
+    if (strConfFile != confPath.stem().string() + confPath.extension().string()) {
         throw std::runtime_error(strprintf(_("masternode.conf %s resides outside data directory %s"), strConfFile, strDataDir));
     }
 

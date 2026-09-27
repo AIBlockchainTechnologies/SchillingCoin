@@ -243,8 +243,8 @@ UniValue masternodedebug (const UniValue& params, bool fHelp)
             "\nExamples:\n" +
             HelpExampleCli("masternodedebug", "") + HelpExampleRpc("masternodedebug", ""));
 
-    if (activeMasternode.status != ACTIVE_MASTERNODE_INITIAL || !masternodeSync.IsSynced())
-        return activeMasternode.GetStatus();
+    if (activeMasternode.GetStatus() != ACTIVE_MASTERNODE_INITIAL || !masternodeSync.IsSynced())
+        return activeMasternode.GetStatusMessage();
 
     CTxIn vin = CTxIn();
     CPubKey pubkey;
@@ -252,7 +252,7 @@ UniValue masternodedebug (const UniValue& params, bool fHelp)
     if (!activeMasternode.GetMasterNodeVin(vin, pubkey, key))
         throw std::runtime_error("Missing masternode input, please look at the documentation for instructions on masternode creation\n");
     else
-        return activeMasternode.GetStatus();
+        return activeMasternode.GetStatusMessage();
 }
 
 bool StartMasternodeEntry(UniValue& statusObjRet, CMasternodeBroadcast& mnbRet, bool& fSuccessRet, const CMasternodeConfig::CMasternodeEntry& mne, std::string& errorMessage, std::string strCommand = "")
@@ -334,15 +334,12 @@ UniValue startmasternode (const UniValue& params, bool fHelp)
         throw std::runtime_error(
             "startmasternode \"local|all|many|missing|disabled|alias\" lockwallet ( \"alias\" )\n"
             "\nAttempts to start one or more masternode(s)\n"
-
             "\nArguments:\n"
             "1. set         (string, required) Specify which set of masternode(s) to start.\n"
             "2. lockwallet  (boolean, required) Lock wallet after completion.\n"
             "3. alias       (string) Masternode alias. Required if using 'alias' as the set.\n"
-
             "\nResult: (for 'local' set):\n"
             "\"status\"     (string) Masternode status message\n"
-
             "\nResult: (for other sets):\n"
             "{\n"
             "  \"overall\": \"xxxx\",     (string) Overall status message\n"
@@ -355,7 +352,6 @@ UniValue startmasternode (const UniValue& params, bool fHelp)
             "    ,...\n"
             "  ]\n"
             "}\n"
-
             "\nExamples:\n" +
             HelpExampleCli("startmasternode", "\"alias\" \"0\" \"my_mn\"") + HelpExampleRpc("startmasternode", "\"alias\" \"0\" \"my_mn\""));
 
@@ -366,14 +362,13 @@ UniValue startmasternode (const UniValue& params, bool fHelp)
     if (strCommand == "local") {
         if (!fMasterNode) throw std::runtime_error("you must set masternode=1 in the configuration\n");
 
-        if (activeMasternode.status != ACTIVE_MASTERNODE_STARTED) {
-            activeMasternode.status = ACTIVE_MASTERNODE_INITIAL; // TODO: consider better way
-            activeMasternode.ManageStatus();
+        if (activeMasternode.GetStatus() != ACTIVE_MASTERNODE_STARTED) {
+            activeMasternode.ResetStatus();
             if (fLock)
                 pwalletMain->Lock();
         }
 
-        return activeMasternode.GetStatus();
+        return activeMasternode.GetStatusMessage();
     }
 
     if (strCommand == "all" || strCommand == "many" || strCommand == "missing" || strCommand == "disabled") {
@@ -572,7 +567,7 @@ UniValue getmasternodestatus (const UniValue& params, bool fHelp)
             "  \"outputidx\": n,        (numeric) Collateral transaction output index number\n"
             "  \"netaddr\": \"xxxx\",     (string) Masternode network address\n"
             "  \"addr\": \"xxxx\",        (string) SchillingCoin address for masternode payments\n"
-            "  \"status\": \"xxxx\",      (string) Masternode status\n"
+            "  \"status\": n, (numeric) Masternode status code\n"
             "  \"message\": \"xxxx\"      (string) Masternode status message\n"
             "}\n"
 
@@ -589,12 +584,12 @@ UniValue getmasternodestatus (const UniValue& params, bool fHelp)
         mnObj.push_back(Pair("outputidx", (uint64_t)activeMasternode.vin.prevout.n));
         mnObj.push_back(Pair("netaddr", activeMasternode.service.ToString()));
         mnObj.push_back(Pair("addr", CBitcoinAddress(pmn->pubKeyCollateralAddress.GetID()).ToString()));
-        mnObj.push_back(Pair("status", activeMasternode.status));
-        mnObj.push_back(Pair("message", activeMasternode.GetStatus()));
+        mnObj.push_back(Pair("status", activeMasternode.GetStatus()));
+        mnObj.push_back(Pair("message", activeMasternode.GetStatusMessage()));
         return mnObj;
     }
     throw std::runtime_error("Masternode not found in the list of available masternodes. Current status: "
-                        + activeMasternode.GetStatus());
+                        + activeMasternode.GetStatusMessage());
 }
 
 UniValue getmasternodewinners (const UniValue& params, bool fHelp)

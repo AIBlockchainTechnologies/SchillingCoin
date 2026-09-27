@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,6 +14,7 @@
 #include "clientmodel.h"
 #include "guiutil.h"
 #include "init.h"
+#include "fs.h"
 #include "masternode-sync.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
@@ -385,14 +386,15 @@ void MasterNodesWidget::onDeleteMNClicked()
 
     std::string strConfFile = "masternode.conf";
     std::string strDataDir = GetDataDir().string();
-    if (strConfFile != boost::filesystem::basename(strConfFile) + boost::filesystem::extension(strConfFile)) {
+    const fs::path confPath(strConfFile);
+    if (strConfFile != confPath.stem().string() + confPath.extension().string()) {
         throw std::runtime_error(strprintf(_("masternode.conf %s resides outside data directory %s"), strConfFile, strDataDir));
     }
 
-    boost::filesystem::path pathBootstrap = GetDataDir() / strConfFile;
-    if (boost::filesystem::exists(pathBootstrap)) {
-        boost::filesystem::path pathMasternodeConfigFile = GetMasternodeConfigFile();
-        boost::filesystem::ifstream streamConfig(pathMasternodeConfigFile);
+    fs::path pathBootstrap = GetDataDir() / strConfFile;
+    if (fs::exists(pathBootstrap)) {
+        fs::path pathMasternodeConfigFile = GetMasternodeConfigFile();
+        fs::ifstream streamConfig(pathMasternodeConfigFile);
 
         if (!streamConfig.good()) {
             inform(tr("Invalid masternode.conf file"));
@@ -433,29 +435,29 @@ void MasterNodesWidget::onDeleteMNClicked()
 
         if (lineCopy.size() == 0) {
             lineCopy = "# Masternode config file\n"
-                                    "# Format: alias IP:port masternodeprivkey collateral_output_txid collateral_output_index\n"
-                                    "# Example: mn1 127.0.0.2:9070 93HaYBVUCYjEMeeH1Y4sBGLALQZE1Yc1K64xiqgX37tGBDQL8Xg 2bcd3c84c84f87eaa86e4e56834c92927a07f9e18718810b92e0d0324456a67c 0\n";
+                       "# Format: alias IP:port masternodeprivkey collateral_output_txid collateral_output_index\n"
+                       "# Example: mn1 127.0.0.2:9070 93HaYBVUCYjEMeeH1Y4sBGLALQZE1Yc1K64xiqgX37tGBDQL8Xg 2bcd3c84c84f87eaa86e4e56834c92927a07f9e18718810b92e0d0324456a67c 0\n";
         }
 
         streamConfig.close();
 
         if (lineNumToRemove != -1) {
-            boost::filesystem::path pathConfigFile("masternode_temp.conf");
-            if (!pathConfigFile.is_complete()) pathConfigFile = GetDataDir() / pathConfigFile;
-            FILE* configFile = fopen(pathConfigFile.string().c_str(), "w");
+            fs::path pathConfigFile("masternode_temp.conf");
+            if (!pathConfigFile.is_absolute()) pathConfigFile = GetDataDir() / pathConfigFile;
+            FILE* configFile = fsbridge::fopen(pathConfigFile, "w");
             fwrite(lineCopy.c_str(), std::strlen(lineCopy.c_str()), 1, configFile);
             fclose(configFile);
 
-            boost::filesystem::path pathOldConfFile("old_masternode.conf");
-            if (!pathOldConfFile.is_complete()) pathOldConfFile = GetDataDir() / pathOldConfFile;
-            if (boost::filesystem::exists(pathOldConfFile)) {
-                boost::filesystem::remove(pathOldConfFile);
+            fs::path pathOldConfFile("old_masternode.conf");
+            if (!pathOldConfFile.is_absolute()) pathOldConfFile = GetDataDir() / pathOldConfFile;
+            if (fs::exists(pathOldConfFile)) {
+                fs::remove(pathOldConfFile);
             }
-            rename(pathMasternodeConfigFile, pathOldConfFile);
+            fs::rename(pathMasternodeConfigFile, pathOldConfFile);
 
-            boost::filesystem::path pathNewConfFile("masternode.conf");
-            if (!pathNewConfFile.is_complete()) pathNewConfFile = GetDataDir() / pathNewConfFile;
-            rename(pathConfigFile, pathNewConfFile);
+            fs::path pathNewConfFile("masternode.conf");
+            if (!pathNewConfFile.is_absolute()) pathNewConfFile = GetDataDir() / pathNewConfFile;
+            fs::rename(pathConfigFile, pathNewConfFile);
 
             // Unlock collateral
             bool convertOK = false;

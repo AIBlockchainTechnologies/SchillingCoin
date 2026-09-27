@@ -40,6 +40,7 @@
 #include "txdb.h"
 #include "torcontrol.h"
 #include "guiinterface.h"
+#include "fs.h"
 #include "util.h"
 #include "utilmoneystr.h"
 #include "util/threadnames.h"
@@ -1075,7 +1076,8 @@ bool AppInit2(const std::vector<std::string>& words)
     std::string strDataDir = GetDataDir().string();
 #ifdef ENABLE_WALLET
     // Wallet file must be a plain filename without a directory
-    if (strWalletFile != boost::filesystem::basename(strWalletFile) + boost::filesystem::extension(strWalletFile))
+    const fs::path walletPath(strWalletFile);
+    if (strWalletFile != walletPath.stem().string() + walletPath.extension().string())
         return InitError(strprintf(_("Wallet %s resides outside data directory %s"), strWalletFile, strDataDir));
 #endif
     // Make sure only a single SchillingCoin process is using the data directory.

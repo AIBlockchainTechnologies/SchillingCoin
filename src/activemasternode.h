@@ -30,6 +30,9 @@ private:
     /// Ping Masternode
     bool SendMasternodePing(std::string& errorMessage);
 
+    int status;
+    std::string notCapableReason;
+
     /// Create Masternode broadcast, needs to be relayed manually after that
     bool CreateBroadcast(CTxIn vin,
                          CService service,
@@ -60,9 +63,6 @@ public:
     CTxIn vin;
     CService service;
 
-    int status;
-    std::string notCapableReason;
-
     CActiveMasternode()
     {
         status = ACTIVE_MASTERNODE_INITIAL;
@@ -70,7 +70,9 @@ public:
 
     /// Manage status of main Masternode
     void ManageStatus();
-    std::string GetStatus();
+    void ResetStatus();
+    std::string GetStatusMessage() const;
+    int GetStatus() const { return status; }
 
     /// Create Masternode broadcast, needs to be relayed manually after that
     bool CreateBroadcast(std::string strService,

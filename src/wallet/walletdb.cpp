@@ -9,6 +9,7 @@
 #include "wallet/walletdb.h"
 
 #include "base58.h"
+#include "fs.h"
 #include "protocol.h"
 #include "serialize.h"
 #include "sync.h"
@@ -24,7 +25,6 @@
 #include <boost/scoped_ptr.hpp>
 #include <boost/thread.hpp>
 #include <fstream>
-
 
 static uint64_t nAccountingEntryNumber = 0;
 
@@ -1068,9 +1068,12 @@ bool AttemptBackupWallet(const CWallet& wallet, const boost::filesystem::path& p
             return false;
         }
 #if BOOST_VERSION >= 105800 /* BOOST_LIB_VERSION 1_58 */
-        boost::filesystem::copy_file(pathSrc.c_str(), pathDest, boost::filesystem::copy_option::overwrite_if_exists);
+        fs::copy_file(
+            pathSrc,
+            pathDest,
+            fs::copy_options::overwrite_existing);
 #else
-        std::ifstream src(pathSrc.c_str(),  std::ios::binary | std::ios::in);
+        std::ifstream src(pathSrc.c_str(), std::ios::binary | std::ios::in);
         std::ofstream dst(pathDest.c_str(), std::ios::binary | std::ios::out | std::ios::trunc);
         dst << src.rdbuf();
         dst.flush();
