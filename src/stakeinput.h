@@ -1,14 +1,14 @@
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef SchillingCoin_STAKEINPUT_H
 #define SchillingCoin_STAKEINPUT_H
 
+#include "arith_uint256.h"
 #include "chain.h"
 #include "streams.h"
-#include "uint256.h"
 
 class CKeyStore;
 class CWallet;

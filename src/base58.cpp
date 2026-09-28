@@ -1,13 +1,13 @@
 // Copyright (c) 2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "base58.h"
 
+#include "arith_uint256.h"
 #include "hash.h"
-#include "uint256.h"
 
 #include <assert.h>
 #include <boost/variant/apply_visitor.hpp>

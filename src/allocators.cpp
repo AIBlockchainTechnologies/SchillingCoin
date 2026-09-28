@@ -1,4 +1,5 @@
 // Copyright (c) 2009-2013 The Bitcoin developers
+// Copyright (c) 2026 The Schillingcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -24,8 +25,8 @@
 #include <unistd.h> // for sysconf
 #endif
 
-LockedPageManager* LockedPageManager::_instance = NULL;
-boost::once_flag LockedPageManager::init_flag = BOOST_ONCE_INIT;
+LockedPageManager* LockedPageManager::_instance = nullptr;
+std::once_flag LockedPageManager::init_flag;
 
 /** Determine system page size in bytes */
 static inline size_t GetSystemPageSize()

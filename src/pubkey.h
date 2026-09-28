@@ -1,16 +1,16 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2016-2018 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef SchillingCoin_PUBKEY_H
 #define SchillingCoin_PUBKEY_H
 
+#include "arith_uint256.h"
 #include "hash.h"
 #include "serialize.h"
-#include "uint256.h"
 
 #include <stdexcept>
 #include <vector>

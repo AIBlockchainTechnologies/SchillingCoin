@@ -8,7 +8,7 @@
 #define BITCOIN_CONSENSUS_PARAMS_H
 
 #include "amount.h"
-#include "uint256.h"
+#include "arith_uint256.h"
 #include <map>
 #include <string>
 

@@ -1,16 +1,15 @@
 // Copyright (c) 2017 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef BITCOIN_BIP38_H
 #define BITCOIN_BIP38_H
 
+#include "arith_uint256.h"
 #include "pubkey.h"
-#include "uint256.h"
 
 #include <string>
-
 
 /** 39 bytes - 78 characters
  * 1) Prefix - 2 bytes - 4 chars - strKey[0..3]

@@ -7,7 +7,7 @@
 
 #include <list>
 #include <vector>
-#include "uint256.h"
+#include "arith_uint256.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
 #include "stubs/legacy_zerocoin_consensus.h"

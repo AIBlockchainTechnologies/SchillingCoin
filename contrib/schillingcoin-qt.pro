@@ -61,6 +61,7 @@ HEADERS += src/activemasternode.h \
            src/alert.h \
            src/allocators.h \
            src/amount.h \
+           src/arith_uint256.h \
            src/base58.h \
            src/bloom.h \
            src/chain.h \
@@ -119,7 +120,6 @@ HEADERS += src/activemasternode.h \
            src/txdb.h \
            src/txmempool.h \
            src/ui_interface.h \
-           src/uint256.h \
            src/undo.h \
            src/util.h \
            src/utilmoneystr.h \
@@ -353,6 +353,7 @@ SOURCES += src/activemasternode.cpp \
            src/alert.cpp \
            src/allocators.cpp \
            src/amount.cpp \
+           src/arith_uint256.cpp \
            src/base58.cpp \
            src/bloom.cpp \
            src/chain.cpp \
@@ -414,7 +415,6 @@ SOURCES += src/activemasternode.cpp \
            src/timedata.cpp \
            src/txdb.cpp \
            src/txmempool.cpp \
-           src/uint256.cpp \
            src/util.cpp \
            src/utilmoneystr.cpp \
            src/utilstrencodings.cpp \

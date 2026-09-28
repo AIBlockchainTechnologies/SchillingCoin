@@ -9,10 +9,10 @@
 #include "config/schillingcoin-config.h"
 #endif
 
+#include "arith_uint256.h"
 #include "netaddress.h"
 #include "netbase.h"              // Lookup(), LookupHost(), networking helpers
 #include "util.h"                 // strprintf()
-#include "uint256.h"              // uint256 for GetHash()
 #include "utilstrencodings.h"     // ParseHex, encoding helpers
 #include "crypto/sha256.h"        // CSHA256 for modern hashing
 

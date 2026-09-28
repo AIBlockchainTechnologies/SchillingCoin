@@ -8,7 +8,7 @@
 #ifndef BITCOIN_QT_CLIENTMODEL_H
 #define BITCOIN_QT_CLIENTMODEL_H
 
-#include "uint256.h"
+#include "arith_uint256.h"
 #include "chain.h"
 
 #include <QObject>

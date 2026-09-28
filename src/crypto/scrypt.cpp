@@ -1,5 +1,6 @@
 /*
  * Copyright 2009 Colin Percival, 2011 ArtForz, 2012-2013 pooler
+ * Copyright 2026 The Schillingcoin developers
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -27,8 +28,8 @@
  * online backup system.
  */
 
+#include "arith_uint256.h"
 #include "crypto/scrypt.h"
-#include "uint256.h"
 #include "utilstrencodings.h"
 #include <openssl/sha.h>
 #include <string>

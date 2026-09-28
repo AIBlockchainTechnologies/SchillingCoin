@@ -1,16 +1,16 @@
 // Copyright (c) 2011-2013 The Bitcoin Core developers
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "arith_uint256.h"
 #include <boost/test/unit_test.hpp>
 #include <stdint.h>
 #include <sstream>
 #include <iomanip>
 #include <limits>
 #include <cmath>
-#include "uint256.h"
 #include <string>
 #include "version.h"
 #include "test/test_schillingcoin.h"
@@ -837,4 +837,3 @@ BOOST_AUTO_TEST_CASE( getmaxcoverage ) // some more tests just to get 100% cover
 }
 
 BOOST_AUTO_TEST_SUITE_END()
-

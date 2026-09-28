@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2013 The Bitcoin developers
+// Copyright (c) 2026 The Schillingcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,13 +9,12 @@
 
 #include "support/cleanse.h"
 
+#include <cassert>
 #include <map>
+#include <mutex>
 #include <string.h>
 #include <string>
 #include <vector>
-
-#include <boost/thread/mutex.hpp>
-#include <boost/thread/once.hpp>
 
 /**
  * Thread-safe class to keep track of locked (ie, non-swappable) memory pages.
@@ -42,11 +42,10 @@ public:
     {
     }
 
-
     // For all pages in affected range, increase lock count
     void LockRange(void* p, size_t size)
     {
-        boost::mutex::scoped_lock lock(mutex);
+        std::lock_guard<std::mutex> lock(mutex);
         if (!size)
             return;
         const size_t base_addr = reinterpret_cast<size_t>(p);
@@ -68,7 +67,7 @@ public:
     // For all pages in affected range, decrease lock count
     void UnlockRange(void* p, size_t size)
     {
-        boost::mutex::scoped_lock lock(mutex);
+        std::lock_guard<std::mutex> lock(mutex);
         if (!size)
             return;
         const size_t base_addr = reinterpret_cast<size_t>(p);
@@ -91,19 +90,18 @@ public:
     // Get number of locked pages for diagnostics
     int GetLockedPageCount()
     {
-        boost::mutex::scoped_lock lock(mutex);
+        std::lock_guard<std::mutex> lock(mutex);
         return histogram.size();
     }
 
 private:
     Locker locker;
-    boost::mutex mutex;
+    std::mutex mutex;
     size_t page_size, page_mask;
     // map of page base address to lock count
     typedef std::map<size_t, int> Histogram;
     Histogram histogram;
 };
-
 
 /**
  * OS-dependent memory page locking/unlocking.
@@ -138,7 +136,7 @@ class LockedPageManager : public LockedPageManagerBase<MemoryPageLocker>
 public:
     static LockedPageManager& Instance()
     {
-        boost::call_once(LockedPageManager::CreateInstance, LockedPageManager::init_flag);
+        std::call_once(LockedPageManager::init_flag, LockedPageManager::CreateInstance);
         return *LockedPageManager::_instance;
     }
 
@@ -157,7 +155,7 @@ private:
     }
 
     static LockedPageManager* _instance;
-    static boost::once_flag init_flag;
+    static std::once_flag init_flag;
 };
 
 //
@@ -192,13 +190,13 @@ struct secure_allocator : public std::allocator<T> {
     typedef typename base::reference reference;
     typedef typename base::const_reference const_reference;
     typedef typename base::value_type value_type;
-    secure_allocator() throw() {}
-    secure_allocator(const secure_allocator& a) throw() : base(a) {}
+    secure_allocator() noexcept {}
+    secure_allocator(const secure_allocator& a) noexcept : base(a) {}
     template <typename U>
-    secure_allocator(const secure_allocator<U>& a) throw() : base(a)
+    secure_allocator(const secure_allocator<U>& a) noexcept : base(a)
     {
     }
-    ~secure_allocator() throw() {}
+    ~secure_allocator() noexcept {}
     template <typename _Other>
     struct rebind {
         typedef secure_allocator<_Other> other;
@@ -208,21 +206,21 @@ struct secure_allocator : public std::allocator<T> {
     {
         T* p;
         p = std::allocator<T>::allocate(n, hint);
-        if (p != NULL)
+        if (p != nullptr)
             LockedPageManager::Instance().LockRange(p, sizeof(T) * n);
         return p;
     }
 
     void deallocate(T* p, std::size_t n)
     {
-        if (p != NULL) {
+        if (p != nullptr) {
             memory_cleanse(p, sizeof(T) * n);
             LockedPageManager::Instance().UnlockRange(p, sizeof(T) * n);
         }
+
         std::allocator<T>::deallocate(p, n);
     }
 };
-
 
 //
 // Allocator that clears its contents before deletion.
@@ -238,13 +236,13 @@ struct zero_after_free_allocator : public std::allocator<T> {
     typedef typename base::reference reference;
     typedef typename base::const_reference const_reference;
     typedef typename base::value_type value_type;
-    zero_after_free_allocator() throw() {}
-    zero_after_free_allocator(const zero_after_free_allocator& a) throw() : base(a) {}
+    zero_after_free_allocator() noexcept {}
+    zero_after_free_allocator(const zero_after_free_allocator& a) noexcept : base(a) {}
     template <typename U>
-    zero_after_free_allocator(const zero_after_free_allocator<U>& a) throw() : base(a)
+    zero_after_free_allocator(const zero_after_free_allocator<U>& a) noexcept : base(a)
     {
     }
-    ~zero_after_free_allocator() throw() {}
+    ~zero_after_free_allocator() noexcept {}
     template <typename _Other>
     struct rebind {
         typedef zero_after_free_allocator<_Other> other;
@@ -252,7 +250,7 @@ struct zero_after_free_allocator : public std::allocator<T> {
 
     void deallocate(T* p, std::size_t n)
     {
-        if (p != NULL)
+        if (p != nullptr)
             memory_cleanse(p, sizeof(T) * n);
         std::allocator<T>::deallocate(p, n);
     }
