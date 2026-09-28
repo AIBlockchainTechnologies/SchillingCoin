@@ -39,7 +39,7 @@ bool CBanDB::Write(const banmap_t& banSet)
 
     // open temp output file, and associate with CAutoFile
     fs::path pathTmp = GetDataDir() / tmpfn;
-    FILE *file = fsbridge::fopen(pathTmp, "wb");
+    FILE* file = fsbridge::fopen(pathTmp, "wb");
     CAutoFile fileout(file, SER_DISK, CLIENT_VERSION);
     if (fileout.IsNull())
         return error("%s: Failed to open file %s", __func__, pathTmp.string());
@@ -49,14 +49,24 @@ bool CBanDB::Write(const banmap_t& banSet)
         fileout << ssBanlist;
     }
     catch (const std::exception& e) {
+        fileout.fclose();
+        remove(pathTmp);
         return error("%s: Serialize or I/O error - %s", __func__, e.what());
     }
-    FileCommit(fileout.Get());
+
+    if (!FileCommit(fileout.Get())) {
+        fileout.fclose();
+        remove(pathTmp);
+        return error("%s: Failed to flush file %s", __func__, pathTmp.string());
+    }
+
     fileout.fclose();
 
     // replace existing banlist.dat, if any, with new banlist.dat.XXXX
-    if (!RenameOver(pathTmp, pathBanlist))
+    if (!RenameOver(pathTmp, pathBanlist)) {
+        remove(pathTmp);
         return error("%s: Rename-into-place failed", __func__);
+    }
 
     return true;
 }
@@ -146,14 +156,24 @@ bool CAddrDB::Write(const CAddrMan& addr)
     try {
         fileout << ssPeers;
     } catch (const std::exception& e) {
+        fileout.fclose();
+        remove(_pathAddr);
         return error("%s : Serialize or I/O error - %s", __func__, e.what());
     }
-    FileCommit(fileout.Get());
+
+    if (!FileCommit(fileout.Get())) {
+        fileout.fclose();
+        remove(_pathAddr);
+        return error("%s : Failed to flush file %s", __func__, _pathAddr.string());
+    }
+
     fileout.fclose();
 
     // replace existing peers.dat, if any, with new peers.dat.XXXX
-    if (!RenameOver(_pathAddr, pathAddr))
+    if (!RenameOver(_pathAddr, pathAddr)) {
+        remove(_pathAddr);
         return error("%s: Rename-into-place failed", __func__);
+    }
 
     return true;
 }

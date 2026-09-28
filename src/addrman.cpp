@@ -77,14 +77,17 @@ double CAddrInfo::GetChance(int64_t nNow) const
 
 CAddrInfo* CAddrMan::Find(const CNetAddr& addr, int* pnId)
 {
-    std::map<CNetAddr, int>::iterator it = mapAddr.find(addr);
+    auto it = mapAddr.find(addr);
     if (it == mapAddr.end())
         return nullptr;
+
     if (pnId)
-        *pnId = (*it).second;
-    std::map<int, CAddrInfo>::iterator it2 = mapInfo.find((*it).second);
+        *pnId = it->second;
+
+    auto it2 = mapInfo.find(it->second);
     if (it2 != mapInfo.end())
-        return &(*it2).second;
+        return &it2->second;
+
     return nullptr;
 }
 
@@ -258,6 +261,11 @@ bool CAddrMan::Add_(const CAddress& addr, const CNetAddr& source, int64_t nTimeP
     int nId;
     CAddrInfo* pinfo = Find(addr, &nId);
 
+    // Do not set a penalty for a source's self-announcement
+    if (addr == source) {
+        nTimePenalty = 0;
+    }
+
     if (pinfo) {
         // periodically update nTime
         bool fCurrentlyOnline = (GetAdjustedTime() - addr.nTime < 24 * 60 * 60);
@@ -351,35 +359,47 @@ CAddrInfo CAddrMan::Select_(bool newOnly)
     if (!newOnly && (nTried > 0 && (nNew == 0 || RandomInt(2) == 0))) {
         // use a tried node
         double fChanceFactor = 1.0;
-        while (1) {
+
+        while (true) {
             int nKBucket = RandomInt(ADDRMAN_TRIED_BUCKET_COUNT);
             int nKBucketPos = RandomInt(ADDRMAN_BUCKET_SIZE);
+
             while (vvTried[nKBucket][nKBucketPos] == -1) {
                 nKBucket = (nKBucket + insecure_rand.randbits(ADDRMAN_TRIED_BUCKET_COUNT_LOG2)) % ADDRMAN_TRIED_BUCKET_COUNT;
                 nKBucketPos = (nKBucketPos + insecure_rand.randbits(ADDRMAN_BUCKET_SIZE_LOG2)) % ADDRMAN_BUCKET_SIZE;
             }
+
             int nId = vvTried[nKBucket][nKBucketPos];
             assert(mapInfo.count(nId) == 1);
+
             CAddrInfo& info = mapInfo[nId];
+
             if (RandomInt(1 << 30) < fChanceFactor * info.GetChance() * (1 << 30))
                 return info;
+
             fChanceFactor *= 1.2;
         }
     } else {
         // use a new node
         double fChanceFactor = 1.0;
-        while (1) {
+
+        while (true) {
             int nUBucket = RandomInt(ADDRMAN_NEW_BUCKET_COUNT);
             int nUBucketPos = RandomInt(ADDRMAN_BUCKET_SIZE);
+
             while (vvNew[nUBucket][nUBucketPos] == -1) {
                 nUBucket = (nUBucket + insecure_rand.randbits(ADDRMAN_NEW_BUCKET_COUNT_LOG2)) % ADDRMAN_NEW_BUCKET_COUNT;
                 nUBucketPos = (nUBucketPos + insecure_rand.randbits(ADDRMAN_BUCKET_SIZE_LOG2)) % ADDRMAN_BUCKET_SIZE;
             }
+
             int nId = vvNew[nUBucket][nUBucketPos];
             assert(mapInfo.count(nId) == 1);
+
             CAddrInfo& info = mapInfo[nId];
+
             if (RandomInt(1 << 30) < fChanceFactor * info.GetChance() * (1 << 30))
                 return info;
+
             fChanceFactor *= 1.2;
         }
     }
@@ -394,9 +414,10 @@ int CAddrMan::Check_()
     if (vRandom.size() != nTried + nNew)
         return -7;
 
-    for (std::map<int, CAddrInfo>::iterator it = mapInfo.begin(); it != mapInfo.end(); it++) {
-        int n = (*it).first;
-        CAddrInfo& info = (*it).second;
+    for (auto it = mapInfo.begin(); it != mapInfo.end(); ++it) {
+        int n = it->first;
+        CAddrInfo& info = it->second;
+
         if (info.fInTried) {
             if (!info.nLastSuccess)
                 return -1;
@@ -410,6 +431,7 @@ int CAddrMan::Check_()
                 return -4;
             mapNew[n] = info.nRefCount;
         }
+
         if (mapAddr[info] != n)
             return -5;
         if (info.nRandomPos < 0 || info.nRandomPos >= vRandom.size() || vRandom[info.nRandomPos] != n)
@@ -452,9 +474,9 @@ int CAddrMan::Check_()
         }
     }
 
-    if (setTried.size())
+    if (!setTried.empty())
         return -13;
-    if (mapNew.size())
+    if (!mapNew.empty())
         return -15;
     if (nKey.IsNull())
         return -16;
@@ -504,6 +526,7 @@ void CAddrMan::Connected_(const CService& addr, int64_t nTime)
         info.nTime = nTime;
 }
 
-int CAddrMan::RandomInt(int nMax){
+int CAddrMan::RandomInt(int nMax)
+{
     return GetRandInt(nMax);
 }

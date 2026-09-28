@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -573,19 +573,35 @@ bool TryCreateDirectory(const boost::filesystem::path& p)
     return false;
 }
 
-void FileCommit(FILE* fileout)
+bool FileCommit(FILE* fileout)
 {
-    fflush(fileout); // harmless if redundantly called
+    if (fileout == nullptr)
+        return false;
+
+    if (fflush(fileout) != 0)
+        return false;
+
 #ifdef WIN32
-    HANDLE hFile = (HANDLE)_get_osfhandle(_fileno(fileout));
-    FlushFileBuffers(hFile);
+    const int fileDescriptor = _fileno(fileout);
+    if (fileDescriptor == -1)
+        return false;
+
+    const intptr_t osFileHandle = _get_osfhandle(fileDescriptor);
+    if (osFileHandle == -1)
+        return false;
+
+    return FlushFileBuffers(reinterpret_cast<HANDLE>(osFileHandle)) != 0;
 #else
+    const int fileDescriptor = fileno(fileout);
+    if (fileDescriptor == -1)
+        return false;
+
 #if defined(__linux__) || defined(__NetBSD__)
-    fdatasync(fileno(fileout));
+    return fdatasync(fileDescriptor) == 0;
 #elif defined(__APPLE__) && defined(F_FULLFSYNC)
-    fcntl(fileno(fileout), F_FULLFSYNC, 0);
+    return fcntl(fileDescriptor, F_FULLFSYNC, 0) == 0;
 #else
-    fsync(fileno(fileout));
+    return fsync(fileDescriptor) == 0;
 #endif
 #endif
 }

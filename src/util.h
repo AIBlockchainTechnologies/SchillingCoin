@@ -108,7 +108,7 @@ double double_safe_addition(double fValue, double fIncrement);
 double double_safe_multiplication(double fValue, double fmultiplicator);
 void PrintExceptionContinue(const std::exception* pex, const char* pszThread);
 void ParseParameters(int argc, const char* const argv[]);
-void FileCommit(FILE* fileout);
+bool FileCommit(FILE* fileout);
 bool TruncateFile(FILE* file, unsigned int length);
 int RaiseFileDescriptorLimit(int nMinFD);
 void AllocateFileRange(FILE* file, unsigned int offset, unsigned int length);

@@ -66,7 +66,7 @@ public:
         banReason = BanReasonUnknown;
     }
 
-    std::string banReasonToString()
+    std::string banReasonToString() const
     {
         switch (banReason) {
         case BanReasonNodeMisbehaving:
@@ -79,7 +79,7 @@ public:
     }
 };
 
-typedef std::map<CSubNet, CBanEntry> banmap_t;
+using banmap_t = std::map<CSubNet, CBanEntry>;
 
 /** Access to the (IP) address database (peers.dat) */
 class CAddrDB
@@ -91,7 +91,7 @@ public:
     CAddrDB();
     bool Write(const CAddrMan& addr);
     bool Read(CAddrMan& addr);
-    bool Read(CAddrMan& addr, CDataStream& ssPeers);
+    static bool Read(CAddrMan& addr, CDataStream& ssPeers);
 };
 
 /** Access to the banlist database (banlist.dat) */
