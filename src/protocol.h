@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2016-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -67,7 +67,13 @@ public:
 };
 
 /** nServices flags */
-enum {
+enum ServiceFlags : uint64_t {
+    // Nothing
+    NODE_NONE = 0,
+
+    // NODE_NETWORK means that the node is capable of serving the block chain. It is currently
+    // set by all Bitcoin Core nodes, and is unset by SPV clients or other peers that just want
+    // network services but don't provide them.
     NODE_NETWORK = (1 << 0),
 
     // NODE_BLOOM means the node is capable and willing to handle bloom-filtered connections.
@@ -75,9 +81,9 @@ enum {
     // but no longer do as of protocol version 70011 (= NO_BLOOM_VERSION)
     NODE_BLOOM = (1 << 2),
 
-	// NODE_BLOOM_WITHOUT_MN means the node has the same features as NODE_BLOOM with the only difference
-	// that the node doens't want to receive master nodes messages. (the 1<<3 was not picked as constant because on bitcoin 0.14 is witness and we want that update here )
-
+    // NODE_BLOOM_WITHOUT_MN means the node has the same features as NODE_BLOOM with the only difference
+    // that the node doesn't want to receive master nodes messages. (the 1<<3 was not picked as constant
+    // because on bitcoin 0.14 is witness and we want that update here)
     NODE_BLOOM_WITHOUT_MN = (1 << 4),
 
     // Bits 24-31 are reserved for temporary experiments. Just pick a bit that

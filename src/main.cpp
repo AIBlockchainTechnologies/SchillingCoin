@@ -4662,6 +4662,8 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             return true;
         }
 
+        addrman.SetServices(pfrom->addr, ServiceFlags(pfrom->nServices));
+
         // SchillingCoin: Legacy SPORK fetching removed.
         // Original SCH binaries always behaved with SPORK_14 enforced and SPORK_15 unused.
         // Dynamic SPORK requests during IBD are no longer needed, and the network now

@@ -11,6 +11,7 @@
 #include "serialize.h"
 #include "streams.h"
 
+#include <iterator>
 
 int CAddrInfo::GetTriedBucket(const uint256& nKey) const
 {
@@ -200,7 +201,7 @@ void CAddrMan::MakeTried(CAddrInfo& info, int nId)
     info.fInTried = true;
 }
 
-void CAddrMan::Good_(const CService& addr, int64_t nTime)
+void CAddrMan::Good_(const CService& addr, bool test_before_evict, int64_t nTime)
 {
     int nId;
 
@@ -246,10 +247,25 @@ void CAddrMan::Good_(const CService& addr, int64_t nTime)
     if (nUBucket == -1)
         return;
 
-    LogPrint("addrman", "Moving %s to tried\n", addr.ToString());
+    // which tried bucket to move the entry to
+    int tried_bucket = info.GetTriedBucket(nKey);
+    int tried_bucket_pos = info.GetBucketPosition(nKey, false, tried_bucket);
 
-    // move nId to the tried tables
-    MakeTried(info, nId);
+    // Will moving this address into tried evict another entry?
+    if (test_before_evict && (vvTried[tried_bucket][tried_bucket_pos] != -1)) {
+        LogPrint("addrman",
+            "Collision inserting element into tried table, moving %s to m_tried_collisions=%u\n",
+            addr.ToString(),
+            static_cast<unsigned int>(m_tried_collisions.size()));
+
+        if (m_tried_collisions.size() < ADDRMAN_SET_TRIED_COLLISION_SIZE)
+            m_tried_collisions.insert(nId);
+    } else {
+        LogPrint("addrman", "Moving %s to tried\n", addr.ToString());
+
+        // move nId to the tried tables
+        MakeTried(info, nId);
+    }
 }
 
 bool CAddrMan::Add_(const CAddress& addr, const CNetAddr& source, int64_t nTimePenalty)
@@ -526,7 +542,113 @@ void CAddrMan::Connected_(const CService& addr, int64_t nTime)
         info.nTime = nTime;
 }
 
-int CAddrMan::RandomInt(int nMax)
+void CAddrMan::SetServices_(const CService& addr, ServiceFlags nServices)
 {
+    CAddrInfo* pinfo = Find(addr);
+
+    // if not found, bail out
+    if (!pinfo)
+        return;
+
+    CAddrInfo& info = *pinfo;
+
+    // check whether we are talking about the exact same CService (including same port)
+    if (info != addr)
+        return;
+
+    // update info
+    info.nServices = nServices;
+}
+
+int CAddrMan::RandomInt(int nMax){
     return GetRandInt(nMax);
+}
+
+void CAddrMan::ResolveCollisions_()
+{
+    for (auto it = m_tried_collisions.begin(); it != m_tried_collisions.end();) {
+        const int idNew = *it;
+        bool eraseCollision = false;
+
+        auto itNew = mapInfo.find(idNew);
+        if (itNew == mapInfo.end()) {
+            eraseCollision = true;
+        } else {
+            CAddrInfo& infoNew = itNew->second;
+
+            const int triedBucket = infoNew.GetTriedBucket(nKey);
+            const int triedBucketPos = infoNew.GetBucketPosition(nKey, false, triedBucket);
+
+            if (!infoNew.IsValid()) {
+                eraseCollision = true;
+            } else {
+                const int idOld = vvTried[triedBucket][triedBucketPos];
+
+                if (idOld == -1) {
+                    // The collision no longer exists, so move the new entry into tried.
+                    Good_(infoNew, false, GetAdjustedTime());
+                    eraseCollision = true;
+                } else {
+                    auto itOld = mapInfo.find(idOld);
+                    if (itOld == mapInfo.end()) {
+                        eraseCollision = true;
+                    } else {
+                        CAddrInfo& infoOld = itOld->second;
+                        const int64_t nNow = GetAdjustedTime();
+
+                        // Preserve an existing tried entry that connected successfully
+                        // within the replacement protection window.
+                        if (nNow - infoOld.nLastSuccess < ADDRMAN_REPLACEMENT_HOURS * 60 * 60) {
+                            eraseCollision = true;
+                        } else if (nNow - infoOld.nLastTry < ADDRMAN_REPLACEMENT_HOURS * 60 * 60 &&
+                                   nNow - infoOld.nLastTry > 60) {
+                            LogPrint("addrman", "Swapping %s for %s in tried table\n",
+                                infoNew.ToString(), infoOld.ToString());
+
+                            // Replace the existing tried entry with the new entry.
+                            Good_(infoNew, false, nNow);
+                            eraseCollision = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (eraseCollision)
+            it = m_tried_collisions.erase(it);
+        else
+            ++it;
+    }
+}
+
+CAddrInfo CAddrMan::SelectTriedCollision_()
+{
+    if (m_tried_collisions.empty())
+        return CAddrInfo();
+
+    auto it = m_tried_collisions.begin();
+    std::advance(it, RandomInt(m_tried_collisions.size()));
+
+    const int idNew = *it;
+
+    auto itNew = mapInfo.find(idNew);
+    if (itNew == mapInfo.end()) {
+        m_tried_collisions.erase(it);
+        return CAddrInfo();
+    }
+
+    CAddrInfo& infoNew = itNew->second;
+
+    const int triedBucket = infoNew.GetTriedBucket(nKey);
+    const int triedBucketPos = infoNew.GetBucketPosition(nKey, false, triedBucket);
+    const int idOld = vvTried[triedBucket][triedBucketPos];
+
+    if (idOld == -1)
+        return CAddrInfo();
+
+    auto itOld = mapInfo.find(idOld);
+    if (itOld == mapInfo.end())
+        return CAddrInfo();
+
+    return itOld->second;
 }
