@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -64,7 +64,7 @@ std::string EncodeBase58Check(const std::vector<unsigned char>& vchIn);
  * Decode a base58-encoded string (psz) that includes a checksum into a byte
  * vector (vchRet), return true if decoding is successful
  */
-inline bool DecodeBase58Check(const char* psz, std::vector<unsigned char>& vchRet);
+bool DecodeBase58Check(const char* psz, std::vector<unsigned char>& vchRet);
 
 /**
  * Decode a base58-encoded string (str) that includes a checksum into a byte
@@ -102,6 +102,9 @@ public:
     bool operator>(const CBase58Data& b58) const { return CompareTo(b58) > 0; }
 };
 
+CKey DecodeSecret(const std::string& str);
+std::string EncodeSecret(const CKey& key);
+
 /** base58-encoded SchillingCoin addresses.
  * Public-key-hash-addresses have version 0 (or 111 testnet).
  * The data vector contains RIPEMD160(SHA256(pubkey)), where pubkey is the serialized public key.
@@ -126,7 +129,6 @@ public:
     bool GetKeyID(CKeyID& keyID) const;
     bool IsScript() const;
     bool IsStakingAddress() const;
-
 
     // Helpers
     static const CBitcoinAddress newCSInstance(const CTxDestination& dest) {
@@ -168,7 +170,8 @@ public:
     K GetKey()
     {
         K ret;
-        ret.Decode(&vchData[0], &vchData[Size]);
+        if (vchData.size() == Size)
+            ret.Decode(vchData.data());
         return ret;
     }
 
@@ -177,10 +180,48 @@ public:
         SetKey(key);
     }
 
+    explicit CBitcoinExtKeyBase(const std::string& strBase58)
+    {
+        SetString(strBase58.c_str(), Params().Base58Prefix(Type).size());
+    }
+
     CBitcoinExtKeyBase() {}
 };
 
-typedef CBitcoinExtKeyBase<CExtKey, 74, CChainParams::EXT_SECRET_KEY> CBitcoinExtKey;
-typedef CBitcoinExtKeyBase<CExtPubKey, 74, CChainParams::EXT_PUBLIC_KEY> CBitcoinExtPubKey;
+typedef CBitcoinExtKeyBase<CExtKey, BIP32_EXTKEY_SIZE, CChainParams::EXT_SECRET_KEY> CBitcoinExtKey;
+typedef CBitcoinExtKeyBase<CExtPubKey, BIP32_EXTKEY_SIZE, CChainParams::EXT_PUBLIC_KEY> CBitcoinExtPubKey;
+
+std::string EncodeDestination(const CTxDestination& dest, const CChainParams::Base58Type addrType = CChainParams::PUBKEY_ADDRESS);
+
+CTxDestination DecodeDestination(const std::string& str);
+// Return true if the address is valid without care on the type.
+bool IsValidDestinationString(const std::string& str);
+bool IsValidDestinationString(const std::string& str, const CChainParams& params);
+
+/**
+ * Wrapper class for every supported address
+ */
+struct Destination {
+public:
+    explicit Destination() {}
+    explicit Destination(const CTxDestination& _dest) : dest(_dest) {}
+
+    CTxDestination dest{CNoDestination()};
+
+    Destination& operator=(const Destination& from)
+    {
+        this->dest = from.dest;
+        return *this;
+    }
+
+    std::string ToString()
+    {
+        if (!IsValidDestination(dest)) {
+            // Invalid address
+            return "";
+        }
+        return EncodeDestination(dest, CChainParams::PUBKEY_ADDRESS);
+    }
+};
 
 #endif // BITCOIN_BASE58_H
