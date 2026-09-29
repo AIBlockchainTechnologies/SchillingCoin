@@ -4,12 +4,12 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "arith_uint256.h"
 #include "pubkey.h"
 #include "key.h"
 #include "script/script.h"
 #include "script/standard.h"
 #include "test_schillingcoin.h"
+#include "uint256.h"
 
 #include <vector>
 

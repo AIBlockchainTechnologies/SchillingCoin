@@ -3,13 +3,13 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "arith_uint256.h"
 #include "qt/schillingcoin/coldstakingmodel.h"
 #include "bitcoinunits.h"
 #include "guiutil.h"
 #include <iostream>
 #include "addressbook.h"
 #include "init.h"
+#include "uint256.h"
 
 ColdStakingModel::ColdStakingModel(WalletModel* _model,
                                    TransactionTableModel* _tableModel,

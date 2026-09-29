@@ -28,9 +28,9 @@
  * online backup system.
  */
 
-#include "arith_uint256.h"
 #include "crypto/scrypt.h"
 #include "utilstrencodings.h"
+#include "uint256.h"
 #include <openssl/sha.h>
 #include <string>
 

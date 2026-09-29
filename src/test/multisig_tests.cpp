@@ -4,7 +4,6 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "arith_uint256.h"
 #include "key.h"
 #include "keystore.h"
 #include "main.h"
@@ -13,6 +12,7 @@
 #include "script/interpreter.h"
 #include "script/sign.h"
 #include "test_schillingcoin.h"
+#include "uint256.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/wallet_ismine.h"

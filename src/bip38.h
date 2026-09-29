@@ -6,8 +6,8 @@
 #ifndef BITCOIN_BIP38_H
 #define BITCOIN_BIP38_H
 
-#include "arith_uint256.h"
 #include "pubkey.h"
+#include "uint256.h"
 
 #include <string>
 

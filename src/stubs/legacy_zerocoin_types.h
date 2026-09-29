@@ -7,10 +7,10 @@
 
 #include <list>
 #include <vector>
-#include "arith_uint256.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
 #include "stubs/legacy_zerocoin_consensus.h"
+#include "uint256.h"
 
 // ---------------------------------------------------------------------------
 // Dummy passthrough hash helpers (SCH expects these symbols)

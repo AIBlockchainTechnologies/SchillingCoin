@@ -4,13 +4,13 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "arith_uint256.h"
 #include "merkleblock.h"
 #include "serialize.h"
 #include "streams.h"
 #include "version.h"
 #include "consensus/merkle.h"
 #include "test/test_schillingcoin.h"
+#include "uint256.h"
 
 #include <vector>
 

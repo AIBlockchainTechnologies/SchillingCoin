@@ -8,9 +8,9 @@
 #ifndef BITCOIN_RANDOM_H
 #define BITCOIN_RANDOM_H
 
-#include "arith_uint256.h"
 #include "crypto/chacha20.h"
 #include "crypto/common.h"
+#include "uint256.h"
 
 #include <stdint.h>
 

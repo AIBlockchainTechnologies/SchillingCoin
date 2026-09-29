@@ -7,9 +7,9 @@
 
 #include "txdb.h"
 
-#include "arith_uint256.h"
 #include "main.h"
 #include "pow.h"
+#include "uint256.h"
 
 #include <stdint.h>
 

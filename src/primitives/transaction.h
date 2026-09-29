@@ -9,9 +9,9 @@
 #define BITCOIN_PRIMITIVES_TRANSACTION_H
 
 #include "amount.h"
-#include "arith_uint256.h"
 #include "script/script.h"
 #include "serialize.h"
+#include "uint256.h"
 
 #include <list>
 

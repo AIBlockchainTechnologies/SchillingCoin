@@ -6,9 +6,9 @@
 
 #include "crypter.h"
 
-#include "arith_uint256.h"
 #include "script/script.h"
 #include "script/standard.h"
+#include "uint256.h"
 #include "util.h"
 #include "init.h"
 

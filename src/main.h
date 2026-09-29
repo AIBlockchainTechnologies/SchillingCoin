@@ -17,7 +17,6 @@
 #endif
 
 #include "amount.h"
-#include "arith_uint256.h"
 #include "chain.h"
 #include "chainparams.h"
 #include "coins.h"
@@ -32,6 +31,7 @@
 #include "sync.h"
 #include "tinyformat.h"
 #include "txmempool.h"
+#include "uint256.h"
 #include "undo.h"
 
 #include <algorithm>

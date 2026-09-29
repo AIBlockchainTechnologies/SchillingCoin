@@ -6,11 +6,11 @@
 
 #include <boost/test/unit_test.hpp>
 
-#include "arith_uint256.h"
 #include "base58.h"
 #include "key.h"
 #include "util.h"
 #include "test/test_bitcoin.h"
+#include "uint256.h"
 
 #include <string>
 #include <vector>

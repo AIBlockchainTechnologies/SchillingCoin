@@ -9,12 +9,12 @@
 #ifndef BITCOIN_CHAINPARAMS_H
 #define BITCOIN_CHAINPARAMS_H
 
-#include "arith_uint256.h"
 #include "chainparamsbase.h"
 #include "checkpoints.h"
 #include "consensus/params.h"
 #include "primitives/block.h"
 #include "protocol.h"
+#include "uint256.h"
 
 #include <vector>
 

@@ -9,7 +9,6 @@
 #define BITCOIN_NET_H
 
 #include "addrdb.h"
-#include "arith_uint256.h"
 #include "bloom.h"
 #include "compat.h"
 #include "hash.h"
@@ -20,6 +19,7 @@
 #include "random.h"
 #include "streams.h"
 #include "sync.h"
+#include "uint256.h"
 #include "utilstrencodings.h"
 
 #include <deque>

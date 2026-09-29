@@ -9,7 +9,7 @@
 #define BITCOIN_QT_TRANSACTIONRECORD_H
 
 #include "amount.h"
-#include "arith_uint256.h"
+#include "uint256.h"
 
 #include <vector>
 #include <QString>

@@ -8,8 +8,8 @@
 #ifndef BITCOIN_QT_CLIENTMODEL_H
 #define BITCOIN_QT_CLIENTMODEL_H
 
-#include "arith_uint256.h"
 #include "chain.h"
+#include "uint256.h"
 
 #include <QObject>
 #include <QDateTime>

@@ -9,9 +9,9 @@
 #define SchillingCoin_KEY_H
 
 #include "allocators.h"
-#include "arith_uint256.h"
 #include "serialize.h"
 #include "pubkey.h"
+#include "uint256.h"
 
 #include <stdexcept>
 #include <vector>

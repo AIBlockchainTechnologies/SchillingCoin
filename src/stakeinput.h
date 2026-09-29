@@ -6,9 +6,9 @@
 #ifndef SchillingCoin_STAKEINPUT_H
 #define SchillingCoin_STAKEINPUT_H
 
-#include "arith_uint256.h"
 #include "chain.h"
 #include "streams.h"
+#include "uint256.h"
 
 class CKeyStore;
 class CWallet;

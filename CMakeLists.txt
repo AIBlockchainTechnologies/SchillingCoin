@@ -505,6 +505,8 @@ target_include_directories(COMMON_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
 set(UTIL_SOURCES
         ./src/allocators.cpp
         ./src/arith_uint256.cpp
+        ./src/uint256.cpp
+        ./src/blob_uint256.cpp
         ./src/compat/strnlen.cpp
         ./src/compat/glibc_sanity.cpp
         ./src/compat/glibcxx_sanity.cpp

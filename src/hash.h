@@ -9,10 +9,10 @@
 #ifndef SchillingCoin_HASH_H
 #define SchillingCoin_HASH_H
 
-#include "arith_uint256.h"
 #include "crypto/ripemd160.h"
 #include "crypto/sha256.h"
 #include "serialize.h"
+#include "uint256.h"
 #include "version.h"
 
 #include "crypto/sph_blake.h"

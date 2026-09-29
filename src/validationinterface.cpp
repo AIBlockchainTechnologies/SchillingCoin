@@ -5,12 +5,12 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "arith_uint256.h"
 #include "validationinterface.h"
 #include "primitives/transaction.h"   // defines CTransaction
 #include "primitives/block.h"         // defines CBlock
 #include "chain.h"                    // defines CBlockIndex, CBlockLocator
 #include "consensus/validation.h"     // defines CValidationState
+#include "uint256.h"
 
 #include <map>
 #include <vector>

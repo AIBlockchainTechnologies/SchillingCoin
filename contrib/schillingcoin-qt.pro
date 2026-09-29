@@ -120,6 +120,7 @@ HEADERS += src/activemasternode.h \
            src/txdb.h \
            src/txmempool.h \
            src/ui_interface.h \
+           src/uint256.h \
            src/undo.h \
            src/util.h \
            src/utilmoneystr.h \
@@ -415,6 +416,7 @@ SOURCES += src/activemasternode.cpp \
            src/timedata.cpp \
            src/txdb.cpp \
            src/txmempool.cpp \
+           src/uint256.cpp \
            src/util.cpp \
            src/utilmoneystr.cpp \
            src/utilstrencodings.cpp \

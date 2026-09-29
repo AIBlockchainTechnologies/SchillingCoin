@@ -18,8 +18,8 @@
 #include "utiltime.h"
 #include "wallet/wallet.h"
 
-#include "arith_uint256.h"
 #include "stubs/legacy_zerocoin_types.h"
+#include "uint256.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/scoped_ptr.hpp>

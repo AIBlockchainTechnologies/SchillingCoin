@@ -6,13 +6,13 @@
 
 #include "bloom.h"
 
-#include "arith_uint256.h"
 #include "base58.h"
 #include "clientversion.h"
 #include "key.h"
 #include "merkleblock.h"
 #include "serialize.h"
 #include "streams.h"
+#include "uint256.h"
 #include "util.h"
 #include "utilstrencodings.h"
 #include "test/test_schillingcoin.h"

@@ -8,11 +8,11 @@
 #ifndef BITCOIN_COINS_H
 #define BITCOIN_COINS_H
 
-#include "arith_uint256.h"
 #include "compressor.h"
 #include "consensus/consensus.h"  // can be removed once policy/ established
 #include "script/standard.h"
 #include "serialize.h"
+#include "uint256.h"
 #include "undo.h"
 
 #include <assert.h>

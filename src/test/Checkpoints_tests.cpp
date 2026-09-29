@@ -10,8 +10,8 @@
 
 #include "checkpoints.h"
 
-#include "arith_uint256.h"
 #include "test_schillingcoin.h"
+#include "uint256.h"
 
 #include <boost/test/unit_test.hpp>
 

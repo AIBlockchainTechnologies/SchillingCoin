@@ -11,12 +11,12 @@
 #ifndef BITCOIN_CHAIN_H
 #define BITCOIN_CHAIN_H
 
-#include "arith_uint256.h"
 #include "chainparams.h"
 #include "pow.h"
 #include "primitives/block.h"
 #include "timedata.h"
 #include "tinyformat.h"
+#include "uint256.h"
 #include "util.h"
 #include "stubs/legacy_zerocoin_consensus.h"
 

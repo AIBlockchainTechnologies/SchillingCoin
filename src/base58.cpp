@@ -6,8 +6,8 @@
 
 #include "base58.h"
 
-#include "arith_uint256.h"
 #include "hash.h"
+#include "uint256.h"
 
 #include <algorithm>
 #include <assert.h>

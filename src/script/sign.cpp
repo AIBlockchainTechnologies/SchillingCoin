@@ -7,11 +7,11 @@
 
 #include "script/sign.h"
 
-#include "arith_uint256.h"
 #include "primitives/transaction.h"
 #include "key.h"
 #include "keystore.h"
 #include "script/standard.h"
+#include "uint256.h"
 #include "util.h"
 
 
