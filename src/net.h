@@ -13,7 +13,6 @@
 #include "compat.h"
 #include "hash.h"
 #include "limitedmap.h"
-#include "mruset.h"
 #include "netbase.h"
 #include "protocol.h"
 #include "random.h"
@@ -308,12 +307,12 @@ public:
 
     // flood relay
     std::vector<CAddress> vAddrToSend;
-    mruset<CAddress> setAddrKnown;
+    CRollingBloomFilter addrKnown;
     bool fGetAddr;
     std::set<uint256> setKnown;
 
     // inventory based relay
-    mruset<CInv> setInventoryKnown;
+    CRollingBloomFilter filterInventoryKnown;
     std::vector<CInv> vInventoryToSend;
     RecursiveMutex cs_inventory;
     std::multimap<int64_t, CInv> mapAskFor;
@@ -333,6 +332,7 @@ public:
     ~CNode();
 
 private:
+
     // Network usage totals
     static RecursiveMutex cs_totalBytesRecv;
     static RecursiveMutex cs_totalBytesSent;
@@ -385,10 +385,9 @@ public:
         nRefCount--;
     }
 
-
     void AddAddressKnown(const CAddress& addr)
     {
-        setAddrKnown.insert(addr);
+        addrKnown.insert(addr.GetKey());
     }
 
     void PushAddress(const CAddress& _addr, FastRandomContext &insecure_rand)
@@ -396,7 +395,7 @@ public:
         // Known checking here is only to save space from duplicates.
         // SendMessages will filter it again for knowns that were added
         // after addresses were pushed.
-        if (_addr.IsValid() && !setAddrKnown.count(_addr)) {
+        if (_addr.IsValid() && !addrKnown.contains(_addr.GetKey())) {
             if (vAddrToSend.size() >= MAX_ADDR_TO_SEND) {
                 vAddrToSend[insecure_rand.randrange(vAddrToSend.size())] = _addr;
             } else {
@@ -410,7 +409,7 @@ public:
     {
         {
             LOCK(cs_inventory);
-            setInventoryKnown.insert(inv);
+            filterInventoryKnown.insert(inv.hash);
         }
     }
 
@@ -418,7 +417,7 @@ public:
     {
         {
             LOCK(cs_inventory);
-            if (!setInventoryKnown.count(inv))
+            if (inv.type != MSG_TX || !filterInventoryKnown.contains(inv.hash))
                 vInventoryToSend.push_back(inv);
         }
     }

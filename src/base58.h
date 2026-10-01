@@ -208,12 +208,8 @@ public:
 
     CTxDestination dest{CNoDestination()};
 
-    Destination& operator=(const Destination& from)
-    {
-        this->dest = from.dest;
-        return *this;
-    }
-
+    Destination& operator=(const Destination& from) = default;
+    
     std::string ToString()
     {
         if (!IsValidDestination(dest)) {

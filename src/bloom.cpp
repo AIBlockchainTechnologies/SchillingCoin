@@ -6,15 +6,16 @@
 
 #include "bloom.h"
 
-
 #include "chainparams.h"
 #include "hash.h"
 #include "bignum/bignum.h"
 #include "primitives/transaction.h"
 #include "script/script.h"
 #include "script/standard.h"
+#include "random.h"
 #include "streams.h"
 
+#include <limits>
 #include <math.h>
 #include <stdlib.h>
 
@@ -40,6 +41,17 @@ CBloomFilter::CBloomFilter(unsigned int nElements, double nFPRate, unsigned int 
   nHashFuncs(std::min((unsigned int)(vData.size() * 8 / nElements * LN2), MAX_HASH_FUNCS)),
   nTweak(nTweakIn),
   nFlags(nFlagsIn)
+{
+}
+
+// Private constructor used by CRollingBloomFilter
+CBloomFilter::CBloomFilter(unsigned int nElements, double nFPRate, unsigned int nTweakIn) :
+    vData((unsigned int)(-1 / LN2SQUARED * nElements * log(nFPRate)) / 8),
+    isFull(false),
+    isEmpty(true),
+    nHashFuncs((unsigned int)(vData.size() * 8 / nElements * LN2)),
+    nTweak(nTweakIn),
+    nFlags(BLOOM_UPDATE_NONE)
 {
 }
 
@@ -116,6 +128,12 @@ void CBloomFilter::clear()
     vData.assign(vData.size(), 0);
     isFull = false;
     isEmpty = true;
+}
+
+void CBloomFilter::reset(unsigned int nNewTweak)
+{
+    clear();
+    nTweak = nNewTweak;
 }
 
 bool CBloomFilter::IsWithinSizeConstraints() const
@@ -218,7 +236,7 @@ bool CBloomFilter::IsRelevantAndUpdate(const CTransaction& tx)
             if (!txin.scriptSig.GetOp(pc, opcode, data))
                 break;
             if (txin.IsZerocoinSpend()) {
-                // Zerocoin removed — bloom filter should not match serials
+                // Zerocoin removed, bloom filter should not match serials.
                 continue;
             }
             if (data.size() != 0 && contains(data)) {
@@ -240,4 +258,59 @@ void CBloomFilter::UpdateEmptyFull()
     }
     isFull = full;
     isEmpty = empty;
+}
+
+CRollingBloomFilter::CRollingBloomFilter(unsigned int nElements, double fpRate) :
+    b1(nElements * 2, fpRate, 0), b2(nElements * 2, fpRate, 0)
+{
+    // Implemented using two bloom filters of 2 * nElements each.
+    // We fill them up, and clear them, staggered, every nElements
+    // inserted, so at least one always contains the last nElements
+    // inserted.
+    nInsertions = 0;
+    nBloomSize = nElements * 2;
+
+    reset();
+}
+
+void CRollingBloomFilter::insert(const std::vector<unsigned char>& vKey)
+{
+    if (nInsertions == 0) {
+        b1.clear();
+    } else if (nInsertions == nBloomSize / 2) {
+        b2.clear();
+    }
+    b1.insert(vKey);
+    b2.insert(vKey);
+    if (++nInsertions == nBloomSize) {
+        nInsertions = 0;
+    }
+}
+
+void CRollingBloomFilter::insert(const uint256& hash)
+{
+    std::vector<unsigned char> data(hash.begin(), hash.end());
+    insert(data);
+}
+
+bool CRollingBloomFilter::contains(const std::vector<unsigned char>& vKey) const
+{
+    if (nInsertions < nBloomSize / 2) {
+        return b2.contains(vKey);
+    }
+    return b1.contains(vKey);
+}
+
+bool CRollingBloomFilter::contains(const uint256& hash) const
+{
+    std::vector<unsigned char> data(hash.begin(), hash.end());
+    return contains(data);
+}
+
+void CRollingBloomFilter::reset()
+{
+    unsigned int nNewTweak = GetRand(std::numeric_limits<unsigned int>::max());
+    b1.reset(nNewTweak);
+    b2.reset(nNewTweak);
+    nInsertions = 0;
 }

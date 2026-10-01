@@ -179,12 +179,15 @@ bool DecodeBase58Check(const char* psz, std::vector<unsigned char>& vchRet)
         vchRet.clear();
         return false;
     }
+
     // re-calculate the checksum, insure it matches the included 4-byte checksum
     uint256 hash = Hash(vchRet.begin(), vchRet.end() - 4);
-    if (memcmp(&hash, &vchRet.end()[-4], 4) != 0) {
+
+    if (memcmp(&hash, &vchRet[vchRet.size() - 4], 4) != 0) {
         vchRet.clear();
         return false;
     }
+
     vchRet.resize(vchRet.size() - 4);
     return true;
 }
@@ -205,7 +208,7 @@ void CBase58Data::SetData(const std::vector<unsigned char>& vchVersionIn, const 
     vchVersion = vchVersionIn;
     vchData.resize(nSize);
     if (!vchData.empty())
-        memcpy(&vchData[0], pdata, nSize);
+        memcpy(vchData.data(), pdata, nSize);
 }
 
 void CBase58Data::SetData(const std::vector<unsigned char>& vchVersionIn, const unsigned char* pbegin, const unsigned char* pend)
@@ -225,7 +228,7 @@ bool CBase58Data::SetString(const char* psz, unsigned int nVersionBytes)
     vchVersion.assign(vchTemp.begin(), vchTemp.begin() + nVersionBytes);
     vchData.resize(vchTemp.size() - nVersionBytes);
     if (!vchData.empty())
-        memcpy(&vchData[0], &vchTemp[nVersionBytes], vchData.size());
+        memcpy(vchData.data(), &vchTemp[nVersionBytes], vchData.size());
 
     if (!vchTemp.empty())
         memory_cleanse(vchTemp.data(), vchTemp.size());
@@ -453,7 +456,7 @@ CTxDestination CBitcoinAddress::Get() const
     if (!IsValid())
         return CNoDestination();
     uint160 id;
-    memcpy(&id, &vchData[0], 20);
+    memcpy(&id, vchData.data(), 20);
     if (vchVersion == Params().Base58Prefix(CChainParams::PUBKEY_ADDRESS) ||
             vchVersion == Params().Base58Prefix(CChainParams::STAKING_ADDRESS))
         return CKeyID(id);
@@ -470,7 +473,7 @@ bool CBitcoinAddress::GetKeyID(CKeyID& keyID) const
             vchVersion != Params().Base58Prefix(CChainParams::STAKING_ADDRESS)))
         return false;
     uint160 id;
-    memcpy(&id, &vchData[0], 20);
+    memcpy(&id, vchData.data(), 20);
     keyID = CKeyID(id);
     return true;
 }
