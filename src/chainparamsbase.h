@@ -1,6 +1,6 @@
 // Copyright (c) 2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -41,6 +41,11 @@ protected:
  * outside of the unit tests.
  */
 const CBaseChainParams& BaseParams();
+
+/**
+ * Return parameters for the given network.
+ */
+CBaseChainParams& BaseParams(CBaseChainParams::Network network);
 
 /** Sets the params returned by Params() to those for the given network. */
 void SelectBaseParams(CBaseChainParams::Network network);
