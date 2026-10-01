@@ -19,7 +19,7 @@ class CBlockIndex;
  */
 namespace Checkpoints
 {
-typedef std::map<int, uint256> MapCheckpoints;
+using MapCheckpoints = std::map<int, uint256>;
 
 struct CCheckpointData {
     const MapCheckpoints* mapCheckpoints;

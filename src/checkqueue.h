@@ -1,4 +1,5 @@
 // Copyright (c) 2012-2014 The Bitcoin developers
+// Copyright (c) 2026 The Schillingcoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -182,7 +183,7 @@ public:
     CCheckQueueControl(CCheckQueue<T>* pqueueIn) : pqueue(pqueueIn), fDone(false)
     {
         // passed queue is supposed to be unused, or NULL
-        if (pqueue != NULL) {
+        if (pqueue != nullptr) {
             bool isIdle = pqueue->IsIdle();
             assert(isIdle);
         }
@@ -190,7 +191,7 @@ public:
 
     bool Wait()
     {
-        if (pqueue == NULL)
+        if (pqueue == nullptr)
             return true;
         bool fRet = pqueue->Wait();
         fDone = true;
@@ -199,7 +200,7 @@ public:
 
     void Add(std::vector<T>& vChecks)
     {
-        if (pqueue != NULL)
+        if (pqueue != nullptr)
             pqueue->Add(vChecks);
     }
 

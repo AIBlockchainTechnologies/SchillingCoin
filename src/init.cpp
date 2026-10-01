@@ -63,7 +63,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/thread.hpp>
-#include <boost/foreach.hpp>
 
 #if ENABLE_ZMQ
 #include "zmq/zmqnotificationinterface.h"
@@ -1192,13 +1191,15 @@ bool AppInit2(const std::vector<std::string>& words)
                 }
                 // Loop backward through backup files and keep the N newest ones (1 <= N <= 10)
                 int counter = 0;
-                BOOST_REVERSE_FOREACH (PAIRTYPE(const std::time_t, boost::filesystem::path) file, folder_set) {
+                for (folder_set_t::const_reverse_iterator it = folder_set.rbegin();
+                     it != folder_set.rend();
+                     ++it) {
                     counter++;
                     if (counter > nWalletBackups) {
                         // More than nWalletBackups backups: delete oldest one(s)
                         try {
-                            boost::filesystem::remove(file.second);
-                            LogPrintf("Old backup deleted: %s\n", file.second);
+                            boost::filesystem::remove(it->second);
+                            LogPrintf("Old backup deleted: %s\n", it->second);
                         } catch (const boost::filesystem::filesystem_error& error) {
                             LogPrintf("Failed to delete backup %s\n", error.what());
                         }

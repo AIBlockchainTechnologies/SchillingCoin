@@ -45,7 +45,6 @@
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/thread.hpp>
-#include <boost/foreach.hpp>
 #include <atomic>
 #include <queue>
 
@@ -2746,7 +2745,10 @@ static bool ActivateBestChainStep(CValidationState& state, CBlockIndex* pindexMo
         nHeight = nTargetHeight;
 
         // Connect new blocks.
-        BOOST_REVERSE_FOREACH (CBlockIndex* pindexConnect, vpindexToConnect) {
+        for (std::vector<CBlockIndex*>::const_reverse_iterator it = vpindexToConnect.rbegin();
+             it != vpindexToConnect.rend();
+             ++it) {
+            CBlockIndex* pindexConnect = *it;
             if (!ConnectTip(state, pindexConnect, pindexConnect == pindexMostWork ? pblock : NULL, fAlreadyChecked)) {
                 if (state.IsInvalid()) {
                     // The block violates a consensus rule.
