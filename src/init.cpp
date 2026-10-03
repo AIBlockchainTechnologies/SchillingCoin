@@ -146,22 +146,28 @@ bool ShutdownRequested()
 class CCoinsViewErrorCatcher : public CCoinsViewBacked
 {
 public:
-    CCoinsViewErrorCatcher(CCoinsView* view) : CCoinsViewBacked(view) {}
-    bool GetCoins(const uint256& txid, CCoins& coins) const
+    CCoinsViewErrorCatcher(CCoinsView* view)
+        : CCoinsViewBacked(view)
+    {
+    }
+
+    bool GetCoin(const COutPoint& outpoint, Coin& coin) const override
     {
         try {
-            return CCoinsViewBacked::GetCoins(txid, coins);
+            return CCoinsViewBacked::GetCoin(outpoint, coin);
         } catch (const std::runtime_error& e) {
-            uiInterface.ThreadSafeMessageBox(_("Error reading from database, shutting down."), "", CClientUIInterface::MSG_ERROR);
-            LogPrintf("Error reading from database: %s\n", e.what());
-            // Starting the shutdown sequence and returning false to the caller would be
-            // interpreted as 'entry not found' (as opposed to unable to read data), and
-            // could lead to invalid interpration. Just exit immediately, as we can't
-            // continue anyway, and all writes should be atomic.
+            uiInterface.ThreadSafeMessageBox(
+                _("Error reading from database, shutting down."),
+                "",
+                CClientUIInterface::MSG_ERROR);
+
+            LogPrintf(
+                "Error reading from database: %s\n",
+                e.what());
+
             abort();
         }
     }
-    // Writes do not need similar protection, as failure to write is handled by the caller.
 };
 
 static CCoinsViewDB* pcoinsdbview = NULL;

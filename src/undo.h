@@ -9,129 +9,205 @@
 #define BITCOIN_UNDO_H
 
 #include "chain.h"
+#include "coins.h"
 #include "compressor.h"
+#include "consensus/consensus.h"
 #include "primitives/transaction.h"
 #include "serialize.h"
 
-/** Undo information for a CTxIn
+/**
+ * Serializer for a spent Coin stored in transaction undo data.
  *
- *  Contains the prevout's CTxOut being spent, and if this was the
- *  last output of the affected transaction, its metadata as well
- *  (coinbase or not, height, transaction version)
+ * This preserves SCH's historical undo-record structure, including the
+ * legacy transaction-version field when the height is nonzero.
  */
-class CTxInUndo
+class TxInUndoSerializer
 {
+private:
+    const Coin* coin;
+
 public:
-    CTxOut txout;   // the txout data before being spent
-    bool fCoinBase; // if the outpoint was the last unspent: whether it belonged to a coinbase
-    bool fCoinStake;
-    unsigned int nHeight; // if the outpoint was the last unspent: its height
-    int nVersion;         // if the outpoint was the last unspent: its version
-
-    CTxInUndo()
-        : txout(),
-          fCoinBase(false),
-          fCoinStake(false),
-          nHeight(0),
-          nVersion(0)
-    {}
-
-    CTxInUndo(const CTxOut& txoutIn, bool fCoinBaseIn = false, bool fCoinStakeIn = false,
-              unsigned int nHeightIn = 0, int nVersionIn = 0)
-        : txout(txoutIn),
-          fCoinBase(fCoinBaseIn),
-          fCoinStake(fCoinStakeIn),
-          nHeight(nHeightIn),
-          nVersion(nVersionIn)
-    {}
-
-    // Copy constructor
-    CTxInUndo(const CTxInUndo& other)
-        : txout(other.txout),
-          fCoinBase(other.fCoinBase),
-          fCoinStake(other.fCoinStake),
-          nHeight(other.nHeight),
-          nVersion(other.nVersion)
-    {}
-
-    // Move constructor
-    CTxInUndo(CTxInUndo&& other) noexcept
-        : txout(std::move(other.txout)),
-          fCoinBase(other.fCoinBase),
-          fCoinStake(other.fCoinStake),
-          nHeight(other.nHeight),
-          nVersion(other.nVersion)
-    {}
-
-    // Copy assignment
-    CTxInUndo& operator=(const CTxInUndo& other)
+    explicit TxInUndoSerializer(const Coin* coinIn)
+        : coin(coinIn)
     {
-        if (this != &other) {
-            txout      = other.txout;
-            fCoinBase  = other.fCoinBase;
-            fCoinStake = other.fCoinStake;
-            nHeight    = other.nHeight;
-            nVersion   = other.nVersion;
-        }
-        return *this;
-    }
-
-    // Move assignment
-    CTxInUndo& operator=(CTxInUndo&& other) noexcept
-    {
-        if (this != &other) {
-            txout      = std::move(other.txout);
-            fCoinBase  = other.fCoinBase;
-            fCoinStake = other.fCoinStake;
-            nHeight    = other.nHeight;
-            nVersion   = other.nVersion;
-        }
-        return *this;
     }
 
     unsigned int GetSerializeSize(int nType, int nVersion) const
     {
-        return ::GetSerializeSize(VARINT(nHeight * 4 + (fCoinBase ? 2 : 0) + (fCoinStake ? 1 : 0)), nType, nVersion) +
-               (nHeight > 0 ? ::GetSerializeSize(VARINT(this->nVersion), nType, nVersion) : 0) +
-               ::GetSerializeSize(CTxOutCompressor(REF(txout)), nType, nVersion);
+        const unsigned int code =
+            coin->nHeight * 4 +
+            (coin->fCoinBase ? 2 : 0) +
+            (coin->fCoinStake ? 1 : 0);
+
+        unsigned int size =
+            ::GetSerializeSize(VARINT(code), nType, nVersion);
+
+        if (coin->nHeight > 0) {
+            int nVersionDummy = 0;
+
+            size += ::GetSerializeSize(
+                VARINT(nVersionDummy),
+                nType,
+                nVersion);
+        }
+
+        size += ::GetSerializeSize(
+            CTxOutCompressor(REF(coin->out)),
+            nType,
+            nVersion);
+
+        return size;
     }
 
     template <typename Stream>
     void Serialize(Stream& s, int nType, int nVersion) const
     {
-        ::Serialize(s, VARINT(nHeight * 4 + (fCoinBase ? 2 : 0) + (fCoinStake ? 1 : 0)), nType, nVersion);
-        if (nHeight > 0)
-            ::Serialize(s, VARINT(this->nVersion), nType, nVersion);
-        ::Serialize(s, CTxOutCompressor(REF(txout)), nType, nVersion);
+        const unsigned int code =
+            coin->nHeight * 4 +
+            (coin->fCoinBase ? 2 : 0) +
+            (coin->fCoinStake ? 1 : 0);
+
+        ::Serialize(s, VARINT(code), nType, nVersion);
+
+        if (coin->nHeight > 0) {
+            int nVersionDummy = 0;
+
+            ::Serialize(
+                s,
+                VARINT(nVersionDummy),
+                nType,
+                nVersion);
+        }
+
+        ::Serialize(
+            s,
+            CTxOutCompressor(REF(coin->out)),
+            nType,
+            nVersion);
+    }
+};
+
+class TxInUndoDeserializer
+{
+private:
+    Coin* coin;
+
+public:
+    explicit TxInUndoDeserializer(Coin* coinIn)
+        : coin(coinIn)
+    {
     }
 
     template <typename Stream>
     void Unserialize(Stream& s, int nType, int nVersion)
     {
-        unsigned int nCode = 0;
-        ::Unserialize(s, VARINT(nCode), nType, nVersion);
-        nHeight   = nCode >> 2;
-        fCoinBase = (nCode & 2) != 0;
-        fCoinStake = (nCode & 1) != 0;
-        if (nHeight > 0)
-            ::Unserialize(s, VARINT(this->nVersion), nType, nVersion);
-        ::Unserialize(s, REF(CTxOutCompressor(REF(txout))), nType, nVersion);
+        unsigned int code = 0;
+
+        ::Unserialize(
+            s,
+            VARINT(code),
+            nType,
+            nVersion);
+
+        coin->nHeight = code >> 2;
+        coin->fCoinBase = (code & 2) != 0;
+        coin->fCoinStake = (code & 1) != 0;
+
+        if (coin->nHeight > 0) {
+            int nVersionDummy = 0;
+
+            ::Unserialize(
+                s,
+                VARINT(nVersionDummy),
+                nType,
+                nVersion);
+        }
+
+        ::Unserialize(
+            s,
+            REF(CTxOutCompressor(coin->out)),
+            nType,
+            nVersion);
     }
 };
+
+static const size_t MAX_INPUTS_PER_BLOCK =
+    MAX_BLOCK_SIZE_CURRENT /
+    ::GetSerializeSize(
+        CTxIn(),
+        SER_NETWORK,
+        PROTOCOL_VERSION);
 
 /** Undo information for a CTransaction */
 class CTxUndo
 {
 public:
-    // undo information for all txins
-    std::vector<CTxInUndo> vprevout;
+    std::vector<Coin> vprevout;
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    unsigned int GetSerializeSize(int nType, int nVersion) const
     {
-        READWRITE(vprevout);
+        uint64_t count = vprevout.size();
+
+        unsigned int size =
+            ::GetSerializeSize(
+                COMPACTSIZE(REF(count)),
+                nType,
+                nVersion);
+
+        for (const Coin& prevout : vprevout) {
+            size += ::GetSerializeSize(
+                TxInUndoSerializer(&prevout),
+                nType,
+                nVersion);
+        }
+
+        return size;
+    }
+
+    template <typename Stream>
+    void Serialize(Stream& s, int nType, int nVersion) const
+    {
+        uint64_t count = vprevout.size();
+
+        ::Serialize(
+            s,
+            COMPACTSIZE(REF(count)),
+            nType,
+            nVersion);
+
+        for (const Coin& prevout : vprevout) {
+            ::Serialize(
+                s,
+                TxInUndoSerializer(&prevout),
+                nType,
+                nVersion);
+        }
+    }
+
+    template <typename Stream>
+    void Unserialize(Stream& s, int nType, int nVersion)
+    {
+        uint64_t count = 0;
+
+        ::Unserialize(
+            s,
+            COMPACTSIZE(count),
+            nType,
+            nVersion);
+
+        if (count > MAX_INPUTS_PER_BLOCK)
+            throw std::ios_base::failure(
+                "Too many input undo records");
+
+        vprevout.resize(count);
+
+        for (Coin& prevout : vprevout) {
+            ::Unserialize(
+                s,
+                REF(TxInUndoDeserializer(&prevout)),
+                nType,
+                nVersion);
+        }
     }
 };
 

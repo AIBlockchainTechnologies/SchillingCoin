@@ -648,9 +648,6 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
 
         nPayFee = CWallet::GetMinimumFee(nBytes, nTxConfirmTarget, mempool);
 
-        if (coinControl->useSwiftTX)
-            nPayFee = std::max(nPayFee, CENT);
-
         double dPriorityNeeded = mempoolEstimatePriority;
         if (dPriorityNeeded <= 0)
             dPriorityNeeded = AllowFreeThreshold();

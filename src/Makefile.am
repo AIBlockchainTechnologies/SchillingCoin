@@ -136,6 +136,7 @@ BITCOIN_CORE_H = \
   leveldbwrapper.h \
   limitedmap.h \
   main.h \
+  memusage.h \
   masternode.h \
   masternode-payments.h \
   masternode-sync.h \
@@ -151,6 +152,7 @@ BITCOIN_CORE_H = \
   netbase.h \
   noui.h \
   pow.h \
+  prevector.h \
   protocol.h \
   pubkey.h \
   random.h \

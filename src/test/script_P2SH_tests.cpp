@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2013 The Bitcoin Core developers
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -105,24 +105,45 @@ BOOST_AUTO_TEST_CASE(sign)
         BOOST_CHECK_MESSAGE(IsMine(keystore, txFrom.vout[i].scriptPubKey), strprintf("IsMine %d", i));
 #endif
     }
+
     for (int i = 0; i < 8; i++)
     {
-        BOOST_CHECK_MESSAGE(SignSignature(keystore, txFrom, txTo[i], 0), strprintf("SignSignature %d", i));
+        BOOST_CHECK_MESSAGE(
+            SignSignature(keystore, txFrom, txTo[i], 0),
+            strprintf("SignSignature %d", i));
     }
-    // All of the above should be OK, and the txTos have valid signatures
-    // Check to make sure signature verification fails if we use the wrong ScriptSig:
+
+    // All of the above should be OK, and the txTos have valid signatures.
+    // Check to make sure signature verification fails if we use the wrong ScriptSig.
     for (int i = 0; i < 8; i++)
+    {
         for (int j = 0; j < 8; j++)
         {
             CScript sigSave = txTo[i].vin[0].scriptSig;
             txTo[i].vin[0].scriptSig = txTo[j].vin[0].scriptSig;
-            bool sigOK = CScriptCheck(CCoins(txFrom, 0), txTo[i], 0, SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_STRICTENC, false)();
+
+            const CTxOut& output = txFrom.vout[txTo[i].vin[0].prevout.n];
+            Coin coin(output, 0, false, false);
+
+            bool sigOK = CScriptCheck(
+                coin,
+                txTo[i],
+                0,
+                SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_STRICTENC,
+                false)();
+
             if (i == j)
-                BOOST_CHECK_MESSAGE(sigOK, strprintf("VerifySignature %d %d", i, j));
+                BOOST_CHECK_MESSAGE(
+                    sigOK,
+                    strprintf("VerifySignature %d %d", i, j));
             else
-                BOOST_CHECK_MESSAGE(!sigOK, strprintf("VerifySignature %d %d", i, j));
+                BOOST_CHECK_MESSAGE(
+                    !sigOK,
+                    strprintf("VerifySignature %d %d", i, j));
+
             txTo[i].vin[0].scriptSig = sigSave;
         }
+    }
 }
 
 BOOST_AUTO_TEST_CASE(norecurse)
@@ -321,7 +342,7 @@ BOOST_AUTO_TEST_CASE(AreInputsStandard)
     txFrom.vout[6].scriptPubKey = GetScriptForDestination(CScriptID(twentySigops));
     txFrom.vout[6].nValue = 6000;
 
-    coins.ModifyCoins(txFrom.GetHash())->FromTx(txFrom, 0);
+    AddCoins(coins, txFrom, 0);
 
     CMutableTransaction txTo;
     txTo.vout.resize(1);

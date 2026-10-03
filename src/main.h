@@ -293,7 +293,7 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason);
 
 /**
  * Closure representing one script verification
- * Note that this stores references to the spending transaction
+ * Note that this stores references to the spending transaction.
  */
 class CScriptCheck
 {
@@ -306,9 +306,29 @@ private:
     ScriptError error;
 
 public:
-    CScriptCheck() : ptxTo(0), nIn(0), nFlags(0), cacheStore(false), error(SCRIPT_ERR_UNKNOWN_ERROR) {}
-    CScriptCheck(const CCoins& txFromIn, const CTransaction& txToIn, unsigned int nInIn, unsigned int nFlagsIn, bool cacheIn) : scriptPubKey(txFromIn.vout[txToIn.vin[nInIn].prevout.n].scriptPubKey),
-                                                                                                                                ptxTo(&txToIn), nIn(nInIn), nFlags(nFlagsIn), cacheStore(cacheIn), error(SCRIPT_ERR_UNKNOWN_ERROR) {}
+    CScriptCheck()
+        : ptxTo(nullptr),
+          nIn(0),
+          nFlags(0),
+          cacheStore(false),
+          error(SCRIPT_ERR_UNKNOWN_ERROR)
+    {
+    }
+
+    CScriptCheck(
+        const Coin& coinIn,
+        const CTransaction& txToIn,
+        unsigned int nInIn,
+        unsigned int nFlagsIn,
+        bool cacheIn)
+        : scriptPubKey(coinIn.out.scriptPubKey),
+          ptxTo(&txToIn),
+          nIn(nInIn),
+          nFlags(nFlagsIn),
+          cacheStore(cacheIn),
+          error(SCRIPT_ERR_UNKNOWN_ERROR)
+    {
+    }
 
     bool operator()();
 
@@ -322,9 +342,11 @@ public:
         std::swap(error, check.error);
     }
 
-    ScriptError GetScriptError() const { return error; }
+    ScriptError GetScriptError() const
+    {
+        return error;
+    }
 };
-
 
 /** Functions for disk access for blocks */
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos);

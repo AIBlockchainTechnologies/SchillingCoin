@@ -24,7 +24,6 @@
 #include <stdint.h>
 #include <string>
 
-
 QString TransactionDesc::FormatTxStatus(const CWalletTx& wtx)
 {
     AssertLockHeld(cs_main);
@@ -270,23 +269,33 @@ QString TransactionDesc::toHTML(CWallet* wallet, CWalletTx& wtx, TransactionReco
         strHTML += "<ul>";
 
         for (const CTxIn& txin : wtx.vin) {
-            COutPoint prevout = txin.prevout;
+            const Coin& coin = pcoinsTip->AccessCoin(txin.prevout);
 
-            CCoins prev;
-            if (pcoinsTip->GetCoins(prevout.hash, prev)) {
-                if (prevout.n < prev.vout.size()) {
-                    strHTML += "<li>";
-                    const CTxOut& vout = prev.vout[prevout.n];
-                    CTxDestination address;
-                    if (ExtractDestination(vout.scriptPubKey, address)) {
-                        if (wallet->mapAddressBook.count(address) && !wallet->mapAddressBook[address].name.empty())
-                            strHTML += GUIUtil::HtmlEscape(wallet->mapAddressBook[address].name) + " ";
-                        strHTML += QString::fromStdString(CBitcoinAddress(address).ToString());
-                    }
-                    strHTML = strHTML + " " + tr("Amount") + "=" + BitcoinUnits::formatHtmlWithUnit(unit, vout.nValue);
-                    strHTML = strHTML + " IsMine=" + (wallet->IsMine(vout) & ISMINE_SPENDABLE ? tr("true") : tr("false"));
-                    strHTML = strHTML + " IsWatchOnly=" + (wallet->IsMine(vout) & ISMINE_WATCH_ONLY ? tr("true") : tr("false")) + "</li>";
+            if (!coin.IsSpent()) {
+                strHTML += "<li>";
+
+                const CTxOut& vout = coin.out;
+                CTxDestination address;
+
+                if (ExtractDestination(vout.scriptPubKey, address)) {
+                    if (wallet->mapAddressBook.count(address) &&
+                        !wallet->mapAddressBook[address].name.empty())
+                        strHTML += GUIUtil::HtmlEscape(wallet->mapAddressBook[address].name) + " ";
+
+                    strHTML += QString::fromStdString(CBitcoinAddress(address).ToString());
                 }
+
+                strHTML = strHTML + " " + tr("Amount") + "=" +
+                          BitcoinUnits::formatHtmlWithUnit(unit, vout.nValue);
+
+                strHTML = strHTML + " IsMine=" +
+                          (wallet->IsMine(vout) & ISMINE_SPENDABLE ?
+                               tr("true") : tr("false"));
+
+                strHTML = strHTML + " IsWatchOnly=" +
+                          (wallet->IsMine(vout) & ISMINE_WATCH_ONLY ?
+                               tr("true") : tr("false")) +
+                          "</li>";
             }
         }
 

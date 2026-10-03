@@ -9,6 +9,7 @@
 #include "base58.h"
 #include "checkpoints.h"
 #include "clientversion.h"
+#include "hash.h"
 #include "kernel.h"
 #include "main.h"
 #include "rpc/server.h"
@@ -18,14 +19,18 @@
 #include "utilmoneystr.h"
 #include "wallet/wallet.h"
 
-#include <stdint.h>
+#include <condition_variable>
 #include <fstream>
 #include <iostream>
-#include <univalue.h>
+#include <map>
+#include <memory>
 #include <mutex>
 #include <numeric>
-#include <condition_variable>
+#include <stdint.h>
+#include <univalue.h>
+#include <utility>
 
+#include <boost/thread/thread.hpp>
 
 struct CUpdatedBlock
 {
@@ -580,6 +585,110 @@ UniValue getblockheader(const UniValue& params, bool fHelp)
     return blockheaderToJSON(pblockindex);
 }
 
+struct CCoinsStats
+{
+    int nHeight;
+    uint256 hashBlock;
+    uint64_t nTransactions;
+    uint64_t nTransactionOutputs;
+    uint256 hashSerialized;
+    uint64_t nDiskSize;
+    CAmount nTotalAmount;
+
+    CCoinsStats()
+        : nHeight(0),
+          nTransactions(0),
+          nTransactionOutputs(0),
+          nDiskSize(0),
+          nTotalAmount(0)
+    {
+    }
+};
+
+static void ApplyStats(CCoinsStats& stats, CHashWriter& ss, const uint256& hash,
+                       const std::map<uint32_t, Coin>& outputs)
+{
+    assert(!outputs.empty());
+
+    ss << hash;
+
+    const Coin& coin = outputs.begin()->second;
+    ss << VARINT(coin.nHeight * 4 +
+                 (coin.fCoinBase ? 2 : 0) +
+                 (coin.fCoinStake ? 1 : 0));
+
+    stats.nTransactions++;
+
+    for (const auto& output : outputs) {
+        ss << VARINT(output.first + 1);
+        ss << output.second.out.scriptPubKey;
+        ss << VARINT(output.second.out.nValue);
+
+        stats.nTransactionOutputs++;
+        stats.nTotalAmount += output.second.out.nValue;
+    }
+
+    ss << VARINT(0);
+}
+
+//! Calculate statistics about the unspent transaction output set.
+static bool GetUTXOStats(CCoinsView* view, CCoinsStats& stats)
+{
+    std::unique_ptr<CCoinsViewCursor> pcursor(view->Cursor());
+
+    if (!pcursor)
+        return error("%s: unable to create UTXO cursor", __func__);
+
+    CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
+
+    stats.hashBlock = pcursor->GetBestBlock();
+
+    {
+        LOCK(cs_main);
+
+        BlockMap::const_iterator it = mapBlockIndex.find(stats.hashBlock);
+        if (it == mapBlockIndex.end() || it->second == nullptr)
+            return error("%s: best block not found in block index", __func__);
+
+        stats.nHeight = it->second->nHeight;
+    }
+
+    ss << stats.hashBlock;
+
+    uint256 prevkey;
+    std::map<uint32_t, Coin> outputs;
+
+    while (pcursor->Valid()) {
+        boost::this_thread::interruption_point();
+
+        COutPoint key;
+        Coin coin;
+
+        if (pcursor->GetKey(key) && pcursor->GetValue(coin)) {
+            if (!outputs.empty() && key.hash != prevkey) {
+                ApplyStats(stats, ss, prevkey, outputs);
+                outputs.clear();
+            }
+
+            prevkey = key.hash;
+            outputs[key.n] = std::move(coin);
+        } else {
+            return error("%s: unable to read value", __func__);
+        }
+
+        pcursor->Next();
+    }
+
+    if (!outputs.empty()) {
+        ApplyStats(stats, ss, prevkey, outputs);
+    }
+
+    stats.hashSerialized = ss.GetHash();
+    stats.nDiskSize = view->EstimateSize();
+
+    return true;
+}
+
 UniValue gettxoutsetinfo(const UniValue& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -590,33 +699,34 @@ UniValue gettxoutsetinfo(const UniValue& params, bool fHelp)
 
             "\nResult:\n"
             "{\n"
-            "  \"height\":n,     (numeric) The current block height (index)\n"
-            "  \"bestblock\": \"hex\",   (string) the best block hash hex\n"
-            "  \"transactions\": n,      (numeric) The number of transactions\n"
-            "  \"txouts\": n,            (numeric) The number of output transactions\n"
-            "  \"bytes_serialized\": n,  (numeric) The serialized size\n"
-            "  \"hash_serialized\": \"hash\",   (string) The serialized hash\n"
-            "  \"total_amount\": x.xxx          (numeric) The total amount\n"
+            "  \"height\":n,                       (numeric) The current block height (index)\n"
+            "  \"bestblock\": \"hex\",             (string) The best block hash hex\n"
+            "  \"transactions\": n,                (numeric) The number of transactions\n"
+            "  \"txouts\": n,                      (numeric) The number of unspent outputs\n"
+            "  \"hash_serialized_2\": \"hash\",    (string) The serialized UTXO-set hash\n"
+            "  \"disk_size\": n,                   (numeric) The estimated chainstate size on disk\n"
+            "  \"total_amount\": x.xxx             (numeric) The total amount\n"
             "}\n"
 
             "\nExamples:\n" +
-            HelpExampleCli("gettxoutsetinfo", "") + HelpExampleRpc("gettxoutsetinfo", ""));
-
-    LOCK(cs_main);
+            HelpExampleCli("gettxoutsetinfo", "") +
+            HelpExampleRpc("gettxoutsetinfo", ""));
 
     UniValue ret(UniValue::VOBJ);
 
     CCoinsStats stats;
     FlushStateToDisk();
-    if (pcoinsTip->GetStats(stats)) {
+
+    if (GetUTXOStats(pcoinsTip, stats)) {
         ret.push_back(Pair("height", (int64_t)stats.nHeight));
         ret.push_back(Pair("bestblock", stats.hashBlock.GetHex()));
         ret.push_back(Pair("transactions", (int64_t)stats.nTransactions));
         ret.push_back(Pair("txouts", (int64_t)stats.nTransactionOutputs));
-        ret.push_back(Pair("bytes_serialized", (int64_t)stats.nSerializedSize));
-        ret.push_back(Pair("hash_serialized", stats.hashSerialized.GetHex()));
+        ret.push_back(Pair("hash_serialized_2", stats.hashSerialized.GetHex()));
+        ret.push_back(Pair("disk_size", (int64_t)stats.nDiskSize));
         ret.push_back(Pair("total_amount", ValueFromAmount(stats.nTotalAmount)));
     }
+
     return ret;
 }
 
@@ -647,7 +757,6 @@ UniValue gettxout(const UniValue& params, bool fHelp)
             "        ,...\n"
             "     ]\n"
             "  },\n"
-            "  \"version\" : n,            (numeric) The version\n"
             "  \"coinbase\" : true|false   (boolean) Coinbase or not\n"
             "}\n"
 
@@ -666,37 +775,38 @@ UniValue gettxout(const UniValue& params, bool fHelp)
     std::string strHash = params[0].get_str();
     uint256 hash(uint256S(strHash));
     int n = params[1].get_int();
+    if (n < 0)
+        return NullUniValue;
+
+    COutPoint out(hash, static_cast<uint32_t>(n));
+
     bool fMempool = true;
     if (params.size() > 2)
         fMempool = params[2].get_bool();
 
-    CCoins coins;
+    Coin coin;
     if (fMempool) {
         LOCK(mempool.cs);
         CCoinsViewMemPool view(pcoinsTip, mempool);
-        if (!view.GetCoins(hash, coins))
+        if (!view.GetCoin(out, coin) || mempool.isSpent(out))
             return NullUniValue;
-        mempool.pruneSpent(hash, coins); // TODO: this should be done by the CCoinsViewMemPool
     } else {
-        if (!pcoinsTip->GetCoins(hash, coins))
+        if (!pcoinsTip->GetCoin(out, coin))
             return NullUniValue;
     }
-    if (n < 0 || (unsigned int)n >= coins.vout.size() || coins.vout[n].IsNull())
-        return NullUniValue;
 
     BlockMap::iterator it = mapBlockIndex.find(pcoinsTip->GetBestBlock());
     CBlockIndex* pindex = it->second;
     ret.push_back(Pair("bestblock", pindex->GetBlockHash().GetHex()));
-    if ((unsigned int)coins.nHeight == MEMPOOL_HEIGHT)
+    if (coin.nHeight == MEMPOOL_HEIGHT)
         ret.push_back(Pair("confirmations", 0));
     else
-        ret.push_back(Pair("confirmations", pindex->nHeight - coins.nHeight + 1));
-    ret.push_back(Pair("value", ValueFromAmount(coins.vout[n].nValue)));
+        ret.push_back(Pair("confirmations", (int64_t)(pindex->nHeight - coin.nHeight + 1)));
+    ret.push_back(Pair("value", ValueFromAmount(coin.out.nValue)));
     UniValue o(UniValue::VOBJ);
-    ScriptPubKeyToJSON(coins.vout[n].scriptPubKey, o, true);
+    ScriptPubKeyToJSON(coin.out.scriptPubKey, o, true);
     ret.push_back(Pair("scriptPubKey", o));
-    ret.push_back(Pair("version", coins.nVersion));
-    ret.push_back(Pair("coinbase", coins.fCoinBase));
+    ret.push_back(Pair("coinbase", coin.fCoinBase));
 
     return ret;
 }

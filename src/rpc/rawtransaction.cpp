@@ -649,9 +649,7 @@ UniValue signrawtransaction(const UniValue& params, bool fHelp)
         view.SetBackend(viewMempool); // temporarily switch cache backend to db+mempool view
 
         for (const CTxIn& txin : mergedTx.vin) {
-            const uint256& prevHash = txin.prevout.hash;
-            CCoins coins;
-            view.AccessCoins(prevHash); // this is certainly allowed to fail
+            view.AccessCoin(txin.prevout); // this is certainly allowed to fail
         }
 
         view.SetBackend(viewDummy); // switch back to avoid locking mempool for too long
@@ -701,17 +699,22 @@ UniValue signrawtransaction(const UniValue& params, bool fHelp)
             CScript scriptPubKey(pkData.begin(), pkData.end());
 
             {
-                CCoinsModifier coins = view.ModifyCoins(txid);
-                if (coins->IsAvailable(nOut) && coins->vout[nOut].scriptPubKey != scriptPubKey) {
+                COutPoint out(txid, nOut);
+
+                const Coin& coin = view.AccessCoin(out);
+                if (!coin.IsSpent() && coin.out.scriptPubKey != scriptPubKey) {
                     std::string err("Previous output scriptPubKey mismatch:\n");
-                    err = err + coins->vout[nOut].scriptPubKey.ToString() + "\nvs:\n" +
+                    err = err + coin.out.scriptPubKey.ToString() + "\nvs:\n" +
                           scriptPubKey.ToString();
                     throw JSONRPCError(RPC_DESERIALIZATION_ERROR, err);
                 }
-                if ((unsigned int)nOut >= coins->vout.size())
-                    coins->vout.resize(nOut + 1);
-                coins->vout[nOut].scriptPubKey = scriptPubKey;
-                coins->vout[nOut].nValue = 0; // we don't know the actual output value
+
+                Coin newcoin;
+                newcoin.out.scriptPubKey = scriptPubKey;
+                newcoin.out.nValue = 0; // we don't know the actual output value
+                newcoin.nHeight = 1;
+
+                view.AddCoin(out, std::move(newcoin), true);
             }
 
             // if redeemScript given and not using the local wallet (private keys
@@ -737,7 +740,14 @@ UniValue signrawtransaction(const UniValue& params, bool fHelp)
     int nHashType = SIGHASH_ALL;
     if (params.size() > 3 && !params[3].isNull()) {
         static std::map<std::string, int> mapSigHashValues =
-            boost::assign::map_list_of(std::string("ALL"), int(SIGHASH_ALL))(std::string("ALL|ANYONECANPAY"), int(SIGHASH_ALL | SIGHASH_ANYONECANPAY))(std::string("NONE"), int(SIGHASH_NONE))(std::string("NONE|ANYONECANPAY"), int(SIGHASH_NONE | SIGHASH_ANYONECANPAY))(std::string("SINGLE"), int(SIGHASH_SINGLE))(std::string("SINGLE|ANYONECANPAY"), int(SIGHASH_SINGLE | SIGHASH_ANYONECANPAY));
+            boost::assign::map_list_of
+            (std::string("ALL"), int(SIGHASH_ALL))
+            (std::string("ALL|ANYONECANPAY"), int(SIGHASH_ALL | SIGHASH_ANYONECANPAY))
+            (std::string("NONE"), int(SIGHASH_NONE))
+            (std::string("NONE|ANYONECANPAY"), int(SIGHASH_NONE | SIGHASH_ANYONECANPAY))
+            (std::string("SINGLE"), int(SIGHASH_SINGLE))
+            (std::string("SINGLE|ANYONECANPAY"), int(SIGHASH_SINGLE | SIGHASH_ANYONECANPAY));
+
         std::string strHashType = params[3].get_str();
         if (mapSigHashValues.count(strHashType))
             nHashType = mapSigHashValues[strHashType];
@@ -753,20 +763,24 @@ UniValue signrawtransaction(const UniValue& params, bool fHelp)
     // Sign what we can:
     for (unsigned int i = 0; i < mergedTx.vin.size(); i++) {
         CTxIn& txin = mergedTx.vin[i];
-        const CCoins* coins = view.AccessCoins(txin.prevout.hash);
+        const Coin& coin = view.AccessCoin(txin.prevout);
+
         if (Params().IsRegTestNet()) {
-            if (mapPrevOut.count(txin.prevout) == 0 && (coins == NULL || !coins->IsAvailable(txin.prevout.n)))
-            {
+            if (mapPrevOut.count(txin.prevout) == 0 && coin.IsSpent()) {
                 TxInErrorToJSON(txin, vErrors, "Input not found");
                 continue;
             }
         } else {
-            if (coins == NULL || !coins->IsAvailable(txin.prevout.n)) {
+            if (coin.IsSpent()) {
                 TxInErrorToJSON(txin, vErrors, "Input not found or already spent");
                 continue;
             }
         }
-        const CScript& prevPubKey = (Params().IsRegTestNet() && mapPrevOut.count(txin.prevout) != 0 ? mapPrevOut[txin.prevout] : coins->vout[txin.prevout.n].scriptPubKey);
+
+        const CScript& prevPubKey =
+            (Params().IsRegTestNet() && mapPrevOut.count(txin.prevout) != 0
+                 ? mapPrevOut[txin.prevout]
+                 : coin.out.scriptPubKey);
 
         txin.scriptSig.clear();
 
@@ -783,13 +797,25 @@ UniValue signrawtransaction(const UniValue& params, bool fHelp)
 
         // ... and merge in other signatures:
         for (const CMutableTransaction& txv : txVariants) {
-            txin.scriptSig = CombineSignatures(prevPubKey, mergedTx, i, txin.scriptSig, txv.vin[i].scriptSig);
+            txin.scriptSig = CombineSignatures(
+                prevPubKey,
+                mergedTx,
+                i,
+                txin.scriptSig,
+                txv.vin[i].scriptSig);
         }
+
         ScriptError serror = SCRIPT_ERR_OK;
-        if (!VerifyScript(txin.scriptSig, prevPubKey, STANDARD_SCRIPT_VERIFY_FLAGS, MutableTransactionSignatureChecker(&mergedTx, i), &serror)) {
+        if (!VerifyScript(
+                txin.scriptSig,
+                prevPubKey,
+                STANDARD_SCRIPT_VERIFY_FLAGS,
+                MutableTransactionSignatureChecker(&mergedTx, i),
+                &serror)) {
             TxInErrorToJSON(txin, vErrors, ScriptErrorString(serror));
         }
     }
+
     bool fComplete = vErrors.empty();
 
     UniValue result(UniValue::VOBJ);
@@ -829,6 +855,7 @@ UniValue sendrawtransaction(const UniValue& params, bool fHelp)
     CTransaction tx;
     if (!DecodeHexTx(tx, params[0].get_str()))
         throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
+
     uint256 hashTx = tx.GetHash();
 
     bool fOverrideFees = false;
@@ -836,27 +863,46 @@ UniValue sendrawtransaction(const UniValue& params, bool fHelp)
         fOverrideFees = params[1].get_bool();
 
     AssertLockNotHeld(cs_main);
+
     CCoinsViewCache& view = *pcoinsTip;
-    const CCoins* existingCoins = view.AccessCoins(hashTx);
+
+    bool fHaveChain = false;
+    for (size_t o = 0; !fHaveChain && o < tx.vout.size(); o++) {
+        const Coin& existingCoin =
+            view.AccessCoin(COutPoint(hashTx, o));
+
+        fHaveChain = !existingCoin.IsSpent();
+    }
+
     bool fHaveMempool = mempool.exists(hashTx);
-    bool fHaveChain = existingCoins && existingCoins->nHeight < 1000000000;
 
     if (!fHaveMempool && !fHaveChain) {
         CValidationState state;
         bool fMissingInputs;
+
         if (!AcceptToMemoryPool(mempool, state, tx, false, &fMissingInputs, !fOverrideFees)) {
             if (state.IsInvalid()) {
-                throw JSONRPCError(RPC_TRANSACTION_REJECTED,
-                    strprintf("%i: %s", state.GetRejectCode(), state.GetRejectReason()));
+                throw JSONRPCError(
+                    RPC_TRANSACTION_REJECTED,
+                    strprintf("%i: %s",
+                              state.GetRejectCode(),
+                              state.GetRejectReason()));
             } else {
                 if (fMissingInputs) {
-                    throw JSONRPCError(RPC_TRANSACTION_ERROR, "Missing inputs");
+                    throw JSONRPCError(
+                        RPC_TRANSACTION_ERROR,
+                        "Missing inputs");
                 }
-                throw JSONRPCError(RPC_TRANSACTION_ERROR, state.GetRejectReason());
+
+                throw JSONRPCError(
+                    RPC_TRANSACTION_ERROR,
+                    state.GetRejectReason());
             }
         }
     } else if (fHaveChain) {
-        throw JSONRPCError(RPC_TRANSACTION_ALREADY_IN_CHAIN, "transaction already in block chain");
+        throw JSONRPCError(
+            RPC_TRANSACTION_ALREADY_IN_CHAIN,
+            "transaction already in block chain");
     }
 
     RelayTransaction(tx);

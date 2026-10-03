@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -300,6 +300,12 @@ bool CScript::IsPushOnly() const
     return this->IsPushOnly(begin());
 }
 
+size_t CScript::DynamicMemoryUsage() const
+{
+    return memusage::DynamicUsage(
+        static_cast<const std::vector<unsigned char>&>(*this));
+}
+
 std::string CScript::ToString() const
 {
     std::string str;
@@ -324,7 +330,6 @@ std::string CScript::ToString() const
                 break;
             }
         }
-
     }
     return str;
 }

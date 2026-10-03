@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2016-2018 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -30,8 +30,7 @@ inline bool AllowFree(double dPriority)
     return dPriority > AllowFreeThreshold();
 }
 
-
-/** Fake height value used in CCoins to signify they are only in the memory pool (since 0.8) */
+/** Fake height value used in Coin to signify they are only in the memory pool (since 0.8) */
 static const unsigned int MEMPOOL_HEIGHT = 0x7FFFFFFF;
 
 /**
@@ -157,7 +156,7 @@ public:
     void clear();
     void queryHashes(std::vector<uint256>& vtxid);
     void getTransactions(std::set<uint256>& setTxid);
-    void pruneSpent(const uint256& hash, CCoins& coins);
+    bool isSpent(const COutPoint& outpoint);
     unsigned int GetTransactionsUpdated() const;
     void AddTransactionsUpdated(unsigned int n);
 
@@ -183,6 +182,17 @@ public:
         return (mapTx.count(hash) != 0);
     }
 
+    bool exists(const COutPoint& outpoint)
+    {
+        LOCK(cs);
+
+        std::map<uint256, CTxMemPoolEntry>::const_iterator it =
+            mapTx.find(outpoint.hash);
+
+        return it != mapTx.end() &&
+               outpoint.n < it->second.GetTx().vout.size();
+    }
+
     bool lookup(uint256 hash, CTransaction& result) const;
 
     /** Estimate fee rate needed to get into the next nBlocks */
@@ -196,7 +206,7 @@ public:
     bool ReadFeeEstimates(CAutoFile& filein);
 };
 
-/** 
+/**
  * CCoinsView that brings transactions from a memorypool into view.
  * It does not check for spendings by memory pool transactions.
  */
@@ -207,8 +217,9 @@ protected:
 
 public:
     CCoinsViewMemPool(CCoinsView* baseIn, CTxMemPool& mempoolIn);
-    bool GetCoins(const uint256& txid, CCoins& coins) const;
-    bool HaveCoins(const uint256& txid) const;
+
+    bool GetCoin(const COutPoint& outpoint, Coin& coin) const override;
+    bool HaveCoin(const COutPoint& outpoint) const override;
 };
 
 #endif // BITCOIN_TXMEMPOOL_H

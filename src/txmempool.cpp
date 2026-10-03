@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2016-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -376,17 +376,10 @@ CTxMemPool::~CTxMemPool()
     delete minerPolicyEstimator;
 }
 
-void CTxMemPool::pruneSpent(const uint256& hashTx, CCoins& coins)
+bool CTxMemPool::isSpent(const COutPoint& outpoint)
 {
     LOCK(cs);
-
-    std::map<COutPoint, CInPoint>::iterator it = mapNextTx.lower_bound(COutPoint(hashTx, 0));
-
-    // iterate over all COutPoints in mapNextTx whose hash equals the provided hashTx
-    while (it != mapNextTx.end() && it->first.hash == hashTx) {
-        coins.Spend(it->first.n); // and remove those outputs from coins
-        it++;
-    }
+    return mapNextTx.count(outpoint);
 }
 
 unsigned int CTxMemPool::GetTransactionsUpdated() const
@@ -468,23 +461,37 @@ void CTxMemPool::remove(const CTransaction& origTx, std::list<CTransaction>& rem
 
 void CTxMemPool::removeCoinbaseSpends(const CCoinsViewCache* pcoins, unsigned int nMemPoolHeight)
 {
-    // Remove transactions spending a coinbase which are now immature
+    // Remove transactions spending a coinbase or coinstake which are now immature.
     LOCK(cs);
+
     std::list<CTransaction> transactionsToRemove;
-    for (std::map<uint256, CTxMemPoolEntry>::const_iterator it = mapTx.begin(); it != mapTx.end(); it++) {
+
+    for (std::map<uint256, CTxMemPoolEntry>::const_iterator it = mapTx.begin();
+         it != mapTx.end(); it++) {
         const CTransaction& tx = it->second.GetTx();
+
         for (const CTxIn& txin : tx.vin) {
-            std::map<uint256, CTxMemPoolEntry>::const_iterator it2 = mapTx.find(txin.prevout.hash);
+            std::map<uint256, CTxMemPoolEntry>::const_iterator it2 =
+                mapTx.find(txin.prevout.hash);
+
             if (it2 != mapTx.end())
                 continue;
-            const CCoins* coins = pcoins->AccessCoins(txin.prevout.hash);
-            if (fSanityCheck) assert(coins);
-            if (!coins || ((coins->IsCoinBase() || coins->IsCoinStake()) && nMemPoolHeight - coins->nHeight < (unsigned)Params().GetConsensus().nCoinbaseMaturity)) {
+
+            const Coin& coin = pcoins->AccessCoin(txin.prevout);
+
+            if (fSanityCheck)
+                assert(!coin.IsSpent());
+
+            if (coin.IsSpent() ||
+                ((coin.IsCoinBase() || coin.IsCoinStake()) &&
+                 (signed long)nMemPoolHeight - coin.nHeight <
+                     Params().GetConsensus().nCoinbaseMaturity)) {
                 transactionsToRemove.push_back(tx);
                 break;
             }
         }
     }
+
     for (const CTransaction& tx : transactionsToRemove) {
         std::list<CTransaction> removed;
         remove(tx, removed, true);
@@ -528,7 +535,6 @@ void CTxMemPool::removeForBlock(const std::vector<CTransaction>& vtx, unsigned i
     }
 }
 
-
 void CTxMemPool::clear()
 {
     LOCK(cs);
@@ -563,10 +569,9 @@ void CTxMemPool::check(const CCoinsViewCache* pcoins) const
                 const CTransaction& tx2 = it2->second.GetTx();
                 assert(tx2.vout.size() > txin.prevout.n && !tx2.vout[txin.prevout.n].IsNull());
                 fDependsWait = true;
-            } else {
-                const CCoins* coins = pcoins->AccessCoins(txin.prevout.hash);
-                if(!txin.IsZerocoinSpend())
-                    assert(coins && coins->IsAvailable(txin.prevout.n));
+            } else if (!txin.IsZerocoinSpend()) {
+                const Coin& coin = pcoins->AccessCoin(txin.prevout);
+                assert(!coin.IsSpent());
             }
             // Check whether its inputs are marked in mapNextTx.
             if(!txin.IsZerocoinSpend()) {
@@ -606,9 +611,14 @@ void CTxMemPool::check(const CCoinsViewCache* pcoins) const
     }
     for (std::map<COutPoint, CInPoint>::const_iterator it = mapNextTx.begin(); it != mapNextTx.end(); it++) {
         uint256 hash = it->second.ptx->GetHash();
-        std::map<uint256, CTxMemPoolEntry>::const_iterator it2 = mapTx.find(hash);
-        const CTransaction& tx = it2->second.GetTx();
+
+        std::map<uint256, CTxMemPoolEntry>::const_iterator it2 =
+            mapTx.find(hash);
+
         assert(it2 != mapTx.end());
+
+        const CTransaction& tx = it2->second.GetTx();
+
         assert(&tx == it->second.ptx);
         assert(tx.vin.size() > it->second.n);
         assert(it->first == it->second.ptx->vin[it->second.n].prevout);
@@ -715,23 +725,31 @@ void CTxMemPool::ClearPrioritisation(const uint256 hash)
     mapDeltas.erase(hash);
 }
 
+CCoinsViewMemPool::CCoinsViewMemPool(CCoinsView* baseIn, CTxMemPool& mempoolIn)
+    : CCoinsViewBacked(baseIn),
+      mempool(mempoolIn)
+{
+}
 
-CCoinsViewMemPool::CCoinsViewMemPool(CCoinsView* baseIn, CTxMemPool& mempoolIn) : CCoinsViewBacked(baseIn), mempool(mempoolIn) {}
-
-bool CCoinsViewMemPool::GetCoins(const uint256& txid, CCoins& coins) const
+bool CCoinsViewMemPool::GetCoin(const COutPoint& outpoint, Coin& coin) const
 {
     // If an entry in the mempool exists, always return that one, as it's guaranteed to never
     // conflict with the underlying cache, and it cannot have pruned entries (as it contains full)
     // transactions. First checking the underlying cache risks returning a pruned entry instead.
     CTransaction tx;
-    if (mempool.lookup(txid, tx)) {
-        coins = CCoins(tx, MEMPOOL_HEIGHT);
-        return true;
+    if (mempool.lookup(outpoint.hash, tx)) {
+        if (outpoint.n < tx.vout.size()) {
+            coin = Coin(tx.vout[outpoint.n], MEMPOOL_HEIGHT, false, false);
+            return true;
+        } else {
+            return false;
+        }
     }
-    return (base->GetCoins(txid, coins) && !coins.IsPruned());
+
+    return (base->GetCoin(outpoint, coin) && !coin.IsSpent());
 }
 
-bool CCoinsViewMemPool::HaveCoins(const uint256& txid) const
+bool CCoinsViewMemPool::HaveCoin(const COutPoint& outpoint) const
 {
-    return mempool.exists(txid) || base->HaveCoins(txid);
+    return mempool.exists(outpoint) || base->HaveCoin(outpoint);
 }
