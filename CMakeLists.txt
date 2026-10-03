@@ -368,6 +368,7 @@ target_include_directories(WALLET_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         )
 
 set(BITCOIN_CRYPTO_SOURCES
+        ./src/crypto/aes.cpp
         ./src/crypto/sha1.cpp
         ./src/crypto/sha256.cpp
         ./src/crypto/sha512.cpp

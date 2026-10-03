@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -15,6 +15,7 @@ class uint256;
 
 const unsigned int WALLET_CRYPTO_KEY_SIZE = 32;
 const unsigned int WALLET_CRYPTO_SALT_SIZE = 8;
+const unsigned int WALLET_CRYPTO_IV_SIZE = 16;
 
 /**
  * Private key encryption is done based on a CMasterKey,
@@ -73,40 +74,53 @@ typedef std::vector<unsigned char, secure_allocator<unsigned char> > CKeyingMate
 class CCrypter
 {
 private:
-    unsigned char chKey[WALLET_CRYPTO_KEY_SIZE];
-    unsigned char chIV[WALLET_CRYPTO_KEY_SIZE];
+    std::vector<unsigned char, secure_allocator<unsigned char>> vchKey;
+    std::vector<unsigned char, secure_allocator<unsigned char>> vchIV;
     bool fKeySet;
 
+    int BytesToKeySHA512AES(
+        const std::vector<unsigned char>& chSalt,
+        const SecureString& strKeyData,
+        int count,
+        unsigned char* key,
+        unsigned char* iv) const;
+
 public:
-    bool SetKeyFromPassphrase(const SecureString& strKeyData, const std::vector<unsigned char>& chSalt, const unsigned int nRounds, const unsigned int nDerivationMethod);
-    bool Encrypt(const CKeyingMaterial& vchPlaintext, std::vector<unsigned char>& vchCiphertext);
-    bool Decrypt(const std::vector<unsigned char>& vchCiphertext, CKeyingMaterial& vchPlaintext);
-    bool SetKey(const CKeyingMaterial& chNewKey, const std::vector<unsigned char>& chNewIV);
+    bool SetKeyFromPassphrase(
+        const SecureString& strKeyData,
+        const std::vector<unsigned char>& chSalt,
+        const unsigned int nRounds,
+        const unsigned int nDerivationMethod);
+
+    bool Encrypt(
+        const CKeyingMaterial& vchPlaintext,
+        std::vector<unsigned char>& vchCiphertext) const;
+
+    bool Decrypt(
+        const std::vector<unsigned char>& vchCiphertext,
+        CKeyingMaterial& vchPlaintext) const;
+
+    bool SetKey(
+        const CKeyingMaterial& chNewKey,
+        const std::vector<unsigned char>& chNewIV);
 
     void CleanKey()
     {
-        memory_cleanse(chKey, sizeof(chKey));
-        memory_cleanse(chIV, sizeof(chIV));
+        memory_cleanse(vchKey.data(), vchKey.size());
+        memory_cleanse(vchIV.data(), vchIV.size());
         fKeySet = false;
     }
 
     CCrypter()
+        : vchKey(WALLET_CRYPTO_KEY_SIZE),
+          vchIV(WALLET_CRYPTO_IV_SIZE),
+          fKeySet(false)
     {
-        fKeySet = false;
-
-        // Try to keep the key data out of swap (and be a bit over-careful to keep the IV that we don't even use out of swap)
-        // Note that this does nothing about suspend-to-disk (which will put all our key data on disk)
-        // Note as well that at no point in this program is any attempt made to prevent stealing of keys by reading the memory of the running process.
-        LockedPageManager::Instance().LockRange(&chKey[0], sizeof chKey);
-        LockedPageManager::Instance().LockRange(&chIV[0], sizeof chIV);
     }
 
     ~CCrypter()
     {
         CleanKey();
-
-        LockedPageManager::Instance().UnlockRange(&chKey[0], sizeof chKey);
-        LockedPageManager::Instance().UnlockRange(&chIV[0], sizeof chIV);
     }
 };
 
@@ -181,20 +195,19 @@ public:
     bool GetPubKey(const CKeyID& address, CPubKey& vchPubKeyOut) const;
     void GetKeys(std::set<CKeyID>& setAddress) const
     {
+        LOCK(cs_KeyStore);
+
         if (!IsCrypted()) {
             CBasicKeyStore::GetKeys(setAddress);
             return;
         }
+
         setAddress.clear();
-        CryptedKeyMap::const_iterator mi = mapCryptedKeys.begin();
-        while (mi != mapCryptedKeys.end()) {
-            setAddress.insert((*mi).first);
-            mi++;
+
+        for (const auto& entry : mapCryptedKeys) {
+            setAddress.insert(entry.first);
         }
     }
-
-    bool GetDeterministicSeed(const uint256& hashSeed, uint256& seed);
-    bool AddDeterministicSeed(const uint256& seed);
 
     bool GetHDChain(CHDChain& hdChainRet) const;
 
