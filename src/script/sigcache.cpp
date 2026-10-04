@@ -7,13 +7,16 @@
 
 #include "sigcache.h"
 
+#include "cuckoocache.h"
+#include "crypto/sha256.h"
 #include "pubkey.h"
 #include "random.h"
 #include "uint256.h"
 #include "util.h"
 
+#include <algorithm>
 #include <boost/thread.hpp>
-#include <boost/tuple/tuple_comparison.hpp>
+#include <cstdint>
 
 namespace {
 
@@ -25,66 +28,101 @@ namespace {
 class CSignatureCache
 {
 private:
-     //! sigdata_type is (signature hash, signature, public key):
-    typedef boost::tuple<uint256, std::vector<unsigned char>, CPubKey> sigdata_type;
-    std::set< sigdata_type> setValid;
+    //! Entries are SHA256(nonce || signature hash || public key || signature):
+    uint256 nonce;
+
+    typedef CuckooCache::cache<uint256, SignatureCacheHasher> map_type;
+    map_type setValid;
+
     boost::shared_mutex cs_sigcache;
 
 public:
-    bool
-    Get(const uint256 &hash, const std::vector<unsigned char>& vchSig, const CPubKey& pubKey)
+    CSignatureCache()
     {
-        boost::shared_lock<boost::shared_mutex> lock(cs_sigcache);
-
-        sigdata_type k(hash, vchSig, pubKey);
-        std::set<sigdata_type>::iterator mi = setValid.find(k);
-        if (mi != setValid.end())
-            return true;
-        return false;
+        GetRandBytes(nonce.begin(), 32);
     }
 
-    void Set(const uint256 &hash, const std::vector<unsigned char>& vchSig, const CPubKey& pubKey)
+    void ComputeEntry(
+        uint256& entry,
+        const uint256& hash,
+        const std::vector<unsigned char>& vchSig,
+        const CPubKey& pubkey) const
     {
-        // DoS prevention: limit cache size to less than 10MB
-        // (~200 bytes per cache entry times 50,000 entries)
-        // Since there are a maximum of 20,000 signature operations per block
-        // 50,000 is a reasonable default.
-        int64_t nMaxCacheSize = GetArg("-maxsigcachesize", 50000);
-        if (nMaxCacheSize <= 0) return;
+        CSHA256 hasher;
 
+        hasher.Write(nonce.begin(), 32);
+        hasher.Write(hash.begin(), 32);
+
+        if (pubkey.size() != 0)
+            hasher.Write(pubkey.begin(), pubkey.size());
+
+        if (!vchSig.empty())
+            hasher.Write(vchSig.data(), vchSig.size());
+
+        hasher.Finalize(entry.begin());
+    }
+
+    bool Get(const uint256& entry, bool erase)
+    {
+        boost::shared_lock<boost::shared_mutex> lock(cs_sigcache);
+        return setValid.contains(entry, erase);
+    }
+
+    void Set(const uint256& entry)
+    {
         boost::unique_lock<boost::shared_mutex> lock(cs_sigcache);
+        setValid.insert(entry);
+    }
 
-        while (static_cast<int64_t>(setValid.size()) > nMaxCacheSize)
-        {
-            // Evict a random entry. Random because that helps
-            // foil would-be DoS attackers who might try to pre-generate
-            // and re-use a set of valid signatures just-slightly-greater
-            // than our cache size.
-            uint256 randomHash = GetRandHash();
-            std::set<sigdata_type>::iterator it = setValid.lower_bound(sigdata_type(randomHash));
-            if (it == setValid.end())
-                it = setValid.begin();
-            setValid.erase(*it);
-        }
-
-        sigdata_type k(hash, vchSig, pubKey);
-        setValid.insert(k);
+    uint32_t setup_bytes(size_t n)
+    {
+        return setValid.setup_bytes(n);
     }
 };
 
+static CSignatureCache signatureCache;
+
 }
 
-bool CachingTransactionSignatureChecker::VerifySignature(const std::vector<unsigned char>& vchSig, const CPubKey& pubkey, const uint256& sighash) const
+void InitSignatureCache()
 {
-    static CSignatureCache signatureCache;
+    const int64_t configuredSize =
+        GetArg("-maxsigcachesize", DEFAULT_MAX_SIG_CACHE_SIZE);
 
-    if (signatureCache.Get(sighash, vchSig, pubkey))
+    const int64_t boundedSize =
+        std::min(
+            std::max<int64_t>(0, configuredSize),
+            MAX_MAX_SIG_CACHE_SIZE);
+
+    const size_t maxCacheBytes =
+        static_cast<size_t>(boundedSize) << 20;
+
+    const size_t elementCount =
+        signatureCache.setup_bytes(maxCacheBytes);
+
+    LogPrintf(
+        "Using %zu MiB out of %zu requested for signature cache, able to store %zu elements\n",
+        (elementCount * sizeof(uint256)) >> 20,
+        maxCacheBytes >> 20,
+        elementCount);
+}
+
+bool CachingTransactionSignatureChecker::VerifySignature(
+    const std::vector<unsigned char>& vchSig,
+    const CPubKey& pubkey,
+    const uint256& sighash) const
+{
+    uint256 entry;
+    signatureCache.ComputeEntry(entry, sighash, vchSig, pubkey);
+
+    if (signatureCache.Get(entry, !store))
         return true;
 
     if (!TransactionSignatureChecker::VerifySignature(vchSig, pubkey, sighash))
         return false;
 
     if (store)
-        signatureCache.Set(sighash, vchSig, pubkey);
+        signatureCache.Set(entry);
+
     return true;
 }

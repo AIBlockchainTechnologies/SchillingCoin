@@ -118,6 +118,7 @@ BITCOIN_CORE_H = \
   primitives/block.h \
   primitives/transaction.h \
   core_io.h \
+  cuckoocache.h \
   crypter.h \
   pairresult.h \
   addressbook.h \
