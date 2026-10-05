@@ -120,6 +120,7 @@ BITCOIN_CORE_H = \
   core_io.h \
   cuckoocache.h \
   crypter.h \
+  dbwrapper.h \
   pairresult.h \
   addressbook.h \
   wallet/db.h \
@@ -134,7 +135,6 @@ BITCOIN_CORE_H = \
   swifttx.h \
   key.h \
   keystore.h \
-  leveldbwrapper.h \
   limitedmap.h \
   main.h \
   memusage.h \
@@ -223,10 +223,10 @@ libbitcoin_server_a_SOURCES = \
   chain.cpp \
   checkpoints.cpp \
   consensus/tx_verify.cpp \
+  dbwrapper.cpp \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
-  leveldbwrapper.cpp \
   main.cpp \
   merkleblock.cpp \
   miner.cpp \

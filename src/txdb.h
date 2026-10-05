@@ -8,7 +8,7 @@
 #ifndef BITCOIN_TXDB_H
 #define BITCOIN_TXDB_H
 
-#include "leveldbwrapper.h"
+#include "dbwrapper.h"
 #include "main.h"
 
 #include <map>
@@ -61,7 +61,7 @@ struct CDiskTxPos : public CDiskBlockPos {
 class CCoinsViewDB : public CCoinsView
 {
 protected:
-    CLevelDBWrapper db;
+    CDBWrapper db;
 
 public:
     CCoinsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
@@ -71,7 +71,7 @@ public:
     uint256 GetBestBlock() const override;
     bool BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock) override;
     CCoinsViewCursor* Cursor() const override;
-
+    size_t EstimateSize() const override;
 };
 
 /** Specialization of CCoinsViewCursor to iterate over a CCoinsViewDB */
@@ -89,21 +89,21 @@ public:
 
 private:
     CCoinsViewDBCursor(
-        leveldb::Iterator* pcursorIn,
+        CDBIterator* pcursorIn,
         const uint256& hashBlockIn)
         : CCoinsViewCursor(hashBlockIn),
           pcursor(pcursorIn)
     {
     }
 
-    boost::scoped_ptr<leveldb::Iterator> pcursor;
+    boost::scoped_ptr<CDBIterator> pcursor;
     std::pair<char, COutPoint> keyTmp;
 
     friend class CCoinsViewDB;
 };
 
 /** Access to the block database (blocks/index/) */
-class CBlockTreeDB : public CLevelDBWrapper
+class CBlockTreeDB : public CDBWrapper
 {
 public:
     CBlockTreeDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
@@ -131,10 +131,10 @@ public:
 /**
  * Zerocoin database (zerocoin/)
  *
- * NOTE: This class previously inherited from CLevelDBWrapper which caused the
+ * NOTE: This class previously inherited from CDBWrapper which caused the
  * on-disk LevelDB to be opened during object construction (implicitly creating
  * DATADIR/zerocoin). It has been refactored to contain a pointer to a
- * CLevelDBWrapper (pdb) instead of inheriting it. The underlying LevelDB
+ * CDBWrapper (pdb) instead of inheriting it. The underlying LevelDB
  * wrapper is only allocated when explicitly requested (for example, when the
  * constructor is called with fMemory == true or when the zerocoin directory
  * already exists and you choose to open it). When pdb is nullptr, all DB
@@ -159,7 +159,7 @@ private:
     void operator=(const CZerocoinDB&);
 
     // Pointer to the underlying LevelDB wrapper. May be nullptr if not initialized.
-    CLevelDBWrapper* pdb;
+    CDBWrapper* pdb;
 
 public:
 
@@ -206,7 +206,7 @@ public:
     /** --------------------------------------------------------------------
      *  Accumulator Checksum Handling
      *  --------------------------------------------------------------------
-     *  SCH version‑4 blocks contain non‑zero accumulator checkpoints.
+     *  SCH version 4 blocks contain non zero accumulator checkpoints.
      *  We MUST preserve these DB entries to sync the chain.
      *
      *  libzerocoin::CoinDenomination is replaced with uint8_t.

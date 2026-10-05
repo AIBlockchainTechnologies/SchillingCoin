@@ -274,7 +274,7 @@ CDB::CDB(const std::string& strFilename, const char* pszMode, bool fFlushOnClose
 
             if (ret != 0) {
                 delete pdb;
-                pdb = NULL;
+                pdb = nullptr;
                 --bitdb.mapFileUseCount[strFile];
                 std::string tempCopy(strFile);
                 strFile = "";
@@ -313,7 +313,7 @@ void CDB::Close()
     if (activeTxn)
         activeTxn->abort();
     activeTxn = NULL;
-    pdb = NULL;
+    pdb = nullptr;
 
     if (fFlushOnClose)
         Flush();
