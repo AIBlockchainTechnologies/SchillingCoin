@@ -64,6 +64,16 @@ static const bool DEFAULT_USE_HD_WALLET = false;
 static const bool DEFAULT_ENABLE_WARN_ENCRYPTHD = false;
 //! -custombackupthreshold default
 static const int DEFAULT_CUSTOMBACKUPTHRESHOLD = 1;
+//! Default for -spendzeroconfchange
+//! -minstakesplit default
+static const CAmount DEFAULT_MIN_STAKE_SPLIT_THRESHOLD = 1 * COIN;
+static const bool DEFAULT_SPEND_ZEROCONF_CHANGE = true;
+//! Default for -sendfreetransactions
+static const bool DEFAULT_SEND_FREE_TRANSACTIONS = false;
+//! Default for -disablewallet
+static const bool DEFAULT_DISABLE_WALLET = false;
+
+extern const char * DEFAULT_WALLET_DAT;
 
 class CAccountingEntry;
 class CCoinControl;
@@ -282,6 +292,8 @@ public:
 
     // Stake split threshold
     CAmount nStakeSplitThreshold;
+    // minimum value allowed for nStakeSplitThreshold (customizable with -minstakesplit flag)
+    static CAmount minStakeSplitThreshold;
     // Staker status (last hashed block and time)
     CStakerStatus* pStakerStatus = nullptr;
 
@@ -553,8 +565,18 @@ public:
     //! Get wallet transactions that conflict with given transaction (spend same outputs)
     std::set<uint256> GetConflicts(const uint256& txid) const;
 
+    //! Verify the wallet database and perform salvage if required
+    static bool Verify();
+
     /* Mark a transaction (and it in-wallet descendants) as abandoned so its inputs may be respent. */
     bool AbandonTransaction(const uint256& hashTx);
+
+    /* Initializes the wallet, returns a new CWallet instance or a null pointer in case of an error */
+    static CWallet* CreateWalletFromFile(const std::string& walletFile, const std::vector<std::string>& words);
+    static bool InitLoadWallet(const std::vector<std::string>& words);
+
+    /* Wallets parameter interaction */
+    static bool ParameterInteraction();
 
     /**
      * Address book entry changed.

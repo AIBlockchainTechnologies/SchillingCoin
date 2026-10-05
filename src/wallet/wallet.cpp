@@ -10,6 +10,7 @@
 
 #include "coincontrol.h"
 #include "init.h"
+#include "guiinterfaceutil.h"
 #include "masternode.h"
 #include "script/sign.h"
 #include "script/standard.h"
@@ -25,10 +26,12 @@
 CFeeRate payTxFee(DEFAULT_TRANSACTION_FEE);
 CAmount maxTxFee = DEFAULT_TRANSACTION_MAXFEE;
 unsigned int nTxConfirmTarget = 1;
-bool bSpendZeroConfChange = true;
 bool bdisableSystemnotifications = false; // Those bubbles can be annoying and slow down the UI when you get lots of trx
 bool fSendFreeTransactions = false;
 bool fPayAtLeastCustomFee = true;
+bool bSpendZeroConfChange = DEFAULT_SPEND_ZEROCONF_CHANGE;
+
+const char * DEFAULT_WALLET_DAT = "wallet.dat";
 
 /**
  * Fees smaller than this (in uSCH) are considered zero fee (for transaction creation)
@@ -37,6 +40,11 @@ bool fPayAtLeastCustomFee = true;
  * Override with -mintxfee
  */
 CFeeRate CWallet::minTxFee = CFeeRate(10000);
+
+/**
+ * minimum accepted value for stake split threshold
+ */
+CAmount CWallet::minStakeSplitThreshold = DEFAULT_MIN_STAKE_SPLIT_THRESHOLD;
 
 const uint256 CMerkleTx::ABANDON_HASH(uint256S("0000000000000000000000000000000000000000000000000000000000000001"));
 
@@ -748,6 +756,58 @@ void CWallet::SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator> ran
         // cached members not copied on purpose
     }
 }
+
+///////// Init ////////////////
+
+bool CWallet::ParameterInteraction()
+{
+    if (mapArgs.count("-mintxfee")) {
+        CAmount n = 0;
+        if (ParseMoney(mapArgs["-mintxfee"], n) && n > 0)
+            CWallet::minTxFee = CFeeRate(n);
+        else
+            return UIError(AmountErrMsg("mintxfee", mapArgs["-mintxfee"]));
+    }
+    if (mapArgs.count("-paytxfee")) {
+        CAmount nFeePerK = 0;
+        if (!ParseMoney(mapArgs["-paytxfee"], nFeePerK))
+            return UIError(AmountErrMsg("paytxfee", mapArgs["-paytxfee"]));
+        if (nFeePerK > nHighTransactionFeeWarning)
+            UIWarning(_("Warning: -paytxfee is set very high! This is the transaction fee you will pay if you send a transaction."));
+        payTxFee = CFeeRate(nFeePerK, 1000);
+        if (payTxFee < ::minRelayTxFee) {
+            return UIError(strprintf(_("Invalid amount for -paytxfee=<amount>: '%s' (must be at least %s)"),
+                                       mapArgs["-paytxfee"], ::minRelayTxFee.ToString()));
+        }
+    }
+    if (mapArgs.count("-maxtxfee")) {
+        CAmount nMaxFee = 0;
+        if (!ParseMoney(mapArgs["-maxtxfee"], nMaxFee))
+            return UIError(AmountErrMsg("maxtxfee", mapArgs["-maxtxfee"]));
+        if (nMaxFee > nHighTransactionMaxFeeWarning)
+            UIWarning(_("Warning: -maxtxfee is set very high! Fees this large could be paid on a single transaction."));
+        maxTxFee = nMaxFee;
+        if (CFeeRate(maxTxFee, 1000) < ::minRelayTxFee) {
+            return UIError(strprintf(_("Invalid amount for -maxtxfee=<amount>: '%s' (must be at least the minrelay fee of %s to prevent stuck transactions)"),
+                                       mapArgs["-maxtxfee"], ::minRelayTxFee.ToString()));
+        }
+    }
+    if (mapArgs.count("-minstakesplit")) {
+        CAmount n = 0;
+        if (ParseMoney(mapArgs["-minstakesplit"], n) && n > 0)
+            CWallet::minStakeSplitThreshold = n;
+        else
+            return UIError(AmountErrMsg("minstakesplit", mapArgs["-minstakesplit"]));
+    }
+    nTxConfirmTarget = GetArg("-txconfirmtarget", 1);
+    bSpendZeroConfChange = GetBoolArg("-spendzeroconfchange", DEFAULT_SPEND_ZEROCONF_CHANGE);
+    bdisableSystemnotifications = GetBoolArg("-disablesystemnotifications", false);
+    fSendFreeTransactions = GetBoolArg("-sendfreetransactions", DEFAULT_SEND_FREE_TRANSACTIONS);
+
+    return true;
+}
+
+//////// End Init ////////////
 
 /**
  * Outpoint is spent if any non-conflicted transaction
@@ -2000,6 +2060,59 @@ std::set<uint256> CWalletTx::GetConflicts() const
         result.erase(myHash);
     }
     return result;
+}
+
+bool CWallet::Verify()
+{
+    std::string walletFile = GetArg("-wallet", DEFAULT_WALLET_DAT);
+    std::string strDataDir = GetDataDir().string();
+
+    // Wallet file must be a plain filename without a directory
+    fs::path wallet_file_path(walletFile);
+    if (walletFile != wallet_file_path.filename().string())
+        return UIError(strprintf(_("Wallet %s resides outside data directory %s"), walletFile, strDataDir));
+
+    LogPrintf("Using wallet %s\n", walletFile);
+    uiInterface.InitMessage(_("Verifying wallet..."));
+
+    if (!bitdb.Open(GetDataDir())) {
+        // try moving the database env out of the way
+        fs::path pathDatabase = GetDataDir() / "database";
+        fs::path pathDatabaseBak = GetDataDir() / strprintf("database.%d.bak", GetTime());
+        try {
+            fs::rename(pathDatabase, pathDatabaseBak);
+            LogPrintf("Moved old %s to %s. Retrying.\n", pathDatabase.string(), pathDatabaseBak.string());
+        } catch (const fs::filesystem_error& error) {
+            // failure is ok (well, not really, but it's not worse than what we started with)
+        }
+
+        // try again
+        if (!bitdb.Open(GetDataDir())) {
+            // if it still fails, it probably means we can't even create the database env
+            return UIError(strprintf(_("Error initializing wallet database environment %s!"), strDataDir));
+        }
+    }
+
+    if (GetBoolArg("-salvagewallet", false)) {
+        // Recover readable keypairs:
+        if (!CWalletDB::Recover(bitdb, walletFile, true))
+            return false;
+    }
+
+    if (fs::exists(GetDataDir() / walletFile)) {
+        CDBEnv::VerifyResult r = bitdb.Verify(walletFile, CWalletDB::Recover);
+        if (r == CDBEnv::RECOVER_OK) {
+            UIWarning(strprintf(_("Warning: wallet file corrupt, data salvaged!"
+                                     " Original %s saved as %s in %s; if"
+                                     " your balance or transactions are incorrect you should"
+                                     " restore from a backup."),
+                    walletFile, "wallet.{timestamp}.bak", strDataDir));
+        }
+        if (r == CDBEnv::RECOVER_FAIL)
+            return UIError(strprintf(_("%s corrupt, salvage failed"), walletFile));
+    }
+
+    return true;
 }
 
 void CWallet::ResendWalletTransactions()
@@ -4002,6 +4115,204 @@ bool CWallet::MultiSend()
         if ((stakeSent && mnSent) || (stakeSent && !fMultiSendMasternodeReward) || (mnSent && !fMultiSendStake))
             return true;
     }
+
+    return true;
+}
+
+CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const std::vector<std::string>& words)
+{
+    // Needed to restore wallet transaction metadata after -zapwallettxes.
+    std::vector<CWalletTx> vWtx;
+
+    if (GetBoolArg("-zapwallettxes", false)) {
+        uiInterface.InitMessage(_("Zapping all transactions from wallet..."));
+
+        CWallet* tempWallet = new CWallet(walletFile);
+        const DBErrors nZapWalletRet = tempWallet->ZapWalletTx(vWtx);
+        if (nZapWalletRet != DB_LOAD_OK) {
+            delete tempWallet;
+            UIError(strprintf(_("Error loading %s: Wallet corrupted"), walletFile));
+            return nullptr;
+        }
+
+        delete tempWallet;
+    }
+
+    uiInterface.InitMessage(_("Loading wallet..."));
+    fVerifyingBlocks = true;
+
+    const int64_t nStart = GetTimeMillis();
+    bool fFirstRun = true;
+    CWallet* walletInstance = new CWallet(walletFile);
+    const DBErrors nLoadWalletRet = walletInstance->LoadWallet(fFirstRun);
+    if (nLoadWalletRet != DB_LOAD_OK) {
+        if (nLoadWalletRet == DB_CORRUPT) {
+            UIError(strprintf(_("Error loading %s: Wallet corrupted"), walletFile));
+            delete walletInstance;
+            return nullptr;
+        } else if (nLoadWalletRet == DB_NONCRITICAL_ERROR) {
+            UIWarning(strprintf(_("Warning: error reading %s! All keys read correctly, but transaction data"
+                                  " or address book entries might be missing or incorrect."),
+                                walletFile));
+        } else if (nLoadWalletRet == DB_TOO_NEW) {
+            UIError(strprintf(_("Error loading %s: Wallet requires newer version of Schilling Coin"), walletFile));
+            delete walletInstance;
+            return nullptr;
+        } else if (nLoadWalletRet == DB_NEED_REWRITE) {
+            UIError(_("Wallet needed to be rewritten: restart Schilling Coin to complete"));
+            delete walletInstance;
+            return nullptr;
+        } else {
+            UIError(strprintf(_("Error loading %s\n"), walletFile));
+            delete walletInstance;
+            return nullptr;
+        }
+    }
+
+    // Check the minimum stake-split threshold.
+    if (walletInstance->nStakeSplitThreshold &&
+        walletInstance->nStakeSplitThreshold < CWallet::minStakeSplitThreshold) {
+        LogPrintf("WARNING: stake split threshold value %s too low. Restoring to minimum value %s.\n",
+                  FormatMoney(walletInstance->nStakeSplitThreshold),
+                  FormatMoney(CWallet::minStakeSplitThreshold));
+        walletInstance->nStakeSplitThreshold = CWallet::minStakeSplitThreshold;
+    }
+
+    if (GetBoolArg("-upgradewallet", fFirstRun) ||
+        (!words.empty() && !walletInstance->IsHDEnabled() && CheckIfWalletDatExists())) {
+        int nMaxVersion = GetArg("-upgradewallet", 0);
+        if (nMaxVersion == 0) {
+            LogPrintf("Performing wallet upgrade to %i\n", FEATURE_LATEST);
+            nMaxVersion = CLIENT_VERSION;
+            walletInstance->SetMinVersion(FEATURE_LATEST);
+        } else {
+            LogPrintf("Allowing wallet upgrade up to %i\n", nMaxVersion);
+        }
+
+        if (nMaxVersion < walletInstance->GetVersion()) {
+            UIError(_("Cannot downgrade wallet"));
+            delete walletInstance;
+            return nullptr;
+        }
+
+        walletInstance->SetMaxVersion(nMaxVersion);
+    }
+
+    if (fFirstRun) {
+        if ((GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET) && !walletInstance->IsHDEnabled()) ||
+            (!words.empty() && !walletInstance->IsHDEnabled())) {
+            if (GetArg("-mnemonicpassphrase", "").size() > 256) {
+                UIError(_("Mnemonic passphrase is too long, must be at most 256 characters"));
+                delete walletInstance;
+                return nullptr;
+            }
+
+            walletInstance->GenerateNewHDChain(words);
+            walletInstance->SetMinVersion(FEATURE_HD);
+        }
+
+        if (!walletInstance->TopUpKeyPool()) {
+            UIError(_("Unable to generate initial key"));
+            delete walletInstance;
+            return nullptr;
+        }
+
+        walletInstance->SetBestChain(chainActive.GetLocator());
+    } else if (mapArgs.count("-usehd")) {
+        const bool useHD = GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET);
+        if (walletInstance->IsHDEnabled() && !useHD) {
+            UIError(strprintf(_("Error loading %s: You can't disable HD on an already existing HD wallet"), walletFile));
+            delete walletInstance;
+            return nullptr;
+        }
+        if (!walletInstance->IsHDEnabled() && useHD) {
+            UIError(strprintf(_("Error loading %s: You can't enable HD on an already existing non-HD wallet"), walletFile));
+            delete walletInstance;
+            return nullptr;
+        }
+    }
+
+    if (GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET) &&
+        !walletInstance->IsLocked() && DEFAULT_ENABLE_WARN_ENCRYPTHD) {
+        UIWarning(_("Make sure to encrypt your wallet and delete all non-encrypted backups after you verified that wallet works!"));
+    }
+
+    LogPrintf("Wallet completed loading in %15dms\n", GetTimeMillis() - nStart);
+
+    RegisterValidationInterface(walletInstance);
+
+    CBlockIndex* pindexRescan = chainActive.Tip();
+    if (GetBoolArg("-rescan", false)) {
+        pindexRescan = chainActive.Genesis();
+    } else {
+        CWalletDB walletdb(walletFile);
+        CBlockLocator locator;
+        if (walletdb.ReadBestBlock(locator))
+            pindexRescan = FindForkInGlobalIndex(chainActive, locator);
+        else
+            pindexRescan = chainActive.Genesis();
+    }
+
+    if (chainActive.Tip() && chainActive.Tip() != pindexRescan) {
+        uiInterface.InitMessage(_("Rescanning..."));
+        LogPrintf("Rescanning last %i blocks (from block %i)...\n",
+                  chainActive.Height() - pindexRescan->nHeight,
+                  pindexRescan->nHeight);
+
+        const int64_t nWalletRescanTime = GetTimeMillis();
+        if (walletInstance->ScanForWalletTransactions(pindexRescan, true, true) == -1) {
+            UnregisterValidationInterface(walletInstance);
+            UIError(_("Shutdown requested over the transaction scan. Exiting."));
+            delete walletInstance;
+            return nullptr;
+        }
+
+        LogPrintf("Rescan completed in %15dms\n", GetTimeMillis() - nWalletRescanTime);
+        walletInstance->SetBestChain(chainActive.GetLocator());
+        nWalletDBUpdated++;
+
+        // Restore wallet transaction metadata after -zapwallettxes=1.
+        if (GetBoolArg("-zapwallettxes", false) && GetArg("-zapwallettxes", "1") != "2") {
+            CWalletDB walletdb(walletFile);
+            for (const CWalletTx& wtxOld : vWtx) {
+                const uint256 hash = wtxOld.GetHash();
+                std::map<uint256, CWalletTx>::iterator mi = walletInstance->mapWallet.find(hash);
+                if (mi != walletInstance->mapWallet.end()) {
+                    const CWalletTx* copyFrom = &wtxOld;
+                    CWalletTx* copyTo = &mi->second;
+                    copyTo->mapValue = copyFrom->mapValue;
+                    copyTo->vOrderForm = copyFrom->vOrderForm;
+                    copyTo->nTimeReceived = copyFrom->nTimeReceived;
+                    copyTo->nTimeSmart = copyFrom->nTimeSmart;
+                    copyTo->fFromMe = copyFrom->fFromMe;
+                    copyTo->strFromAccount = copyFrom->strFromAccount;
+                    copyTo->nOrderPos = copyFrom->nOrderPos;
+                    copyTo->WriteToDisk(&walletdb);
+                }
+            }
+        }
+    }
+
+    fVerifyingBlocks = false;
+    return walletInstance;
+}
+
+bool CWallet::InitLoadWallet(const std::vector<std::string>& words)
+{
+    if (GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET)) {
+        pwalletMain = nullptr;
+        LogPrintf("Wallet disabled!\n");
+        return true;
+    }
+
+    std::string walletFile = GetArg("-wallet", DEFAULT_WALLET_DAT);
+
+    CWallet * const pwallet = CreateWalletFromFile(walletFile, words);
+    if (!pwallet) {
+        return false;
+    }
+
+    pwalletMain = pwallet;
 
     return true;
 }

@@ -372,10 +372,13 @@ bool BitcoinApplication::setupMnemonicWords(std::vector<std::string>& wordlist) 
         return true;
     }
 
-    std::string walletFile = GetArg("-wallet", "wallet.dat");
-    if (fs::exists(walletFile)) return true;
+    std::string walletFile = GetArg("-wallet", DEFAULT_WALLET_DAT);
 
-    if (CheckIfWalletDatExists()) return true;
+    if (fs::exists(walletFile))
+        return true;
+
+    if (CheckIfWalletDatExists())
+        return true;
 
     StartOptionsMain dlg(nullptr);
     dlg.exec();
@@ -701,7 +704,7 @@ int main(int argc, char* argv[])
     bool ret = true;
 #ifdef ENABLE_WALLET
     // Check if the wallet exists or need to be created
-    std::string strWalletFile = GetArg("-wallet", "wallet.dat");
+    std::string strWalletFile = GetArg("-wallet", DEFAULT_WALLET_DAT);
     std::string strDataDir = GetDataDir().string();
 
     // Wallet file must be a plain filename without a directory
