@@ -276,14 +276,20 @@ static bool rest_chaininfo(HTTPRequest* req, const std::string& strURIPart)
 {
     if (!CheckWarmup(req))
         return false;
+
     std::vector<std::string> params;
     const RetFormat rf = ParseDataFormat(params, strURIPart);
 
     switch (rf) {
     case RF_JSON: {
-        UniValue rpcParams(UniValue::VARR);
-        UniValue chainInfoObject = getblockchaininfo(rpcParams, false);
+        JSONRPCRequest rpcRequest;
+        rpcRequest.params = UniValue(UniValue::VARR);
+        rpcRequest.fHelp = false;
+        rpcRequest.URI = req->GetURI();
+
+        UniValue chainInfoObject = getblockchaininfo(rpcRequest);
         std::string strJSON = chainInfoObject.write() + "\n";
+
         req->WriteHeader("Content-Type", "application/json");
         req->WriteReply(HTTP_OK, strJSON);
         return true;

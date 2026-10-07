@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -18,7 +18,6 @@
 #include <stdint.h>
 #include <fstream>
 
-
 /**
  * JSON-RPC protocol.  SchillingCoin speaks version 1.0 for maximum compatibility,
  * but uses JSON-RPC 1.1/2.0 standards for parts of the 1.0 standard that were
@@ -29,7 +28,7 @@
  * http://www.codeproject.com/KB/recipes/JSON_Spirit.aspx
  */
 
-std::string JSONRPCRequest(const std::string& strMethod, const UniValue& params, const UniValue& id)
+std::string JSONRPCRequestObj(const std::string& strMethod, const UniValue& params, const UniValue& id)
 {
     UniValue request(UniValue::VOBJ);
     request.push_back(Pair("method", strMethod));

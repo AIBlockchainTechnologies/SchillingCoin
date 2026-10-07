@@ -124,6 +124,7 @@ static const CRPCConvertParam vRPCConvertParams[] =
         {"setstakesplitthreshold", 0},
         {"autocombinerewards", 0},
         {"autocombinerewards", 1},
+        {"getchaintxstats", 0},
         {"getblockindexstats", 0},
         {"getblockindexstats", 1},
         {"getblockindexstats", 2},

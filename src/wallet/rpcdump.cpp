@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -74,9 +74,9 @@ std::string DecodeDumpString(const std::string& str)
     return ret.str();
 }
 
-UniValue importprivkey(const UniValue& params, bool fHelp)
+UniValue importprivkey(const JSONRPCRequest& request)
 {
-    if (fHelp || params.size() < 1 || params.size() > 4)
+    if (request.fHelp || request.params.size() < 1 || request.params.size() > 4)
         throw std::runtime_error(
             "importprivkey \"schillingcoinprivkey\" ( \"label\" rescan fStakingAddress )\n"
             "\nAdds a private key (as returned by dumpprivkey) to your wallet.\n" +
@@ -100,10 +100,10 @@ UniValue importprivkey(const UniValue& params, bool fHelp)
             "\nAs a JSON-RPC call\n" +
             HelpExampleRpc("importprivkey", "\"mykey\", \"testing\", false"));
 
-    const std::string strSecret = params[0].get_str();
-    const std::string strLabel = (params.size() > 1 ? params[1].get_str() : "");
-    const bool fRescan = (params.size() > 2 ? params[2].get_bool() : true);
-    const bool fStakingAddress = (params.size() > 3 ? params[3].get_bool() : false);
+    const std::string strSecret = request.params[0].get_str();
+    const std::string strLabel = (request.params.size() > 1 ? request.params[1].get_str() : "");
+    const bool fRescan = (request.params.size() > 2 ? request.params[2].get_bool() : true);
+    const bool fStakingAddress = (request.params.size() > 3 ? request.params[3].get_bool() : false);
 
     CBitcoinSecret vchSecret;
     if (!vchSecret.SetString(strSecret))
@@ -126,7 +126,6 @@ UniValue importprivkey(const UniValue& params, bool fHelp)
                         AddressBook::AddressBookPurpose::COLD_STAKING :
                         AddressBook::AddressBookPurpose::RECEIVE));
 
-        // Don't throw error in case a key is already there
         if (pwalletMain->HaveKey(vchAddress))
             return NullUniValue;
 
@@ -135,13 +134,11 @@ UniValue importprivkey(const UniValue& params, bool fHelp)
         if (!pwalletMain->AddKeyPubKey(key, pubkey))
             throw JSONRPCError(RPC_WALLET_ERROR, "Error adding key to wallet");
 
-        // whenever a key is imported, we need to scan the whole chain
-        pwalletMain->nTimeFirstKey = 1; // 0 would be considered 'no value'
+        pwalletMain->nTimeFirstKey = 1;
 
         if (fRescan) {
             CBlockIndex *pindex = chainActive.Genesis();
             if (fStakingAddress && !Params().IsRegTestNet()) {
-                // cold staking was activated after nBlockTimeProtocolV2. No need to scan the whole chain
                 pindex = chainActive[Params().GetConsensus().height_start_TimeProtoV2];
             }
             pwalletMain->ScanForWalletTransactions(pindex, true);
@@ -151,12 +148,12 @@ UniValue importprivkey(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
-UniValue dumphdinfo(const UniValue& params, bool fHelp)
+UniValue dumphdinfo(const JSONRPCRequest& request)
 {
     if (pwalletMain == NULL)
         return false;
 
-    if (fHelp || params.size() != 0)
+    if (request.fHelp || request.params.size() != 0)
         throw std::runtime_error(
                 "dumphdinfo\n"
                 "Returns an object containing sensitive private info about this HD wallet.\n"
@@ -194,10 +191,9 @@ UniValue dumphdinfo(const UniValue& params, bool fHelp)
     return obj;
 }
 
-
-UniValue importaddress(const UniValue& params, bool fHelp)
+UniValue importaddress(const JSONRPCRequest& request)
 {
-    if (fHelp || params.size() < 1 || params.size() > 3)
+    if (request.fHelp || request.params.size() < 1 || request.params.size() > 3)
         throw std::runtime_error(
             "importaddress \"address\" ( \"label\" rescan )\n"
             "\nAdds an address or script (in hex) that can be watched as if it were in your wallet but cannot be used to spend.\n"
@@ -221,24 +217,24 @@ UniValue importaddress(const UniValue& params, bool fHelp)
 
     CScript script;
 
-    CBitcoinAddress address(params[0].get_str());
+    CBitcoinAddress address(request.params[0].get_str());
     if (address.IsValid()) {
         script = GetScriptForDestination(address.Get());
-    } else if (IsHex(params[0].get_str())) {
-        std::vector<unsigned char> data(ParseHex(params[0].get_str()));
+    } else if (IsHex(request.params[0].get_str())) {
+        std::vector<unsigned char> data(ParseHex(request.params[0].get_str()));
         script = CScript(data.begin(), data.end());
     } else {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid SchillingCoin address or script");
     }
 
     std::string strLabel = "";
-    if (params.size() > 1)
-        strLabel = params[1].get_str();
+    if (request.params.size() > 1)
+        strLabel = request.params[1].get_str();
 
     // Whether to perform rescan after import
     bool fRescan = true;
-    if (params.size() > 2)
-        fRescan = params[2].get_bool();
+    if (request.params.size() > 2)
+        fRescan = request.params[2].get_bool();
 
     {
         if (::IsMine(*pwalletMain, script) & ISMINE_SPENDABLE_ALL)
@@ -271,9 +267,9 @@ UniValue importaddress(const UniValue& params, bool fHelp)
 }
 
 // TODO: Needs further review over the HD flow, staking addresses and multisig import.
-UniValue importwallet(const UniValue& params, bool fHelp)
+UniValue importwallet(const JSONRPCRequest& request)
 {
-    if (fHelp || params.size() != 1)
+    if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "importwallet \"filename\"\n"
             "\nImports keys from a wallet dump file (see dumpwallet).\n" +
@@ -295,7 +291,7 @@ UniValue importwallet(const UniValue& params, bool fHelp)
     EnsureWalletIsUnlocked();
 
     std::ifstream file;
-    file.open(params[0].get_str().c_str(), std::ios::in | std::ios::ate);
+    file.open(request.params[0].get_str().c_str(), std::ios::in | std::ios::ate);
     if (!file.is_open())
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot open wallet dump file");
 
@@ -377,9 +373,9 @@ UniValue importwallet(const UniValue& params, bool fHelp)
     return NullUniValue;
 }
 
-UniValue dumpprivkey(const UniValue& params, bool fHelp)
+UniValue dumpprivkey(const JSONRPCRequest& request)
 {
-    if (fHelp || params.size() != 1)
+    if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "dumpprivkey \"schillingcoinaddress\"\n"
             "\nReveals the private key corresponding to 'schillingcoinaddress'.\n"
@@ -399,7 +395,7 @@ UniValue dumpprivkey(const UniValue& params, bool fHelp)
 
     EnsureWalletIsUnlocked();
 
-    std::string strAddress = params[0].get_str();
+    std::string strAddress = request.params[0].get_str();
     CBitcoinAddress address;
     if (!address.SetString(strAddress))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid SchillingCoin address");
@@ -412,9 +408,9 @@ UniValue dumpprivkey(const UniValue& params, bool fHelp)
     return CBitcoinSecret(vchSecret).ToString();
 }
 
-UniValue dumpwallet(const UniValue& params, bool fHelp)
+UniValue dumpwallet(const JSONRPCRequest& request)
 {
-    if (fHelp || params.size() != 1)
+    if (request.fHelp || request.params.size() != 1)
         throw std::runtime_error(
             "dumpwallet \"filename\"\n"
             "\nDumps all wallet keys in a human-readable format to a server-side file. This does not allow overwriting existing files.\n" +
@@ -430,11 +426,11 @@ UniValue dumpwallet(const UniValue& params, bool fHelp)
 
     EnsureWalletIsUnlocked();
 
-    boost::filesystem::path filepath = params[0].get_str().c_str();
+    boost::filesystem::path filepath = request.params[0].get_str().c_str();
     filepath = boost::filesystem::absolute(filepath);
 
     std::ofstream file;
-    file.open(params[0].get_str().c_str());
+    file.open(request.params[0].get_str().c_str());
     if (!file.is_open())
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Cannot open wallet dump file");
 
@@ -524,9 +520,9 @@ UniValue dumpwallet(const UniValue& params, bool fHelp)
     return reply;
 }
 
-UniValue bip38encrypt(const UniValue& params, bool fHelp)
+UniValue bip38encrypt(const JSONRPCRequest& request)
 {
-    if (fHelp || params.size() != 2)
+    if (request.fHelp || request.params.size() != 2)
         throw std::runtime_error(
             "bip38encrypt \"schillingcoinaddress\" \"passphrase\"\n"
             "\nEncrypts a private key corresponding to 'schillingcoinaddress'.\n" +
@@ -547,8 +543,8 @@ UniValue bip38encrypt(const UniValue& params, bool fHelp)
 
     EnsureWalletIsUnlocked();
 
-    std::string strAddress = params[0].get_str();
-    std::string strPassphrase = params[1].get_str();
+    std::string strAddress = request.params[0].get_str();
+    std::string strPassphrase = request.params[1].get_str();
 
     CBitcoinAddress address;
     if (!address.SetString(strAddress))
@@ -570,9 +566,9 @@ UniValue bip38encrypt(const UniValue& params, bool fHelp)
     return result;
 }
 
-UniValue bip38decrypt(const UniValue& params, bool fHelp)
+UniValue bip38decrypt(const JSONRPCRequest& request)
 {
-    if (fHelp || params.size() != 2)
+    if (request.fHelp || request.params.size() != 2)
         throw std::runtime_error(
             "bip38decrypt \"schillingcoinaddress\" \"passphrase\"\n"
             "\nDecrypts and then imports password protected private key.\n" +
@@ -594,8 +590,8 @@ UniValue bip38decrypt(const UniValue& params, bool fHelp)
     EnsureWalletIsUnlocked();
 
     /** Collect private key and passphrase **/
-    std::string strKey = params[0].get_str();
-    std::string strPassphrase = params[1].get_str();
+    std::string strKey = request.params[0].get_str();
+    std::string strPassphrase = request.params[1].get_str();
 
     uint256 privKey;
     bool fCompressed;

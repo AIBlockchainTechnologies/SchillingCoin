@@ -85,25 +85,32 @@ static void JSONErrorReply(HTTPRequest* req, const UniValue& objError, const Uni
     req->WriteReply(nStatus, strReply);
 }
 
-static bool RPCAuthorized(const std::string& strAuth)
+static bool RPCAuthorized(const std::string& strAuth, std::string& strAuthUsernameOut)
 {
     if (strRPCUserColonPass.empty()) // Belt-and-suspenders measure if InitRPCAuthentication was not called
         return false;
     if (strAuth.substr(0, 6) != "Basic ")
         return false;
+
     std::string strUserPass64 = strAuth.substr(6);
     boost::trim(strUserPass64);
+
     std::string strUserPass = DecodeBase64(strUserPass64);
+
+    if (strUserPass.find(":") != std::string::npos)
+        strAuthUsernameOut = strUserPass.substr(0, strUserPass.find(":"));
+
     return TimingResistantEqual(strUserPass, strRPCUserColonPass);
 }
 
-static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string &)
+static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string&)
 {
     // JSONRPC handles only POST
     if (req->GetRequestMethod() != HTTPRequest::POST) {
         req->WriteReply(HTTP_BAD_METHOD, "JSONRPC server handles only POST requests");
         return false;
     }
+
     // Check authorization
     std::pair<bool, std::string> authHeader = req->GetHeader("authorization");
     if (!authHeader.first) {
@@ -111,8 +118,10 @@ static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string &)
         return false;
     }
 
-    if (!RPCAuthorized(authHeader.second)) {
-        LogPrintf("ThreadRPCServer incorrect password attempt from %s\n", req->GetPeer().ToString());
+    JSONRPCRequest jreq;
+    if (!RPCAuthorized(authHeader.second, jreq.authUser)) {
+        LogPrintf("ThreadRPCServer incorrect password attempt from %s\n",
+            req->GetPeer().ToString());
 
         /* Deter brute-forcing
            If this results in a DoS the user really
@@ -123,28 +132,32 @@ static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string &)
         return false;
     }
 
-    JSONRequest jreq;
     try {
         // Parse request
         UniValue valRequest;
         if (!valRequest.read(req->ReadBody()))
             throw JSONRPCError(RPC_PARSE_ERROR, "Parse error");
 
+        // Set the URI
+        jreq.URI = req->GetURI();
+
         std::string strReply;
-        // singleton request
+
+        // Singleton request
         if (valRequest.isObject()) {
             jreq.parse(valRequest);
 
-            UniValue result = tableRPC.execute(jreq.strMethod, jreq.params);
+            UniValue result = tableRPC.execute(jreq);
 
             // Send reply
             strReply = JSONRPCReply(result, NullUniValue, jreq.id);
 
-        // array of requests
-        } else if (valRequest.isArray())
+        // Array of requests
+        } else if (valRequest.isArray()) {
             strReply = JSONRPCExecBatch(valRequest.get_array());
-        else
+        } else {
             throw JSONRPCError(RPC_PARSE_ERROR, "Top-level object parse error");
+        }
 
         req->WriteHeader("Content-Type", "application/json");
         req->WriteReply(HTTP_OK, strReply);
@@ -152,9 +165,13 @@ static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string &)
         JSONErrorReply(req, objError, jreq.id);
         return false;
     } catch (const std::exception& e) {
-        JSONErrorReply(req, JSONRPCError(RPC_PARSE_ERROR, e.what()), jreq.id);
+        JSONErrorReply(
+            req,
+            JSONRPCError(RPC_PARSE_ERROR, e.what()),
+            jreq.id);
         return false;
     }
+
     return true;
 }
 

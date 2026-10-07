@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2015 The Bitcoin developers
 // Copyright (c) 2009-2015 The Dash developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -183,7 +183,7 @@ UniValue CallRPC(const std::string& strMethod, const UniValue& params)
     evhttp_add_header(output_headers, "Authorization", (std::string("Basic ") + EncodeBase64(strRPCUserColonPass)).c_str());
 
     // Attach request data
-    std::string strRequest = JSONRPCRequest(strMethod, params, 1);
+    std::string strRequest = JSONRPCRequestObj(strMethod, params, 1);
     struct evbuffer * output_buffer = evhttp_request_get_output_buffer(req);
     assert(output_buffer);
     evbuffer_add(output_buffer, strRequest.data(), strRequest.size());

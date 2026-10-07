@@ -213,10 +213,11 @@ std::string CRPCTable::help(std::string strCommand) const
 #endif
 
         try {
-            UniValue params;
+            JSONRPCRequest request;
+            request.fHelp = true;
             rpcfn_type pfn = pcmd->actor;
             if (setDone.insert(pfn).second)
-                (*pfn)(params, true);
+                (*pfn)(request);
         } catch (const std::exception& e) {
             // Help text is returned in an exception
             std::string strHelp = std::string(e.what());
@@ -242,9 +243,9 @@ std::string CRPCTable::help(std::string strCommand) const
     return strRet;
 }
 
-UniValue help(const UniValue& params, bool fHelp)
+UniValue help(const JSONRPCRequest& request)
 {
-    if (fHelp || params.size() > 1)
+    if (request.fHelp || request.params.size() > 1)
         throw std::runtime_error(
             "help ( \"command\" )\n"
             "\nList all commands, or get help for a specified command.\n"
@@ -254,26 +255,25 @@ UniValue help(const UniValue& params, bool fHelp)
             "\"text\"     (string) The help text\n");
 
     std::string strCommand;
-    if (params.size() > 0)
-        strCommand = params[0].get_str();
+    if (request.params.size() > 0)
+        strCommand = request.params[0].get_str();
 
     return tableRPC.help(strCommand);
 }
 
-
-UniValue stop(const UniValue& params, bool fHelp)
+UniValue stop(const JSONRPCRequest& request)
 {
     // Accept the deprecated and ignored 'detach' boolean argument
-    if (fHelp || params.size() > 1)
+    if (request.fHelp || request.params.size() > 1)
         throw std::runtime_error(
             "stop\n"
             "\nStop SchillingCoin server.");
+
     // Event loop will exit after current HTTP requests have been handled, so
     // this reply will get back to the client.
     StartShutdown();
     return "SchillingCoin server stopping";
 }
-
 
 /**
  * Call Table
@@ -301,23 +301,27 @@ static const CRPCCommand vRPCCommands[] =
         {"network", "clearbanned", &clearbanned, true, false, false},
 
         /* Block chain and UTXO */
-        {"blockchain", "getblockindexstats", &getblockindexstats, true, false, false},
-        {"blockchain", "getblockchaininfo", &getblockchaininfo, true, false, false},
-        {"blockchain", "getbestblockhash", &getbestblockhash, true, false, false},
         {"blockchain", "getblockcount", &getblockcount, true, false, false},
-        {"blockchain", "getblock", &getblock, true, false, false},
-        {"blockchain", "getblockhash", &getblockhash, true, false, false},
-        {"blockchain", "getblockheader", &getblockheader, false, false, false},
-        {"blockchain", "getchaintips", &getchaintips, true, false, false},
+        {"blockchain", "getbestblockhash", &getbestblockhash, true, false, false},
+        {"blockchain", "waitfornewblock", &waitfornewblock, true, false, false},
+        {"blockchain", "waitforblock", &waitforblock, true, false, false},
+        {"blockchain", "waitforblockheight", &waitforblockheight, true, false, false},
         {"blockchain", "getdifficulty", &getdifficulty, true, false, false},
+        {"blockchain", "getrawmempool", &getrawmempool, true, false, false},
+        {"blockchain", "getblockhash", &getblockhash, true, false, false},
+        {"blockchain", "getblock", &getblock, true, false, false},
+        {"blockchain", "getblockheader", &getblockheader, false, false, false},
+        {"blockchain", "gettxoutsetinfo", &gettxoutsetinfo, true, false, false},
+        {"blockchain", "gettxout", &gettxout, true, false, false},
+        {"blockchain", "verifychain", &verifychain, true, false, false},
+        {"blockchain", "getblockchaininfo", &getblockchaininfo, true, false, false},
+        {"blockchain", "getchaintips", &getchaintips, true, false, false},
         {"blockchain", "getfeeinfo", &getfeeinfo, true, false, false},
         {"blockchain", "getmempoolinfo", &getmempoolinfo, true, true, false},
-        {"blockchain", "getrawmempool", &getrawmempool, true, false, false},
-        {"blockchain", "gettxout", &gettxout, true, false, false},
-        {"blockchain", "gettxoutsetinfo", &gettxoutsetinfo, true, false, false},
         {"blockchain", "invalidateblock", &invalidateblock, true, true, false},
         {"blockchain", "reconsiderblock", &reconsiderblock, true, true, false},
-        {"blockchain", "verifychain", &verifychain, true, false, false},
+        {"blockchain", "getchaintxstats", &getchaintxstats, true, false, false},
+        {"blockchain", "getblockindexstats", &getblockindexstats, true, false, false},
 
         /* Mining */
         {"mining", "getblocktemplate", &getblocktemplate, true, false, false},
@@ -512,7 +516,7 @@ bool RPCIsInWarmup(std::string* outStatus)
     return fRPCInWarmup;
 }
 
-void JSONRequest::parse(const UniValue& valRequest)
+void JSONRPCRequest::parse(const UniValue& valRequest)
 {
     // Parse request
     if (!valRequest.isObject())
@@ -547,11 +551,11 @@ static UniValue JSONRPCExecOne(const UniValue& req)
 {
     UniValue rpc_result(UniValue::VOBJ);
 
-    JSONRequest jreq;
+    JSONRPCRequest jreq;
     try {
         jreq.parse(req);
 
-        UniValue result = tableRPC.execute(jreq.strMethod, jreq.params);
+        UniValue result = tableRPC.execute(jreq);
         rpc_result = JSONRPCReplyObj(result, NullUniValue, jreq.id);
     } catch (const UniValue& objError) {
         rpc_result = JSONRPCReplyObj(NullUniValue, objError, jreq.id);
@@ -572,10 +576,10 @@ std::string JSONRPCExecBatch(const UniValue& vReq)
     return ret.write() + "\n";
 }
 
-UniValue CRPCTable::execute(const std::string &strMethod, const UniValue &params) const
+UniValue CRPCTable::execute(const JSONRPCRequest& request) const
 {
     // Find method
-    const CRPCCommand* pcmd = tableRPC[strMethod];
+    const CRPCCommand* pcmd = tableRPC[request.strMethod];
     if (!pcmd)
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, "Method not found");
 
@@ -583,7 +587,7 @@ UniValue CRPCTable::execute(const std::string &strMethod, const UniValue &params
 
     try {
         // Execute
-        return pcmd->actor(params, false);
+        return pcmd->actor(request);
     } catch (const std::exception& e) {
         throw JSONRPCError(RPC_MISC_ERROR, e.what());
     }

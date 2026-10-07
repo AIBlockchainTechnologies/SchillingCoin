@@ -209,13 +209,20 @@ void RPCExecutor::requestCommand(const QString& command)
     }
     if (args.empty())
         return; // Nothing to do
+
     try {
         std::string strPrint;
+
         // Convert argument list to JSON objects in method-dependent way,
         // and pass it along with the method name to the dispatcher.
-        UniValue result = tableRPC.execute(
+        JSONRPCRequest request;
+        request.params = RPCConvertValues(
             args[0],
-            RPCConvertValues(args[0], std::vector<std::string>(args.begin() + 1, args.end())));
+            std::vector<std::string>(args.begin() + 1, args.end()));
+        request.strMethod = args[0];
+        request.fHelp = false;
+
+        UniValue result = tableRPC.execute(request);
 
         // Format result reply
         if (result.isNull())
@@ -231,10 +238,12 @@ void RPCExecutor::requestCommand(const QString& command)
             int code = find_value(objError, "code").get_int();
             std::string message = find_value(objError, "message").get_str();
             Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR,
-                         QString::fromStdString(message) + " (code " + QString::number(code) + ")");
+                         QString::fromStdString(message) +
+                         " (code " + QString::number(code) + ")");
         } catch (std::runtime_error&) { // raised when converting to invalid type, i.e. missing code or message
             // Show raw JSON object
-            Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR, QString::fromStdString(objError.write()));
+            Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR,
+                         QString::fromStdString(objError.write()));
         }
     } catch (std::exception& e) {
         Q_EMIT reply(SettingsConsoleWidget::CMD_ERROR,

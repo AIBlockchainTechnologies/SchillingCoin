@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2013 The Bitcoin Core developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,7 +17,6 @@
 #include <boost/test/unit_test.hpp>
 
 #include <univalue.h>
-
 
 UniValue
 createArgs(int nRequired, const char* address1=NULL, const char* address2=NULL)
@@ -37,18 +36,22 @@ UniValue CallRPC(std::string args)
     boost::split(vArgs, args, boost::is_any_of(" \t"));
     std::string strMethod = vArgs[0];
     vArgs.erase(vArgs.begin());
-    UniValue params = RPCConvertValues(strMethod, vArgs);
 
+    JSONRPCRequest request;
+    request.strMethod = strMethod;
+    request.params = RPCConvertValues(strMethod, vArgs);
+    request.fHelp = false;
+
+    BOOST_CHECK(tableRPC[strMethod]);
     rpcfn_type method = tableRPC[strMethod]->actor;
     try {
-        UniValue result = (*method)(params, false);
+        UniValue result = (*method)(request);
         return result;
     }
     catch (const UniValue& objError) {
         throw std::runtime_error(find_value(objError, "message").get_str());
     }
 }
-
 
 BOOST_FIXTURE_TEST_SUITE(rpc_tests, TestingSetup)
 
