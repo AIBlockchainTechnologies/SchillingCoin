@@ -178,7 +178,7 @@ void CMasternodeSync::ProcessMessage(CNode* pfrom, std::string& strCommand, CDat
             break;
         }
 
-        LogPrint("masternode", "CMasternodeSync:ProcessMessage - ssc - got inventory count %d %d\n", nItemID, nCount);
+        LogPrint(BCLog::MASTERNODE, "CMasternodeSync:ProcessMessage - ssc - got inventory count %d %d\n", nItemID, nCount);
     }
 }
 
@@ -210,7 +210,7 @@ void CMasternodeSync::Process()
         return;
     }
 
-    LogPrint("masternode", "CMasternodeSync::Process() - tick %d RequestedMasternodeAssets %d\n",
+    LogPrint(BCLog::MASTERNODE, "CMasternodeSync::Process() - tick %d RequestedMasternodeAssets %d\n",
              tick, RequestedMasternodeAssets);
 
     if (RequestedMasternodeAssets == MASTERNODE_SYNC_INITIAL)
@@ -282,7 +282,7 @@ bool CMasternodeSync::SyncWithNode(CNode* pnode, bool isRegTestNet)
         return true;
 
     if (RequestedMasternodeAssets == MASTERNODE_SYNC_LIST) {
-        LogPrint("masternode", "CMasternodeSync::SyncWithNode() - lastMasternodeList %lld (GetTime() - MASTERNODE_SYNC_TIMEOUT) %lld\n",
+        LogPrint(BCLog::MASTERNODE, "CMasternodeSync::SyncWithNode() - lastMasternodeList %lld (GetTime() - MASTERNODE_SYNC_TIMEOUT) %lld\n",
                  lastMasternodeList, GetTime() - MASTERNODE_SYNC_TIMEOUT);
 
         if (pnode->HasFulfilledRequest("mnsync")) return true;

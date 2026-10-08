@@ -2,7 +2,7 @@
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -125,7 +125,7 @@ CInv::CInv(const std::string& strType, const uint256& hashIn)
         }
     }
     if (i == ARRAYLEN(ppszTypeName))
-        LogPrint("net", "CInv::CInv(string, uint256) : unknown type '%s'", strType);
+        LogPrint(BCLog::NET, "CInv::CInv(string, uint256) : unknown type '%s'", strType);
     hash = hashIn;
 }
 
@@ -146,7 +146,8 @@ bool CInv::IsMasterNodeType() const{
 const char* CInv::GetCommand() const
 {
     if (!IsKnownType()) {
-        LogPrint("net", "CInv::GetCommand() : type=%d unknown type", type);
+        LogPrint(BCLog::NET, "CInv::GetCommand() : type=%d unknown type", type);
+
         return "UNKNOWN";
     }
 

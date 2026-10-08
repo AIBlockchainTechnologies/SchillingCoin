@@ -2600,7 +2600,7 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int
 
     // try to find nondenom first to prevent unneeded spending of mixed coins
     for (unsigned int tryDenom = 0; tryDenom < 2; tryDenom++) {
-        if (fDebug) LogPrint("selectcoins", "tryDenom: %d\n", tryDenom);
+        if (fDebug) LogPrint(BCLog::SELECTCOINS, "tryDenom: %d\n", tryDenom);
         vValue.clear();
         nTotalLower = 0;
         for (const COutput& output : vCoins) {
@@ -2609,7 +2609,7 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int
 
             const CWalletTx* pcoin = output.tx;
 
-            //            if (fDebug) LogPrint("selectcoins", "value %s confirms %d\n", FormatMoney(pcoin->vout[output.i].nValue), output.nDepth);
+            //            if (fDebug) LogPrint(BCLog::SELECTCOINS, "value %s confirms %d\n", FormatMoney(pcoin->vout[output.i].nValue), output.nDepth);
             if (output.nDepth < (pcoin->IsFromMe(ISMINE_ALL) ? nConfMine : nConfTheirs))
                 continue;
 
@@ -3071,7 +3071,7 @@ bool CWallet::CreateCoinStake(
 
         break;
     }
-    LogPrint("staking", "%s: attempted staking %d times\n", __func__, nAttempts);
+    LogPrint(BCLog::STAKING, "%s: attempted staking %d times\n", __func__, nAttempts);
 
     if (!fKernelFound)
         return false;

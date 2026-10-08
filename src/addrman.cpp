@@ -253,7 +253,7 @@ void CAddrMan::Good_(const CService& addr, bool test_before_evict, int64_t nTime
 
     // Will moving this address into tried evict another entry?
     if (test_before_evict && (vvTried[tried_bucket][tried_bucket_pos] != -1)) {
-        LogPrint("addrman",
+        LogPrint(BCLog::ADDRMAN,
             "Collision inserting element into tried table, moving %s to m_tried_collisions=%u\n",
             addr.ToString(),
             static_cast<unsigned int>(m_tried_collisions.size()));
@@ -261,7 +261,7 @@ void CAddrMan::Good_(const CService& addr, bool test_before_evict, int64_t nTime
         if (m_tried_collisions.size() < ADDRMAN_SET_TRIED_COLLISION_SIZE)
             m_tried_collisions.insert(nId);
     } else {
-        LogPrint("addrman", "Moving %s to tried\n", addr.ToString());
+        LogPrint(BCLog::ADDRMAN, "Moving %s to tried\n", addr.ToString());
 
         // move nId to the tried tables
         MakeTried(info, nId);
@@ -602,7 +602,7 @@ void CAddrMan::ResolveCollisions_()
                             eraseCollision = true;
                         } else if (nNow - infoOld.nLastTry < ADDRMAN_REPLACEMENT_HOURS * 60 * 60 &&
                                    nNow - infoOld.nLastTry > 60) {
-                            LogPrint("addrman", "Swapping %s for %s in tried table\n",
+                            LogPrint(BCLog::ADDRMAN, "Swapping %s for %s in tried table\n",
                                 infoNew.ToString(), infoOld.ToString());
 
                             // Replace the existing tried entry with the new entry.

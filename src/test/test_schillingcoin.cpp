@@ -36,7 +36,7 @@ BasicTestingSetup::BasicTestingSetup()
         ECC_Start();
         InitSignatureCache();
         SetupEnvironment();
-        fPrintToDebugLog = false; // don't want to write to debug.log file
+        g_logger->m_print_to_file = false; // don't want to write to debug.log file
         fCheckBlockIndex = true;
         SelectParams(CBaseChainParams::MAIN);
 }

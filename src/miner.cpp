@@ -157,7 +157,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, 
         CMutableTransaction txCoinStake;
         int64_t nTxNewTime = 0;
         if (!pwallet->CreateCoinStake(*pwallet, pindexPrev, pblock->nBits, txCoinStake, nTxNewTime)) {
-            LogPrint("staking", "%s : stake not found\n", __func__);
+            LogPrint(BCLog::STAKING, "%s : stake not found\n", __func__);
             return nullptr;
         }
         // Stake found

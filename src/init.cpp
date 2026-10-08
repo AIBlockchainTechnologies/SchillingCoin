@@ -309,7 +309,7 @@ void HandleSIGTERM(int)
 
 void HandleSIGHUP(int)
 {
-    fReopenDebugLog = true;
+    g_logger->m_reopen_file = true;
 }
 
 #ifndef WIN32
@@ -361,7 +361,7 @@ void OnRPCStopped()
 
     //RPCNotifyBlockChange(0);
     g_best_block_cv.notify_all();
-    LogPrint("rpc", "RPC stopped.\n");
+    LogPrint(BCLog::RPC, "RPC stopped.\n");
 }
 
 void OnRPCPreCommand(const CRPCCommand& cmd)
@@ -923,12 +923,29 @@ static std::string ResolveErrMsg(const char * const optname, const std::string& 
 
 void InitLogging()
 {
-    fPrintToConsole = GetBoolArg("-printtoconsole", false);
-    fLogTimestamps = GetBoolArg("-logtimestamps", true);
+    g_logger->m_print_to_file = true;
+
+    g_logger->m_file_path =
+        boost::filesystem::path(
+            GetArg("-debuglogfile", DEFAULT_DEBUGLOGFILE));
+
+    if (!g_logger->m_file_path.is_absolute())
+        g_logger->m_file_path =
+            GetDataDir() / g_logger->m_file_path;
+
+    g_logger->m_print_to_console =
+        GetBoolArg("-printtoconsole", false);
+
+    g_logger->m_log_timestamps =
+        GetBoolArg("-logtimestamps",
+                   DEFAULT_LOGTIMESTAMPS);
+
     fLogIPs = GetBoolArg("-logips", false);
 
     LogPrintf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-    LogPrintf("SchillingCoin version %s (%s)\n", FormatFullVersionWithCodename(), CLIENT_DATE);
+    LogPrintf("SchillingCoin version %s (%s)\n",
+              FormatFullVersionWithCodename(),
+              CLIENT_DATE);
 }
 
 /** Initialize SchillingCoin.
@@ -1068,14 +1085,14 @@ bool AppInit2(const std::vector<std::string>& words)
 #ifndef WIN32
     CreatePidFile(GetPidFile(), getpid());
 #endif
-    if (GetBoolArg("-shrinkdebugfile", !fDebug))
-        ShrinkDebugFile();
+    if (GetBoolArg("-shrinkdebugfile", g_logger->DefaultShrinkDebugFile()))
+        g_logger->ShrinkDebugFile();
     LogPrintf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     LogPrintf("SchillingCoin version %s (%s)\n", FormatFullVersionWithCodename(), CLIENT_DATE);
 #ifdef ENABLE_WALLET
     LogPrintf("Using BerkeleyDB version %s\n", DbEnv::version(0, 0, 0));
 #endif
-    if (!fLogTimestamps)
+    if (!g_logger->m_log_timestamps)
         LogPrintf("Startup time: %s\n", DateTimeStrFormat("%Y-%m-%d %H:%M:%S", GetTime()));
     LogPrintf("Default data directory %s\n", GetDefaultDataDir().string());
     LogPrintf("Using data directory %s\n", strDataDir);

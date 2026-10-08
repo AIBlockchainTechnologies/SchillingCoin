@@ -119,9 +119,7 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock)
     if (!hashBlock.IsNull())
         BatchWriteHashBestChain(batch, hashBlock);
 
-    LogPrint(
-        "coindb",
-        "Committing %u changed transaction outputs (out of %u) to coin database...\n",
+    LogPrint(BCLog::COINDB,"Committing %u changed transaction outputs (out of %u) to coin database...\n",
         static_cast<unsigned int>(changed),
         static_cast<unsigned int>(count));
 

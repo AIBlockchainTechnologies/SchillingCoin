@@ -321,21 +321,21 @@ bool MasterNodeWizardDialog::createMN()
     }
 
     boost::filesystem::path pathConfigFile("masternode_temp.conf");
-    if (!pathConfigFile.is_complete()) pathConfigFile = GetDataDir() / pathConfigFile;
+    if (!pathConfigFile.is_absolute()) pathConfigFile = GetDataDir() / pathConfigFile;
     FILE* configFile = fopen(pathConfigFile.string().c_str(), "w");
     lineCopy += alias + " " + ipAddress + ":" + port + " " + mnKeyString + " " + txID + " " + indexOutStr + "\n";
     fwrite(lineCopy.c_str(), std::strlen(lineCopy.c_str()), 1, configFile);
     fclose(configFile);
 
     boost::filesystem::path pathOldConfFile("old_masternode.conf");
-    if (!pathOldConfFile.is_complete()) pathOldConfFile = GetDataDir() / pathOldConfFile;
+    if (!pathOldConfFile.is_absolute()) pathOldConfFile = GetDataDir() / pathOldConfFile;
     if (boost::filesystem::exists(pathOldConfFile)) {
         boost::filesystem::remove(pathOldConfFile);
     }
     rename(pathMasternodeConfigFile, pathOldConfFile);
 
     boost::filesystem::path pathNewConfFile("masternode.conf");
-    if (!pathNewConfFile.is_complete()) pathNewConfFile = GetDataDir() / pathNewConfFile;
+    if (!pathNewConfFile.is_absolute()) pathNewConfFile = GetDataDir() / pathNewConfFile;
     rename(pathConfigFile, pathNewConfFile);
 
     mnEntry = masternodeConfig.add(alias, ipAddress + ":" + port, mnKeyString, txID, indexOutStr);

@@ -136,6 +136,7 @@ BITCOIN_CORE_H = \
   key.h \
   keystore.h \
   limitedmap.h \
+  logging.h \
   main.h \
   memusage.h \
   masternode.h \
@@ -417,6 +418,7 @@ libbitcoin_util_a_SOURCES = \
   compat/glibcxx_sanity.cpp \
   compat/strnlen.cpp \
   fs.cpp \
+  logging.cpp \
   random.cpp \
   rpc/protocol.cpp \
   support/cleanse.cpp \

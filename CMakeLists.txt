@@ -514,6 +514,7 @@ set(UTIL_SOURCES
         ./src/chainparamsbase.cpp
         ./src/clientversion.cpp
         ./src/fs.cpp
+        ./src/logging.cpp
         ./src/random.cpp
         ./src/rpc/protocol.cpp
         ./src/sync.cpp
