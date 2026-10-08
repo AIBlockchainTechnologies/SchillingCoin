@@ -1,5 +1,5 @@
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -44,6 +44,15 @@ bool CSchStake::GetTxFrom(CTransaction& tx) const
     if (txFrom.IsNull())
         return false;
     tx = txFrom;
+    return true;
+}
+
+bool CSchStake::GetTxOutFrom(CTxOut& out) const
+{
+    if (txFrom.IsNull() || nPosition >= txFrom.vout.size())
+        return false;
+
+    out = txFrom.vout[nPosition];
     return true;
 }
 
@@ -141,10 +150,12 @@ CBlockIndex* CSchStake::GetIndexFrom()
 bool CSchStake::ContextCheck(int nHeight, uint32_t nTime)
 {
     const Consensus::Params& consensus = Params().GetConsensus();
+
     // Get Stake input block time/height
     CBlockIndex* pindexFrom = GetIndexFrom();
     if (!pindexFrom)
-        return error("%s: unable to get previous index for stake input");
+        return error("%s: unable to get previous index for stake input", __func__);
+
     const int nHeightBlockFrom = pindexFrom->nHeight;
     const uint32_t nTimeBlockFrom = pindexFrom->nTime;
 
@@ -152,8 +163,8 @@ bool CSchStake::ContextCheck(int nHeight, uint32_t nTime)
     if (nHeight >= consensus.height_RHF - 1 &&
             !consensus.HasStakeMinAgeOrDepth(nHeight, nTime, nHeightBlockFrom, nTimeBlockFrom))
         return error("%s : min age violation - height=%d - time=%d, nHeightBlockFrom=%d, nTimeBlockFrom=%d",
-                         __func__, nHeight, nTime, nHeightBlockFrom, nTimeBlockFrom);
+                     __func__, nHeight, nTime, nHeightBlockFrom, nTimeBlockFrom);
+
     // All good
     return true;
 }
-

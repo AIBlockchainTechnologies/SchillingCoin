@@ -6,8 +6,6 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <boost/assign/list_of.hpp>
-
 #include "db.h"
 #include "kernel.h"
 #include "legacy/stakemodifier.h"
@@ -76,9 +74,9 @@ bool CStakeKernel::CheckKernelHash(bool fSkipLog) const
     return res;
 }
 
-/*
+/***********************************
  * PoS Validation
- */
+ ***********************************/
 
 // helper function for CheckProofOfStake and GetStakeKernelHash
 bool LoadStakeInput(const CBlock& block, const CBlockIndex* pindexPrev, std::unique_ptr<CStakeInput>& stake)
@@ -86,12 +84,14 @@ bool LoadStakeInput(const CBlock& block, const CBlockIndex* pindexPrev, std::uni
     // If previous index is not provided, look for it in the blockmap
     if (!pindexPrev) {
         BlockMap::iterator mi = mapBlockIndex.find(block.hashPrevBlock);
-        if (mi != mapBlockIndex.end() && (*mi).second) pindexPrev = (*mi).second;
-        else return error("%s : couldn't find previous block", __func__);
+        if (mi != mapBlockIndex.end() && (*mi).second)
+            pindexPrev = (*mi).second;
+        else
+            return error("%s : couldn't find previous block", __func__);
     } else {
-        // check that is the actual parent block
+        // check that this is the actual parent block
         if (block.hashPrevBlock != pindexPrev->GetBlockHash())
-            return error("%s : previous block mismatch");
+            return error("%s : previous block mismatch", __func__);
     }
 
     // Check that this is a PoS block
@@ -108,127 +108,62 @@ bool LoadStakeInput(const CBlock& block, const CBlockIndex* pindexPrev, std::uni
 /*
  * Stake Check if stakeInput can stake a block on top of pindexPrev
  *
- * @param[in]   pindexPrev      index of the parent block of the block being staked
+ * @param[in]   pindexPrev      index of the parent of the kernel block
  * @param[in]   stakeInput      input for the coinstake
  * @param[in]   nBits           target difficulty bits
  * @param[in]   nTimeTx         new blocktime
  * @return      bool            true if stake kernel hash meets target protocol
  */
-
 bool Stake(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int64_t& nTimeTx)
 {
-	// Double check stake input contextual checks
-	const Consensus::Params& consensus = Params().GetConsensus();
-	const int nHeightTx = pindexPrev->nHeight + 1;
-	if (!stakeInput || !stakeInput->ContextCheck(nHeightTx, nTimeTx)) return false;
+    if (!stakeInput)
+        return false;
 
-	const bool fTimeV2 = consensus.IsTimeProtocolV2(nHeightTx);
-	if (fTimeV2) {
-		// Get the new time slot (and verify it's not the same as previous block)
-		const bool fRegTest = Params().IsRegTestNet();
-		nTimeTx = (fRegTest ? GetAdjustedTime() : GetCurrentTimeSlot());
-		if (nTimeTx <= pindexPrev->nTime && !fRegTest) return false;
-		// Verify Proof Of Stake
-		CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTimeTx);
-		return stakeKernel.CheckKernelHash(true);
-	}
-	else
-	{
-		bool fSuccess = false;
-		nTimeTx = pindexPrev->nTime;
-		unsigned int nTryTime = nTimeTx;
-		const unsigned int maxTime = GetAdjustedTime() + 45;
-		while (nTryTime < maxTime) {
-			//new block came in, move on
-			if (chainActive.Height() != pindexPrev->nHeight) break;
+    const Consensus::Params& consensus = Params().GetConsensus();
+    const int nHeightTx = pindexPrev->nHeight + 1;
+    const bool fTimeV2 = consensus.IsTimeProtocolV2(nHeightTx);
 
-			++nTryTime;
-			// if stake hash does not meet the target then continue to next iteration
-			CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTryTime);
-			if (!stakeKernel.CheckKernelHash(true))
-				continue;
+    if (fTimeV2) {
+        // Get the new time slot before performing contextual checks.
+        const bool fRegTest = Params().IsRegTestNet();
+        nTimeTx = fRegTest ? GetAdjustedTime() : GetCurrentTimeSlot();
 
-			// if we made it this far, then we have successfully found a valid kernel hash
-			fSuccess = true;
-			nTimeTx = nTryTime;
-			break;
-		}
-		return fSuccess;
-	}
+        if (nTimeTx <= pindexPrev->nTime && !fRegTest)
+            return false;
+
+        // Validate the same timestamp that will be used in the stake kernel.
+        if (!stakeInput->ContextCheck(nHeightTx, nTimeTx))
+            return false;
+
+        CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTimeTx);
+        return stakeKernel.CheckKernelHash(true);
+    }
+
+    nTimeTx = pindexPrev->nTime;
+    unsigned int nTryTime = nTimeTx;
+    const unsigned int maxTime = GetAdjustedTime() + 45;
+
+    while (nTryTime < maxTime) {
+        // A new block arrived, so stop searching on the previous tip.
+        if (chainActive.Height() != pindexPrev->nHeight)
+            break;
+
+        ++nTryTime;
+
+        // Validate the same candidate timestamp that will be hashed.
+        if (!stakeInput->ContextCheck(nHeightTx, nTryTime))
+            continue;
+
+        CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTryTime);
+        if (!stakeKernel.CheckKernelHash(true))
+            continue;
+
+        nTimeTx = nTryTime;
+        return true;
+    }
+
+    return false;
 }
-
-bool StakeV1(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int64_t& nTimeTx)
-{
-	bool fSuccess = false;
-	nTimeTx = pindexPrev->nTime;
-	unsigned int nTryTime = nTimeTx;
-	// iterate from nTimeTx up to nTimeTx + nHashDrift
-	// but not after the max allowed future blocktime drift (3 minutes for PoS)
-	const unsigned int maxTime = GetAdjustedTime() + 180;
-
-	while (nTryTime < maxTime) {
-		//new block came in, move on
-		if (chainActive.Height() != pindexPrev->nHeight) break;
-
-		++nTryTime;
-		// if stake hash does not meet the target then continue to next iteration
-
-		CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTimeTx);
-		if (!(stakeKernel.CheckKernelHash(true)))
-			continue;
-
-		//CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTimeTx);
-		//return stakeKernel.CheckKernelHash(true);
-
-		// if we made it this far, then we have successfully found a valid kernel hash
-		fSuccess = true;
-		nTimeTx = nTryTime;
-		break;
-	}
-
-	nTimeTx = nTryTime;
-	return fSuccess;
-}
-
-//bool StakeV1(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, int64_t& nTimeBlockFrom, unsigned int nBits, int64_t& nTimeTx, uint256& hashProofOfStake)
-//{
-//	bool fSuccess = false;
-//	nTimeTx = pindexPrev->nTime;
-//	const unsigned int maxTime = pindexPrev->MaxFutureBlockTime();
-//	unsigned int minTime = std::max(nTimeTx, nTimeBlockFrom + 3600);
-//
-//	unsigned int nTryTime = nTimeTx;
-//	// iterate from nTimeTx up to nTimeTx + nHashDrift
-//	// but not after the max allowed future blocktime drift (3 minutes for PoS)
-//	// const unsigned int maxTime = GetAdjustedTime() + 45;
-//
-//	if (maxTime <= minTime) {
-//		// too early to stake
-//		return false;
-//	}
-//
-//	while (nTryTime > minTime) {
-//		//new block came in, move on
-//		if (chainActive.Height() != pindexPrev->nHeight) break;
-//
-//		--nTryTime;
-//		// if stake hash does not meet the target then continue to next iteration
-//
-//		CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTimeTx);
-//		if (!(stakeKernel.CheckKernelHash(true)))
-//			continue;
-//
-//		//CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTimeTx);
-//		//return stakeKernel.CheckKernelHash(true);
-//
-//		// if we made it this far, then we have successfully found a valid kernel hash
-//		fSuccess = true;
-//		break;
-//	}
-//
-//	nTimeTx = nTryTime;
-//	return fSuccess;
-//}
 
 /*
  * CheckProofOfStake    Check if block has valid proof of stake
@@ -255,19 +190,26 @@ bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockI
     }
 
     // Verify signature
-        CTransaction txPrev;
-        if (!stakeInput->GetTxFrom(txPrev)) {
-            strError = "unable to get txPrev for coinstake";
-            return false;
-        }
-        const CTransaction& tx = block.vtx[1];
-        const CTxIn& txin = tx.vin[0];
-        ScriptError serror;
-        if (!VerifyScript(txin.scriptSig, txPrev.vout[txin.prevout.n].scriptPubKey, STANDARD_SCRIPT_VERIFY_FLAGS,
-                 TransactionSignatureChecker(&tx, 0), &serror)) {
-            strError = strprintf("signature fails: %s", serror ? ScriptErrorString(serror) : "");
-            return false;
-        }
+    CTxOut stakePrevout;
+    if (!stakeInput->GetTxOutFrom(stakePrevout)) {
+        strError = "unable to get stake prevout for coinstake";
+        return false;
+    }
+
+    const CTransaction& tx = block.vtx[1];
+    const CTxIn& txin = tx.vin[0];
+    ScriptError serror;
+
+    if (!VerifyScript(
+            txin.scriptSig,
+            stakePrevout.scriptPubKey,
+            STANDARD_SCRIPT_VERIFY_FLAGS,
+            TransactionSignatureChecker(&tx, 0),
+            &serror)) {
+        strError = strprintf("signature fails: %s",
+                             serror ? ScriptErrorString(serror) : "");
+        return false;
+    }
 
     // Verify Proof Of Stake
     CStakeKernel stakeKernel(pindexPrev, stakeInput.get(), block.nBits, block.nTime);
@@ -279,7 +221,6 @@ bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockI
     // All good
     return true;
 }
-
 
 /*
  * GetStakeKernelHash   Return stake kernel of a block
