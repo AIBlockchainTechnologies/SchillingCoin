@@ -149,7 +149,7 @@ uint256 CHDChain::GetSeedHash()
     return Hash(vchSeed.begin(), vchSeed.end());
 }
 
-void CHDChain::DeriveChildExtKey(uint32_t nAccountIndex, bool fInternal, uint32_t nChildIndex, CExtKey& extKeyRet)
+void CHDChain::DeriveChildExtKey(uint32_t nAccountIndex, bool fInternal, uint32_t nChildIndex, CExtKey& extKeyRet, KeyOriginInfo& keyOrigin)
 {
     // Use BIP44 keypath scheme i.e. m / purpose' / coin_type' / account' / change / address_index
     CExtKey masterKey;              //hd master key
@@ -166,14 +166,30 @@ void CHDChain::DeriveChildExtKey(uint32_t nAccountIndex, bool fInternal, uint32_
 
     // derive m/purpose'
     masterKey.Derive(purposeKey, 44 | 0x80000000);
+
     // derive m/purpose'/coin_type'
     purposeKey.Derive(cointypeKey, Params().ExtCoinType() | 0x80000000);
+
     // derive m/purpose'/coin_type'/account'
     cointypeKey.Derive(accountKey, nAccountIndex | 0x80000000);
+
     // derive m/purpose'/coin_type'/account/change
     accountKey.Derive(changeKey, fInternal ? 1 : 0);
+
     // derive m/purpose'/coin_type'/account/change/address_index
     changeKey.Derive(extKeyRet, nChildIndex);
+
+    // We should never update an already existing key origin here
+    assert(keyOrigin.path.empty());
+
+    keyOrigin.path.push_back(44 | 0x80000000);
+    keyOrigin.path.push_back(Params().ExtCoinType() | 0x80000000);
+    keyOrigin.path.push_back(nAccountIndex | 0x80000000);
+    keyOrigin.path.push_back(fInternal ? 1 : 0);
+    keyOrigin.path.push_back(nChildIndex);
+
+    CKeyID master_id = masterKey.key.GetPubKey().GetID();
+    std::copy(master_id.begin(), master_id.begin() + 4, keyOrigin.fingerprint);
 }
 
 void CHDChain::AddAccount()

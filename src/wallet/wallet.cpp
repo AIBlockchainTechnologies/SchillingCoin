@@ -172,7 +172,7 @@ int64_t CWallet::GetKeyCreationTime(const CBitcoinAddress& address)
     return 0;
 }
 
-void CWallet::DeriveNewChildKey(const CKeyMetadata& metadata, CKey& secretRet, uint32_t nAccountIndex, bool fInternal)
+void CWallet::DeriveNewChildKey(CKeyMetadata& metadata, CKey& secretRet, uint32_t nAccountIndex, bool fInternal)
 {
     CHDChain hdChainTmp;
     if (!GetHDChain(hdChainTmp)) {
@@ -181,6 +181,7 @@ void CWallet::DeriveNewChildKey(const CKeyMetadata& metadata, CKey& secretRet, u
 
     if (!DecryptHDChain(hdChainTmp))
         throw std::runtime_error(std::string(__func__) + ": DecryptHDChainSeed failed");
+
     // make sure seed matches this chain
     if (hdChainTmp.GetID() != hdChainTmp.GetSeedHash())
         throw std::runtime_error(std::string(__func__) + ": Wrong HD chain!");
@@ -191,12 +192,27 @@ void CWallet::DeriveNewChildKey(const CKeyMetadata& metadata, CKey& secretRet, u
 
     // derive child key at next index, skip keys already known to the wallet
     CExtKey childKey;
+    KeyOriginInfo keyOriginTmp;
     uint32_t nChildIndex = fInternal ? acc.nInternalChainCounter : acc.nExternalChainCounter;
+
     do {
-        hdChainTmp.DeriveChildExtKey(nAccountIndex, fInternal, nChildIndex, childKey);
+        // DeriveChildExtKey updates keyOriginTmp, so clear it before each attempt.
+        keyOriginTmp.clear();
+        hdChainTmp.DeriveChildExtKey(
+            nAccountIndex,
+            fInternal,
+            nChildIndex,
+            childKey,
+            keyOriginTmp);
+
         // increment childkey index
         nChildIndex++;
     } while (HaveKey(childKey.key.GetPubKey().GetID()));
+
+    metadata.key_origin = keyOriginTmp;
+    assert(!metadata.has_key_origin);
+    metadata.has_key_origin = true;
+
     secretRet = childKey.key;
 
     CPubKey pubkey = secretRet.GetPubKey();
@@ -213,8 +229,7 @@ void CWallet::DeriveNewChildKey(const CKeyMetadata& metadata, CKey& secretRet, u
 
     if (fInternal) {
         acc.nInternalChainCounter = nChildIndex;
-    }
-    else {
+    } else {
         acc.nExternalChainCounter = nChildIndex;
     }
 
@@ -224,8 +239,7 @@ void CWallet::DeriveNewChildKey(const CKeyMetadata& metadata, CKey& secretRet, u
     if (IsCrypted()) {
         if (!SetCryptedHDChain(hdChainCurrent, false))
             throw std::runtime_error(std::string(__func__) + ": SetCryptedHDChain failed");
-    }
-    else {
+    } else {
         if (!SetHDChain(hdChainCurrent, false))
             throw std::runtime_error(std::string(__func__) + ": SetHDChain failed");
     }
@@ -248,32 +262,68 @@ bool CWallet::GetPubKey(const CKeyID &address, CPubKey& vchPubKeyOut) const
         return CCryptoKeyStore::GetPubKey(address, vchPubKeyOut);
 }
 
-bool CWallet::GetKey(const CKeyID &address, CKey& keyOut) const
+bool CWallet::GetKey(const CKeyID& address, CKey& keyOut) const
 {
     LOCK(cs_wallet);
+
     std::map<CKeyID, CHDPubKey>::const_iterator mi = mapHdPubKeys.find(address);
-    if (mi != mapHdPubKeys.end())
-    {
-        // if the key has been found in mapHdPubKeys, derive it on the fly
-        const CHDPubKey &hdPubKey = (*mi).second;
+    if (mi != mapHdPubKeys.end()) {
+        // If the key has been found in mapHdPubKeys, derive it on the fly.
+        const CHDPubKey& hdPubKey = mi->second;
+
         CHDChain hdChainCurrent;
         if (!GetHDChain(hdChainCurrent))
             throw std::runtime_error(std::string(__func__) + ": GetHDChain failed");
+
         if (!DecryptHDChain(hdChainCurrent))
             throw std::runtime_error(std::string(__func__) + ": DecryptHDChainSeed failed");
-        // make sure seed matches this chain
+
+        // Make sure seed matches this chain.
         if (hdChainCurrent.GetID() != hdChainCurrent.GetSeedHash())
             throw std::runtime_error(std::string(__func__) + ": Wrong HD chain!");
 
         CExtKey extkey;
-        hdChainCurrent.DeriveChildExtKey(hdPubKey.nAccountIndex, hdPubKey.nChangeIndex != 0, hdPubKey.extPubKey.nChild, extkey);
-        keyOut = extkey.key;
+        KeyOriginInfo keyOriginTmp;
 
+        hdChainCurrent.DeriveChildExtKey(
+            hdPubKey.nAccountIndex,
+            hdPubKey.nChangeIndex != 0,
+            hdPubKey.extPubKey.nChild,
+            extkey,
+            keyOriginTmp);
+
+        keyOut = extkey.key;
         return true;
     }
-    else {
-        return CCryptoKeyStore::GetKey(address, keyOut);
+
+    return CCryptoKeyStore::GetKey(address, keyOut);
+}
+
+bool CWallet::GetKeyOrigin(const CKeyID& keyID, KeyOriginInfo& info) const
+{
+    LOCK(cs_wallet);
+
+    std::map<CKeyID, CKeyMetadata>::const_iterator it = mapKeyMetadata.find(keyID);
+    if (it == mapKeyMetadata.end()) {
+        return false;
     }
+
+    const CKeyMetadata& metadata = it->second;
+
+    if (metadata.has_key_origin) {
+        info = metadata.key_origin;
+        return true;
+    }
+
+    CPubKey pubkey;
+    if (!GetPubKey(keyID, pubkey)) {
+        return false;
+    }
+
+    info.clear();
+    std::copy(keyID.begin(), keyID.begin() + 4, info.fingerprint);
+
+    return true;
 }
 
 bool CWallet::HaveKey(const CKeyID &address) const

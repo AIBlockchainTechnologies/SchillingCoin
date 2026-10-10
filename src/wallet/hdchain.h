@@ -1,11 +1,14 @@
 // Copyright (c) 2014-2017 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
+
 #ifndef SchillingCoin_HDCHAIN_H
 #define SchillingCoin_HDCHAIN_H
 
 #include "key.h"
 #include "sync.h"
 #include "bip39.h"
+#include "script/keyorigin.h"
 
 /* hd account data model */
 class CHDAccount
@@ -112,7 +115,7 @@ public:
     uint256 GetID() const { return id; }
 
     uint256 GetSeedHash();
-    void DeriveChildExtKey(uint32_t nAccountIndex, bool fInternal, uint32_t nChildIndex, CExtKey& extKeyRet);
+    void DeriveChildExtKey(uint32_t nAccountIndex, bool fInternal, uint32_t nChildIndex, CExtKey& extKeyRet, KeyOriginInfo& keyOrigin);
 
     void AddAccount();
     bool GetAccount(uint32_t nAccountIndex, CHDAccount& hdAccountRet);

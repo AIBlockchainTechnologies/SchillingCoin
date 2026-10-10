@@ -9,7 +9,7 @@
 #include "base58.h"
 #include "key.h"
 #include "util.h"
-#include "test/test_bitcoin.h"
+#include "test/test_schillingcoin.h"
 #include "uint256.h"
 
 #include <string>
@@ -79,34 +79,125 @@ TestVector test2 =
      "xprvA2nrNbFZABcdryreWet9Ea4LvTJcGsqrMzxHx98MMrotbir7yrKCEXw7nadnHM8Dq38EGfSh6dqA9QWTyefMLEcBYJUuekgW4BYPJcr9E7j",
      0);
 
-void RunTest(const TestVector &test) {
+TestVector test3 =
+  TestVector("4b381541583be4423346c643850da4b320e46a87ae3d2a4e6da11eba819cd4acba45d239319ac14f863b8d5ab5a0d0c64d2e8a1e7d1457df2e5a3c51c73235be")
+    ("xpub661MyMwAqRbcEZVB4dScxMAdx6d4nFc9nvyvH3v4gJL378CSRZiYmhRoP7mBy6gSPSCYk6SzXPTf3ND1cZAceL7SfJ1Z3GC8vBgp2epUt13",
+     "xprv9s21ZrQH143K25QhxbucbDDuQ4naNntJRi4KUfWT7xo4EKsHt2QJDu7KXp1A3u7Bi1j8ph3EGsZ9Xvz9dGuVrtHHs7pXeTzjuxBrCmmhgC6",
+     0x80000000)
+    ("xpub68NZiKmJWnxxS6aaHmn81bvJeTESw724CRDs6HbuccFQN9Ku14VQrADWgqbhhTHBaohPX4CjNLf9fq9MYo6oDaPPLPxSb7gwQN3ih19Zm4Y",
+     "xprv9uPDJpEQgRQfDcW7BkF7eTya6RPxXeJCqCJGHuCJ4GiRVLzkTXBAJMu2qaMWPrS7AANYqdq6vcBcBUdJCVVFceUvJFjaPdGZ2y9WACViL4L",
+     0);
+
+void RunTest(const TestVector& test)
+{
     std::vector<unsigned char> seed = ParseHex(test.strHexMaster);
+
     CExtKey key;
     CExtPubKey pubkey;
-    key.SetSeed(&seed[0], seed.size());
+
+    key.SetMaster(&seed[0], seed.size());
     pubkey = key.Neuter();
-    for (const TestDerivation &derive : test.vDerive) {
-        unsigned char data[74];
-        key.Encode(data);
-        pubkey.Encode(data);
-        // Test private key
-        CBitcoinExtKey b58key; b58key.SetKey(key);
-        BOOST_CHECK(b58key.ToString() == derive.prv);
-        // Test public key
-        CBitcoinExtPubKey b58pubkey; b58pubkey.SetKey(pubkey);
-        BOOST_CHECK(b58pubkey.ToString() == derive.pub);
-        // Derive new keys
+
+    for (const TestDerivation& derive : test.vDerive) {
+        unsigned char encodedPriv[BIP32_EXTKEY_SIZE];
+        unsigned char encodedPub[BIP32_EXTKEY_SIZE];
+
+        key.Encode(encodedPriv);
+        pubkey.Encode(encodedPub);
+
+        // The official BIP32 vectors use Bitcoin's xprv/xpub prefixes.
+        // SCH intentionally uses its own extended-key prefixes, so compare
+        // the underlying 74-byte BIP32 payloads independently of the
+        // network-specific four-byte Base58 prefixes.
+        std::vector<unsigned char> expectedPriv;
+        std::vector<unsigned char> expectedPub;
+
+        BOOST_REQUIRE(DecodeBase58Check(derive.prv, expectedPriv));
+        BOOST_REQUIRE(DecodeBase58Check(derive.pub, expectedPub));
+
+        BOOST_REQUIRE_EQUAL(expectedPriv.size(), BIP32_EXTKEY_SIZE + 4);
+        BOOST_REQUIRE_EQUAL(expectedPub.size(), BIP32_EXTKEY_SIZE + 4);
+
+        std::vector<unsigned char> expectedPrivPayload(
+            expectedPriv.begin() + 4,
+            expectedPriv.end());
+
+        std::vector<unsigned char> expectedPubPayload(
+            expectedPub.begin() + 4,
+            expectedPub.end());
+
+        std::vector<unsigned char> actualPrivPayload(
+            encodedPriv,
+            encodedPriv + BIP32_EXTKEY_SIZE);
+
+        std::vector<unsigned char> actualPubPayload(
+            encodedPub,
+            encodedPub + BIP32_EXTKEY_SIZE);
+
+        BOOST_CHECK(expectedPrivPayload == actualPrivPayload);
+        BOOST_CHECK(expectedPubPayload == actualPubPayload);
+
+        // Verify SCH extended private-key Base58 encoding and decoding.
+        CBitcoinExtKey schExtKey;
+        schExtKey.SetKey(key);
+
+        const std::string schEncodedPriv = schExtKey.ToString();
+
+        CBitcoinExtKey schDecodedExtKey(schEncodedPriv);
+        CExtKey decodedPrivKey = schDecodedExtKey.GetKey();
+
+        BOOST_CHECK(decodedPrivKey == key);
+
+        // Verify SCH extended public-key Base58 encoding and decoding.
+        CBitcoinExtPubKey schExtPubKey;
+        schExtPubKey.SetKey(pubkey);
+
+        const std::string schEncodedPub = schExtPubKey.ToString();
+
+        CBitcoinExtPubKey schDecodedExtPubKey(schEncodedPub);
+        CExtPubKey decodedPubKey = schDecodedExtPubKey.GetKey();
+
+        BOOST_CHECK(decodedPubKey == pubkey);
+
+        // Derive the next private key.
         CExtKey keyNew;
-        BOOST_CHECK(key.Derive(keyNew, derive.nChild));
+        BOOST_REQUIRE(key.Derive(keyNew, derive.nChild));
+
         CExtPubKey pubkeyNew = keyNew.Neuter();
+
         if (!(derive.nChild & 0x80000000)) {
-            // Compare with public derivation
+            // Compare private derivation followed by Neuter() with direct
+            // non-hardened public derivation.
             CExtPubKey pubkeyNew2;
-            BOOST_CHECK(pubkey.Derive(pubkeyNew2, derive.nChild));
+
+            BOOST_REQUIRE(pubkey.Derive(pubkeyNew2, derive.nChild));
             BOOST_CHECK(pubkeyNew == pubkeyNew2);
         }
+
         key = keyNew;
         pubkey = pubkeyNew;
+
+        // Verify extended public-key stream serialization.
+        CDataStream ssPub(SER_DISK, CLIENT_VERSION);
+        ssPub << pubkeyNew;
+
+        BOOST_CHECK_EQUAL(ssPub.size(), 75U);
+
+        CExtPubKey pubCheck;
+        ssPub >> pubCheck;
+
+        BOOST_CHECK(pubCheck == pubkeyNew);
+
+        // Verify extended private-key stream serialization.
+        CDataStream ssPriv(SER_DISK, CLIENT_VERSION);
+        ssPriv << keyNew;
+
+        BOOST_CHECK_EQUAL(ssPriv.size(), 75U);
+
+        CExtKey privCheck;
+        ssPriv >> privCheck;
+
+        BOOST_CHECK(privCheck == keyNew);
     }
 }
 
@@ -118,6 +209,10 @@ BOOST_AUTO_TEST_CASE(bip32_test1) {
 
 BOOST_AUTO_TEST_CASE(bip32_test2) {
     RunTest(test2);
+}
+
+BOOST_AUTO_TEST_CASE(bip32_test3) {
+    RunTest(test3);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

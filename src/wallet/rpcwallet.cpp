@@ -172,7 +172,6 @@ UniValue getaddressinfo(const JSONRPCRequest& request)
                 "      }\n"
                 "    ]\n"
                 "}\n"
-
                 "\nExamples:\n" +
                 HelpExampleCli("getaddressinfo", example_address) + HelpExampleRpc("getaddressinfo", example_address)
                 );
@@ -181,10 +180,12 @@ UniValue getaddressinfo(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VOBJ);
     CBitcoinAddress address(request.params[0].get_str());
+
     // Make sure the destination is valid
     if (!address.IsValid()) {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid address");
     }
+
     CTxDestination dest = address.Get();
 
     std::string currentAddress = address.ToString();
@@ -206,6 +207,7 @@ UniValue getaddressinfo(const JSONRPCRequest& request)
 
     // TODO: Backport IsChange.
     //ret.pushKV("ischange", pwallet->IsChange(scriptPubKey))
+
     // Return a `labels` array containing the label associated with the address,
     // equivalent to the `label` field above. Currently only one label can be
     // associated with an address, but we return an array so the API remains
@@ -220,6 +222,29 @@ UniValue getaddressinfo(const JSONRPCRequest& request)
         labels.push_back(AddressBookDataToJSON(mi->second, true));
     }
     ret.pushKV("labels", std::move(labels));
+
+    CKeyID keyID;
+    if (address.GetKeyID(keyID)) {
+        std::map<CKeyID, CKeyMetadata>::const_iterator metadataIt = pwallet->mapKeyMetadata.find(keyID);
+        if (metadataIt != pwallet->mapKeyMetadata.end()) {
+            const CKeyMetadata& metadata = metadataIt->second;
+
+            if (metadata.nCreateTime > 0) {
+                ret.pushKV("timestamp", metadata.nCreateTime);
+            }
+        }
+
+        KeyOriginInfo keyOrigin;
+        if (pwallet->GetKeyOrigin(keyID, keyOrigin) && !keyOrigin.path.empty()) {
+            ret.pushKV("hdkeypath", keyOrigin.pathToString());
+            ret.pushKV("hdmasterfingerprint", HexStr(keyOrigin.fingerprint, keyOrigin.fingerprint + 4));
+        }
+
+        std::map<CKeyID, CHDPubKey>::const_iterator hdPubKeyIt = pwallet->mapHdPubKeys.find(keyID);
+        if (hdPubKeyIt != pwallet->mapHdPubKeys.end()) {
+            ret.pushKV("hdseedid", hdPubKeyIt->second.hdchainID.GetHex());
+        }
+    }
 
     return ret;
 }
