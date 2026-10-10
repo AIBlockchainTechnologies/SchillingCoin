@@ -16,7 +16,7 @@
 #include "utilmoneystr.h"
 #include "wallet/wallet.h"
 #include "script/standard.h"
-#include "netbase.h" // <-- REQUIRED for SplitHostPort, GetNetworkName, GetProxy, proxyType
+#include "netbase.h"
 
 #include <univalue.h>
 #include <boost/tokenizer.hpp>
@@ -456,7 +456,7 @@ UniValue createmasternodekey(const JSONRPCRequest& request)
     CKey secret;
     secret.MakeNewKey(false);
 
-    return CBitcoinSecret(secret).ToString();
+    return EncodeSecret(secret);
 }
 
 UniValue getmasternodeoutputs(const JSONRPCRequest& request)

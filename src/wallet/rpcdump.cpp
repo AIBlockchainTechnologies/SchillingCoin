@@ -7,6 +7,7 @@
 
 #include "bip38.h"
 #include "init.h"
+#include "key_io.h"
 #include "main.h"
 #include "rpc/server.h"
 #include "script/script.h"
@@ -105,13 +106,9 @@ UniValue importprivkey(const JSONRPCRequest& request)
     const bool fRescan = (request.params.size() > 2 ? request.params[2].get_bool() : true);
     const bool fStakingAddress = (request.params.size() > 3 ? request.params[3].get_bool() : false);
 
-    CBitcoinSecret vchSecret;
-    if (!vchSecret.SetString(strSecret))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key encoding");
-
-    CKey key = vchSecret.GetKey();
+    CKey key = DecodeSecret(strSecret);
     if (!key.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Private key outside allowed range");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key encoding");
 
     CPubKey pubkey = key.GetPubKey();
     assert(key.VerifyPubKey(pubkey));
@@ -314,10 +311,9 @@ UniValue importwallet(const JSONRPCRequest& request)
         boost::split(vstr, line, boost::is_any_of(" "));
         if (vstr.size() < 2)
             continue;
-        CBitcoinSecret vchSecret;
-        if (!vchSecret.SetString(vstr[0]))
+        CKey key = DecodeSecret(vstr[0]);
+        if (!key.IsValid())
             continue;
-        CKey key = vchSecret.GetKey();
         CPubKey pubkey = key.GetPubKey();
         assert(key.VerifyPubKey(pubkey));
         CKeyID keyid = pubkey.GetID();
@@ -405,7 +401,7 @@ UniValue dumpprivkey(const JSONRPCRequest& request)
     CKey vchSecret;
     if (!pwalletMain->GetKey(keyID, vchSecret))
         throw JSONRPCError(RPC_WALLET_ERROR, "Private key for address " + strAddress + " is not known");
-    return CBitcoinSecret(vchSecret).ToString();
+    return EncodeSecret(vchSecret);
 }
 
 UniValue dumpwallet(const JSONRPCRequest& request)
@@ -473,20 +469,22 @@ UniValue dumpwallet(const JSONRPCRequest& request)
         file << "# mnemonic passphrase: " << ssMnemonicPassphrase << "\n\n";
         SecureVector vchSeed = hdChainCurrent.GetSeed();
         file << "# HD seed: " << HexStr(vchSeed) << "\n\n";
+
         CExtKey masterKey;
         masterKey.SetMaster(&vchSeed[0], vchSeed.size());
-        CBitcoinExtKey b58extkey;
-        b58extkey.SetKey(masterKey);
-        file << "# extended private masterkey: " << b58extkey.ToString() << "\n";
-        CExtPubKey masterPubkey;
-        masterPubkey = masterKey.Neuter();
-        CBitcoinExtPubKey b58extpubkey;
-        b58extpubkey.SetKey(masterPubkey);
-        file << "# extended public masterkey: " << b58extpubkey.ToString() << "\n\n";
+
+        file << "# extended private masterkey: "
+             << KeyIO::EncodeExtKey(masterKey) << "\n";
+
+        CExtPubKey masterPubkey = masterKey.Neuter();
+
+        file << "# extended public masterkey: "
+             << KeyIO::EncodeExtPubKey(masterPubkey) << "\n\n";
+
         for (size_t i = 0; i < hdChainCurrent.CountAccounts(); ++i)
         {
             CHDAccount acc;
-            if(hdChainCurrent.GetAccount(i, acc)) {
+            if (hdChainCurrent.GetAccount(i, acc)) {
                 file << "# external chain counter: " << acc.nExternalChainCounter << "\n";
                 file << "# internal chain counter: " << acc.nInternalChainCounter << "\n\n";
             } else {
@@ -500,7 +498,7 @@ UniValue dumpwallet(const JSONRPCRequest& request)
         std::string strAddr = CBitcoinAddress(keyid).ToString();
         CKey key;
         if (pwalletMain->GetKey(keyid, key)) {
-            file << strprintf("%s %s ", CBitcoinSecret(key).ToString(), strTime);
+            file << strprintf("%s %s ", KeyIO::EncodeSecret(key), strTime);
             if (pwalletMain->mapAddressBook.count(keyid)) {
                 file << strprintf("label=%s", EncodeDumpString(pwalletMain->mapAddressBook[keyid].name));
             } else if (setKeyPool.count(keyid)) {

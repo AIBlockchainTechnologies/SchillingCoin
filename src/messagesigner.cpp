@@ -1,5 +1,5 @@
 // Copyright (c) 2014-2018 The Dash Core developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,13 +13,11 @@
 
 bool CMessageSigner::GetKeysFromSecret(const std::string& strSecret, CKey& keyRet, CPubKey& pubkeyRet)
 {
-    CBitcoinSecret vchSecret;
+    keyRet = DecodeSecret(strSecret);
+    if (!keyRet.IsValid())
+        return false;
 
-    if(!vchSecret.SetString(strSecret)) return false;
-
-    keyRet = vchSecret.GetKey();
     pubkeyRet = keyRet.GetPubKey();
-
     return true;
 }
 
@@ -172,4 +170,3 @@ void CSignedMessage::swap(CSignedMessage& first, CSignedMessage& second) // noth
     swap(first.vchSig, second.vchSig);
     swap(first.nMessVersion, second.nMessVersion);
 }
-

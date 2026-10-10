@@ -25,6 +25,7 @@
 #include "util.h"
 #include "util/memory.h"
 #include "validationinterface.h"
+#include "wallet/scriptpubkeyman.h"
 #include "wallet/wallet_ismine.h"
 #include "wallet/walletdb.h"
 
@@ -212,8 +213,12 @@ private:
     //it was public bool SelectCoins(int64_t nTargetValue, std::set<std::pair<const CWalletTx*,unsigned int> >& setCoinsRet, int64_t& nValueRet, const CCoinControl *coinControl = NULL, AvailableCoinsType coin_type=ALL_COINS, bool useIX = true) const;
 
     CWalletDB* pwalletdbEncryption;
+
     //! keeps track of whether Unlock has run a thorough check before
     bool fDecryptionThoroughlyChecked{false};
+
+    //! ScriptPubKey manager
+    std::unique_ptr<ScriptPubKeyMan> m_spk_man = MakeUnique<ScriptPubKeyMan>(this);
 
     //! the current wallet version: clients below this version are not able to load the wallet
     int nWalletVersion;
@@ -241,13 +246,22 @@ private:
     /* HD derive new child key (on internal or external chain) */
     void DeriveNewChildKey(const CKeyMetadata& metadata, CKey& secretRet, uint32_t nAccountIndex, bool fInternal /*= false*/);
 
-
 public:
+
+    static const CAmount DEFAULT_STAKE_SPLIT_THRESHOLD = 500 * COIN;
+
+    //! Initialize ScriptPubKey manager
+    bool SetupSPKM(bool newKeypool = true);
+
+    //! Get ScriptPubKey manager
+    ScriptPubKeyMan* GetScriptPubKeyMan() const;
+
+    /* SPKM Helpers */
+    const CKeyingMaterial& GetEncryptionKey() const;
+    bool HasEncryptionKeys() const;
 
     //TODO move to private after createwalletfromfile has been backported
     void MarkPreSplitKeys();
-
-    static const CAmount DEFAULT_STAKE_SPLIT_THRESHOLD = 500 * COIN;
 
     bool StakeableCoins(std::vector<COutput>* pCoins = nullptr);
     bool IsCollateralAmount(CAmount nInputAmount) const;
@@ -426,6 +440,7 @@ public:
     bool ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase, const SecureString& strNewWalletPassphrase);
     bool EncryptWallet(const SecureString& strWalletPassphrase);
 
+    std::vector<CKeyID> GetAffectedKeys(const CScript& spk);
     void GetKeyBirthTimes(std::map<CKeyID, int64_t>& mapKeyBirth) const;
 
     /**
@@ -602,7 +617,6 @@ public:
     /** notify wallet file backed up */
     boost::signals2::signal<void (const bool& fSuccess, const std::string& filename)> NotifyWalletBacked;
 };
-
 
 /** A key allocated from the key pool. */
 class CReserveKey

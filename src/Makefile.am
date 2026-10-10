@@ -134,6 +134,7 @@ BITCOIN_CORE_H = \
   kernel.h \
   swifttx.h \
   key.h \
+  key_io.h \
   keystore.h \
   limitedmap.h \
   logging.h \
@@ -200,6 +201,7 @@ BITCOIN_CORE_H = \
   validationinterface.h \
   version.h \
   wallet/hdchain.h \
+  wallet/scriptpubkeyman.h \
   wallet/wallet.h \
   wallet/wallet_ismine.h \
   wallet/walletdb.h \
@@ -270,6 +272,7 @@ libbitcoin_wallet_a_SOURCES = \
   bip38.cpp \
   addressbook.cpp \
   crypter.cpp \
+  key_io.cpp \
   masternode.cpp \
   masternode-payments.cpp \
   masternode-sync.cpp \
@@ -283,6 +286,7 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
   wallet/hdchain.cpp \
+  wallet/scriptpubkeyman.cpp \
   wallet/wallet.cpp \
   wallet/wallet_ismine.cpp \
   wallet/walletdb.cpp \

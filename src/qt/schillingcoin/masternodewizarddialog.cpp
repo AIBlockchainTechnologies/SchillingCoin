@@ -177,8 +177,7 @@ bool MasterNodeWizardDialog::createMN()
 
     CKey secret;
     secret.MakeNewKey(false);
-    CBitcoinSecret mnKey = CBitcoinSecret(secret);
-    std::string mnKeyString = mnKey.ToString();
+    std::string mnKeyString = EncodeSecret(secret);
 
     COutPoint collateralOut;
 
