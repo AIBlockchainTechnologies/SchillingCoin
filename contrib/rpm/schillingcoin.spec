@@ -49,9 +49,7 @@ BuildRequires:	miniupnpc-devel
 BuildRequires:	autoconf automake libtool
 BuildRequires:	libevent-devel
 
-
 Patch0:		schillingcoin-0.12.0-libressl.patch
-
 
 %description
 Bitcoin is a digital cryptographic currency that uses peer-to-peer technology to
@@ -71,7 +69,6 @@ BuildRequires:	qt5-qtbase-devel
 # for /usr/bin/lrelease-qt5
 BuildRequires:	qt5-linguist
 %endif
-BuildRequires:	protobuf-devel
 BuildRequires:	qrencode-devel
 BuildRequires:	%{_bindir}/desktop-file-validate
 # for icon generation from SVG
@@ -147,7 +144,6 @@ the bench_schillingcoin utility can be used to perform some benchmarks.
 
 This package contains utilities needed by the schillingcoin-server package.
 
-
 %prep
 %setup -q
 %patch0 -p1 -b .libressl
@@ -156,7 +152,6 @@ tar -zxf %{SOURCE1}
 cp -p db-%{bdbv}.NC/LICENSE ./db-%{bdbv}.NC-LICENSE
 mkdir db4 SELinux
 cp -p %{SOURCE30} %{SOURCE31} %{SOURCE32} SELinux/
-
 
 %build
 CWD=`pwd`
@@ -424,8 +419,6 @@ rm -rf %{buildroot}
 %attr(0755,root,root) %{_bindir}/schillingcoin-tx
 %attr(0755,root,root) %{_bindir}/bench_schillingcoin
 %attr(0644,root,root) %{_mandir}/man1/schillingcoin-cli.1*
-
-
 
 %changelog
 * Fri Feb 26 2016 Alice Wonder <buildmaster@librelamp.com> - 0.12.0-2

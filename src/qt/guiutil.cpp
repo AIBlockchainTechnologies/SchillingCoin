@@ -158,15 +158,17 @@ bool parseBitcoinURI(const QUrl& uri, SendCoinsRecipient* out)
 
     SendCoinsRecipient rv;
     rv.address = uri.path();
+
     if (rv.address.endsWith("/")) {
         rv.address.truncate(rv.address.length() - 1);
     }
+
     rv.amount = 0;
 
     QUrlQuery uriQuery(uri);
 
     //
-    // Modernized: QList → std::vector (explicit conversion required)
+    // Modernized: QList -> std::vector (explicit conversion required)
     //
     QList<QPair<QString, QString>> qtItems = uriQuery.queryItems();
 
@@ -182,22 +184,24 @@ bool parseBitcoinURI(const QUrl& uri, SendCoinsRecipient* out)
     //
     for (const auto& i : items)
     {
+        QString key = i.first;
         bool fShouldReturnFalse = false;
 
-        if (i.first.startsWith("req-")) {
-            QString key = i.first;
+        if (key.startsWith("req-")) {
             key.remove(0, 4);
             fShouldReturnFalse = true;
         }
 
-        if (i.first == "label") {
+        if (key == "label") {
             rv.label = i.second;
             fShouldReturnFalse = false;
         }
-        if (i.first == "message") {
+
+        if (key == "message") {
             rv.message = i.second;
             fShouldReturnFalse = false;
-        } else if (i.first == "amount") {
+        }
+        else if (key == "amount") {
             if (!i.second.isEmpty()) {
                 if (!BitcoinUnits::parse(BitcoinUnits::SCH, i.second, &rv.amount)) {
                     return false;
@@ -213,6 +217,7 @@ bool parseBitcoinURI(const QUrl& uri, SendCoinsRecipient* out)
     if (out) {
         *out = rv;
     }
+
     return true;
 }
 

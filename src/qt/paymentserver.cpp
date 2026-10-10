@@ -67,12 +67,6 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
     }
 }
 
-
-void PaymentServer::LoadRootCAs()
-{
-    // BIP-70 removed; compatibility stub.
-}
-
 bool PaymentServer::ipcSendCommandLine()
 {
     bool sentAnyRequest = false;
@@ -104,7 +98,6 @@ PaymentServer::PaymentServer(QObject* parent, bool startLocalServer) :
     QObject(parent),
     saveURIs(true),
     uriServer(nullptr),
-    netManager(nullptr),
     optionsModel(nullptr)
 {
     if (parent) {
@@ -149,11 +142,6 @@ bool PaymentServer::eventFilter(QObject* object, QEvent* event)
     }
 
     return QObject::eventFilter(object, event);
-}
-
-void PaymentServer::initNetManager()
-{
-    // BIP-70 network fetching is intentionally disabled in this temporary stub.
 }
 
 void PaymentServer::uiReady()

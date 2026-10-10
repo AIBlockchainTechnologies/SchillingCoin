@@ -17,10 +17,6 @@ QT_BEGIN_NAMESPACE
 class QApplication;
 class QByteArray;
 class QLocalServer;
-class QNetworkAccessManager;
-class QNetworkReply;
-class QSslError;
-class QUrl;
 QT_END_NAMESPACE
 
 class PaymentServer : public QObject
@@ -30,9 +26,6 @@ class PaymentServer : public QObject
 public:
     static void ipcParseCommandLine(int argc, char* argv[]);
     static bool ipcSendCommandLine();
-
-    // Temporary BIP-70 compatibility stub.
-    static void LoadRootCAs();
 
     PaymentServer(QObject* parent, bool startLocalServer = true);
     ~PaymentServer();
@@ -54,11 +47,8 @@ protected:
     bool eventFilter(QObject* object, QEvent* event) override;
 
 private:
-    void initNetManager();
-
     bool saveURIs;
     QLocalServer* uriServer;
-    QNetworkAccessManager* netManager;
     OptionsModel* optionsModel;
 };
 

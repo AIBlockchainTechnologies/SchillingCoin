@@ -224,7 +224,7 @@ bool BitcoinUnits::parse(int unit, const QString& value, CAmount* val_out)
         return false;
 
     int num_decimals = decimals(unit);
-    QStringList parts = removeSpaces(value).replace(",", ".").split(".");
+    QStringList parts = removeSpaces(value).split(".");
 
     if (parts.size() > 2)
         return false;
