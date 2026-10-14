@@ -2,6 +2,7 @@
 # Copyright (c) 2010 ArtForz -- public domain half-a-node
 # Copyright (c) 2012 Jeff Garzik
 # Copyright (c) 2010-2017 The Bitcoin Core developers
+# Copyright (c) 2026 The SchillingCoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Bitcoin test framework primitive and message strcutures
@@ -86,14 +87,12 @@ def deser_uint256(f):
         r += t << (i * 32)
     return r
 
-
 def ser_uint256(u):
     rs = b""
     for i in range(8):
         rs += struct.pack("<I", u & 0xFFFFFFFF)
         u >>= 32
     return rs
-
 
 def ser_uint64(u):
     rs = b""
@@ -102,7 +101,6 @@ def ser_uint64(u):
         u >>= 32
     return rs
 
-
 def uint256_from_str(s):
     r = 0
     t = struct.unpack("<IIIIIIII", s[:32])
@@ -110,12 +108,10 @@ def uint256_from_str(s):
         r += t[i] << (i * 32)
     return r
 
-
 def uint256_from_compact(c):
     nbytes = (c >> 24) & 0xFF
     v = (c & 0xFFFFFF) << (8 * (nbytes - 3))
     return v
-
 
 def deser_vector(f, c):
     nit = deser_compact_size(f)
@@ -125,7 +121,6 @@ def deser_vector(f, c):
         t.deserialize(f)
         r.append(t)
     return r
-
 
 # ser_function_name: Allow for an alternate serialization function on the
 # entries in the vector (we use this for serializing the vector of transactions
@@ -139,7 +134,6 @@ def ser_vector(l, ser_function_name=None):
             r += i.serialize()
     return r
 
-
 def deser_uint256_vector(f):
     nit = deser_compact_size(f)
     r = []
@@ -148,13 +142,11 @@ def deser_uint256_vector(f):
         r.append(t)
     return r
 
-
 def ser_uint256_vector(l):
     r = ser_compact_size(len(l))
     for i in l:
         r += ser_uint256(i)
     return r
-
 
 def deser_string_vector(f):
     nit = deser_compact_size(f)
@@ -164,13 +156,11 @@ def deser_string_vector(f):
         r.append(t)
     return r
 
-
 def ser_string_vector(l):
     r = ser_compact_size(len(l))
     for sv in l:
         r += ser_string(sv)
     return r
-
 
 # Deserialize from a hex string representation (eg from RPC)
 def FromHex(obj, hex_string):
@@ -208,27 +198,17 @@ class CAddress():
         return "CAddress(nServices=%i ip=%s port=%i)" % (self.nServices,
                                                          self.ip, self.port)
 
-
 class CInv():
     typemap = {
         0: "MSG_ERROR",
         1: "MSG_TX",
         2: "MSG_BLOCK",
         3: "MSG_FILTERED_BLOCK",
-        4: "MSG_TXLOCK_REQUEST",
-        5: "MSG_TXLOCK_VOTE",
-        6: "MSG_SPORK",
         7: "MSG_MASTERNODE_WINNER",
         8: "MSG_MASTERNODE_SCANNING_ERROR",
-        9: "MSG_BUDGET_VOTE",
-        10: "MSG_BUDGET_PROPOSAL",
-        11: "MSG_BUDGET_FINALIZED",
-        12: "MSG_BUDGET_FINALIZED_VOTE",
         13: "MSG_MASTERNODE_QUORUM",
-        14: "MSG_MASTERNODE_QUORUM",
-        15: "MSG_MASTERNODE_ANNOUNCE",
-        16: "MSG_MASTERNODE_PING",
-        17: "MSG_DSTX",
+        14: "MSG_MASTERNODE_ANNOUNCE",
+        15: "MSG_MASTERNODE_PING",
         18: "MSG_PUBCOINS",
         19: "MSG_GENWIT",
         20: "MSG_ACC_VALUE"
@@ -252,7 +232,6 @@ class CInv():
         return "CInv(type=%s hash=%064x)" \
             % (self.typemap[self.type], self.hash)
 
-
 class CBlockLocator():
     def __init__(self):
         self.nVersion = MY_VERSION
@@ -271,7 +250,6 @@ class CBlockLocator():
     def __repr__(self):
         return "CBlockLocator(nVersion=%i vHave=%s)" \
             % (self.nVersion, repr(self.vHave))
-
 
 class COutPoint():
     def __init__(self, hash=0, n=0):
@@ -333,7 +311,6 @@ class CTxIn():
     def is_zerocoinspend(self):
         return bytes_to_hex_str(self.scriptSig)[:2] == "c2"
 
-
 class CTxOut():
     def __init__(self, nValue=0, scriptPubKey=b""):
         self.nValue = nValue
@@ -353,7 +330,6 @@ class CTxOut():
         return "CTxOut(nValue=%i.%08i scriptPubKey=%s)" \
             % (self.nValue // COIN, self.nValue % COIN,
                bytes_to_hex_str(self.scriptPubKey))
-
 
 class CTransaction():
     def __init__(self, tx=None):
@@ -446,7 +422,6 @@ class CTransaction():
     def __repr__(self):
         return "CTransaction(nVersion=%i vin=%s vout=%s nLockTime=%i)" \
             % (self.nVersion, repr(self.vin), repr(self.vout), self.nLockTime)
-
 
 class CBlockHeader():
     def __init__(self, header=None):
@@ -544,7 +519,6 @@ class CBlockHeader():
             % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot,
                time.ctime(self.nTime), self.nBits, self.nNonce)
 
-
 class CBlock(CBlockHeader):
     def __init__(self, header=None):
         super(CBlock, self).__init__(header)
@@ -638,7 +612,6 @@ class CBlock(CBlockHeader):
         return "CBlock(nVersion=%i hashPrevBlock=%064x hashMerkleRoot=%064x nTime=%s nBits=%08x nNonce=%08x vtx=%s)" \
             % (self.nVersion, self.hashPrevBlock, self.hashMerkleRoot,
                time.ctime(self.nTime), self.nBits, self.nNonce, repr(self.vtx))
-
 
 class PrefilledTransaction():
     def __init__(self, index=0, tx = None):
@@ -781,7 +754,6 @@ class HeaderAndShortIDs():
     def __repr__(self):
         return "HeaderAndShortIDs(header=%s, nonce=%d, shortids=%s, prefilledtxn=%s" % (repr(self.header), self.nonce, repr(self.shortids), repr(self.prefilled_txn))
 
-
 class BlockTransactionsRequest():
 
     def __init__(self, blockhash=0, indexes = None):
@@ -820,7 +792,6 @@ class BlockTransactionsRequest():
 
     def __repr__(self):
         return "BlockTransactionsRequest(hash=%064x indexes=%s)" % (self.blockhash, repr(self.indexes))
-
 
 class BlockTransactions():
 
@@ -890,7 +861,6 @@ class CMerkleBlock():
     def __repr__(self):
         return "CMerkleBlock(header=%s, txn=%s)" % (repr(self.header), repr(self.txn))
 
-
 # Objects that correspond to messages on the wire
 class msg_version():
     command = b"version"
@@ -959,7 +929,6 @@ class msg_version():
                repr(self.addrTo), repr(self.addrFrom), self.nNonce,
                self.strSubVer, self.nStartingHeight, self.nRelay)
 
-
 class msg_verack():
     command = b"verack"
 
@@ -975,7 +944,6 @@ class msg_verack():
     def __repr__(self):
         return "msg_verack()"
 
-
 class msg_addr():
     command = b"addr"
 
@@ -990,7 +958,6 @@ class msg_addr():
 
     def __repr__(self):
         return "msg_addr(addrs=%s)" % (repr(self.addrs))
-
 
 class msg_inv():
     command = b"inv"
@@ -1010,7 +977,6 @@ class msg_inv():
     def __repr__(self):
         return "msg_inv(inv=%s)" % (repr(self.inv))
 
-
 class msg_getdata():
     command = b"getdata"
 
@@ -1025,7 +991,6 @@ class msg_getdata():
 
     def __repr__(self):
         return "msg_getdata(inv=%s)" % (repr(self.inv))
-
 
 class msg_getblocks():
     command = b"getblocks"
@@ -1049,7 +1014,6 @@ class msg_getblocks():
         return "msg_getblocks(locator=%s hashstop=%064x)" \
             % (repr(self.locator), self.hashstop)
 
-
 class msg_tx():
     command = b"tx"
 
@@ -1069,7 +1033,6 @@ class msg_witness_tx(msg_tx):
 
     def serialize(self):
         return self.tx.serialize_with_witness()
-
 
 class msg_block():
     command = b"block"
@@ -1123,7 +1086,6 @@ class msg_getaddr():
     def __repr__(self):
         return "msg_getaddr()"
 
-
 class msg_ping():
     command = b"ping"
 
@@ -1141,7 +1103,6 @@ class msg_ping():
     def __repr__(self):
         return "msg_ping(nonce=%08x)" % self.nonce
 
-
 class msg_pong():
     command = b"pong"
 
@@ -1158,7 +1119,6 @@ class msg_pong():
 
     def __repr__(self):
         return "msg_pong(nonce=%08x)" % self.nonce
-
 
 class msg_mempool():
     command = b"mempool"
@@ -1190,7 +1150,6 @@ class msg_sendheaders():
     def __repr__(self):
         return "msg_sendheaders()"
 
-
 # getheaders message has
 # number of entries
 # vector of hashes
@@ -1217,7 +1176,6 @@ class msg_getheaders():
         return "msg_getheaders(locator=%s, stop=%064x)" \
             % (repr(self.locator), self.hashstop)
 
-
 # headers message has
 # <count> <vector of block headers>
 class msg_headers():
@@ -1238,7 +1196,6 @@ class msg_headers():
 
     def __repr__(self):
         return "msg_headers(headers=%s)" % repr(self.headers)
-
 
 class msg_reject():
     command = b"reject"
@@ -1366,4 +1323,3 @@ class msg_witness_blocktxn(msg_blocktxn):
         r = b""
         r += self.block_transactions.serialize(with_witness=True)
         return r
-

@@ -11,6 +11,7 @@
 #include "random.h"
 #include "tinyformat.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 #include "utiltime.h"
 #include "version.h"
@@ -72,7 +73,7 @@ static const std::string COOKIEAUTH_FILE = ".cookie";
 
 boost::filesystem::path GetAuthCookieFile()
 {
-    boost::filesystem::path path(GetArg("-rpccookiefile", COOKIEAUTH_FILE));
+    boost::filesystem::path path(gArgs.GetArg("-rpccookiefile", COOKIEAUTH_FILE));
     if (!path.is_absolute()) path = GetDataDir() / path;
     return path;
 }

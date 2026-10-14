@@ -16,9 +16,10 @@
 
 #include "chainparams.h"
 #include "main.h"
+#include "netbase.h" //
 #include "rpc/client.h"
 #include "rpc/server.h"
-#include "netbase.h" // <-- REQUIRED for SplitHostPort, Lookup, LookupHost, GetNetworkName
+#include "util/system.h"
 
 #include "init.h"
 #include <startoptionsmain.h>
@@ -291,8 +292,8 @@ RPCConsole::RPCConsole(QWidget* parent) : QDialog(parent, Qt::WindowSystemMenuHi
 
     // set library version labels
 #ifdef ENABLE_WALLET
-    std::string strPathCustom = GetArg("-backuppath", "");
-    int nCustomBackupThreshold = GetArg("-custombackupthreshold", DEFAULT_CUSTOMBACKUPTHRESHOLD);
+    std::string strPathCustom = gArgs.GetArg("-backuppath", "");
+    int nCustomBackupThreshold = gArgs.GetArg("-custombackupthreshold", DEFAULT_CUSTOMBACKUPTHRESHOLD);
 
     if (!strPathCustom.empty()) {
         ui->wallet_custombackuppath->setText(QString::fromStdString(strPathCustom));
@@ -306,7 +307,7 @@ RPCConsole::RPCConsole(QWidget* parent) : QDialog(parent, Qt::WindowSystemMenuHi
     }
 
     ui->berkeleyDBVersion->setText(DbEnv::version(0, 0, 0));
-    ui->wallet_path->setText(QString::fromStdString(GetDataDir().string() + QDir::separator().toLatin1() + GetArg("-wallet", DEFAULT_WALLET_DAT)));
+    ui->wallet_path->setText(QString::fromStdString(GetDataDir().string() + QDir::separator().toLatin1() + gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT)));
 #else
     ui->label_berkeleyDBVersion->hide();
     ui->berkeleyDBVersion->hide();
@@ -616,7 +617,7 @@ void RPCConsole::walletUpgradeToHd()
 
     int prev_version = pwalletMain->GetVersion();
 
-    int nMaxVersion = GetArg("-upgradewallet", 0);
+    int nMaxVersion = gArgs.GetArg("-upgradewallet", 0);
     if (nMaxVersion == 0) // the -upgradewallet without argument case
     {
         LogPrintf("Performing wallet upgrade to %i\n", FEATURE_LATEST);

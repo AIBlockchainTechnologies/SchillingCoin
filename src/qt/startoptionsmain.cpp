@@ -1,6 +1,10 @@
 //
 // Created by Kolby on 6/19/2019.
 //
+// Copyright (c) 2026 The SchillingCoin developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 #include "startoptionsmain.h"
 #include "ui_startoptionsmain.h"
 #include <startoptionsdialog.h>
@@ -59,7 +63,6 @@ StartOptionsMain::StartOptionsMain(QWidget *parent)
     ui->QStackTutorialContainer->addWidget(startOptions);
     ui->QStackTutorialContainer->setCurrentWidget(startOptions);
 
-
 }
 
 StartOptionsMain::~StartOptionsMain() {
@@ -73,15 +76,11 @@ void StartOptionsMain::on_NewWallet_clicked()
     ui->RestoreWallet->setVisible(false);
     ui->Back->setVisible(true);
     ui->Next->setVisible(true);
-    rows = startOptions->getRows();
 
-    if (rows == 4) {
-        words = CMnemonic::Generate(256);
-    } else {
-        words = CMnemonic::Generate(128);
-    }
-
-
+    // SCH policy:
+    // New wallets always generate a 24-word BIP39 recovery phrase.
+    rows = 4;
+    words = CMnemonic::Generate(256);
 
     startOptionsRevealed = new StartOptionsRevealed(words, rows, this);
     ui->QStackTutorialContainer->addWidget(startOptionsRevealed);

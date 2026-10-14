@@ -8,6 +8,7 @@
 #include "addrman.h"
 
 #include "hash.h"
+#include "optional.h"
 #include "serialize.h"
 #include "streams.h"
 

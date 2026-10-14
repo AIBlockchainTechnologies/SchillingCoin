@@ -10,6 +10,7 @@
 #include "script/script.h"
 #include "uint256.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 #include "test_schillingcoin.h"
 
@@ -17,7 +18,6 @@
 #include <vector>
 
 #include <boost/test/unit_test.hpp>
-
 
 static const std::string strSecret1     ("87vK7Vayi3QLsuiva5yWSuVwSMhMcRM9dBsaD6JXMD1P5vnjRFn");
 static const std::string strSecret2     ("87FGYGFDg5SYfdD4XL593hr7do6f52czPecVsYSAXi8N4RGeS9i");
@@ -28,9 +28,7 @@ static const CBitcoinAddress addr2 ("DPvKfv1FVp69yZMDzeuugvfZ9pzYiMv1bs");
 static const CBitcoinAddress addr1C("DNPrHK9ezAAUVExFDpZ7EE1xWpPskgp1gP");
 static const CBitcoinAddress addr2C("DNBVSAoc2whPFjZVAZ1pQbXPJk1LRrDC8Q");
 
-
 static const std::string strAddressBad("Xta1praZQjyELweyMByXyiREw1ZRsjXzVP");
-
 
 #ifdef KEY_TESTS_DUMPINFO
 void dumpKeyInfo(uint256 privkey)

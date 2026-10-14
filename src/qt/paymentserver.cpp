@@ -12,6 +12,7 @@
 #include "guiinterface.h"
 #include "guiutil.h"
 #include "util.h"
+#include "util/system.h"
 
 #include <QDataStream>
 #include <QEvent>

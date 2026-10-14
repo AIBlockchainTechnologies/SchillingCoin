@@ -9,6 +9,7 @@
 
 #include "init.h"
 #include "key.h"
+#include "operationresult.h"
 #include "masternode.h"
 #include "net.h"
 #include "sync.h"

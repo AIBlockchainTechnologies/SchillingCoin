@@ -10,6 +10,7 @@
 
 #include "chainparams.h"
 #include "util.h"
+#include "util/system.h"
 
 #include "test/test_schillingcoin.h"
 

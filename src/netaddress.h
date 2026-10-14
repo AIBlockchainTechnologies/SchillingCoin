@@ -13,6 +13,7 @@
 
 #include "compat.h"
 #include "serialize.h"
+#include "util/string.h"
 
 #include <stdint.h>
 #include <string>

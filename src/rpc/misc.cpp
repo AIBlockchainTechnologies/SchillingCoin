@@ -17,6 +17,7 @@
 #include "rpc/server.h"
 #include "timedata.h"
 #include "util.h"
+#include "util/system.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
@@ -534,7 +535,7 @@ UniValue getstakingstatus(const JSONRPCRequest& request)
         LOCK2(cs_main, &pwalletMain->cs_wallet);
         UniValue obj(UniValue::VOBJ);
         obj.push_back(Pair("staking_status", pwalletMain->pStakerStatus->IsActive()));
-        obj.push_back(Pair("staking_enabled", GetBoolArg("-staking", true)));
+        obj.push_back(Pair("staking_enabled", gArgs.GetBoolArg("-staking", true)));
         bool fColdStaking = IsColdStakingEnabled();
         obj.push_back(Pair("coldstaking_enabled", fColdStaking));
         obj.push_back(Pair("haveconnections", !vNodes.empty()));

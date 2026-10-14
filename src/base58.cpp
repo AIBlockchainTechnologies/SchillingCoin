@@ -8,6 +8,7 @@
 
 #include "hash.h"
 #include "uint256.h"
+#include "util/string.h"
 
 #include <algorithm>
 #include <assert.h>

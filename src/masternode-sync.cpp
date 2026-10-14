@@ -12,9 +12,10 @@
 #include "masternode.h"
 #include "masternodeman.h"
 #include "util.h"
+#include "util/system.h"
 #include "addrman.h"
-// clang-format on
 
+// clang-format on
 class CMasternodeSync;
 CMasternodeSync masternodeSync;
 

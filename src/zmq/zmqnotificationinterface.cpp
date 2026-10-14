@@ -10,6 +10,7 @@
 #include "main.h"
 #include "streams.h"
 #include "util.h"
+#include "util/string.h"
 
 void zmqError(const char *str)
 {

@@ -11,9 +11,9 @@
 #include "askpassphrasedialog.h"
 #include "walletmodeltransaction.h"
 
-#include "allocators.h" /* for SecureString */
+#include "operationresult.h"
+#include "allocators.h"
 #include "wallet/wallet.h"
-#include "pairresult.h"
 
 #include <map>
 #include <vector>
@@ -228,11 +228,11 @@ public:
     int64_t getCreationTime() const;
     int64_t getKeyCreationTime(const CPubKey& key);
     int64_t getKeyCreationTime(const CBitcoinAddress& address);
-    PairResult getNewAddress(CBitcoinAddress& ret, std::string label = "") const;
+    CallResult<CTxDestination> getNewAddress(const std::string& label = "") const;
     /**
      * Return a new address used to receive for delegated cold stake purpose.
      */
-    PairResult getNewStakingAddress(CBitcoinAddress& ret, std::string label = "") const;
+    CallResult<CTxDestination> getNewStakingAddress(const std::string& label = "") const;
 
     bool whitelistAddressFromColdStaking(const QString &addressStr);
     bool blacklistAddressFromColdStaking(const QString &address);

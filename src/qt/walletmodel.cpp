@@ -371,8 +371,17 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         if (rcp.isP2CS) {
             CBitcoinAddress ownerAdd;
             if (rcp.ownerAddress.isEmpty()) {
-                if (!getNewAddress(ownerAdd).result)
+                CallResult<CTxDestination> addressResult = getNewAddress();
+
+                if (!addressResult)
                     return CannotCreateInternalAddress;
+
+                const Optional<CTxDestination>& destination = addressResult.getObjResult();
+
+                if (!destination)
+                    return CannotCreateInternalAddress;
+
+                ownerAdd = CBitcoinAddress(*destination);
             } else {
                 ownerAdd = CBitcoinAddress(rcp.ownerAddress.toStdString());
             }
@@ -600,9 +609,10 @@ bool WalletModel::changePassphrase(const SecureString& oldPass, const SecureStri
 
 bool WalletModel::backupWallet(const QString& filename)
 {
-    if (!BackupWallet(*wallet, filename.toLocal8Bit().data())) {
+    if (!wallet->BackupWallet(filename.toLocal8Bit().data())) {
         return error("ERROR: Failed to backup wallet!");
     }
+
     return true;
 }
 
@@ -860,14 +870,14 @@ int64_t WalletModel::getKeyCreationTime(const CBitcoinAddress& address)
     return 0;
 }
 
-PairResult WalletModel::getNewAddress(CBitcoinAddress& ret, std::string label) const
+CallResult<CTxDestination> WalletModel::getNewAddress(const std::string& label) const
 {
-    return wallet->getNewAddress(ret, label);
+    return wallet->getNewAddress(label);
 }
 
-PairResult WalletModel::getNewStakingAddress(CBitcoinAddress& ret, std::string label) const
+CallResult<CTxDestination> WalletModel::getNewStakingAddress(const std::string& label) const
 {
-    return wallet->getNewStakingAddress(ret, label);
+    return wallet->getNewStakingAddress(label);
 }
 
 bool WalletModel::whitelistAddressFromColdStaking(const QString& addressStr)

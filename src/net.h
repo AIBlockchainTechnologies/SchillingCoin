@@ -5,8 +5,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NET_H
-#define BITCOIN_NET_H
+#ifndef SCHILLINGCOIN_NET_H
+#define SCHILLINGCOIN_NET_H
 
 #include "addrdb.h"
 #include "bloom.h"
@@ -688,9 +688,8 @@ public:
 class CTransaction;
 void RelayTransaction(const CTransaction& tx);
 void RelayTransaction(const CTransaction& tx, const CDataStream& ss);
-void RelayTransactionLockReq(const CTransaction& tx, bool relayToAll = false);
 void RelayInv(CInv& inv);
 
 void DumpBanlist();
 
-#endif // BITCOIN_NET_H
+#endif // SCHILLINGCOIN_NET_H

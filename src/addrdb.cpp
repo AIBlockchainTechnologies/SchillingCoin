@@ -17,6 +17,7 @@
 #include "streams.h"
 #include "tinyformat.h"
 #include "util.h"
+#include "util/system.h"
 
 CBanDB::CBanDB()
 {

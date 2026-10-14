@@ -11,6 +11,7 @@
 #include "pubkey.h"
 #include "uint256.h"
 #include "util.h"
+#include "util/system.h"
 
 #include "test/test_schillingcoin.h"
 

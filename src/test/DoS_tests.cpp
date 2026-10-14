@@ -1,14 +1,12 @@
 // Copyright (c) 2011-2014 The Bitcoin Core developers
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 //
 // Unit tests for denial-of-service detection/prevention code
 //
-
-
 
 #include "keystore.h"
 #include "main.h"
@@ -17,6 +15,7 @@
 #include "script/sign.h"
 #include "serialize.h"
 #include "util.h"
+#include "util/system.h"
 
 #include "test/test_schillingcoin.h"
 
@@ -72,7 +71,7 @@ BOOST_AUTO_TEST_CASE(DoS_banning)
 BOOST_AUTO_TEST_CASE(DoS_banscore)
 {
     CNode::ClearBanned();
-    mapArgs["-banscore"] = "111"; // because 11 is my favorite number
+    gArgs.ForceSetArg("-banscore", "111"); // because 11 is my favorite number
     CAddress addr1(ip(0xa0b0c001));
     CNode dummyNode1(INVALID_SOCKET, addr1, "", true);
     dummyNode1.nVersion = 1;
@@ -85,7 +84,7 @@ BOOST_AUTO_TEST_CASE(DoS_banscore)
     Misbehaving(dummyNode1.GetId(), 1);
     SendMessages(&dummyNode1, false);
     BOOST_CHECK(CNode::IsBanned(addr1));
-    mapArgs.erase("-banscore");
+    gArgs.ForceRemoveArg("-banscore");
 }
 
 BOOST_AUTO_TEST_CASE(DoS_bantime)

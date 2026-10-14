@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -12,7 +12,6 @@
 #include "qt/schillingcoin/addressholder.h"
 #include "walletmodel.h"
 #include "guiutil.h"
-#include "pairresult.h"
 
 #include <QModelIndex>
 #include <QColor>
@@ -138,17 +137,29 @@ void ReceiveWidget::refreshView(QString refreshAddress)
 {
     try {
         QString latestAddress = (refreshAddress.isEmpty()) ? this->addressTableModel->getAddressToShow() : refreshAddress;
+
         if (latestAddress.isEmpty()) { // new default address
-            CBitcoinAddress newAddress;
-            PairResult r = walletModel->getNewAddress(newAddress, "Default");
+            CallResult<CTxDestination> result = walletModel->getNewAddress("Default");
+
             // Check for generation errors
-            if (!r.result) {
+            if (!result) {
+                ui->labelQrImg->setText(tr("No available address, try unlocking the wallet"));
+                inform(QString::fromStdString(result.getError()));
+                return;
+            }
+
+            const Optional<CTxDestination>& destination = result.getObjResult();
+
+            if (!destination) {
                 ui->labelQrImg->setText(tr("No available address, try unlocking the wallet"));
                 inform(tr("Error generating address"));
                 return;
             }
+
+            CBitcoinAddress newAddress(*destination, CChainParams::PUBKEY_ADDRESS);
             latestAddress = QString::fromStdString(newAddress.ToString());
         }
+
         ui->labelAddress->setText(latestAddress);
         int64_t time = walletModel->getKeyCreationTime(CBitcoinAddress(latestAddress.toStdString()));
         ui->labelDate->setText(GUIUtil::dateTimeStr(QDateTime::fromTime_t(static_cast<uint>(time))));
@@ -222,7 +233,8 @@ void ReceiveWidget::onLabelClicked(){
     }
 }
 
-void ReceiveWidget::onNewAddressClicked(){
+void ReceiveWidget::onNewAddressClicked()
+{
     try {
         WalletModel::UnlockContext ctx(walletModel->requestUnlock());
         if (!ctx.isValid()) {
@@ -230,22 +242,31 @@ void ReceiveWidget::onNewAddressClicked(){
             inform(tr("Cannot create new address, wallet locked"));
             return;
         }
-        CBitcoinAddress address;
-        PairResult r = walletModel->getNewAddress(address, "");
 
-        // Check for validity
-        if(!r.result) {
-            inform(r.status->c_str());
+        CallResult<CTxDestination> result = walletModel->getNewAddress("");
+
+        // Check for generation errors
+        if (!result) {
+            inform(QString::fromStdString(result.getError()));
             return;
         }
+
+        const Optional<CTxDestination>& destination = result.getObjResult();
+
+        if (!destination) {
+            inform(tr("Error retrieving generated address"));
+            return;
+        }
+
+        CBitcoinAddress address(*destination, CChainParams::PUBKEY_ADDRESS);
 
         updateQr(QString::fromStdString(address.ToString()));
         ui->labelAddress->setText(!info->address.isEmpty() ? info->address : tr("No address"));
         updateLabel();
         inform(tr("New address created"));
-    } catch (const std::runtime_error& error){
+    } catch (const std::runtime_error&) {
         // Error generating address
-        inform("Error generating address");
+        inform(tr("Error generating address"));
     }
 }
 
@@ -253,7 +274,6 @@ void ReceiveWidget::onCopyClicked(){
     GUIUtil::setClipboard(info->address);
     inform(tr("Address copied"));
 }
-
 
 void ReceiveWidget::onRequestClicked(){
     showAddressGenerationDialog(true);

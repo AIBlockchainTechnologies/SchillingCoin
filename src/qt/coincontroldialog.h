@@ -8,6 +8,7 @@
 #define BITCOIN_QT_COINCONTROLDIALOG_H
 
 #include "amount.h"
+#include "optional.h"
 #include "qt/schillingcoin/snackbar.h"
 
 #include <QAbstractButton>

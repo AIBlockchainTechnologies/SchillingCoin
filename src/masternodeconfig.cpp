@@ -8,6 +8,7 @@
 #include "netbase.h"
 #include "masternodeconfig.h"
 #include "util.h"
+#include "util/system.h"
 #include "guiinterface.h"
 #include <base58.h>
 

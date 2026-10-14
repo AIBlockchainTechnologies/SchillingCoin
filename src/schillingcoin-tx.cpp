@@ -9,13 +9,14 @@
 #include "coins.h"
 #include "core_io.h"
 #include "keystore.h"
-#include "primitives/block.h" // for MAX_BLOCK_SIZE
+#include "primitives/block.h"
 #include "primitives/transaction.h"
 #include "script/script.h"
 #include "script/sign.h"
-#include "guiinterface.h" // for _(...)
+#include "guiinterface.h"
 #include <univalue.h>
 #include "util.h"
+#include "util/system.h"
 #include "utilmoneystr.h"
 #include "utilstrencodings.h"
 
@@ -34,7 +35,7 @@ static bool AppInitRawTx(int argc, char* argv[])
     //
     // Parameters
     //
-    ParseParameters(argc, argv);
+    gArgs.ParseParameters(argc, argv);
 
     // Check for -testnet or -regtest parameter (Params() calls are only valid after this clause)
     if (!SelectParamsFromCommandLine()) {
@@ -42,9 +43,9 @@ static bool AppInitRawTx(int argc, char* argv[])
         return false;
     }
 
-    fCreateBlank = GetBoolArg("-create", false);
+    fCreateBlank = gArgs.GetBoolArg("-create", false);
 
-    if (argc < 2 || mapArgs.count("-?") || mapArgs.count("-help")) {
+    if (argc < 2 || gArgs.IsArgSet("-?") || gArgs.IsArgSet("-help")) {
         // First part of help message is specific to this utility
         std::string strUsage = _("Schilling Coin schillingcoin-tx utility version") + " " + FormatFullVersionWithCodename() + "\n\n" +
                                _("Usage:") + "\n" +
@@ -517,9 +518,9 @@ static void OutputTxHex(const CTransaction& tx)
 
 static void OutputTx(const CTransaction& tx)
 {
-    if (GetBoolArg("-json", false))
+    if (gArgs.GetBoolArg("-json", false))
         OutputTxJSON(tx);
-    else if (GetBoolArg("-txid", false))
+    else if (gArgs.GetBoolArg("-txid", false))
         OutputTxHash(tx);
     else
         OutputTxHex(tx);

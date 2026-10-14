@@ -1,12 +1,12 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_STREAMS_H
-#define BITCOIN_STREAMS_H
+#ifndef SCHILLINGCOIN_STREAMS_H
+#define SCHILLINGCOIN_STREAMS_H
 
 #include "allocators.h"
 #include "serialize.h"
@@ -107,7 +107,6 @@ public:
         return (std::string(begin(), end()));
     }
 
-
     //
     // Vector subset
     //
@@ -121,11 +120,23 @@ public:
     void reserve(size_type n) { vch.reserve(n + nReadPos); }
     const_reference operator[](size_type pos) const { return vch[pos + nReadPos]; }
     reference operator[](size_type pos) { return vch[pos + nReadPos]; }
+
+    value_type* data()
+    {
+        return vch.data() + nReadPos;
+    }
+
+    const value_type* data() const
+    {
+        return vch.data() + nReadPos;
+    }
+
     void clear()
     {
         vch.clear();
         nReadPos = 0;
     }
+
     iterator insert(iterator it, const char& x = char()) { return vch.insert(it, x); }
     void insert(iterator it, size_type n, const char& x) { vch.insert(it, n, x); }
 
@@ -196,7 +207,6 @@ public:
         nReadPos -= n;
         return true;
     }
-
 
     //
     // Stream subset
@@ -297,7 +307,6 @@ public:
         clear();
     }
 };
-
 
 /** Non-refcounted RAII wrapper for FILE*
  *
@@ -589,4 +598,4 @@ public:
     }
 };
 
-#endif // BITCOIN_STREAMS_H
+#endif // SCHILLINGCOIN_STREAMS_H

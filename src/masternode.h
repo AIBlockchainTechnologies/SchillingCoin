@@ -15,6 +15,7 @@
 #include "sync.h"
 #include "timedata.h"
 #include "util.h"
+#include "util/system.h"
 
 #define MASTERNODE_MIN_CONFIRMATIONS 15
 #define MASTERNODE_MIN_MNP_SECONDS (10 * 60)
@@ -139,7 +140,6 @@ public:
     int cacheInputAge;
     int cacheInputAgeBlock;
     bool unitTest;
-    bool allowFreeTx;
     int protocolVersion;
     int nActiveState;
     int64_t nLastDsq; //the dsq count from the last dsq broadcast of this node
@@ -175,7 +175,6 @@ public:
         swap(first.cacheInputAge, second.cacheInputAge);
         swap(first.cacheInputAgeBlock, second.cacheInputAgeBlock);
         swap(first.unitTest, second.unitTest);
-        swap(first.allowFreeTx, second.allowFreeTx);
         swap(first.protocolVersion, second.protocolVersion);
         swap(first.nLastDsq, second.nLastDsq);
         swap(first.nScanningErrorCount, second.nScanningErrorCount);
@@ -217,7 +216,6 @@ public:
         READWRITE(cacheInputAge);
         READWRITE(cacheInputAgeBlock);
         READWRITE(unitTest);
-        READWRITE(allowFreeTx);
         READWRITE(nLastDsq);
         READWRITE(nScanningErrorCount);
         READWRITE(nLastScanningErrorBlockHeight);

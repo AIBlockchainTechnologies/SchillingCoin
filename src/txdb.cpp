@@ -10,6 +10,7 @@
 #include "main.h"
 #include "pow.h"
 #include "uint256.h"
+#include "util/system.h"
 
 #include <stdint.h>
 

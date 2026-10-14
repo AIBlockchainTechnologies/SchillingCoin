@@ -20,6 +20,7 @@
 #include "utilmoneystr.h"
 #include "wallet.h"
 #include "walletdb.h"
+#include "wallet/walletutil.h"
 
 #include <stdint.h>
 
@@ -53,8 +54,8 @@ void EnsureWallet()
 void WalletTxToJSON(const CWalletTx& wtx, UniValue& entry)
 {
     int confirms = wtx.GetDepthInMainChain(false);
-    int confirmsTotal = GetIXConfirmations(wtx.GetHash()) + confirms;
-    entry.push_back(Pair("confirmations", confirmsTotal));
+
+    entry.push_back(Pair("confirmations", confirms));
     entry.push_back(Pair("bcconfirmations", confirms));
     if (wtx.IsCoinBase() || wtx.IsCoinStake())
         entry.push_back(Pair("generated", true));
@@ -89,16 +90,27 @@ CBitcoinAddress GetNewAddressFromAccount(const std::string purpose, const UniVal
         const CChainParams::Base58Type addrType = CChainParams::PUBKEY_ADDRESS)
 {
     LOCK2(cs_main, pwalletMain->cs_wallet);
+
     // Parse the account first so we don't generate a key if there's an error
     std::string strAccount;
     if (!params.isNull() && params.size() > 0)
         strAccount = AccountFromValue(params[0]);
 
-    CBitcoinAddress address;
-    PairResult r = pwalletMain->getNewAddress(address, strAccount, purpose, addrType);
-    if(!r.result)
-        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, *r.status);
-    return address;
+    CallResult<CTxDestination> addressResult =
+        pwalletMain->getNewAddress(strAccount, purpose, addrType);
+
+    if (!addressResult)
+        throw JSONRPCError(RPC_WALLET_KEYPOOL_RAN_OUT, addressResult.getError());
+
+    const Optional<CTxDestination>& destination = addressResult.getObjResult();
+    if (!destination)
+        throw JSONRPCError(RPC_WALLET_ERROR, "Unable to retrieve the generated address destination");
+
+    const CKeyID* keyID = boost::get<CKeyID>(&*destination);
+    if (!keyID)
+        throw JSONRPCError(RPC_WALLET_ERROR, "Generated address destination is not a public key destination");
+
+    return CBitcoinAddress(*keyID, addrType);
 }
 
 /** Convert CAddressBookData to JSON record.  */
@@ -2367,7 +2379,7 @@ UniValue backupwallet(const JSONRPCRequest& request)
     LOCK2(cs_main, pwalletMain->cs_wallet);
 
     std::string strDest = request.params[0].get_str();
-    if (!BackupWallet(*pwalletMain, strDest))
+    if (!pwalletMain->BackupWallet(strDest))
         throw JSONRPCError(RPC_WALLET_ERROR, "Error: Wallet backup failed!");
 
     return NullUniValue;
@@ -3271,7 +3283,7 @@ UniValue upgradetohd(const JSONRPCRequest& request)
 
     int prev_version = pwalletMain->GetVersion();
 
-    int nMaxVersion = GetArg("-upgradewallet", 0);
+    int nMaxVersion = gArgs.GetArg("-upgradewallet", 0);
     if (nMaxVersion == 0) // the -upgradewallet without argument case
     {
         LogPrintf("Performing wallet upgrade to %i\n", FEATURE_LATEST);

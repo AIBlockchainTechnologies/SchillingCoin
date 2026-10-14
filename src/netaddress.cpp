@@ -10,14 +10,15 @@
 #endif
 
 #include "netaddress.h"
-#include "netbase.h"              // Lookup(), LookupHost(), networking helpers
+#include "netbase.h"
 #include "uint256.h"
-#include "util.h"                 // strprintf()
-#include "utilstrencodings.h"     // ParseHex, encoding helpers
-#include "crypto/sha256.h"        // CSHA256 for modern hashing
+#include "util.h"
+#include "util/string.h"
+#include "utilstrencodings.h"
+#include "crypto/sha256.h"
 
-#include <boost/algorithm/string/case_conv.hpp>      // to_lower()
-#include <boost/algorithm/string/predicate.hpp>      // starts_with(), ends_with()
+#include <boost/algorithm/string/case_conv.hpp>
+#include <boost/algorithm/string/predicate.hpp>
 
 static const uint8_t pchIPv4[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
 

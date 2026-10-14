@@ -17,7 +17,7 @@
 #include <limits>
 #include <stdexcept>
 
-static int64_t GetOldestKeyTimeInPool(const std::set<int64_t>& keypool_set, CWalletDB& batch)
+static int64_t GetOldestKeyTimeInPool(const std::set<int64_t>& keypool_set, WalletBatch& batch)
 {
     if (keypool_set.empty()) {
         return GetTime();
@@ -28,6 +28,7 @@ static int64_t GetOldestKeyTimeInPool(const std::set<int64_t>& keypool_set, CWal
     if (!batch.ReadPool(index, keypool)) {
         throw std::runtime_error(std::string(__func__) + ": read oldest key in keypool failed");
     }
+
     assert(keypool.vchPubKey.IsValid());
     return keypool.nTime;
 }
@@ -57,7 +58,7 @@ bool ScriptPubKeyMan::NewKeyPool()
 {
     LOCK(wallet->cs_wallet);
 
-    CWalletDB batch(wallet->strWalletFile);
+    WalletBatch batch(wallet->GetDBHandle());
 
     for (const int64_t index : setInternalKeyPool) {
         batch.ErasePool(index);
@@ -95,7 +96,7 @@ bool ScriptPubKeyMan::TopUp(unsigned int size)
 
     const unsigned int target_size = size > 0 ?
             size :
-            std::max(GetArg("-keypool", DEFAULT_KEYPOOL_SIZE), int64_t{0});
+            std::max(gArgs.GetArg("-keypool", DEFAULT_KEYPOOL_SIZE), int64_t{0});
 
     int64_t missing_external = std::max(
             std::max(static_cast<int64_t>(target_size), int64_t{1}) -
@@ -111,7 +112,7 @@ bool ScriptPubKeyMan::TopUp(unsigned int size)
         missing_internal = 0;
     }
 
-    CWalletDB batch(wallet->strWalletFile);
+    WalletBatch batch(wallet->GetDBHandle());
     GeneratePool(batch, missing_external, false);
     GeneratePool(batch, missing_internal, true);
 
@@ -126,7 +127,7 @@ bool ScriptPubKeyMan::TopUp(unsigned int size)
     return true;
 }
 
-void ScriptPubKeyMan::GeneratePool(CWalletDB& batch, int64_t target_size, bool internal)
+void ScriptPubKeyMan::GeneratePool(WalletBatch& batch, int64_t target_size, bool internal)
 {
     for (int64_t i = target_size; i > 0; --i) {
         const CPubKey pubkey = wallet->GenerateNewKey(0, internal);
@@ -134,7 +135,7 @@ void ScriptPubKeyMan::GeneratePool(CWalletDB& batch, int64_t target_size, bool i
     }
 }
 
-void ScriptPubKeyMan::AddKeypoolPubkeyWithDB(const CPubKey& pubkey, bool internal, CWalletDB& batch)
+void ScriptPubKeyMan::AddKeypoolPubkeyWithDB(const CPubKey& pubkey, bool internal, WalletBatch& batch)
 {
     AssertLockHeld(wallet->cs_wallet);
     assert(m_max_keypool_index < std::numeric_limits<int64_t>::max());
@@ -157,17 +158,22 @@ void ScriptPubKeyMan::MarkPreSplitKeys()
 {
     LOCK(wallet->cs_wallet);
 
-    CWalletDB batch(wallet->strWalletFile);
+    WalletBatch batch(wallet->GetDBHandle());
+
     for (auto it = setExternalKeyPool.begin(); it != setExternalKeyPool.end();) {
         const int64_t index = *it;
         CKeyPool keypool;
+
         if (!batch.ReadPool(index, keypool)) {
-            throw std::runtime_error(std::string(__func__) + ": read keypool entry failed");
+            throw std::runtime_error(
+                std::string(__func__) + ": read keypool entry failed");
         }
 
         keypool.m_pre_split = true;
+
         if (!batch.WritePool(index, keypool)) {
-            throw std::runtime_error(std::string(__func__) + ": writing modified keypool entry failed");
+            throw std::runtime_error(
+                std::string(__func__) + ": writing modified keypool entry failed");
         }
 
         set_pre_split_keypool.insert(index);
@@ -197,13 +203,20 @@ int64_t ScriptPubKeyMan::GetOldestKeyPoolTime()
 {
     LOCK(wallet->cs_wallet);
 
-    CWalletDB batch(wallet->strWalletFile);
-    int64_t oldest_key = GetOldestKeyTimeInPool(setExternalKeyPool, batch);
+    WalletBatch batch(wallet->GetDBHandle());
+
+    int64_t oldest_key =
+        GetOldestKeyTimeInPool(setExternalKeyPool, batch);
 
     if (wallet->IsHDEnabled()) {
-        oldest_key = std::max(GetOldestKeyTimeInPool(setInternalKeyPool, batch), oldest_key);
+        oldest_key = std::max(
+            GetOldestKeyTimeInPool(setInternalKeyPool, batch),
+            oldest_key);
+
         if (!set_pre_split_keypool.empty()) {
-            oldest_key = std::max(GetOldestKeyTimeInPool(set_pre_split_keypool, batch), oldest_key);
+            oldest_key = std::max(
+                GetOldestKeyTimeInPool(set_pre_split_keypool, batch),
+                oldest_key);
         }
     }
 
@@ -238,7 +251,10 @@ bool ScriptPubKeyMan::GetReservedKey(bool internal, int64_t& index, CKeyPool& ke
     return true;
 }
 
-bool ScriptPubKeyMan::ReserveKeyFromKeyPool(int64_t& index, CKeyPool& keypool, bool internal)
+bool ScriptPubKeyMan::ReserveKeyFromKeyPool(
+    int64_t& index,
+    CKeyPool& keypool,
+    bool internal)
 {
     index = -1;
     keypool.vchPubKey = CPubKey();
@@ -253,60 +269,91 @@ bool ScriptPubKeyMan::ReserveKeyFromKeyPool(int64_t& index, CKeyPool& keypool, b
     // Non-HD wallets only use the external pool.
     internal = internal && wallet->IsHDEnabled();
 
-    const bool use_pre_split = !set_pre_split_keypool.empty();
-    std::set<int64_t>& keypool_set = use_pre_split ?
-            set_pre_split_keypool :
-            (internal ? setInternalKeyPool : setExternalKeyPool);
+    const bool use_pre_split =
+        !set_pre_split_keypool.empty();
+
+    std::set<int64_t>& keypool_set =
+        use_pre_split
+            ? set_pre_split_keypool
+            : (internal
+                   ? setInternalKeyPool
+                   : setExternalKeyPool);
 
     if (keypool_set.empty()) {
         return false;
     }
 
-    CWalletDB batch(wallet->strWalletFile);
+    WalletBatch batch(wallet->GetDBHandle());
 
     const auto it = keypool_set.begin();
     index = *it;
     keypool_set.erase(it);
 
     if (!batch.ReadPool(index, keypool)) {
-        throw std::runtime_error(std::string(__func__) + ": read failed");
+        throw std::runtime_error(
+            std::string(__func__) + ": read failed");
     }
 
     CPubKey pubkey;
-    if (!wallet->GetPubKey(keypool.vchPubKey.GetID(), pubkey)) {
-        throw std::runtime_error(std::string(__func__) + ": unknown key in keypool");
+    if (!wallet->GetPubKey(
+            keypool.vchPubKey.GetID(),
+            pubkey)) {
+        throw std::runtime_error(
+            std::string(__func__) + ": unknown key in keypool");
     }
 
-    if (!use_pre_split && keypool.fInternal != internal) {
-        throw std::runtime_error(std::string(__func__) + ": keypool internal entry misclassified");
+    if (!use_pre_split &&
+        keypool.fInternal != internal) {
+        throw std::runtime_error(
+            std::string(__func__) +
+            ": keypool internal entry misclassified");
     }
 
     if (!keypool.vchPubKey.IsValid()) {
-        throw std::runtime_error(std::string(__func__) + ": keypool entry invalid");
+        throw std::runtime_error(
+            std::string(__func__) +
+            ": keypool entry invalid");
     }
 
-    assert(m_index_to_reserved_key.count(index) == 0);
-    m_index_to_reserved_key[index] = keypool.vchPubKey.GetID();
-    m_pool_key_to_index.erase(keypool.vchPubKey.GetID());
+    assert(
+        m_index_to_reserved_key.count(index) == 0);
 
-    LogPrintf("%s: keypool reserve %d\n", __func__, index);
+    m_index_to_reserved_key[index] =
+        keypool.vchPubKey.GetID();
+
+    m_pool_key_to_index.erase(
+        keypool.vchPubKey.GetID());
+
+    LogPrintf(
+        "%s: keypool reserve %d\n",
+        __func__,
+        index);
+
     return true;
 }
 
 void ScriptPubKeyMan::KeepDestination(int64_t index)
 {
-    CWalletDB batch(wallet->strWalletFile);
+    WalletBatch batch(wallet->GetDBHandle());
     batch.ErasePool(index);
 
-    const auto it = m_index_to_reserved_key.find(index);
-    assert(it != m_index_to_reserved_key.end());
+    const auto it =
+        m_index_to_reserved_key.find(index);
+
+    assert(
+        it != m_index_to_reserved_key.end());
 
     CPubKey pubkey;
-    const bool have_pubkey = wallet->GetPubKey(it->second, pubkey);
+    const bool have_pubkey =
+        wallet->GetPubKey(it->second, pubkey);
+
     assert(have_pubkey);
 
     m_index_to_reserved_key.erase(it);
-    LogPrintf("keypool keep %d\n", index);
+
+    LogPrintf(
+        "keypool keep %d\n",
+        index);
 }
 
 void ScriptPubKeyMan::ReturnDestination(int64_t index, bool internal)
@@ -329,35 +376,50 @@ void ScriptPubKeyMan::ReturnDestination(int64_t index, bool internal)
     LogPrintf("%s: keypool return %d\n", __func__, index);
 }
 
-void ScriptPubKeyMan::MarkReserveKeysAsUsed(int64_t keypool_id)
+void ScriptPubKeyMan::MarkReserveKeysAsUsed(
+    int64_t keypool_id)
 {
     AssertLockHeld(wallet->cs_wallet);
 
     std::set<int64_t>* keypool_set = nullptr;
+
     if (setInternalKeyPool.count(keypool_id) != 0) {
         keypool_set = &setInternalKeyPool;
-    } else if (setExternalKeyPool.count(keypool_id) != 0) {
+    } else if (
+        setExternalKeyPool.count(keypool_id) != 0) {
         keypool_set = &setExternalKeyPool;
     } else {
-        assert(set_pre_split_keypool.count(keypool_id) != 0);
+        assert(
+            set_pre_split_keypool.count(
+                keypool_id) != 0);
+
         keypool_set = &set_pre_split_keypool;
     }
 
-    CWalletDB batch(wallet->strWalletFile);
+    WalletBatch batch(wallet->GetDBHandle());
+
     auto it = keypool_set->begin();
+
     while (it != keypool_set->end()) {
         const int64_t index = *it;
+
         if (index > keypool_id) {
             break;
         }
 
         CKeyPool keypool;
+
         if (batch.ReadPool(index, keypool)) {
-            m_pool_key_to_index.erase(keypool.vchPubKey.GetID());
+            m_pool_key_to_index.erase(
+                keypool.vchPubKey.GetID());
         }
 
         batch.ErasePool(index);
-        LogPrintf("keypool index %d removed\n", index);
+
+        LogPrintf(
+            "keypool index %d removed\n",
+            index);
+
         it = keypool_set->erase(it);
     }
 }

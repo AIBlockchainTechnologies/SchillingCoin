@@ -11,11 +11,11 @@
 #include "main.h"
 #include "streams.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilmoneystr.h"
 #include "version.h"
 
 #include <boost/circular_buffer.hpp>
-
 
 CTxMemPoolEntry::CTxMemPoolEntry() : nFee(0), nTxSize(0), nModSize(0), nTime(0), dPriority(0.0)
 {

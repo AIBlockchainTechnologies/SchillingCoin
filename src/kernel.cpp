@@ -11,6 +11,7 @@
 #include "legacy/stakemodifier.h"
 #include "script/interpreter.h"
 #include "util.h"
+#include "util/system.h"
 #include "stakeinput.h"
 #include "utilmoneystr.h"
 

@@ -13,9 +13,10 @@
  * - E-mail usually won't line-break if there's no punctuation to break at.
  * - Double-clicking selects the whole number as one word if it's all alphanumeric.
  */
-#ifndef BITCOIN_BASE58_H
-#define BITCOIN_BASE58_H
+#ifndef SCHILLINGCOIN_BASE58_H
+#define SCHILLINGCOIN_BASE58_H
 
+#include "attributes.h"
 #include "chainparams.h"
 #include "key.h"
 #include "pubkey.h"
@@ -220,4 +221,4 @@ public:
     }
 };
 
-#endif // BITCOIN_BASE58_H
+#endif // SCHILLINGCOIN_BASE58_H

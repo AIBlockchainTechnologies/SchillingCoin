@@ -11,6 +11,7 @@
 #include "masternodeman.h"
 #include "sync.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilmoneystr.h"
 
 #include "version.h"

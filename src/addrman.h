@@ -9,11 +9,13 @@
 #define BITCOIN_ADDRMAN_H
 
 #include "netbase.h"
+#include "optional.h"
 #include "protocol.h"
 #include "random.h"
 #include "sync.h"
 #include "timedata.h"
 #include "util.h"
+#include "util/system.h"
 
 #include <map>
 #include <set>

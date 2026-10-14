@@ -392,7 +392,7 @@ std::vector<COutput> CActiveMasternode::SelectCoinsMasternode()
     std::vector<COutPoint> confLockedCoins;
 
     // Temporary unlock MN coins from masternode.conf
-    if (GetBoolArg("-mnconflock", true)) {
+    if (gArgs.GetBoolArg("-mnconflock", true)) {
         uint256 mnTxHash;
         for (CMasternodeConfig::CMasternodeEntry mne : masternodeConfig.getEntries()) {
             mnTxHash.SetHex(mne.getTxHash());

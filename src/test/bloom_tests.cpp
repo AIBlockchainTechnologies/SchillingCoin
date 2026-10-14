@@ -14,6 +14,7 @@
 #include "streams.h"
 #include "uint256.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 #include "test/test_schillingcoin.h"
 
@@ -21,7 +22,6 @@
 
 #include <boost/test/unit_test.hpp>
 #include <boost/tuple/tuple.hpp>
-
 
 BOOST_FIXTURE_TEST_SUITE(bloom_tests, BasicTestingSetup)
 

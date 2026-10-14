@@ -16,6 +16,7 @@
 #include "sync.h"
 #include "txdb.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilmoneystr.h"
 #include "wallet/wallet.h"
 
@@ -879,7 +880,7 @@ UniValue verifychain(const JSONRPCRequest& request)
     LOCK(cs_main);
 
     int nCheckLevel = 4;
-    int nCheckDepth = GetArg("-checkblocks", 288);
+    int nCheckDepth = gArgs.GetArg("-checkblocks", 288);
     if (request.params.size() > 0)
         nCheckDepth = request.params[0].get_int();
 

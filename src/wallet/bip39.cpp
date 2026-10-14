@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2013-2014 Tomas Dzetkulic
  * Copyright (c) 2013-2014 Pavol Rusnak
+ * Copyright (c) 2026 The SchillingCoin developers
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
@@ -97,8 +98,9 @@ bool CMnemonic::Check(std::string mnemonic)
     }
   }
   nWordCount++;
-  // check number of words
-  if (nWordCount != 12 && nWordCount != 18 && nWordCount != 24) {
+
+  // SCH supports only 24-word recovery phrases.
+  if (nWordCount != 24) {
     return false;
   }
 
@@ -110,19 +112,23 @@ bool CMnemonic::Check(std::string mnemonic)
   for (size_t i = 0; i < mnemonic.size(); ++i)
   {
     ssCurrentWord = "";
-    while (i + ssCurrentWord.size() < mnemonic.size() && mnemonic[i + ssCurrentWord.size()] != ' ') {
+    while (i + ssCurrentWord.size() < mnemonic.size() &&
+           mnemonic[i + ssCurrentWord.size()] != ' ') {
       if (ssCurrentWord.size() >= 9) {
         return false;
       }
       ssCurrentWord += mnemonic[i + ssCurrentWord.size()];
     }
+
     i += ssCurrentWord.size();
     nWordIndex = 0;
+
     for (;;) {
-      if (!wordlist[nWordIndex]) { // word not found
+      if (!wordlist[nWordIndex]) {
         return false;
       }
-      if (ssCurrentWord == wordlist[nWordIndex]) { // word found on index nWordIndex
+
+      if (ssCurrentWord == wordlist[nWordIndex]) {
         for (ki = 0; ki < 11; ki++) {
           if (nWordIndex & (1 << (10 - ki))) {
             bits[nBitsCount / 8] |= 1 << (7 - (nBitsCount % 8));
@@ -131,27 +137,20 @@ bool CMnemonic::Check(std::string mnemonic)
         }
         break;
       }
+
       nWordIndex++;
     }
   }
+
   if (nBitsCount != nWordCount * 11) {
     return false;
   }
+
   bits[32] = bits[nWordCount * 4 / 3];
   CSHA256().Write(&bits[0], nWordCount * 4 / 3).Finalize(&bits[0]);
 
-  bool fResult = 0;
-  if (nWordCount == 12) {
-    fResult = (bits[0] & 0xF0) == (bits[32] & 0xF0); // compare first 4 bits
-  } else
-  if (nWordCount == 18) {
-    fResult = (bits[0] & 0xFC) == (bits[32] & 0xFC); // compare first 6 bits
-  } else
-  if (nWordCount == 24) {
-    fResult = bits[0] == bits[32]; // compare 8 bits
-  }
-
-  return fResult;
+  // 24-word mnemonics use an 8-bit checksum.
+  return bits[0] == bits[32];
 }
 
 bool CMnemonic::Check(SecureString mnemonic)
@@ -168,8 +167,9 @@ bool CMnemonic::Check(SecureString mnemonic)
     }
   }
   nWordCount++;
-  // check number of words
-  if (nWordCount != 12 && nWordCount != 18 && nWordCount != 24) {
+
+  // SCH supports only 24-word recovery phrases.
+  if (nWordCount != 24) {
     return false;
   }
 
@@ -181,19 +181,24 @@ bool CMnemonic::Check(SecureString mnemonic)
   for (size_t i = 0; i < mnemonic.size(); ++i)
   {
     ssCurrentWord = "";
-    while (i + ssCurrentWord.size() < mnemonic.size() && mnemonic[i + ssCurrentWord.size()] != ' ') {
+
+    while (i + ssCurrentWord.size() < mnemonic.size() &&
+           mnemonic[i + ssCurrentWord.size()] != ' ') {
       if (ssCurrentWord.size() >= 9) {
         return false;
       }
       ssCurrentWord += mnemonic[i + ssCurrentWord.size()];
     }
+
     i += ssCurrentWord.size();
     nWordIndex = 0;
+
     for (;;) {
-      if (!wordlist[nWordIndex]) { // word not found
+      if (!wordlist[nWordIndex]) {
         return false;
       }
-      if (ssCurrentWord == wordlist[nWordIndex]) { // word found on index nWordIndex
+
+      if (ssCurrentWord == wordlist[nWordIndex]) {
         for (ki = 0; ki < 11; ki++) {
           if (nWordIndex & (1 << (10 - ki))) {
             bits[nBitsCount / 8] |= 1 << (7 - (nBitsCount % 8));
@@ -202,29 +207,21 @@ bool CMnemonic::Check(SecureString mnemonic)
         }
         break;
       }
+
       nWordIndex++;
     }
   }
+
   if (nBitsCount != nWordCount * 11) {
     return false;
   }
+
   bits[32] = bits[nWordCount * 4 / 3];
   CSHA256().Write(&bits[0], nWordCount * 4 / 3).Finalize(&bits[0]);
 
-  bool fResult = 0;
-  if (nWordCount == 12) {
-    fResult = (bits[0] & 0xF0) == (bits[32] & 0xF0); // compare first 4 bits
-  } else
-  if (nWordCount == 18) {
-    fResult = (bits[0] & 0xFC) == (bits[32] & 0xFC); // compare first 6 bits
-  } else
-  if (nWordCount == 24) {
-    fResult = bits[0] == bits[32]; // compare 8 bits
-  }
-
-  return fResult;
+  // 24-word mnemonics use an 8-bit checksum.
+  return bits[0] == bits[32];
 }
-
 
 // passphrase must be at most 256 characters or code may crash
 void CMnemonic::ToSeed(SecureString mnemonic, SecureString passphrase, SecureVector& seedRet)

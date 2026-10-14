@@ -1,15 +1,16 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2012-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_GUIINTERFACE_H
-#define BITCOIN_GUIINTERFACE_H
+#ifndef SCHILLINGCOIN_GUIINTERFACE_H
+#define SCHILLINGCOIN_GUIINTERFACE_H
 
 #include <stdint.h>
 #include <string>
+#include "optional.h"
 
 #include <boost/signals2/last_value.hpp>
 #include <boost/signals2/signal.hpp>
@@ -112,14 +113,4 @@ public:
 
 extern CClientUIInterface uiInterface;
 
-/**
- * Translation function: Call Translate signal on UI interface, which returns a boost::optional result.
- * If no translation slot is registered, nothing is returned, and simply return the input.
- */
-inline std::string _(const char* psz)
-{
-    boost::optional<std::string> rv = uiInterface.Translate(psz);
-    return rv ? (*rv) : psz;
-}
-
-#endif // BITCOIN_GUIINTERFACE_H
+#endif // SCHILLINGCOIN_GUIINTERFACE_H

@@ -19,10 +19,12 @@
 
 #include "logging.h"
 #include "compat.h"
+#include "fs.h"
 #include "tinyformat.h"
 #include "utiltime.h"
 #include "util/threadnames.h"
 
+#include <atomic>
 #include <exception>
 #include <map>
 #include <stdint.h>
@@ -44,18 +46,13 @@
 #endif
 
 // SchillingCoin only features
-
-extern bool fMasterNode;
+extern std::atomic<bool> fMasterNode;
 extern bool fLiteMode;
-extern bool fEnableSwiftTX;
-extern int nSwiftTXDepth;
 extern int64_t enforceMasternodePaymentsTime;
 extern std::string strMasterNodeAddr;
 extern std::string strMasterNodePrivKey;
 extern int keysLoaded;
 extern bool fSucessfullyLoaded;
-extern std::vector<int64_t> obfuScationDenominations;
-extern std::string strBudgetMode;
 
 extern std::map<std::string, std::string> mapArgs;
 extern std::map<std::string, std::vector<std::string> > mapMultiArgs;
@@ -63,53 +60,28 @@ extern bool fDebug;
 extern std::string strMiscWarning;
 extern bool fLogIPs;
 
-void SetupEnvironment();
-bool SetupNetworking();
-
-template<typename... Args>
-bool error(const char* fmt, const Args&... args)
-{
-    LogPrintf("ERROR: %s\n", tfm::format(fmt, args...));
-    return false;
-}
-
 double double_safe_addition(double fValue, double fIncrement);
 double double_safe_multiplication(double fValue, double fmultiplicator);
-void PrintExceptionContinue(const std::exception* pex, const char* pszThread);
 void ParseParameters(int argc, const char* const argv[]);
-bool FileCommit(FILE* fileout);
-bool TruncateFile(FILE* file, unsigned int length);
-int RaiseFileDescriptorLimit(int nMinFD);
-void AllocateFileRange(FILE* file, unsigned int offset, unsigned int length);
-bool RenameOver(boost::filesystem::path src, boost::filesystem::path dest);
-bool TryCreateDirectory(const boost::filesystem::path& p);
-boost::filesystem::path GetDefaultDataDir();
-bool CheckIfWalletDatExists(bool fNetSpecific = true);
-const boost::filesystem::path &GetDataDir(bool fNetSpecific = true);
-void ClearDatadirCache();
-boost::filesystem::path GetConfigFile();
-boost::filesystem::path GetMasternodeConfigFile();
-boost::filesystem::path GetForgeConfigFile();
-#ifndef WIN32
-boost::filesystem::path GetPidFile();
-void CreatePidFile(const boost::filesystem::path& path, pid_t pid);
-#endif
-void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet,
-                    std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet);
-#ifdef WIN32
-boost::filesystem::path GetSpecialFolderPath(int nFolder, bool fCreate = true);
-#endif
-boost::filesystem::path GetTempPath();
-void runCommand(std::string strCommand);
 
-inline bool IsSwitchChar(char c)
-{
-#ifdef WIN32
-    return c == '-' || c == '/';
-#else
-    return c == '-';
+/**
+ * Legacy SCH compatibility helper.
+ */
+bool TryCreateDirectory(const fs::path& p);
+
+bool CheckIfWalletDatExists(bool fNetSpecific = true);
+
+fs::path GetConfigFile();
+fs::path GetForgeConfigFile();
+
+#ifndef WIN32
 #endif
-}
+
+void ReadConfigFile(
+    std::map<std::string, std::string>& mapSettingsRet,
+    std::map<std::string, std::vector<std::string>>& mapMultiSettingsRet);
+
+fs::path GetTempPath();
 
 /**
  * Return string argument or default value
@@ -136,40 +108,4 @@ bool SoftSetArg(const std::string& strArg, const std::string& strValue);
  */
 bool SoftSetBoolArg(const std::string& strArg, bool fValue);
 
-/**
- * Format a string to be used as group of options in help messages
- */
-std::string HelpMessageGroup(const std::string& message);
-
-/**
- * Format a string to be used as option description in help messages
- */
-std::string HelpMessageOpt(const std::string& option, const std::string& message);
-
-void SetThreadPriority(int nPriority);
-
-/**
- * .. and a wrapper that just calls func once
- */
-template <typename Callable>
-void TraceThread(const char* name, Callable func)
-{
-    std::string s = strprintf("schillingcoin-%s", name);
-    util::ThreadRename(s.c_str());
-    try {
-        LogPrintf("%s thread start\n", name);
-        func();
-        LogPrintf("%s thread exit\n", name);
-    } catch (boost::thread_interrupted) {
-        LogPrintf("%s thread interrupt\n", name);
-        throw;
-    } catch (std::exception& e) {
-        PrintExceptionContinue(&e, name);
-        throw;
-    } catch (...) {
-        PrintExceptionContinue(NULL, name);
-        throw;
-    }
-}
-
-#endif // BITCOIN_UTIL_H
+#endif // SCHILLINGCOIN_UTIL_H

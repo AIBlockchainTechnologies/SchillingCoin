@@ -8,6 +8,7 @@
 #ifndef BITCOIN_COINCONTROL_H
 #define BITCOIN_COINCONTROL_H
 
+#include "optional.h"
 #include "primitives/transaction.h"
 #include "script/standard.h"
 

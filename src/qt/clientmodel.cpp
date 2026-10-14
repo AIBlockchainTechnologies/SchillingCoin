@@ -20,9 +20,10 @@
 #include "masternodeman.h"
 #include "net.h"
 #include "netaddress.h"
-#include "netbase.h" // REQUIRED for proxyType, GetProxy, IsReachable
+#include "netbase.h"
 #include "guiinterface.h"
 #include "util.h"
+#include "util/system.h"
 
 #include <stdint.h>
 

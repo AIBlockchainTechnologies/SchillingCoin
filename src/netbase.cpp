@@ -17,6 +17,8 @@
 #include "random.h"
 #include "uint256.h"
 #include "util.h"
+#include "util/string.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 
 #include <atomic>

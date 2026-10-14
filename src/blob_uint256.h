@@ -3,11 +3,12 @@
 // Copyright (c) 2014-2015 The Dash developers
 // Copyright (c) 2015-2018 The PIVX developers
 // Copyright (c) 2021 The DECENOMY Core Developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef PIVX_BLOB_UINT256_H
-#define PIVX_BLOB_UINT256_H
+#ifndef SCHILLINGCOIN_BLOB_UINT256_H
+#define SCHILLINGCOIN_BLOB_UINT256_H
 
 #include <assert.h>
 #include <cstring>
@@ -174,4 +175,4 @@ inline blob_uint256 blob_uint256S(const std::string& str)
 const blob_uint256 BLOB_UINT256_ZERO = blob_uint256();
 const blob_uint256 BLOB_UINT256_ONE = blob_uint256S("0000000000000000000000000000000000000000000000000000000000000001");
 
-#endif // PIVX_BLOB_UINT256_H
+#endif // SCHILLINGCOIN_BLOB_UINT256_H

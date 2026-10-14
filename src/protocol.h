@@ -10,8 +10,8 @@
 #error This header can only be compiled as C++.
 #endif
 
-#ifndef BITCOIN_PROTOCOL_H
-#define BITCOIN_PROTOCOL_H
+#ifndef SCHILLINGCOIN_PROTOCOL_H
+#define SCHILLINGCOIN_PROTOCOL_H
 
 #include "netbase.h"
 #include "serialize.h"
@@ -164,19 +164,16 @@ enum {
     // Nodes may always request a MSG_FILTERED_BLOCK in a getdata, however,
     // MSG_FILTERED_BLOCK should not appear in any invs except as a part of getdata.
     MSG_FILTERED_BLOCK,
-    MSG_TXLOCK_REQUEST,
-    MSG_TXLOCK_VOTE,
-    MSG_SPORK,
+
+    // Inventory type values 4 and 5 were used by the retired SwiftTX system.
+    MSG_SPORK = 6,
     MSG_MASTERNODE_WINNER,
     MSG_MASTERNODE_SCANNING_ERROR,
-    MSG_BUDGET_VOTE,
-    MSG_BUDGET_PROPOSAL,
-    MSG_BUDGET_FINALIZED,
-    MSG_BUDGET_FINALIZED_VOTE,
-    MSG_MASTERNODE_QUORUM,
+
+    // Inventory type values 9 through 12 were used by the retired budget system.
+    MSG_MASTERNODE_QUORUM = 13,
     MSG_MASTERNODE_ANNOUNCE,
     MSG_MASTERNODE_PING,
-    MSG_DSTX
 };
 
-#endif // BITCOIN_PROTOCOL_H
+#endif // SCHILLINGCOIN_PROTOCOL_H

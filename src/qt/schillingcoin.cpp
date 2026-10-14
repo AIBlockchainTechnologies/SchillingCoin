@@ -20,12 +20,14 @@
 #include "optionsmodel.h"
 #include "qt/schillingcoin/splash.h"
 #include "qt/schillingcoin/welcomecontentwidget.h"
+#include "util/system.h"
 #include "utilitydialog.h"
 #include "winshutdownmonitor.h"
 
 #ifdef ENABLE_WALLET
 #include "paymentserver.h"
 #include "walletmodel.h"
+#include "wallet/walletutil.h"
 #endif
 #include "masternodeconfig.h"
 #include "forgeman.h"
@@ -101,7 +103,7 @@ static QString GetLangTerritory()
     if (!lang_territory_qsettings.isEmpty())
         lang_territory = lang_territory_qsettings;
     // 3) -lang command line argument
-    lang_territory = QString::fromStdString(GetArg("-lang", lang_territory.toStdString()));
+    lang_territory = QString::fromStdString(gArgs.GetArg("-lang", lang_territory.toStdString()));
     return lang_territory;
 }
 
@@ -372,11 +374,11 @@ void BitcoinApplication::createOptionsModel()
 bool BitcoinApplication::setupMnemonicWords(std::vector<std::string>& wordlist) {
     namespace fs = boost::filesystem;
 
-    if (GetBoolArg("-skipmnemonicstartupui", false)) {
+    if (gArgs.GetBoolArg("-skipmnemonicstartupui", false)) {
         return true;
     }
 
-    std::string walletFile = GetArg("-wallet", DEFAULT_WALLET_DAT);
+    std::string walletFile = gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);
 
     if (fs::exists(walletFile))
         return true;
@@ -393,7 +395,7 @@ bool BitcoinApplication::setupMnemonicWords(std::vector<std::string>& wordlist) 
 bool BitcoinApplication::createWindow(const NetworkStyle* networkStyle)
 {
     /// Only display the MnemonicWords dialog on a wallet using HD
-    if (GetBoolArg("-usehd", false)) {
+    if (gArgs.GetBoolArg("-usehd", false)) {
         if (!setupMnemonicWords(wordlist)) {
           if (wordlist.empty()) return false;
         }
@@ -517,7 +519,7 @@ void BitcoinApplication::initializeResult(int retval)
 #endif
 
         // If -min option passed, start window minimized.
-        if (GetBoolArg("-min", false)) {
+        if (gArgs.GetBoolArg("-min", false)) {
             window->showMinimized();
         } else {
             window->show();
@@ -567,7 +569,7 @@ int main(int argc, char* argv[])
 
     /// 1. Parse command-line options. These take precedence over anything else.
     // Command-line options take precedence:
-    ParseParameters(argc, argv);
+    gArgs.ParseParameters(argc, argv);
 
 // Do not refer to data directory yet, this can be overridden by Intro::pickDataDirectory
 
@@ -603,12 +605,12 @@ int main(int argc, char* argv[])
     // Now that QSettings are accessible, initialize translations
     //initTranslations(qtTranslatorBase, qtTranslator, translatorBase, translator);
     app.updateTranslation();
-    uiInterface.Translate.connect(Translate);
+    translationInterface.Translate.connect(Translate);
 
     // Show help message immediately after parsing command-line options (for "-lang") and setting locale,
     // but before showing splash screen.
-    if (mapArgs.count("-?") || mapArgs.count("-help") || mapArgs.count("-version")) {
-        HelpMessageDialog help(NULL, mapArgs.count("-version"));
+    if (gArgs.IsArgSet("-?") || gArgs.IsArgSet("-help") || gArgs.IsArgSet("-version")) {
+        HelpMessageDialog help(NULL, gArgs.IsArgSet("-version"));
         help.showOrPrint();
         return 1;
     }
@@ -622,11 +624,11 @@ int main(int argc, char* argv[])
     /// - Do not call GetDataDir(true) before this step finishes
     if (!boost::filesystem::is_directory(GetDataDir(false))) {
         QMessageBox::critical(0, QObject::tr("Schilling Coin"),
-            QObject::tr("Error: Specified data directory \"%1\" does not exist.").arg(QString::fromStdString(mapArgs["-datadir"])));
+            QObject::tr("Error: Specified data directory \"%1\" does not exist.") .arg(QString::fromStdString(gArgs.GetArg("-datadir", ""))));
         return 1;
     }
     try {
-        ReadConfigFile(mapArgs, mapMultiArgs);
+        gArgs.ReadConfigFile("schillingcoin.conf");
     } catch (const std::exception& e) {
         QMessageBox::critical(0, QObject::tr("Schilling Coin"),
             QObject::tr("Error: Cannot parse configuration file: %1. Only use key=value syntax.").arg(e.what()));
@@ -705,7 +707,7 @@ int main(int argc, char* argv[])
     bool ret = true;
 #ifdef ENABLE_WALLET
     // Check if the wallet exists or need to be created
-    std::string strWalletFile = GetArg("-wallet", DEFAULT_WALLET_DAT);
+    std::string strWalletFile = gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);
     std::string strDataDir = GetDataDir().string();
 
     // Wallet file must be a plain filename without a directory
@@ -728,7 +730,7 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    if (GetBoolArg("-splash", true) && !GetBoolArg("-min", false))
+    if (gArgs.GetBoolArg("-splash", true) && !gArgs.GetBoolArg("-min", false))
         app.createSplashScreen(networkStyle.data());
 
     try {

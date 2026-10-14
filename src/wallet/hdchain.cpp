@@ -1,4 +1,5 @@
 // Copyright (c) 2014-2017 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 
 #include "base58.h"
@@ -6,6 +7,7 @@
 #include "wallet/hdchain.h"
 #include "tinyformat.h"
 #include "util.h"
+#include "util/string.h"
 #include <utilstrencodings.h>
 
 bool CHDChain::SetNull()
@@ -84,10 +86,11 @@ bool CHDChain::SetMnemonic(const SecureString& ssMnemonic, const SecureString& s
 
         // empty mnemonic i.e. "generate a new one"
         if (ssMnemonic.empty()) {
-            std::vector<std::string> ssMnemonicTmp3 = CMnemonic::Generate(256);
-            std::string ssMnemonicTmp2 = join(ssMnemonicTmp3," ");
-            SecureVector ssMnemonicTmp(ssMnemonicTmp2.begin(), ssMnemonicTmp2.end());
+            std::vector<std::string> generatedWords = CMnemonic::Generate(256);
+            std::string generatedMnemonic = join(generatedWords, " ");
+            ssMnemonicTmp = SecureString(generatedMnemonic.begin(), generatedMnemonic.end());
         }
+
         // NOTE: default mnemonic passphrase is an empty string
 
         // printf("mnemonic: %s\n", ssMnemonicTmp.c_str());

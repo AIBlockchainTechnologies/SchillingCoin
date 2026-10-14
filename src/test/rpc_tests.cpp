@@ -10,6 +10,7 @@
 #include "base58.h"
 #include "netbase.h"
 #include "util.h"
+#include "util/system.h"
 
 #include "test/test_schillingcoin.h"
 

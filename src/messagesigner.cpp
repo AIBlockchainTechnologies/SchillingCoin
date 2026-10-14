@@ -5,10 +5,11 @@
 
 #include "base58.h"
 #include "hash.h"
-#include "main.h" // For strMessageMagic
+#include "main.h"
 #include "messagesigner.h"
-#include "masternodeman.h"  // For GetPublicKey (of MN from its vin)
+#include "masternodeman.h"
 #include "tinyformat.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 
 bool CMessageSigner::GetKeysFromSecret(const std::string& strSecret, CKey& keyRet, CPubKey& pubkeyRet)

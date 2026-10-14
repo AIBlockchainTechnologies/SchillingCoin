@@ -84,9 +84,11 @@ endif
 # schillingcoin core #
 BITCOIN_CORE_H = \
   activemasternode.h \
+  addressbook.h \
   addrdb.h \
   addrman.h \
   allocators.h \
+  attributes.h \
   amount.h \
   arith_uint256.h \
   base58.h \
@@ -115,18 +117,12 @@ BITCOIN_CORE_H = \
   consensus/validation.h \
   consensus/tx_verify.h \
   consensus/params.h \
-  primitives/block.h \
-  primitives/transaction.h \
   core_io.h \
   cuckoocache.h \
   crypter.h \
   dbwrapper.h \
-  pairresult.h \
-  addressbook.h \
-  wallet/db.h \
   fs.h \
   hash.h \
-  wallet/hdchain.h \
   httprpc.h \
   httpserver.h \
   init.h \
@@ -154,8 +150,12 @@ BITCOIN_CORE_H = \
   netaddress.h\
   netbase.h \
   noui.h \
+  optional.h \
+  operationresult.h \
   pow.h \
   prevector.h \
+  primitives/block.h \
+  primitives/transaction.h \
   protocol.h \
   pubkey.h \
   random.h \
@@ -191,20 +191,24 @@ BITCOIN_CORE_H = \
   guiinterfaceutil.h \
   uint256.h \
   undo.h \
-  util/memory.h \
   util.h \
   util/macros.h \
+  util/memory.h \
+  util/string.h \
+  util/system.h \
   util/threadnames.h \
   utilstrencodings.h \
   utilmoneystr.h \
   utiltime.h \
   validationinterface.h \
   version.h \
+  wallet/db.h \
   wallet/hdchain.h \
   wallet/scriptpubkeyman.h \
   wallet/wallet.h \
   wallet/wallet_ismine.h \
   wallet/walletdb.h \
+  wallet/walletutil.h \
   zmq/zmqabstractnotifier.h \
   zmq/zmqconfig.h \
   zmq/zmqnotificationinterface.h \
@@ -290,6 +294,7 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/wallet.cpp \
   wallet/wallet_ismine.cpp \
   wallet/walletdb.cpp \
+  wallet/walletutil.cpp \
   stakeinput.cpp \
   $(BITCOIN_CORE_H)
 
@@ -430,8 +435,10 @@ libbitcoin_util_a_SOURCES = \
   threadinterrupt.cpp \
   uint256.cpp \
   util.cpp \
-  utilmoneystr.cpp \
+  util/string.cpp \
+  util/system.cpp \
   util/threadnames.cpp \
+  utilmoneystr.cpp \
   utilstrencodings.cpp \
   utiltime.cpp \
   $(BITCOIN_CORE_H)

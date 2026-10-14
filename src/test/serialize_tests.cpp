@@ -1,9 +1,10 @@
 // Copyright (c) 2012-2013 The Bitcoin Core developers
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "optional.h"
 #include "serialize.h"
 #include "streams.h"
 #include "hash.h"
@@ -13,12 +14,150 @@
 
 #include <boost/test/unit_test.hpp>
 
-
 BOOST_FIXTURE_TEST_SUITE(serialize_tests, BasicTestingSetup)
+
+template<typename T>
+void check_ser_rep(T thing, std::vector<unsigned char> expected)
+{
+    CDataStream ss(SER_DISK, 0);
+    ss << thing;
+
+    BOOST_CHECK(GetSerializeSize(thing, 0, 0) == ss.size());
+
+    std::vector<unsigned char> serialized_representation(ss.begin(), ss.end());
+
+    BOOST_CHECK(serialized_representation == expected);
+
+    T thing_deserialized;
+    ss >> thing_deserialized;
+
+    BOOST_CHECK(thing_deserialized == thing);
+}
+
+BOOST_AUTO_TEST_CASE(boost_optional)
+{
+    check_ser_rep<Optional<unsigned char> >(0xff, {0x01, 0xff});
+    check_ser_rep<Optional<unsigned char> >(nullopt, {0x00});
+    check_ser_rep<Optional<std::string> >(std::string("Test"),
+                                          {0x01, 0x04, 'T', 'e', 's', 't'});
+}
+
+class CReadWriteManyTest
+{
+public:
+    uint8_t first;
+    uint16_t second;
+    std::string third;
+
+    CReadWriteManyTest()
+        : first(0),
+          second(0),
+          third()
+    {
+    }
+
+    CReadWriteManyTest(uint8_t firstIn, uint16_t secondIn, const std::string& thirdIn)
+        : first(firstIn),
+          second(secondIn),
+          third(thirdIn)
+    {
+    }
+
+    ADD_SERIALIZE_METHODS;
+
+    template <typename Stream, typename Operation>
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        READWRITEMANY(first, second, third);
+    }
+
+    bool operator==(const CReadWriteManyTest& other) const
+    {
+        return first == other.first &&
+               second == other.second &&
+               third == other.third;
+    }
+};
+
+BOOST_AUTO_TEST_CASE(serialize_many)
+{
+    const uint8_t first = 0x12;
+    const uint16_t second = 0x3456;
+    const std::string third = "SCH";
+
+    CDataStream manyStream(SER_DISK, 0);
+    SerializeMany(manyStream, SER_DISK, 0, first, second, third);
+
+    CDataStream legacyStream(SER_DISK, 0);
+    legacyStream << first << second << third;
+
+    const std::vector<unsigned char> manyBytes(
+        manyStream.begin(),
+        manyStream.end());
+
+    const std::vector<unsigned char> legacyBytes(
+        legacyStream.begin(),
+        legacyStream.end());
+
+    BOOST_CHECK(manyBytes == legacyBytes);
+
+    uint8_t firstOut = 0;
+    uint16_t secondOut = 0;
+    std::string thirdOut;
+
+    UnserializeMany(
+        manyStream,
+        SER_DISK,
+        0,
+        firstOut,
+        secondOut,
+        thirdOut);
+
+    BOOST_CHECK_EQUAL(firstOut, first);
+    BOOST_CHECK_EQUAL(secondOut, second);
+    BOOST_CHECK_EQUAL(thirdOut, third);
+    BOOST_CHECK(manyStream.empty());
+}
+
+BOOST_AUTO_TEST_CASE(readwrite_many_and_size_computer)
+{
+    const CReadWriteManyTest original(0x12, 0x3456, "SCH");
+
+    CDataStream readWriteManyStream(SER_DISK, 0);
+    readWriteManyStream << original;
+
+    CDataStream legacyStream(SER_DISK, 0);
+    legacyStream << original.first
+                 << original.second
+                 << original.third;
+
+    const std::vector<unsigned char> readWriteManyBytes(
+        readWriteManyStream.begin(),
+        readWriteManyStream.end());
+
+    const std::vector<unsigned char> legacyBytes(
+        legacyStream.begin(),
+        legacyStream.end());
+
+    BOOST_CHECK(readWriteManyBytes == legacyBytes);
+
+    CReadWriteManyTest decoded;
+    readWriteManyStream >> decoded;
+
+    BOOST_CHECK(decoded == original);
+    BOOST_CHECK(readWriteManyStream.empty());
+
+    CSizeComputer sizeComputer(SER_DISK, 0);
+    sizeComputer << original;
+
+    BOOST_CHECK_EQUAL(sizeComputer.size(), legacyStream.size());
+    BOOST_CHECK_EQUAL(sizeComputer.GetType(), SER_DISK);
+    BOOST_CHECK_EQUAL(sizeComputer.GetVersion(), 0);
+}
 
 BOOST_AUTO_TEST_CASE(varints)
 {
-    // encode
+    // Encode
 
     CDataStream ss(SER_DISK, 0);
     CDataStream::size_type size = 0;

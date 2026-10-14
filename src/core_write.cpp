@@ -14,6 +14,7 @@
 #include "streams.h"
 #include <univalue.h>
 #include "util.h"
+#include "util/system.h"
 #include "utilmoneystr.h"
 #include "utilstrencodings.h"
 

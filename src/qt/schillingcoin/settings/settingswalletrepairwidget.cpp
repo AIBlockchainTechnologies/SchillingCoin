@@ -187,7 +187,7 @@ void SettingsWalletRepairWidget::walletUpgradeToHd()
 
     int prev_version = pwalletMain->GetVersion();
 
-    int nMaxVersion = GetArg("-upgradewallet", 0);
+    int nMaxVersion = gArgs.GetArg("-upgradewallet", 0);
     if (nMaxVersion == 0) // the -upgradewallet without argument case
     {
         LogPrintf("Performing wallet upgrade to %i\n", FEATURE_LATEST);

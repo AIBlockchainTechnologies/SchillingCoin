@@ -18,7 +18,7 @@
 
 class CKeyPool;
 class CWallet;
-class CWalletDB;
+class WalletBatch;
 
 //! Default for -keypool.
 static const uint32_t DEFAULT_KEYPOOL_SIZE = 1000;
@@ -98,8 +98,8 @@ private:
     std::map<CKeyID, int64_t> m_pool_key_to_index;
     std::map<int64_t, CKeyID> m_index_to_reserved_key;
 
-    void GeneratePool(CWalletDB& batch, int64_t target_size, bool internal);
-    void AddKeypoolPubkeyWithDB(const CPubKey& pubkey, bool internal, CWalletDB& batch);
+    void GeneratePool(WalletBatch& batch, int64_t target_size, bool internal);
+    void AddKeypoolPubkeyWithDB(const CPubKey& pubkey, bool internal, WalletBatch& batch);
     void MarkReserveKeysAsUsed(int64_t keypool_id);
 };
 

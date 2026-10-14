@@ -13,6 +13,7 @@
 #include "random.h"
 #include "uint256.h"
 #include "util.h"
+#include "util/system.h"
 
 #include <algorithm>
 #include <boost/thread.hpp>
@@ -87,7 +88,7 @@ static CSignatureCache signatureCache;
 void InitSignatureCache()
 {
     const int64_t configuredSize =
-        GetArg("-maxsigcachesize", DEFAULT_MAX_SIG_CACHE_SIZE);
+        gArgs.GetArg("-maxsigcachesize", DEFAULT_MAX_SIG_CACHE_SIZE);
 
     const int64_t boundedSize =
         std::min(

@@ -11,6 +11,7 @@
 #include "net.h"
 #include "netbase.h"
 #include "util.h"
+#include "util/system.h"
 #include "crypto/hmac_sha256.h"
 
 #include <vector>
@@ -521,7 +522,7 @@ void TorController::auth_cb(TorControlConnection& _conn, const TorControlReply& 
 
         // Now that we know Tor is running setup the proxy for onion addresses
         // if -onion isn't set to something else.
-        if (GetArg("-onion", "") == "") {
+        if (gArgs.GetArg("-onion", "") == "") {
             CService resolved;
             assert(LookupNumeric("127.0.0.1", resolved, 9050));
             CService addrOnion = CService(resolved, 9050);
@@ -632,7 +633,7 @@ void TorController::protocolinfo_cb(TorControlConnection& _conn, const TorContro
             LogPrint(BCLog::TOR, "tor: Supported authentication method: %s\n", s);
         }
         // Prefer NULL, otherwise SAFECOOKIE. If a password is provided, use HASHEDPASSWORD
-        std::string torpassword = GetArg("-torpassword", "");
+        std::string torpassword = gArgs.GetArg("-torpassword", "");
         if (!torpassword.empty()) {
             if (methods.count("HASHEDPASSWORD")) {
                 LogPrint(BCLog::TOR, "tor: Using HASHEDPASSWORD authentication\n");
@@ -732,7 +733,7 @@ static void TorControlThread()
         return;
     }
 
-    std::string target = GetArg("-torcontrol", DEFAULT_TOR_CONTROL);
+    std::string target = gArgs.GetArg("-torcontrol", DEFAULT_TOR_CONTROL);
     torControl = new TorController(gBase, target);
 
     // Main event loop
@@ -752,7 +753,7 @@ static void TorControlThread()
 void StartTorControl(boost::thread_group& /*threadGroup*/);
 void StartTorControl()
 {
-    if (!GetBoolArg("-listenonion", true))
+    if (!gArgs.GetBoolArg("-listenonion", true))
         return;
 
     if (torControlThread.joinable())

@@ -79,7 +79,6 @@ CMasternode::CMasternode() :
     cacheInputAge = 0;
     cacheInputAgeBlock = 0;
     unitTest = false;
-    allowFreeTx = true;
     nActiveState = MASTERNODE_ENABLED,
     protocolVersion = PROTOCOL_VERSION;
     nLastDsq = 0;
@@ -102,7 +101,6 @@ CMasternode::CMasternode(const CMasternode& other) :
     cacheInputAge = other.cacheInputAge;
     cacheInputAgeBlock = other.cacheInputAgeBlock;
     unitTest = other.unitTest;
-    allowFreeTx = other.allowFreeTx;
     nActiveState = MASTERNODE_ENABLED,
     protocolVersion = other.protocolVersion;
     nLastDsq = other.nLastDsq;

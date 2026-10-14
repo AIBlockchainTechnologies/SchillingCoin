@@ -17,6 +17,7 @@
 #include "chainparams.h"
 #include "clientversion.h"
 #include "miner.h"
+#include "optional.h"
 #include "primitives/transaction.h"
 #include "scheduler.h"
 #include "guiinterface.h"
@@ -119,7 +120,7 @@ void AddOneShot(std::string strDest)
 
 unsigned short GetListenPort()
 {
-    return (unsigned short)(GetArg("-port", Params().GetDefaultPort()));
+    return (unsigned short)(gArgs.GetArg("-port", Params().GetDefaultPort()));
 }
 
 // find 'best' local address for a particular peer
@@ -547,7 +548,7 @@ void CNode::Ban(const CSubNet& subNet, const BanReason &banReason, int64_t banti
     banEntry.banReason = banReason;
     if (bantimeoffset <= 0)
     {
-        bantimeoffset = GetArg("-bantime", 60*60*24); // Default 24-hour ban
+        bantimeoffset = gArgs.GetArg("-bantime", 60*60*24); // Default 24-hour ban
         sinceUnixEpoch = false;
     }
     banEntry.nBanUntil = (sinceUnixEpoch ? 0 : GetTime() )+bantimeoffset;
@@ -1272,7 +1273,7 @@ void ThreadDNSAddressSeed()
 {
     // goal: only query DNS seeds if address need is acute
     if ((addrman.size() > 0) &&
-        (!GetBoolArg("-forcednsseed", false))) {
+        (!gArgs.GetBoolArg("-forcednsseed", false))) {
         if (!interruptNet.sleep_for(std::chrono::seconds(11)))
             return;
 
@@ -1368,10 +1369,10 @@ void static ProcessOneShot()
 void ThreadOpenConnections()
 {
     // Connect to specific addresses
-    if (mapArgs.count("-connect") && mapMultiArgs["-connect"].size() > 0) {
+    if (gArgs.IsArgSet("-connect") && !gArgs.GetArgs("-connect").empty()) {
         for (int64_t nLoop = 0; !interruptNet; nLoop++) {
             ProcessOneShot();
-            for (std::string strAddr : mapMultiArgs["-connect"]) {
+            for (const std::string& strAddr : gArgs.GetArgs("-connect")) {
                 CAddress addr;
                 OpenNetworkConnection(addr, false, NULL, strAddr.c_str());
                 for (int i = 0; i < 10 && i < nLoop; i++) {
@@ -1456,7 +1457,7 @@ void ThreadOpenAddedConnections()
 {
     {
         LOCK(cs_vAddedNodes);
-        vAddedNodes = mapMultiArgs["-addnode"];
+        vAddedNodes = gArgs.GetArgs("-addnode");
     }
 
     if (HaveNameProxy()) {
@@ -1817,14 +1818,14 @@ void StartNode(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     Discover(threadGroup);
 
-    if (!GetBoolArg("-dnsseed", true)) {
+    if (!gArgs.GetBoolArg("-dnsseed", true)) {
         LogPrintf("DNS seeding disabled\n");
     } else {
         threadGroup.create_thread(
             boost::bind(&TraceThread<void (*)()>, "dnsseed", &ThreadDNSAddressSeed));
     }
 
-    MapPort(GetBoolArg("-upnp", DEFAULT_UPNP));
+    MapPort(gArgs.GetBoolArg("-upnp", DEFAULT_UPNP));
 
     threadGroup.create_thread(
         boost::bind(&TraceThread<void (*)()>, "net", &ThreadSocketHandler));
@@ -1942,20 +1943,6 @@ void RelayTransaction(const CTransaction& tx, const CDataStream& ss)
     }
 }
 
-void RelayTransactionLockReq(const CTransaction& tx, bool relayToAll)
-{
-    CInv inv(MSG_TXLOCK_REQUEST, tx.GetHash());
-
-    //broadcast the new lock
-    LOCK(cs_vNodes);
-    for (CNode* pnode : vNodes) {
-        if (!relayToAll && !pnode->fRelayTxes)
-            continue;
-
-        pnode->PushMessage("ix", tx);
-    }
-}
-
 void RelayInv(CInv& inv)
 {
     LOCK(cs_vNodes);
@@ -2028,8 +2015,8 @@ void CNode::Fuzz(int nChance)
 // CAddrDB
 //
 
-unsigned int ReceiveFloodSize() { return 1000 * GetArg("-maxreceivebuffer", 5 * 1000); }
-unsigned int SendBufferSize() { return 1000 * GetArg("-maxsendbuffer", 1 * 1000); }
+unsigned int ReceiveFloodSize() { return 1000 * gArgs.GetArg("-maxreceivebuffer", 5 * 1000); }
+unsigned int SendBufferSize() { return 1000 * gArgs.GetArg("-maxsendbuffer", 1 * 1000); }
 
 CNode::CNode(SOCKET hSocketIn, CAddress addrIn, std::string addrNameIn, bool fInboundIn)
     : ssSend(SER_NETWORK, INIT_PROTO_VERSION),
@@ -2149,13 +2136,13 @@ void CNode::EndMessage() UNLOCK_FUNCTION(cs_vSend)
     // The -*messagestest options are intentionally not documented in the help message,
     // since they are only used during development to debug the networking code and are
     // not intended for end-users.
-    if (mapArgs.count("-dropmessagestest") && GetRand(GetArg("-dropmessagestest", 2)) == 0) {
+    if (gArgs.IsArgSet("-dropmessagestest") && GetRand(gArgs.GetArg("-dropmessagestest", 2)) == 0) {
         LogPrint(BCLog::NET, "dropmessages DROPPING SEND MESSAGE\n");
         AbortMessage();
         return;
     }
-    if (mapArgs.count("-fuzzmessagestest"))
-        Fuzz(GetArg("-fuzzmessagestest", 10));
+    if (gArgs.IsArgSet("-fuzzmessagestest"))
+        Fuzz(gArgs.GetArg("-fuzzmessagestest", 10));
 
     if (ssSend.size() == 0) {
         LEAVE_CRITICAL_SECTION(cs_vSend);

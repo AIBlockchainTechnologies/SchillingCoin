@@ -1,14 +1,16 @@
 // Copyright (c) 2011-2014 The Bitcoin Core developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "util.h"
+#include "util/system.h"
 
 #include "clientversion.h"
 #include "primitives/transaction.h"
 #include "sync.h"
+#include "util/string.h"
 #include "utilstrencodings.h"
 #include "utilmoneystr.h"
 #include "test/test_schillingcoin.h"
@@ -17,7 +19,6 @@
 #include <vector>
 
 #include <boost/test/unit_test.hpp>
-
 
 BOOST_FIXTURE_TEST_SUITE(util_tests, BasicTestingSetup)
 
@@ -86,7 +87,6 @@ BOOST_AUTO_TEST_CASE(util_HexStr)
         "04 67 8a fd b0");
 }
 
-
 BOOST_AUTO_TEST_CASE(util_DateTimeStrFormat)
 {
     BOOST_CHECK_EQUAL(DateTimeStrFormat("%Y-%m-%d %H:%M:%S", 0), "1970-01-01 00:00:00");
@@ -98,50 +98,85 @@ BOOST_AUTO_TEST_CASE(util_DateTimeStrFormat)
 
 BOOST_AUTO_TEST_CASE(util_ParseParameters)
 {
-    const char *argv_test[] = {"-ignored", "-a", "-b", "-ccc=argument", "-ccc=multiple", "f", "-d=e"};
+    const char* const argv_test[] = {
+        "test_schillingcoin",
+        "-a",
+        "-b",
+        "-ccc=argument",
+        "-ccc=multiple",
+        "f",
+        "-d=e"
+    };
 
-    ParseParameters(0, (char**)argv_test);
-    BOOST_CHECK(mapArgs.empty() && mapMultiArgs.empty());
+    ArgsManager args;
 
-    ParseParameters(1, (char**)argv_test);
-    BOOST_CHECK(mapArgs.empty() && mapMultiArgs.empty());
+    args.ParseParameters(0, argv_test);
+    BOOST_CHECK(!args.IsArgSet("-a"));
+    BOOST_CHECK(!args.IsArgSet("-b"));
+    BOOST_CHECK(!args.IsArgSet("-ccc"));
+    BOOST_CHECK(args.GetArgs("-a").empty());
+    BOOST_CHECK(args.GetArgs("-b").empty());
+    BOOST_CHECK(args.GetArgs("-ccc").empty());
 
-    ParseParameters(5, (char**)argv_test);
-    // expectation: -ignored is ignored (program name argument),
-    // -a, -b and -ccc end up in map, -d ignored because it is after
-    // a non-option argument (non-GNU option parsing)
-    BOOST_CHECK(mapArgs.size() == 3 && mapMultiArgs.size() == 3);
-    BOOST_CHECK(mapArgs.count("-a") && mapArgs.count("-b") && mapArgs.count("-ccc")
-                && !mapArgs.count("f") && !mapArgs.count("-d"));
-    BOOST_CHECK(mapMultiArgs.count("-a") && mapMultiArgs.count("-b") && mapMultiArgs.count("-ccc")
-                && !mapMultiArgs.count("f") && !mapMultiArgs.count("-d"));
+    args.ParseParameters(1, argv_test);
+    BOOST_CHECK(!args.IsArgSet("-a"));
+    BOOST_CHECK(!args.IsArgSet("-b"));
+    BOOST_CHECK(!args.IsArgSet("-ccc"));
+    BOOST_CHECK(args.GetArgs("-a").empty());
+    BOOST_CHECK(args.GetArgs("-b").empty());
+    BOOST_CHECK(args.GetArgs("-ccc").empty());
 
-    BOOST_CHECK(mapArgs["-a"] == "" && mapArgs["-ccc"] == "multiple");
-    BOOST_CHECK(mapMultiArgs["-ccc"].size() == 2);
+    args.ParseParameters(5, argv_test);
+
+    // Expectation: argv[0] is the program name and is ignored.
+    // -a, -b, and both -ccc values are parsed.
+    BOOST_CHECK(args.IsArgSet("-a"));
+    BOOST_CHECK(args.IsArgSet("-b"));
+    BOOST_CHECK(args.IsArgSet("-ccc"));
+    BOOST_CHECK(!args.IsArgSet("f"));
+    BOOST_CHECK(!args.IsArgSet("-d"));
+
+    BOOST_CHECK_EQUAL(args.GetArg("-a", "default"), "");
+    BOOST_CHECK_EQUAL(args.GetArg("-b", "default"), "");
+    BOOST_CHECK_EQUAL(args.GetArg("-ccc", "default"), "multiple");
+
+    const std::vector<std::string> ccc_args = args.GetArgs("-ccc");
+    BOOST_REQUIRE_EQUAL(ccc_args.size(), 2U);
+    BOOST_CHECK_EQUAL(ccc_args[0], "argument");
+    BOOST_CHECK_EQUAL(ccc_args[1], "multiple");
 }
 
 BOOST_AUTO_TEST_CASE(util_GetArg)
 {
-    mapArgs.clear();
-    mapArgs["strtest1"] = "string...";
-    // strtest2 undefined on purpose
-    mapArgs["inttest1"] = "12345";
-    mapArgs["inttest2"] = "81985529216486895";
-    // inttest3 undefined on purpose
-    mapArgs["booltest1"] = "";
-    // booltest2 undefined on purpose
-    mapArgs["booltest3"] = "0";
-    mapArgs["booltest4"] = "1";
+    const char* const argv_test[] = {
+        "test_schillingcoin",
+        "-strtest1=string...",
+        "-inttest1=12345",
+        "-inttest2=81985529216486895",
+        "-booltest1",
+        "-booltest3=0",
+        "-booltest4=1"
+    };
 
-    BOOST_CHECK_EQUAL(GetArg("strtest1", "default"), "string...");
-    BOOST_CHECK_EQUAL(GetArg("strtest2", "default"), "default");
-    BOOST_CHECK_EQUAL(GetArg("inttest1", -1), 12345);
-    BOOST_CHECK_EQUAL(GetArg("inttest2", -1), 81985529216486895LL);
-    BOOST_CHECK_EQUAL(GetArg("inttest3", -1), -1);
-    BOOST_CHECK_EQUAL(GetBoolArg("booltest1", false), true);
-    BOOST_CHECK_EQUAL(GetBoolArg("booltest2", false), false);
-    BOOST_CHECK_EQUAL(GetBoolArg("booltest3", false), false);
-    BOOST_CHECK_EQUAL(GetBoolArg("booltest4", false), true);
+    ArgsManager args;
+    args.ParseParameters(
+        sizeof(argv_test) / sizeof(argv_test[0]),
+        argv_test);
+
+    // strtest2 undefined on purpose
+    BOOST_CHECK_EQUAL(args.GetArg("-strtest1", "default"), "string...");
+    BOOST_CHECK_EQUAL(args.GetArg("-strtest2", "default"), "default");
+
+    // inttest3 undefined on purpose
+    BOOST_CHECK_EQUAL(args.GetArg("-inttest1", -1), 12345);
+    BOOST_CHECK_EQUAL(args.GetArg("-inttest2", -1), 81985529216486895LL);
+    BOOST_CHECK_EQUAL(args.GetArg("-inttest3", -1), -1);
+
+    // booltest2 undefined on purpose
+    BOOST_CHECK_EQUAL(args.GetBoolArg("-booltest1", false), true);
+    BOOST_CHECK_EQUAL(args.GetBoolArg("-booltest2", false), false);
+    BOOST_CHECK_EQUAL(args.GetBoolArg("-booltest3", false), false);
+    BOOST_CHECK_EQUAL(args.GetBoolArg("-booltest4", false), true);
 }
 
 BOOST_AUTO_TEST_CASE(util_FormatMoney)

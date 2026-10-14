@@ -1,16 +1,20 @@
 // Copyright (c) 2012-2013 The Bitcoin Core developers
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-#include "addrman.h"
-#include "test/test_schillingcoin.h"
-#include <string>
-#include <boost/test/unit_test.hpp>
-#include <crypto/common.h> // for ReadLE64
 
+#include "test/test_schillingcoin.h"
+
+#include "addrman.h"
 #include "hash.h"
+#include "optional.h"
 #include "random.h"
+
+#include <string>
+
+#include <boost/test/unit_test.hpp>
+#include <crypto/common.h>
 
 class CAddrManTest : public CAddrMan
 {

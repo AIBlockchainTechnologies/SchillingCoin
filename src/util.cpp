@@ -16,6 +16,7 @@
 #include "chainparamsbase.h"
 #include "random.h"
 #include "sync.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 #include "utiltime.h"
 
@@ -88,26 +89,25 @@
 
 // SchillingCoin only features
 // Masternode
-bool fMasterNode = false;
 std::string strMasterNodePrivKey = "";
 std::string strMasterNodeAddr = "";
 bool fLiteMode = false;
-// SwiftX
-bool fEnableSwiftTX = true;
-int nSwiftTXDepth = 5;
 
-/** Spork enforcement enabled time */
+/** Static masternode payment enforcement time. **/
 int64_t enforceMasternodePaymentsTime = 4085657524;
 bool fSucessfullyLoaded = false;
-/** All denominations used by obfuscation */
-std::vector<int64_t> obfuScationDenominations;
-std::string strBudgetMode = "";
 
 std::map<std::string, std::string> mapArgs;
 std::map<std::string, std::vector<std::string> > mapMultiArgs;
 bool fDebug = false;
 bool fDaemon = false;
 std::string strMiscWarning;
+
+/** A map that contains all currently held directory locks. */
+static std::map<std::string, std::unique_ptr<fsbridge::FileLock>> dir_locks;
+
+/** Mutex protecting the directory lock registry. */
+static std::mutex cs_dir_locks;
 
 /** Init OpenSSL library multithreading support */
 static RecursiveMutex** ppmutexOpenSSL;
@@ -185,10 +185,12 @@ void ParseParameters(int argc, const char* const argv[])
         std::string str(argv[i]);
         std::string strValue;
         size_t is_index = str.find('=');
+
         if (is_index != std::string::npos) {
             strValue = str.substr(is_index + 1);
             str = str.substr(0, is_index);
         }
+
 #ifdef WIN32
         boost::to_lower(str);
         if (boost::algorithm::starts_with(str, "/"))
@@ -202,6 +204,7 @@ void ParseParameters(int argc, const char* const argv[])
         // If both --foo and -foo are set, the last takes effect.
         if (str.length() > 1 && str[1] == '-')
             str = str.substr(1);
+
         InterpretNegativeSetting(str, strValue);
 
         mapArgs[str] = strValue;
@@ -246,83 +249,11 @@ bool SoftSetBoolArg(const std::string& strArg, bool fValue)
         return SoftSetArg(strArg, std::string("0"));
 }
 
-static const int screenWidth = 79;
-static const int optIndent = 2;
-static const int msgIndent = 7;
-
-std::string HelpMessageGroup(const std::string &message) {
-    return std::string(message) + std::string("\n\n");
-}
-
-std::string HelpMessageOpt(const std::string &option, const std::string &message) {
-    return std::string(optIndent,' ') + std::string(option) +
-           std::string("\n") + std::string(msgIndent,' ') +
-           FormatParagraph(message, screenWidth - msgIndent, msgIndent) +
-           std::string("\n\n");
-}
-
-static std::string FormatException(const std::exception* pex, const char* pszThread)
-{
-#ifdef WIN32
-    char pszModule[MAX_PATH] = "";
-    GetModuleFileNameA(NULL, pszModule, sizeof(pszModule));
-#else
-    const char* pszModule = "SchillingCoin";
-#endif
-    if (pex)
-        return strprintf(
-            "EXCEPTION: %s       \n%s       \n%s in %s       \n", typeid(*pex).name(), pex->what(), pszModule, pszThread);
-    else
-        return strprintf(
-            "UNKNOWN EXCEPTION       \n%s in %s       \n", pszModule, pszThread);
-}
-
-void PrintExceptionContinue(const std::exception* pex, const char* pszThread)
-{
-    std::string message = FormatException(pex, pszThread);
-    LogPrintf("\n\n************************\n%s\n", message);
-    fprintf(stderr, "\n\n************************\n%s\n", message.c_str());
-    strMiscWarning = message;
-}
-
-boost::filesystem::path GetDefaultDataDir()
-{
-    namespace fs = boost::filesystem;
-// Windows < Vista: C:\Documents and Settings\Username\Application Data\SchillingCoin
-// Windows >= Vista: C:\Users\Username\AppData\Roaming\SchillingCoin
-// Mac: ~/Library/Application Support/SchillingCoin
-// Unix: ~/.schillingcoin
-#ifdef WIN32
-    // Windows
-    return GetSpecialFolderPath(CSIDL_APPDATA) / "SchillingCoin";
-#else
-    fs::path pathRet;
-    char* pszHome = getenv("HOME");
-    if (pszHome == NULL || strlen(pszHome) == 0)
-        pathRet = fs::path("/");
-    else
-        pathRet = fs::path(pszHome);
-#ifdef MAC_OSX
-    // Mac
-    pathRet /= "Library/Application Support";
-    TryCreateDirectory(pathRet);
-    return pathRet / "SchillingCoin";
-#else
-    // Unix
-    return pathRet / ".schillingcoin";
-#endif
-#endif
-}
-
-static boost::filesystem::path pathCached;
-static boost::filesystem::path pathCachedNetSpecific;
-static RecursiveMutex csPathCached;
-
 bool CheckIfWalletDatExists(bool fNetSpecific) {
 
     namespace fs = boost::filesystem;
 
-    std::string walletFile = GetArg("-wallet", "wallet.dat");
+    std::string walletFile = gArgs.GetArg("-wallet", "wallet.dat");
     boost::filesystem::path path(walletFile);
     if (!path.is_absolute())
         path = GetDataDir(fNetSpecific) / path;
@@ -330,60 +261,18 @@ bool CheckIfWalletDatExists(bool fNetSpecific) {
     return fs::exists(path);
 }
 
-const boost::filesystem::path& GetDataDir(bool fNetSpecific)
-{
-    namespace fs = boost::filesystem;
-
-    LOCK(csPathCached);
-
-    fs::path& path = fNetSpecific ? pathCachedNetSpecific : pathCached;
-    
-    if (!path.empty())
-        return path;
-
-    if (mapArgs.count("-datadir")) {
-        path = fs::system_complete(mapArgs["-datadir"]);
-        if (!fs::is_directory(path)) {
-            path = "";
-            return path;
-        }
-    } else {
-        path = GetDefaultDataDir();
-    }
-
-    if (fNetSpecific)
-        path /= BaseParams().DataDir();
-
-    fs::create_directories(path);
-
-    return path;
-}
-
-void ClearDatadirCache()
-{
-    pathCached = boost::filesystem::path();
-    pathCachedNetSpecific = boost::filesystem::path();
-}
-
 boost::filesystem::path GetConfigFile()
 {
-    boost::filesystem::path pathConfigFile(GetArg("-conf", "schillingcoin.conf"));
+    boost::filesystem::path pathConfigFile(gArgs.GetArg("-conf", "schillingcoin.conf"));
     if (!pathConfigFile.is_absolute())
         pathConfigFile = GetDataDir(false) / pathConfigFile;
 
     return pathConfigFile;
 }
 
-boost::filesystem::path GetMasternodeConfigFile()
-{
-    boost::filesystem::path pathConfigFile(GetArg("-mnconf", "masternode.conf"));
-    if (!pathConfigFile.is_absolute()) pathConfigFile = GetDataDir() / pathConfigFile;
-    return pathConfigFile;
-}
-
 boost::filesystem::path GetForgeConfigFile()
 {
-    boost::filesystem::path pathConfigFile(GetArg("-forgeconf", "forge.conf"));
+    boost::filesystem::path pathConfigFile(gArgs.GetArg("-forgeconf", "forge.conf"));
     if (!pathConfigFile.is_absolute()) pathConfigFile = GetDataDir() / pathConfigFile;
     return pathConfigFile;
 }
@@ -417,33 +306,7 @@ void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet,
 }
 
 #ifndef WIN32
-boost::filesystem::path GetPidFile()
-{
-    boost::filesystem::path pathPidFile(GetArg("-pid", "schillingcoind.pid"));
-    if (!pathPidFile.is_absolute()) pathPidFile = GetDataDir() / pathPidFile;
-    return pathPidFile;
-}
-
-void CreatePidFile(const boost::filesystem::path& path, pid_t pid)
-{
-    FILE* file = fopen(path.string().c_str(), "w");
-    if (file) {
-        fprintf(file, "%d\n", pid);
-        fclose(file);
-    }
-}
 #endif
-
-bool RenameOver(boost::filesystem::path src, boost::filesystem::path dest)
-{
-#ifdef WIN32
-    return MoveFileExA(src.string().c_str(), dest.string().c_str(),
-               MOVEFILE_REPLACE_EXISTING) != 0;
-#else
-    int rc = std::rename(src.string().c_str(), dest.string().c_str());
-    return (rc == 0);
-#endif /* WIN32 */
-}
 
 /**
  * Ignores exceptions thrown by Boost's create_directory if the requested directory exists.
@@ -462,135 +325,6 @@ bool TryCreateDirectory(const boost::filesystem::path& p)
     // create_directory didn't create the directory, it had to have existed already
     return false;
 }
-
-bool FileCommit(FILE* fileout)
-{
-    if (fileout == nullptr)
-        return false;
-
-    if (fflush(fileout) != 0)
-        return false;
-
-#ifdef WIN32
-    const int fileDescriptor = _fileno(fileout);
-    if (fileDescriptor == -1)
-        return false;
-
-    const intptr_t osFileHandle = _get_osfhandle(fileDescriptor);
-    if (osFileHandle == -1)
-        return false;
-
-    return FlushFileBuffers(reinterpret_cast<HANDLE>(osFileHandle)) != 0;
-#else
-    const int fileDescriptor = fileno(fileout);
-    if (fileDescriptor == -1)
-        return false;
-
-#if defined(__linux__) || defined(__NetBSD__)
-    return fdatasync(fileDescriptor) == 0;
-#elif defined(__APPLE__) && defined(F_FULLFSYNC)
-    return fcntl(fileDescriptor, F_FULLFSYNC, 0) == 0;
-#else
-    return fsync(fileDescriptor) == 0;
-#endif
-#endif
-}
-
-bool TruncateFile(FILE* file, unsigned int length)
-{
-#if defined(WIN32)
-    return _chsize(_fileno(file), length) == 0;
-#else
-    return ftruncate(fileno(file), length) == 0;
-#endif
-}
-
-/**
- * this function tries to raise the file descriptor limit to the requested number.
- * It returns the actual file descriptor limit (which may be more or less than nMinFD)
- */
-int RaiseFileDescriptorLimit(int nMinFD)
-{
-#if defined(WIN32)
-    return 2048;
-#else
-    struct rlimit limitFD;
-    if (getrlimit(RLIMIT_NOFILE, &limitFD) != -1) {
-        if (limitFD.rlim_cur < (rlim_t)nMinFD) {
-            limitFD.rlim_cur = nMinFD;
-            if (limitFD.rlim_cur > limitFD.rlim_max)
-                limitFD.rlim_cur = limitFD.rlim_max;
-            setrlimit(RLIMIT_NOFILE, &limitFD);
-            getrlimit(RLIMIT_NOFILE, &limitFD);
-        }
-        return limitFD.rlim_cur;
-    }
-    return nMinFD; // getrlimit failed, assume it's fine
-#endif
-}
-
-/**
- * this function tries to make a particular range of a file allocated (corresponding to disk space)
- * it is advisory, and the range specified in the arguments will never contain live data
- */
-void AllocateFileRange(FILE* file, unsigned int offset, unsigned int length)
-{
-#if defined(WIN32)
-    // Windows-specific version
-    HANDLE hFile = (HANDLE)_get_osfhandle(_fileno(file));
-    LARGE_INTEGER nFileSize;
-    int64_t nEndPos = (int64_t)offset + length;
-    nFileSize.u.LowPart = nEndPos & 0xFFFFFFFF;
-    nFileSize.u.HighPart = nEndPos >> 32;
-    SetFilePointerEx(hFile, nFileSize, 0, FILE_BEGIN);
-    SetEndOfFile(hFile);
-#elif defined(MAC_OSX)
-    // OSX specific version
-    fstore_t fst;
-    fst.fst_flags = F_ALLOCATECONTIG;
-    fst.fst_posmode = F_PEOFPOSMODE;
-    fst.fst_offset = 0;
-    fst.fst_length = (off_t)offset + length;
-    fst.fst_bytesalloc = 0;
-    if (fcntl(fileno(file), F_PREALLOCATE, &fst) == -1) {
-        fst.fst_flags = F_ALLOCATEALL;
-        fcntl(fileno(file), F_PREALLOCATE, &fst);
-    }
-    ftruncate(fileno(file), fst.fst_length);
-#elif defined(__linux__)
-    // Version using posix_fallocate
-    off_t nEndPos = (off_t)offset + length;
-    posix_fallocate(fileno(file), 0, nEndPos);
-#else
-    // Fallback version
-    // TODO: just write one byte per block
-    static const char buf[65536] = {};
-    fseek(file, offset, SEEK_SET);
-    while (length > 0) {
-        unsigned int now = 65536;
-        if (length < now)
-            now = length;
-        fwrite(buf, 1, now, file); // allowed to fail; this function is advisory anyway
-        length -= now;
-    }
-#endif
-}
-
-#ifdef WIN32
-boost::filesystem::path GetSpecialFolderPath(int nFolder, bool fCreate)
-{
-    namespace fs = boost::filesystem;
-
-    char pszPath[MAX_PATH] = "";
-
-    if (SHGetSpecialFolderPathA(NULL, pszPath, nFolder, fCreate)) {
-        return fs::path(pszPath);
-    }
-
-    LogPrintf("SHGetSpecialFolderPathA() failed, could not obtain requested path.\n");
-    return fs::path("");
-}
-#endif
 
 boost::filesystem::path GetTempPath()
 {
@@ -633,55 +367,4 @@ double double_safe_multiplication(double fValue, double fmultiplicator)
         return fValue * fmultiplicator;
     else
         return std::numeric_limits<double>::max();
-}
-
-void runCommand(std::string strCommand)
-{
-    int nErr = ::system(strCommand.c_str());
-    if (nErr)
-        LogPrintf("runCommand error: system(%s) returned %d\n", strCommand, nErr);
-}
-
-void SetupEnvironment()
-{
-// On most POSIX systems (e.g. Linux, but not BSD) the environment's locale
-// may be invalid, in which case the "C" locale is used as fallback.
-#if !defined(WIN32) && !defined(MAC_OSX) && !defined(__FreeBSD__) && !defined(__OpenBSD__)
-    try {
-        std::locale(""); // Raises a runtime error if current locale is invalid
-    } catch (const std::runtime_error&) {
-        setenv("LC_ALL", "C", 1);
-    }
-#endif
-    // The path locale is lazy initialized and to avoid deinitialization errors
-    // in multithreading environments, it is set explicitly by the main thread.
-    // A dummy locale is used to extract the internal default locale, used by
-    // boost::filesystem::path, which is then used to explicitly imbue the path.
-    std::locale loc = boost::filesystem::path::imbue(std::locale::classic());
-    boost::filesystem::path::imbue(loc);
-}
-
-bool SetupNetworking()
-{
-#ifdef WIN32
-    // Initialize Windows Sockets
-    WSADATA wsadata;
-    int ret = WSAStartup(MAKEWORD(2,2), &wsadata);
-    if (ret != NO_ERROR || LOBYTE(wsadata.wVersion ) != 2 || HIBYTE(wsadata.wVersion) != 2)
-        return false;
-#endif
-    return true;
-}
-
-void SetThreadPriority(int nPriority)
-{
-#ifdef WIN32
-    SetThreadPriority(GetCurrentThread(), nPriority);
-#else // WIN32
-#ifdef PRIO_THREAD
-    setpriority(PRIO_THREAD, 0, nPriority);
-#else  // PRIO_THREAD
-    setpriority(PRIO_PROCESS, 0, nPriority);
-#endif // PRIO_THREAD
-#endif // WIN32
 }

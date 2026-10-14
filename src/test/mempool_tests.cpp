@@ -1,10 +1,12 @@
 // Copyright (c) 2011-2014 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "main.h"
 #include "txmempool.h"
 #include "util.h"
+#include "util/system.h"
 
 #include <boost/test/unit_test.hpp>
 #include <list>
@@ -48,7 +50,6 @@ BOOST_AUTO_TEST_CASE(MempoolRemoveTest)
         txGrandChild[i].vout[0].scriptPubKey = CScript() << OP_11 << OP_EQUAL;
         txGrandChild[i].vout[0].nValue = 11000LL;
     }
-
 
     CTxMemPool testPool(CFeeRate(0));
     std::list<CTransaction> removed;

@@ -14,6 +14,7 @@
 #include "script/standard.h"
 #include "sync.h"
 #include "util.h"
+#include "util/string.h"
 #include "utilstrencodings.h"
 #include "utiltime.h"
 #include "wallet/wallet.h"
@@ -26,7 +27,6 @@
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include <univalue.h>
-
 
 std::string static EncodeDumpTime(int64_t nTime)
 {

@@ -103,6 +103,8 @@ HEADERS += src/activemasternode.h \
            src/net.h \
            src/netbase.h \
            src/noui.h \
+           src/optional.h \
+           src/operationresult.h \
            src/pow.h \
            src/protocol.h \
            src/pubkey.h \
@@ -123,6 +125,7 @@ HEADERS += src/activemasternode.h \
            src/uint256.h \
            src/undo.h \
            src/util.h \
+           src/util/system.h \
            src/utilmoneystr.h \
            src/utilstrencodings.h \
            src/utiltime.h \
@@ -514,6 +517,7 @@ SOURCES += src/activemasternode.cpp \
            src/test/base58_tests.cpp \
            src/test/base64_tests.cpp \
            src/test/bip32_tests.cpp \
+           src/test/bip39_tests.cpp \
            src/test/bloom_tests.cpp \
            src/test/checkblock_tests.cpp \
            src/test/Checkpoints_tests.cpp \

@@ -13,8 +13,7 @@
 #include "script/standard.h"
 #include "uint256.h"
 #include "util.h"
-
-
+#include "util/system.h"
 
 typedef std::vector<unsigned char> valtype;
 

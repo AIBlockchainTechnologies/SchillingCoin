@@ -5,8 +5,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_SERIALIZE_H
-#define SchillingCoin_SERIALIZE_H
+#ifndef SCHILLINGCOIN_SERIALIZE_H
+#define SCHILLINGCOIN_SERIALIZE_H
 
 #include <algorithm>
 #include <assert.h>
@@ -19,6 +19,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "optional.h"
 #include "stubs/legacy_zerocoin_consensus.h"
 
 class CScript;
@@ -59,6 +60,7 @@ enum {
 };
 
 #define READWRITE(obj) (::SerReadWrite(s, (obj), nType, nVersion, ser_action))
+#define READWRITEMANY(...) (::SerReadWriteMany(s, nType, nVersion, ser_action, __VA_ARGS__))
 
 /**
  * Implement three methods for serializable objects. These are actually wrappers over
@@ -593,6 +595,16 @@ template <typename Stream, typename C>
 void Unserialize(Stream& is, std::basic_string<C>& str, int, int = 0);
 
 /**
+ * optional
+ */
+template <typename T>
+unsigned int GetSerializeSize(const Optional<T>& item, int nType, int nVersion);
+template <typename Stream, typename T>
+void Serialize(Stream& os, const Optional<T>& item, int nType, int nVersion);
+template <typename Stream, typename T>
+void Unserialize(Stream& is, Optional<T>& item, int nType, int nVersion);
+
+/**
  * vector
  * vectors of unsigned char are a special case and are intended to be serialized as a single opaque blob.
  */
@@ -793,6 +805,47 @@ inline void Unserialize(Stream& is, std::vector<T, A>& v, int nType, int nVersio
     Unserialize_impl(is, v, nType, nVersion, T());
 }
 
+/**
+ * optional
+ */
+template <typename T>
+unsigned int GetSerializeSize(const Optional<T>& item, int nType, int nVersion)
+{
+    if (item)
+        return 1 + GetSerializeSize(*item, nType, nVersion);
+
+    return 1;
+}
+
+template <typename Stream, typename T>
+void Serialize(Stream& os, const Optional<T>& item, int nType, int nVersion)
+{
+    unsigned char discriminant = item ? 0x01 : 0x00;
+
+    Serialize(os, discriminant, nType, nVersion);
+
+    if (item)
+        Serialize(os, *item, nType, nVersion);
+}
+
+template <typename Stream, typename T>
+void Unserialize(Stream& is, Optional<T>& item, int nType, int nVersion)
+{
+    unsigned char discriminant = 0x00;
+
+    Unserialize(is, discriminant, nType, nVersion);
+
+    if (discriminant == 0x00) {
+        item = nullopt;
+        return;
+    }
+
+    T object;
+    Unserialize(is, object, nType, nVersion);
+
+    item = object;
+}
+
 
 /**
  * others derived from vector
@@ -929,17 +982,18 @@ inline void SerReadWrite(Stream& s, T& obj, int nType, int nVersion, CSerActionU
     ::Unserialize(s, obj, nType, nVersion);
 }
 
-
 class CSizeComputer
 {
-protected:
+private:
     size_t nSize;
+    const int nType;
+    const int nVersion;
 
 public:
-    int nType;
-    int nVersion;
-
-    CSizeComputer(int nTypeIn, int nVersionIn) : nSize(0), nType(nTypeIn), nVersion(nVersionIn) {}
+    CSizeComputer(int nTypeIn, int nVersionIn)
+        : nSize(0), nType(nTypeIn), nVersion(nVersionIn)
+    {
+    }
 
     CSizeComputer& write(const char* psz, size_t nSize)
     {
@@ -957,13 +1011,69 @@ public:
     CSizeComputer& operator<<(const T& obj)
     {
         ::Serialize(*this, obj, nType, nVersion);
-        return (*this);
+        return *this;
     }
 
     size_t size() const
     {
         return nSize;
     }
+
+    int GetType() const
+    {
+        return nType;
+    }
+
+    int GetVersion() const
+    {
+        return nVersion;
+    }
 };
 
-#endif // SchillingCoin_SERIALIZE_H
+template <typename Stream>
+inline void SerializeMany(Stream&, int, int)
+{
+}
+
+template <typename Stream, typename Arg, typename... Args>
+inline void SerializeMany(Stream& s, int nType, int nVersion, Arg&& arg, Args&&... args)
+{
+    ::Serialize(s, std::forward<Arg>(arg), nType, nVersion);
+    ::SerializeMany(s, nType, nVersion, std::forward<Args>(args)...);
+}
+
+template <typename Stream>
+inline void UnserializeMany(Stream&, int, int)
+{
+}
+
+template <typename Stream, typename Arg, typename... Args>
+inline void UnserializeMany(Stream& s, int nType, int nVersion, Arg& arg, Args&... args)
+{
+    ::Unserialize(s, arg, nType, nVersion);
+    ::UnserializeMany(s, nType, nVersion, args...);
+}
+
+template <typename Stream, typename... Args>
+inline void SerReadWriteMany(
+    Stream& s,
+    int nType,
+    int nVersion,
+    CSerActionSerialize,
+    Args&&... args)
+{
+    ::SerializeMany(s, nType, nVersion, std::forward<Args>(args)...);
+}
+
+template <typename Stream, typename... Args>
+inline void SerReadWriteMany(
+    Stream& s,
+    int nType,
+    int nVersion,
+    CSerActionUnserialize,
+    Args&... args)
+{
+    ::UnserializeMany(s, nType, nVersion, args...);
+}
+
+#endif // SCHILLINGCOIN_SERIALIZE_H

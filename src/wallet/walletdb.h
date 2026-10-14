@@ -5,8 +5,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLETDB_H
-#define BITCOIN_WALLETDB_H
+#ifndef SCHILLINGCOIN_WALLETDB_H
+#define SCHILLINGCOIN_WALLETDB_H
 
 #include "amount.h"
 #include "wallet/db.h"
@@ -93,13 +93,53 @@ public:
     }
 };
 
-/** Access to the wallet database (wallet.dat) */
-class CWalletDB : public CDB
+/** Backend-agnostic database type. */
+using WalletDatabase = BerkeleyDatabase;
+
+/**
+ * Access to the wallet database.
+ *
+ * This represents a single transaction at the database.
+ * It will be committed when the object goes out of scope.
+ * Optionally (on by default) it will flush to disk as well.
+ */
+class WalletBatch
 {
+private:
+    template <typename K, typename T>
+    bool WriteIC(const K& key, const T& value, bool fOverwrite = true)
+    {
+        if (!m_batch.Write(key, value, fOverwrite)) {
+            return false;
+        }
+
+        m_database.IncrementUpdateCounter();
+        return true;
+    }
+
+    template <typename K>
+    bool EraseIC(const K& key)
+    {
+        if (!m_batch.Erase(key)) {
+            return false;
+        }
+
+        m_database.IncrementUpdateCounter();
+        return true;
+    }
+
 public:
-    CWalletDB(const std::string& strFilename, const char* pszMode = "r+", bool fFlushOnClose = true) : CDB(strFilename, pszMode, fFlushOnClose)
+    explicit WalletBatch(
+        WalletDatabase& database,
+        const char* pszMode = "r+",
+        bool fFlushOnClose = true)
+        : m_batch(database, pszMode, fFlushOnClose),
+          m_database(database)
     {
     }
+
+    WalletBatch(const WalletBatch&) = delete;
+    WalletBatch& operator=(const WalletBatch&) = delete;
 
     bool WriteName(const std::string& strAddress, const std::string& strName);
     bool EraseName(const std::string& strAddress);
@@ -160,8 +200,56 @@ public:
     DBErrors LoadWallet(CWallet* pwallet);
     DBErrors FindWalletTx(CWallet* pwallet, std::vector<uint256>& vTxHash, std::vector<CWalletTx>& vWtx);
     DBErrors ZapWalletTx(CWallet* pwallet, std::vector<CWalletTx>& vWtx);
-    static bool Recover(CDBEnv& dbenv, std::string filename, bool fOnlyKeys);
-    static bool Recover(CDBEnv& dbenv, std::string filename);
+    /* Try to carefully recover the wallet database with an optional key filter. */
+    static bool Recover(
+        const fs::path& wallet_path,
+        void* callbackDataIn,
+        bool (*recoverKVcallback)(
+            void* callbackData,
+            CDataStream ssKey,
+            CDataStream ssValue),
+        std::string& out_backup_filename);
+
+    /* Recover the complete wallet database without a key filter. */
+    static bool Recover(
+        const fs::path& wallet_path,
+        std::string& out_backup_filename);
+
+    /* Recovery filter that retains cryptographic key records only. */
+    static bool RecoverKeysOnlyFilter(
+        void* callbackData,
+        CDataStream ssKey,
+        CDataStream ssValue);
+
+    /* Determine whether a record type contains cryptographic key data. */
+    static bool IsKeyType(
+        const std::string& strType);
+
+    /* Verify the wallet database environment. */
+    static bool VerifyEnvironment(
+        const fs::path& wallet_path,
+        std::string& errorStr);
+
+    /* Verify the wallet database file. */
+    static bool VerifyDatabaseFile(
+        const fs::path& wallet_path,
+        std::string& warningStr,
+        std::string& errorStr);
+
+    //! Begin a new transaction
+    bool TxnBegin();
+
+    //! Commit current transaction
+    bool TxnCommit();
+
+    //! Abort current transaction
+    bool TxnAbort();
+
+    //! Read wallet version
+    bool ReadVersion(int& nVersion);
+
+    //! Write wallet version
+    bool WriteVersion(int nVersion);
 
     //! write the hdchain model (external chain child index counter)
     bool WriteHDChain(const CHDChain& chain);
@@ -200,15 +288,13 @@ public:
     bool WriteMintPoolPair(const uint256& hashMasterSeed, const uint256& hashPubcoin, const uint32_t& nCount);
 
 private:
-    CWalletDB(const CWalletDB&);
-    void operator=(const CWalletDB&);
+    BerkeleyBatch m_batch;
+    WalletDatabase& m_database;
 
     bool WriteAccountingEntry(const uint64_t nAccEntryNum, const CAccountingEntry& acentry);
 };
 
-void NotifyBacked(const CWallet& wallet, bool fSuccess, std::string strMessage);
-bool BackupWallet(const CWallet& wallet, const boost::filesystem::path& strDest, bool fEnableCustom = true);
-bool AttemptBackupWallet(const CWallet& wallet, const boost::filesystem::path& pathSrc, const boost::filesystem::path& pathDest);
+//! Called during init: Automatic backups
+bool AutoBackupWallet(CWallet& wallet, std::string& strBackupWarning, std::string& strBackupError);
 
-
-#endif // BITCOIN_WALLETDB_H
+#endif // SCHILLINGCOIN_WALLETDB_H

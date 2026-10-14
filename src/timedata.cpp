@@ -1,6 +1,6 @@
 // Copyright (c) 2014-2017 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,8 +11,8 @@
 #include "netbase.h"
 #include "sync.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
-
 
 static RecursiveMutex cs_nTimeOffset;
 static int64_t nTimeOffset = 0;

@@ -15,6 +15,7 @@
 #include "sync.h"
 #include "guiinterface.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 
 #include <boost/bind/bind.hpp>

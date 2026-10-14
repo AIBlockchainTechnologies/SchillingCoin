@@ -9,7 +9,6 @@
 #include "activemasternode.h"
 #include "fs.h"
 #include "optionsmodel.h"
-#include "pairresult.h"
 #include "qt/schillingcoin/mnmodel.h"
 #include "qt/schillingcoin/guitransactionsutils.h"
 #include "qt/schillingcoin/qtutils.h"
@@ -183,12 +182,21 @@ bool MasterNodeWizardDialog::createMN()
 
     if (!walletModel->getMNCollateralCandidate(collateralOut)) {
         CBitcoinAddress address;
-        PairResult r = walletModel->getNewAddress(address, alias);
+        CallResult<CTxDestination> result = walletModel->getNewAddress(alias);
 
-        if (!r.result) {
-            inform(tr(r.status->c_str()));
+        if (!result) {
+            inform(tr(result.getError().c_str()));
             return false;
         }
+
+        const Optional<CTxDestination>& destination = result.getObjResult();
+
+        if (!destination) {
+            inform(tr("Error retrieving generated address"));
+            return false;
+        }
+
+        address = CBitcoinAddress(*destination, CChainParams::PUBKEY_ADDRESS);
 
         SendCoinsRecipient sendCoinsRecipient(QString::fromStdString(address.ToString()),
                                               QString::fromStdString(alias),

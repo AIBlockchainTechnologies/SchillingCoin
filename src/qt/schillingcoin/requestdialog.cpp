@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,7 +10,6 @@
 #include "qt/schillingcoin/qtutils.h"
 #include "guiutil.h"
 #include "amount.h"
-#include "pairresult.h"
 #include "optionsmodel.h"
 
 RequestDialog::RequestDialog(QWidget *parent) :
@@ -124,21 +123,35 @@ void RequestDialog::onNextClicked(){
         std::string label = info->label.isEmpty() ? "" : info->label.toStdString();
         QString title;
 
-        CBitcoinAddress address;
-        PairResult r(false);
+        CallResult<CTxDestination> result;
+
         if (this->isPaymentRequest) {
-            r = walletModel->getNewAddress(address, label);
+            result = walletModel->getNewAddress(label);
             title = "Request for " + BitcoinUnits::format(displayUnit, value, false, BitcoinUnits::separatorAlways) + " SCH";
         } else {
-            r = walletModel->getNewStakingAddress(address, label);
+            result = walletModel->getNewStakingAddress(label);
             title = "Cold Staking Address Generated";
         }
 
-        if (!r.result) {
+        if (!result) {
             // TODO: notify user about this error
             close();
             return;
         }
+
+        const Optional<CTxDestination>& destination = result.getObjResult();
+
+        if (!destination) {
+            close();
+            return;
+        }
+
+        const CChainParams::Base58Type addrType =
+                this->isPaymentRequest ?
+                CChainParams::PUBKEY_ADDRESS :
+                CChainParams::STAKING_ADDRESS;
+
+        CBitcoinAddress address(*destination, addrType);
 
         info->address = QString::fromStdString(address.ToString());
         ui->labelTitle->setText(title);

@@ -54,7 +54,7 @@ TestingSetup::TestingSetup()
         ClearDatadirCache();
         pathTemp = GetTempPath() / strprintf("test_schillingcoin_%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(100000)));
         boost::filesystem::create_directories(pathTemp);
-        mapArgs["-datadir"] = pathTemp.string();
+        gArgs.ForceSetArg("-datadir", pathTemp.string());
         pblocktree = new CBlockTreeDB(1 << 20, true);
         pcoinsdbview = new CCoinsViewDB(1 << 23, true);
         pcoinsTip = new CCoinsViewCache(pcoinsdbview);
@@ -94,6 +94,10 @@ TestingSetup::~TestingSetup()
         bitdb.Flush(true);
         bitdb.Reset();
 #endif
+
+        gArgs.ForceRemoveArg("-datadir");
+        ClearDatadirCache();
+
         boost::filesystem::remove_all(pathTemp);
 }
 

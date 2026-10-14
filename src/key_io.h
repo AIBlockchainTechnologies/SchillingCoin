@@ -1,14 +1,16 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2018 The Bitcoin Core developers
 // Copyright (c) 2021 The DECENOMY Core Developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef PIVX_KEY_IO_H
-#define PIVX_KEY_IO_H
+#ifndef SCHILLINGCOIN_KEY_IO_H
+#define SCHILLINGCOIN_KEY_IO_H
 
 #include "chainparams.h"
 #include "key.h"
+#include "optional.h"
 #include "pubkey.h"
 #include "script/standard.h"
 
@@ -29,4 +31,4 @@ namespace KeyIO {
     std::string EncodeExtPubKey(const CExtPubKey &extkey);
 }
 
-#endif //PIVX_KEY_IO_H
+#endif //SCHILLINGCOIN_KEY_IO_H

@@ -10,6 +10,7 @@
 
 #include "chainparams.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 
 #ifndef WIN32
@@ -22,19 +23,11 @@ static const char* ppszTypeName[] =
         "tx",
         "block",
         "filtered block",
-        "tx lock request",
-        "tx lock vote",
-        "spork",
         "mn winner",
         "mn scan error",
-        "mn budget vote",
-        "mn budget proposal",
-        "mn budget finalized",
-        "mn budget finalized vote",
         "mn quorum",
         "mn announce",
         "mn ping",
-        "dstx"
     };
 
 CMessageHeader::CMessageHeader()
@@ -84,7 +77,6 @@ bool CMessageHeader::IsValid() const
 
     return true;
 }
-
 
 CAddress::CAddress() : CService()
 {
