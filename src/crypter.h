@@ -10,6 +10,7 @@
 #include "allocators.h"
 #include "keystore.h"
 #include "serialize.h"
+#include "support/allocators/zeroafterfree.h"
 
 class uint256;
 

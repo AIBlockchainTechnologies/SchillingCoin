@@ -178,6 +178,7 @@ BITCOIN_CORE_H = \
   stubs/legacy_zerocoin_consensus.h \
   stubs/legacy_zerocoin_types.h \
   stubs/legacy_zerocoin_verify.h \
+  support/allocators/zeroafterfree.h \
   support/cleanse.h \
   sync.h \
   threadsafety.h \
@@ -204,6 +205,7 @@ BITCOIN_CORE_H = \
   version.h \
   wallet/db.h \
   wallet/hdchain.h \
+  wallet/init.h \
   wallet/scriptpubkeyman.h \
   wallet/wallet.h \
   wallet/wallet_ismine.h \
@@ -276,7 +278,6 @@ libbitcoin_wallet_a_SOURCES = \
   bip38.cpp \
   addressbook.cpp \
   crypter.cpp \
-  key_io.cpp \
   masternode.cpp \
   masternode-payments.cpp \
   masternode-sync.cpp \
@@ -287,6 +288,7 @@ libbitcoin_wallet_a_SOURCES = \
   legacy/stakemodifier.cpp \
   kernel.cpp \
   wallet/db.cpp \
+  wallet/init.cpp \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
   wallet/hdchain.cpp \
@@ -399,6 +401,7 @@ libbitcoin_common_a_SOURCES = \
   hash.cpp \
   wallet/hdchain.cpp \
   key.cpp \
+  key_io.cpp \
   keystore.cpp \
   netaddress.cpp\
   netbase.cpp \

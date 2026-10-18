@@ -6,19 +6,19 @@
 
 #include "httprpc.h"
 
-#include "base58.h"
 #include "chainparams.h"
+#include "guiinterface.h"
 #include "httpserver.h"
+#include "key_io.h"
+#include "random.h"
 #include "rpc/protocol.h"
 #include "rpc/server.h"
-#include "random.h"
 #include "sync.h"
 #include "util.h"
 #include "util/system.h"
 #include "utilstrencodings.h"
-#include "guiinterface.h"
 
-#include <boost/algorithm/string.hpp> // boost::trim
+#include <boost/algorithm/string.hpp>
 
 /** Simple one-shot callback timer to be used by the RPC mechanism to e.g.
  * re-lock the wallet.

@@ -2,12 +2,12 @@
 // Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 
-#include "base58.h"
 #include "chainparams.h"
-#include "wallet/hdchain.h"
+#include "key_io.h"
 #include "tinyformat.h"
 #include "util.h"
 #include "util/string.h"
+#include "wallet/hdchain.h"
 #include <utilstrencodings.h>
 
 bool CHDChain::SetNull()
@@ -56,16 +56,15 @@ void CHDChain::Debug(std::string strName) const
         CExtKey extkey;
         extkey.SetMaster(&vchSeed[0], vchSeed.size());
 
-        CBitcoinExtKey b58extkey;
-        b58extkey.SetKey(extkey);
-        std::cout << "extended private masterkey: " << b58extkey.ToString().c_str() << std::endl;
+        std::cout << "extended private masterkey: "
+                  << KeyIO::EncodeExtKey(extkey)
+                  << std::endl;
 
-        CExtPubKey extpubkey;
-        extpubkey = extkey.Neuter();
+        const CExtPubKey extpubkey = extkey.Neuter();
 
-        CBitcoinExtPubKey b58extpubkey;
-        b58extpubkey.SetKey(extpubkey);
-        std::cout << "extended public masterkey: " << b58extpubkey.ToString().c_str() << std::endl;
+        std::cout << "extended public masterkey: "
+                  << KeyIO::EncodeExtPubKey(extpubkey)
+                  << std::endl;
     }
     );
 }

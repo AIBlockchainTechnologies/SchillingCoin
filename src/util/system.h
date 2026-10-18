@@ -101,10 +101,6 @@ const fs::path &GetBlocksDir();
 const fs::path &GetDataDir(bool fNetSpecific = true);
 // Return true if -datadir option points to a valid directory or is not specified.
 bool CheckDataDirOption();
-// Sapling network dir
-const fs::path &ZC_GetParamsDir();
-// Init sapling library
-void initZKSNARKS();
 void ClearDatadirCache();
 fs::path GetConfigFile(const std::string& confPath);
 fs::path GetMasternodeConfigFile();
@@ -244,6 +240,23 @@ public:
 };
 
 extern ArgsManager gArgs;
+
+/**
+ * Format a string to be used as group of options in help messages
+ *
+ * @param message Group name (e.g. "RPC server options:")
+ * @return the formatted string
+ */
+std::string HelpMessageGroup(const std::string& message);
+
+/**
+ * Format a string to be used as option description in help messages
+ *
+ * @param option Option message (e.g. "-rpcuser=<user>")
+ * @param message Option description (e.g. "Username for JSON-RPC connections")
+ * @return the formatted string
+ */
+std::string HelpMessageOpt(const std::string& option, const std::string& message);
 
 /**
  * Return the number of cores available on the current system.

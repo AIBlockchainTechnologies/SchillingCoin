@@ -3,11 +3,10 @@
 // Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license.
 
-#include "paymentservertests.h"
-
-#include "base58.h"
 #include "chainparams.h"
 #include "key.h"
+#include "key_io.h"
+#include "paymentservertests.h"
 
 #include <QTest>
 
@@ -30,7 +29,7 @@ void PaymentServerTests::paymentServerTests()
     key.MakeNewKey(true);
 
     const QString address = QString::fromStdString(
-        CBitcoinAddress(key.GetPubKey().GetID()).ToString());
+        EncodeDestination(key.GetPubKey().GetID()));
 
     const QString uri = QString(
         "schillingcoin:%1?amount=1.25&label=Test&message=BIP21")

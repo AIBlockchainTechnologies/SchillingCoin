@@ -176,12 +176,11 @@ bool MasterNodeWizardDialog::createMN()
 
     CKey secret;
     secret.MakeNewKey(false);
-    std::string mnKeyString = EncodeSecret(secret);
+    std::string mnKeyString = KeyIO::EncodeSecret(secret);
 
     COutPoint collateralOut;
 
     if (!walletModel->getMNCollateralCandidate(collateralOut)) {
-        CBitcoinAddress address;
         CallResult<CTxDestination> result = walletModel->getNewAddress(alias);
 
         if (!result) {
@@ -196,9 +195,12 @@ bool MasterNodeWizardDialog::createMN()
             return false;
         }
 
-        address = CBitcoinAddress(*destination, CChainParams::PUBKEY_ADDRESS);
+        const std::string address = EncodeDestination(
+            *destination,
+            CChainParams::PUBKEY_ADDRESS
+        );
 
-        SendCoinsRecipient sendCoinsRecipient(QString::fromStdString(address.ToString()),
+        SendCoinsRecipient sendCoinsRecipient(QString::fromStdString(address),
                                               QString::fromStdString(alias),
                                               GetMNCollateral() * COIN,
                                               "");

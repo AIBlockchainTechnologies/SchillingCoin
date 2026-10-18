@@ -7,6 +7,7 @@
 #include "util/system.h"
 
 #include "allocators.h"
+#include "support/allocators/zeroafterfree.h"
 #include "test/test_schillingcoin.h"
 
 #include <boost/test/unit_test.hpp>

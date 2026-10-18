@@ -7,6 +7,8 @@
 #ifndef GUIINTERFACEUTIL_H
 #define GUIINTERFACEUTIL_H
 
+#include "guiinterface.h"
+#include "tinyformat.h"
 #include "util/system.h"
 
 inline static bool UIError(const std::string &str)
@@ -26,4 +28,4 @@ inline static std::string AmountErrMsg(const char * const optname, const std::st
     return strprintf(_("Invalid amount for -%s=<amount>: '%s'"), optname, strValue);
 }
 
-#endif //GUIINTERFACEUTIL_H
+#endif // GUIINTERFACEUTIL_H

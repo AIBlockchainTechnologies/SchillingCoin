@@ -156,12 +156,15 @@ void ReceiveWidget::refreshView(QString refreshAddress)
                 return;
             }
 
-            CBitcoinAddress newAddress(*destination, CChainParams::PUBKEY_ADDRESS);
-            latestAddress = QString::fromStdString(newAddress.ToString());
+            latestAddress = QString::fromStdString(
+                EncodeDestination(*destination, CChainParams::PUBKEY_ADDRESS)
+            );
         }
 
         ui->labelAddress->setText(latestAddress);
-        int64_t time = walletModel->getKeyCreationTime(CBitcoinAddress(latestAddress.toStdString()));
+        int64_t time = walletModel->getKeyCreationTime(
+            DecodeDestination(latestAddress.toStdString())
+        );
         ui->labelDate->setText(GUIUtil::dateTimeStr(QDateTime::fromTime_t(static_cast<uint>(time))));
         updateQr(latestAddress);
         updateLabel();
@@ -215,9 +218,12 @@ void ReceiveWidget::onLabelClicked(){
         dialog->setData(info->address, addressTableModel->labelForAddress(info->address));
         if (openDialogWithOpaqueBackgroundY(dialog, window, 3.5, 6)) {
             QString label = dialog->getLabel();
-            const CBitcoinAddress address = CBitcoinAddress(info->address.toUtf8().constData());
+
+            const CTxDestination address =
+                DecodeDestination(info->address.toUtf8().constData());
+
             if (!label.isEmpty() && walletModel->updateAddressBookLabels(
-                    address.Get(),
+                    address,
                     label.toUtf8().constData(),
                     AddressBook::AddressBookPurpose::RECEIVE
             )
@@ -258,9 +264,10 @@ void ReceiveWidget::onNewAddressClicked()
             return;
         }
 
-        CBitcoinAddress address(*destination, CChainParams::PUBKEY_ADDRESS);
+        updateQr(QString::fromStdString(
+            EncodeDestination(*destination, CChainParams::PUBKEY_ADDRESS)
+        ));
 
-        updateQr(QString::fromStdString(address.ToString()));
         ui->labelAddress->setText(!info->address.isEmpty() ? info->address : tr("No address"));
         updateLabel();
         inform(tr("New address created"));

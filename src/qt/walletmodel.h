@@ -5,14 +5,15 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_QT_WALLETMODEL_H
-#define SchillingCoin_QT_WALLETMODEL_H
+#ifndef SCHILLINGCOIN_QT_WALLETMODEL_H
+#define SCHILLINGCOIN_QT_WALLETMODEL_H
 
 #include "askpassphrasedialog.h"
 #include "walletmodeltransaction.h"
 
-#include "operationresult.h"
 #include "allocators.h"
+#include "operationresult.h"
+#include "support/allocators/zeroafterfree.h"
 #include "wallet/wallet.h"
 
 #include <map>
@@ -227,22 +228,22 @@ public:
     bool getPubKey(const CKeyID& address, CPubKey& vchPubKeyOut) const;
     int64_t getCreationTime() const;
     int64_t getKeyCreationTime(const CPubKey& key);
-    int64_t getKeyCreationTime(const CBitcoinAddress& address);
+    int64_t getKeyCreationTime(const CTxDestination& address);
     CallResult<CTxDestination> getNewAddress(const std::string& label = "") const;
     /**
      * Return a new address used to receive for delegated cold stake purpose.
      */
     CallResult<CTxDestination> getNewStakingAddress(const std::string& label = "") const;
 
-    bool whitelistAddressFromColdStaking(const QString &addressStr);
-    bool blacklistAddressFromColdStaking(const QString &address);
+    bool whitelistAddressFromColdStaking(const QString& addressStr);
+    bool blacklistAddressFromColdStaking(const QString& address);
     bool updateAddressBookPurpose(const QString& addressStr, const std::string& purpose);
-    std::string getLabelForAddress(const CBitcoinAddress& address);
-    bool getKeyId(const CBitcoinAddress& address, CKeyID& keyID);
+    std::string getLabelForAddress(const CTxDestination& address);
+    bool getKeyId(const CTxDestination& address, CKeyID& keyID);
 
-    bool isMine(CBitcoinAddress address);
+    bool isMine(const CTxDestination& address);
     bool isMine(const QString& addressStr);
-    bool isUsed(CBitcoinAddress address);
+    bool isUsed(const CTxDestination& address);
     void getOutputs(const std::vector<COutPoint>& vOutpoints, std::vector<COutput>& vOutputs);
     bool getMNCollateralCandidate(COutPoint& outPoint);
     bool isSpent(const COutPoint& outpoint) const;
@@ -348,4 +349,4 @@ public Q_SLOTS:
     bool updateAddressBookLabels(const CTxDestination& address, const std::string& strName, const std::string& strPurpose);
 };
 
-#endif // SchillingCoin_QT_WALLETMODEL_H
+#endif // SCHILLINGCOIN_QT_WALLETMODEL_H

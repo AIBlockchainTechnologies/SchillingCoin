@@ -704,29 +704,39 @@ void ColdStakingWidget::onLabelClicked(QString dialogTitle, const QModelIndex &i
     if(walletModel && !isShowingDialog) {
         isShowingDialog = true;
         showHideOp(true);
+
         AddNewContactDialog *dialog = new AddNewContactDialog(window);
         dialog->setTexts(dialogTitle);
+
         QString qAddress = index.data(Qt::DisplayRole).toString();
         dialog->setData(qAddress, walletModel->getAddressTableModel()->labelForAddress(qAddress));
+
         if (openDialogWithOpaqueBackgroundY(dialog, window, 3.5, 6)) {
             QString label = dialog->getLabel();
+
             std::string stdString = qAddress.toStdString();
             std::string purpose = walletModel->getAddressTableModel()->purposeForAddress(stdString);
-            const CBitcoinAddress address = CBitcoinAddress(stdString.data());
+
+            const CTxDestination address =
+                DecodeDestination(stdString);
+
             if (!label.isEmpty() && walletModel->updateAddressBookLabels(
-                    address.Get(),
+                    address,
                     label.toUtf8().constData(),
                     purpose
             )) {
+
                 if (isMyColdStakingAddresses) {
                     addressTableModel->notifyChange(index);
                 } else
                     csModel->updateCSList();
+
                 inform(tr("Address label saved"));
             } else {
                 inform(tr("Error storing address label"));
             }
         }
+
         isShowingDialog = false;
     }
 }

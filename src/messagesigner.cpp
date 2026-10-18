@@ -3,8 +3,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
 #include "hash.h"
+#include "key_io.h"
 #include "main.h"
 #include "messagesigner.h"
 #include "masternodeman.h"
@@ -14,12 +14,15 @@
 
 bool CMessageSigner::GetKeysFromSecret(const std::string& strSecret, CKey& keyRet, CPubKey& pubkeyRet)
 {
-    keyRet = DecodeSecret(strSecret);
-    if (!keyRet.IsValid())
+    keyRet = KeyIO::DecodeSecret(strSecret);
+
+    if (!keyRet.IsValid()) {
         return false;
+    }
 
     pubkeyRet = keyRet.GetPubKey();
-    return true;
+
+    return pubkeyRet.IsValid();
 }
 
 uint256 CMessageSigner::GetMessageHash(const std::string& strMessage)
@@ -65,7 +68,7 @@ bool CHashSigner::VerifyHash(const uint256& hash, const CKeyID& keyID, const std
 
     if(pubkeyFromSig.GetID() != keyID) {
         strErrorRet = strprintf("Keys don't match: pubkey=%s, pubkeyFromSig=%s, hash=%s, vchSig=%s",
-                CBitcoinAddress(keyID).ToString(), CBitcoinAddress(pubkeyFromSig.GetID()).ToString(),
+                EncodeDestination(keyID), EncodeDestination(pubkeyFromSig.GetID()),
                 hash.ToString(), EncodeBase64(&vchSig[0], vchSig.size()));
         return false;
     }

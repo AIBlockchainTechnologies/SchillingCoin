@@ -46,11 +46,17 @@ BasicTestingSetup::~BasicTestingSetup()
         ECC_Stop();
 }
 
+boost::filesystem::path BasicTestingSetup::SetDataDir(const std::string& name)
+{
+        boost::filesystem::path path = GetTempPath() / name;
+        boost::filesystem::create_directories(path);
+        gArgs.ForceSetArg("-datadir", path.string());
+        ClearDatadirCache();
+        return path;
+}
+
 TestingSetup::TestingSetup()
 {
-#ifdef ENABLE_WALLET
-        bitdb.MakeMock();
-#endif
         ClearDatadirCache();
         pathTemp = GetTempPath() / strprintf("test_schillingcoin_%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(100000)));
         boost::filesystem::create_directories(pathTemp);
@@ -66,7 +72,9 @@ TestingSetup::TestingSetup()
         }
 #ifdef ENABLE_WALLET
         bool fFirstRun;
-        pwalletMain = new CWallet("wallet.dat");
+        pwalletMain = new CWallet(
+            "wallet.dat",
+            WalletDatabase::CreateMock());
         pwalletMain->LoadWallet(fFirstRun);
         RegisterValidationInterface(pwalletMain);
 #endif
@@ -84,16 +92,12 @@ TestingSetup::~TestingSetup()
 #ifdef ENABLE_WALLET
         UnregisterValidationInterface(pwalletMain);
         delete pwalletMain;
-        pwalletMain = NULL;
+        pwalletMain = nullptr;
 #endif
         UnloadBlockIndex();
         delete pcoinsTip;
         delete pcoinsdbview;
         delete pblocktree;
-#ifdef ENABLE_WALLET
-        bitdb.Flush(true);
-        bitdb.Reset();
-#endif
 
         gArgs.ForceRemoveArg("-datadir");
         ClearDatadirCache();

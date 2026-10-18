@@ -854,7 +854,7 @@ void CoinControlDialog::updateView()
                 haveDest = ExtractDestination(out.tx->vout[out.i].scriptPubKey, outputAddress);
             }
             if (haveDest) {
-                sAddress = QString::fromStdString(CBitcoinAddress(outputAddress).ToString());
+                sAddress = QString::fromStdString(EncodeDestination(outputAddress));
 
                 // if listMode or change => show SchillingCoin address. In tree mode, address is not shown again for direct wallet address outputs
                 if (!treeMode || (!(sAddress == sWalletAddress)))
@@ -911,7 +911,9 @@ void CoinControlDialog::updateView()
                 itemOutput->setData(COLUMN_CHECKBOX, Qt::UserRole, QString("Delegated"));
                 itemOutput->setIcon(COLUMN_CHECKBOX, QIcon("://ic-nav-cold-staking-active"));
                 if (haveDest) {
-                    sAddress = QString::fromStdString(CBitcoinAddress(outputAddressStaker, CChainParams::STAKING_ADDRESS).ToString());
+                    sAddress = QString::fromStdString(
+                        EncodeDestination(outputAddressStaker, CChainParams::STAKING_ADDRESS)
+                    );
                     itemOutput->setToolTip(COLUMN_CHECKBOX, tr("delegated to %1 for Cold Staking").arg(sAddress));
                 }
             }

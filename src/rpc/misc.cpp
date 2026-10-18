@@ -6,28 +6,27 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
 #include "clientversion.h"
 #include "init.h"
+#include "key_io.h"
 #include "main.h"
 #include "masternode-sync.h"
 #include "net.h"
 #include "netaddress.h"
-#include "netbase.h" // <-- REQUIRED for proxyType, GetProxy, GetNetworkName, SplitHostPort
+#include "netbase.h"
 #include "rpc/server.h"
 #include "timedata.h"
 #include "util.h"
 #include "util/system.h"
+
 #ifdef ENABLE_WALLET
+#include "forgeman.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
-#include "forgeman.h"
 #endif
 
-#include <stdint.h>
-
 #include <boost/assign/list_of.hpp>
-
+#include <stdint.h>
 #include <univalue.h>
 
 /**
@@ -243,7 +242,7 @@ public:
         obj.push_back(Pair("hex", HexStr(subscript.begin(), subscript.end())));
         UniValue a(UniValue::VARR);
         for (const CTxDestination& addr : addresses)
-            a.push_back(CBitcoinAddress(addr).ToString());
+            a.push_back(EncodeDestination(addr));
         obj.push_back(Pair("addresses", a));
         if (whichType == TX_MULTISIG)
             obj.push_back(Pair("sigsrequired", nRequired));
@@ -280,7 +279,8 @@ UniValue validateaddress(const JSONRPCRequest& request)
             "}\n"
 
             "\nExamples:\n" +
-            HelpExampleCli("validateaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"") + HelpExampleRpc("validateaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\""));
+            HelpExampleCli("validateaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\"") +
+            HelpExampleRpc("validateaddress", "\"1PSSGeFHDnKNxiEyFrD1wcEaHr9hrQDDWc\""));
 
 #ifdef ENABLE_WALLET
     LOCK2(cs_main, pwalletMain ? &pwalletMain->cs_wallet : NULL);
@@ -288,36 +288,50 @@ UniValue validateaddress(const JSONRPCRequest& request)
     LOCK(cs_main);
 #endif
 
-    CBitcoinAddress address(request.params[0].get_str());
-    bool isValid = address.IsValid();
+    bool isStaking = false;
+    CTxDestination dest =
+        DecodeDestination(request.params[0].get_str(), isStaking);
+
+    bool isValid = IsValidDestination(dest);
 
     UniValue ret(UniValue::VOBJ);
     ret.push_back(Pair("isvalid", isValid));
+
     if (isValid) {
-        CTxDestination dest = address.Get();
-        std::string currentAddress = address.ToString();
+        std::string currentAddress = EncodeDestination(dest, isStaking);
+
         ret.push_back(Pair("address", currentAddress));
+
         CScript scriptPubKey = GetScriptForDestination(dest);
         ret.push_back(Pair("scriptPubKey", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
 
 #ifdef ENABLE_WALLET
         isminetype mine = pwalletMain ? IsMine(*pwalletMain, dest) : ISMINE_NO;
+
         ret.push_back(Pair("ismine", bool(mine & (ISMINE_SPENDABLE_ALL | ISMINE_COLD))));
-        ret.push_back(Pair("isstaking", address.IsStakingAddress()));
+        ret.push_back(Pair("isstaking", isStaking));
         ret.push_back(Pair("iswatchonly", bool(mine & ISMINE_WATCH_ONLY)));
+
         UniValue detail = boost::apply_visitor(DescribeAddressVisitor(mine), dest);
         ret.pushKVs(detail);
+
         if (pwalletMain && pwalletMain->mapAddressBook.count(dest))
             ret.push_back(Pair("account", pwalletMain->mapAddressBook[dest].name));
-        CKeyID keyID;
+
+        const CKeyID* keyIDPtr = boost::get<CKeyID>(&dest);
+
         CHDChain hdChainCurrent;
-        if (pwalletMain && address.GetKeyID(keyID) && pwalletMain->mapHdPubKeys.count(keyID) && pwalletMain->GetHDChain(hdChainCurrent))
+        if (pwalletMain &&
+            keyIDPtr &&
+            pwalletMain->mapHdPubKeys.count(*keyIDPtr) &&
+            pwalletMain->GetHDChain(hdChainCurrent))
         {
-            ret.push_back(Pair("hdkeypath", pwalletMain->mapHdPubKeys[keyID].GetKeyPath()));
+            ret.push_back(Pair("hdkeypath", pwalletMain->mapHdPubKeys[*keyIDPtr].GetKeyPath()));
             ret.push_back(Pair("hdchainid", hdChainCurrent.GetID().GetHex()));
         }
 #endif
     }
+
     return ret;
 }
 
@@ -332,51 +346,65 @@ CScript _createmultisig_redeemScript(const UniValue& params)
     // Gather public keys
     if (nRequired < 1)
         throw std::runtime_error("a multisignature address must require at least one key to redeem");
+
     if ((int)keys.size() < nRequired)
         throw std::runtime_error(
             strprintf("not enough keys supplied "
                       "(got %u keys, but need at least %d to redeem)",
                 keys.size(), nRequired));
+
     if (keys.size() > 16)
         throw std::runtime_error("Number of addresses involved in the multisignature address creation > 16\nReduce the number");
+
     std::vector<CPubKey> pubkeys;
     pubkeys.resize(keys.size());
+
     for (unsigned int i = 0; i < keys.size(); i++) {
         const std::string& ks = keys[i].get_str();
+
 #ifdef ENABLE_WALLET
         // Case 1: SchillingCoin address and we have full public key:
-        CBitcoinAddress address(ks);
-        if (pwalletMain && address.IsValid()) {
-            CKeyID keyID;
-            if (!address.GetKeyID(keyID))
+        bool isStaking = false;
+        CTxDestination destination = DecodeDestination(ks, isStaking);
+
+        if (pwalletMain && IsValidDestination(destination)) {
+            const CKeyID* keyID = boost::get<CKeyID>(&destination);
+            if (!keyID)
                 throw std::runtime_error(
                     strprintf("%s does not refer to a key", ks));
+
             CPubKey vchPubKey;
-            if (!pwalletMain->GetPubKey(keyID, vchPubKey))
+            if (!pwalletMain->GetPubKey(*keyID, vchPubKey))
                 throw std::runtime_error(
                     strprintf("no full public key for address %s", ks));
+
             if (!vchPubKey.IsFullyValid())
                 throw std::runtime_error(" Invalid public key: " + ks);
+
             pubkeys[i] = vchPubKey;
         }
 
         // Case 2: hex public key
         else
 #endif
-            if (IsHex(ks)) {
+        if (IsHex(ks)) {
             CPubKey vchPubKey(ParseHex(ks));
+
             if (!vchPubKey.IsFullyValid())
                 throw std::runtime_error(" Invalid public key: " + ks);
+
             pubkeys[i] = vchPubKey;
         } else {
             throw std::runtime_error(" Invalid public key: " + ks);
         }
     }
+
     CScript result = GetScriptForMultisig(nRequired, pubkeys);
 
     if (result.size() > MAX_SCRIPT_ELEMENT_SIZE)
         throw std::runtime_error(
-            strprintf("redeemScript exceeds size limit: %d > %d", result.size(), MAX_SCRIPT_ELEMENT_SIZE));
+            strprintf("redeemScript exceeds size limit: %d > %d",
+                result.size(), MAX_SCRIPT_ELEMENT_SIZE));
 
     return result;
 }
@@ -412,10 +440,9 @@ UniValue createmultisig(const JSONRPCRequest& request)
     // Construct using pay-to-script-hash:
     CScript inner = _createmultisig_redeemScript(request.params);
     CScriptID innerID(inner);
-    CBitcoinAddress address(innerID);
 
     UniValue result(UniValue::VOBJ);
-    result.push_back(Pair("address", address.ToString()));
+    result.push_back(Pair("address", EncodeDestination(innerID)));
     result.push_back(Pair("redeemScript", HexStr(inner.begin(), inner.end())));
 
     return result;
@@ -448,16 +475,18 @@ UniValue verifymessage(const JSONRPCRequest& request)
 
     LOCK(cs_main);
 
-    std::string strAddress = request.params[0].get_str();
-    std::string strSign = request.params[1].get_str();
-    std::string strMessage = request.params[2].get_str();
+    const std::string strAddress = request.params[0].get_str();
+    const std::string strSign = request.params[1].get_str();
+    const std::string strMessage = request.params[2].get_str();
 
-    CBitcoinAddress addr(strAddress);
-    if (!addr.IsValid())
+    bool isStaking = false;
+    CTxDestination destination = DecodeDestination(strAddress, isStaking);
+
+    if (!IsValidDestination(destination))
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
 
-    CKeyID keyID;
-    if (!addr.GetKeyID(keyID))
+    const CKeyID* keyID = boost::get<CKeyID>(&destination);
+    if (!keyID)
         throw JSONRPCError(RPC_TYPE_ERROR, "Address does not refer to key");
 
     bool fInvalid = false;
@@ -474,7 +503,7 @@ UniValue verifymessage(const JSONRPCRequest& request)
     if (!pubkey.RecoverCompact(ss.GetHash(), vchSig))
         return false;
 
-    return (pubkey.GetID() == keyID);
+    return pubkey.GetID() == *keyID;
 }
 
 UniValue setmocktime(const JSONRPCRequest& request)

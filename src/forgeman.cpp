@@ -1,9 +1,10 @@
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "forgeman.h"
 #include "util.h"
+#include "util/system.h"
 #include "guiinterface.h"
 #include <base58.h>
 

@@ -8,16 +8,17 @@
 
 #include "rpc/server.h"
 
-#include "base58.h"
+#include "guiinterface.h"
 #include "init.h"
+#include "key_io.h"
 #include "main.h"
 #include "random.h"
 #include "sync.h"
-#include "guiinterface.h"
 #include "util.h"
 #include "util/system.h"
 #include "utilstrencodings.h"
 
+#include <boost/algorithm/string/case_conv.hpp> // for to_upper()
 #include <boost/bind/bind.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/iostreams/concepts.hpp>
@@ -25,7 +26,6 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/signals2/signal.hpp>
 #include <boost/thread.hpp>
-#include <boost/algorithm/string/case_conv.hpp> // for to_upper()
 
 #include <univalue.h>
 

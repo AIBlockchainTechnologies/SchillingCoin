@@ -16,6 +16,21 @@
 
 #include <string>
 
+std::string EncodeDestination(const CTxDestination& dest, bool isStaking);
+std::string EncodeDestination(const CTxDestination& dest, const CChainParams::Base58Type addrType = CChainParams::PUBKEY_ADDRESS);
+
+// The isStaking flag is set to true when the string is a staking address.
+CTxDestination DecodeDestination(const std::string& str, bool& isStaking);
+CTxDestination DecodeDestination(const std::string& str);
+
+// Return true if the string contains a valid destination.
+bool IsValidDestinationString(const std::string& str);
+bool IsValidDestinationString(const std::string& str, const CChainParams& params);
+
+// Return true if the string contains a valid destination of the requested staking type.
+bool IsValidDestinationString(const std::string& str, bool fStaking);
+bool IsValidDestinationString(const std::string& str, bool fStaking, const CChainParams& params);
+
 namespace KeyIO {
 
     CKey DecodeSecret(const std::string &str);
@@ -31,4 +46,4 @@ namespace KeyIO {
     std::string EncodeExtPubKey(const CExtPubKey &extkey);
 }
 
-#endif //SCHILLINGCOIN_KEY_IO_H
+#endif // SCHILLINGCOIN_KEY_IO_H

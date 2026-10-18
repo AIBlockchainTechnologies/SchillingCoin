@@ -6,10 +6,10 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
 #include "core_io.h"
 #include "init.h"
 #include "keystore.h"
+#include "key_io.h"
 #include "main.h"
 #include "net.h"
 #include "primitives/transaction.h"
@@ -30,7 +30,6 @@
 
 #include <univalue.h>
 
-
 void ScriptPubKeyToJSON(const CScript& scriptPubKey, UniValue& out, bool fIncludeHex)
 {
     txnouttype type;
@@ -38,6 +37,7 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, UniValue& out, bool fInclud
     int nRequired;
 
     out.push_back(Pair("asm", ScriptToAsmStr(scriptPubKey)));
+
     if (fIncludeHex)
         out.push_back(Pair("hex", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
 
@@ -51,7 +51,8 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, UniValue& out, bool fInclud
 
     UniValue a(UniValue::VARR);
     for (const CTxDestination& addr : addresses)
-        a.push_back(CBitcoinAddress(addr).ToString());
+        a.push_back(EncodeDestination(addr));
+
     out.push_back(Pair("addresses", a));
 }
 
@@ -244,7 +245,9 @@ UniValue listunspent(const JSONRPCRequest& request)
             "]\n"
 
             "\nExamples\n" +
-            HelpExampleCli("listunspent", "") + HelpExampleCli("listunspent", "6 9999999 \"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\"") + HelpExampleRpc("listunspent", "6, 9999999 \"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\""));
+            HelpExampleCli("listunspent", "") +
+            HelpExampleCli("listunspent", "6 9999999 \"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\"") +
+            HelpExampleRpc("listunspent", "6, 9999999 \"[\\\"1PGFqEzfmQch1gKD3ra4k18PNj3tTUUSqg\\\",\\\"1LtvqCaApEdUGFkpKMM4MstjcaL4dKg8SP\\\"]\""));
 
     RPCTypeCheck(request.params, boost::assign::list_of(UniValue::VNUM)(UniValue::VNUM)(UniValue::VARR)(UniValue::VNUM));
 
@@ -256,16 +259,27 @@ UniValue listunspent(const JSONRPCRequest& request)
     if (request.params.size() > 1)
         nMaxDepth = request.params[1].get_int();
 
-    std::set<CBitcoinAddress> setAddress;
+    std::set<CTxDestination> setAddress;
     if (request.params.size() > 2) {
         UniValue inputs = request.params[2].get_array();
+
         for (unsigned int inx = 0; inx < inputs.size(); inx++) {
             const UniValue& input = inputs[inx];
-            CBitcoinAddress address(input.get_str());
-            if (!address.IsValid())
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid SchillingCoin address: ") + input.get_str());
+
+            bool isStaking = false;
+            CTxDestination address =
+                DecodeDestination(input.get_str(), isStaking);
+
+            if (!IsValidDestination(address))
+                throw JSONRPCError(
+                    RPC_INVALID_ADDRESS_OR_KEY,
+                    std::string("Invalid SchillingCoin address: ") + input.get_str());
+
             if (setAddress.count(address))
-                throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ") + input.get_str());
+                throw JSONRPCError(
+                    RPC_INVALID_PARAMETER,
+                    std::string("Invalid parameter, duplicated address: ") + input.get_str());
+
             setAddress.insert(address);
         }
     }
@@ -273,21 +287,34 @@ UniValue listunspent(const JSONRPCRequest& request)
     int nWatchonlyConfig = 1;
     if (request.params.size() > 3) {
         nWatchonlyConfig = request.params[3].get_int();
+
         if (nWatchonlyConfig > 3 || nWatchonlyConfig < 1)
             nWatchonlyConfig = 1;
     }
 
     UniValue results(UniValue::VARR);
     std::vector<COutput> vecOutputs;
+
     assert(pwalletMain != NULL);
+
     LOCK2(cs_main, pwalletMain->cs_wallet);
-    pwalletMain->AvailableCoins(&vecOutputs, false, NULL, false, ALL_COINS, false, nWatchonlyConfig);
+
+    pwalletMain->AvailableCoins(
+        &vecOutputs,
+        false,
+        NULL,
+        false,
+        ALL_COINS,
+        false,
+        nWatchonlyConfig);
+
     for (const COutput& out : vecOutputs) {
         if (out.nDepth < nMinDepth || out.nDepth > nMaxDepth)
             continue;
 
         if (setAddress.size()) {
             CTxDestination address;
+
             if (!ExtractDestination(out.tx->vout[out.i].scriptPubKey, address))
                 continue;
 
@@ -297,28 +324,39 @@ UniValue listunspent(const JSONRPCRequest& request)
 
         CAmount nValue = out.tx->vout[out.i].nValue;
         const CScript& pk = out.tx->vout[out.i].scriptPubKey;
+
         UniValue entry(UniValue::VOBJ);
         entry.push_back(Pair("txid", out.tx->GetHash().GetHex()));
         entry.push_back(Pair("vout", out.i));
+
         CTxDestination address;
         if (ExtractDestination(out.tx->vout[out.i].scriptPubKey, address)) {
-            entry.push_back(Pair("address", CBitcoinAddress(address).ToString()));
+            entry.push_back(Pair("address", EncodeDestination(address)));
+
             if (pwalletMain->mapAddressBook.count(address))
                 entry.push_back(Pair("account", pwalletMain->mapAddressBook[address].name));
         }
+
         entry.push_back(Pair("scriptPubKey", HexStr(pk.begin(), pk.end())));
+
         if (pk.IsPayToScriptHash()) {
             CTxDestination address;
+
             if (ExtractDestination(pk, address)) {
                 const CScriptID& hash = boost::get<CScriptID>(address);
                 CScript redeemScript;
+
                 if (pwalletMain->GetCScript(hash, redeemScript))
-                    entry.push_back(Pair("redeemScript", HexStr(redeemScript.begin(), redeemScript.end())));
+                    entry.push_back(Pair(
+                        "redeemScript",
+                        HexStr(redeemScript.begin(), redeemScript.end())));
             }
         }
+
         entry.push_back(Pair("amount", ValueFromAmount(nValue)));
         entry.push_back(Pair("confirmations", out.nDepth));
         entry.push_back(Pair("spendable", out.fSpendable));
+
         results.push_back(entry);
     }
 
@@ -335,7 +373,6 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
             "Returns hex-encoded raw transaction.\n"
             "Note that the transaction's inputs are not signed, and\n"
             "it is not stored in the wallet or transmitted to the network.\n"
-
             "\nArguments:\n"
             "1. \"transactions\"        (string, required) A json array of json objects\n"
             "     [\n"
@@ -352,15 +389,16 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
             "      ,...\n"
             "    }\n"
             "3. locktime                (numeric, optional, default=0) Raw locktime. Non-0 value also locktime-activates inputs\n"
-
             "\nResult:\n"
             "\"transaction\"            (string) hex string of the transaction\n"
-
             "\nExamples\n" +
-            HelpExampleCli("createrawtransaction", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\" \"{\\\"address\\\":0.01}\"") + HelpExampleRpc("createrawtransaction", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\", \"{\\\"address\\\":0.01}\""));
+            HelpExampleCli("createrawtransaction", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\" \"{\\\"address\\\":0.01}\"") +
+            HelpExampleRpc("createrawtransaction", "\"[{\\\"txid\\\":\\\"myid\\\",\\\"vout\\\":0}]\", \"{\\\"address\\\":0.01}\""));
 
     LOCK(cs_main);
+
     RPCTypeCheck(request.params, boost::assign::list_of(UniValue::VARR)(UniValue::VOBJ)(UniValue::VNUM));
+
     if (request.params[0].isNull() || request.params[1].isNull())
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, arguments 1 and 2 must be non-null");
 
@@ -371,8 +409,10 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
 
     if (request.params.size() > 2 && !request.params[2].isNull()) {
         int64_t nLockTime = request.params[2].get_int64();
+
         if (nLockTime < 0 || nLockTime > std::numeric_limits<uint32_t>::max())
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, locktime out of range");
+
         rawTx.nLockTime = nLockTime;
     }
 
@@ -385,6 +425,7 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
         const UniValue& vout_v = find_value(o, "vout");
         if (!vout_v.isNum())
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, missing vout key");
+
         int nOutput = vout_v.get_int();
         if (nOutput < 0)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, vout must be positive");
@@ -395,6 +436,7 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
         const UniValue& sequenceObj = find_value(o, "sequence");
         if (sequenceObj.isNum()) {
             int64_t seqNr64 = sequenceObj.get_int64();
+
             if (seqNr64 < 0 || seqNr64 > std::numeric_limits<uint32_t>::max())
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, sequence number is out of range");
             else
@@ -402,24 +444,30 @@ UniValue createrawtransaction(const JSONRPCRequest& request)
         }
 
         CTxIn in(COutPoint(txid, nOutput), CScript(), nSequence);
-
         rawTx.vin.push_back(in);
     }
 
-    std::set<CBitcoinAddress> setAddress;
+    std::set<CTxDestination> setAddress;
     std::vector<std::string> addrList = sendTo.getKeys();
+
     for (const std::string& name_ : addrList) {
-        CBitcoinAddress address(name_);
-        if (!address.IsValid())
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, std::string("Invalid SchillingCoin address: ")+name_);
+        bool isStaking = false;
+        CTxDestination address = DecodeDestination(name_, isStaking);
+
+        if (!IsValidDestination(address))
+            throw JSONRPCError(
+                RPC_INVALID_ADDRESS_OR_KEY,
+                std::string("Invalid SchillingCoin address: ") + name_);
 
         if (setAddress.count(address))
-            throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated address: ")+name_);
+            throw JSONRPCError(
+                RPC_INVALID_PARAMETER,
+                std::string("Invalid parameter, duplicated address: ") + name_);
+
         setAddress.insert(address);
 
-        CScript scriptPubKey = GetScriptForDestination(address.Get());
+        CScript scriptPubKey = GetScriptForDestination(address);
         CAmount nAmount = AmountFromValue(sendTo[name_]);
-
         CTxOut out(nAmount, scriptPubKey);
         rawTx.vout.push_back(out);
     }
@@ -497,10 +545,8 @@ UniValue decodescript(const JSONRPCRequest& request)
         throw std::runtime_error(
             "decodescript \"hex\"\n"
             "\nDecode a hex-encoded script.\n"
-
             "\nArguments:\n"
             "1. \"hex\"     (string) the hex encoded script\n"
-
             "\nResult:\n"
             "{\n"
             "  \"asm\":\"asm\",   (string) Script public key\n"
@@ -513,24 +559,26 @@ UniValue decodescript(const JSONRPCRequest& request)
             "  ],\n"
             "  \"p2sh\",\"address\" (string) script address\n"
             "}\n"
-
             "\nExamples:\n" +
             HelpExampleCli("decodescript", "\"hexstring\"") + HelpExampleRpc("decodescript", "\"hexstring\""));
 
     LOCK(cs_main);
+
     RPCTypeCheck(request.params, boost::assign::list_of(UniValue::VSTR));
 
     UniValue r(UniValue::VOBJ);
     CScript script;
+
     if (request.params[0].get_str().size() > 0) {
         std::vector<unsigned char> scriptData(ParseHexV(request.params[0], "argument"));
         script = CScript(scriptData.begin(), scriptData.end());
     } else {
         // Empty scripts are valid
     }
-    ScriptPubKeyToJSON(script, r, false);
 
-    r.push_back(Pair("p2sh", CBitcoinAddress(CScriptID(script)).ToString()));
+    ScriptPubKeyToJSON(script, r, false);
+    r.push_back(Pair("p2sh", EncodeDestination(CScriptID(script))));
+
     return r;
 }
 
@@ -666,7 +714,7 @@ UniValue signrawtransaction(const JSONRPCRequest& request)
         UniValue keys = request.params[2].get_array();
         for (unsigned int idx = 0; idx < keys.size(); idx++) {
             UniValue k = keys[idx];
-            CKey key = DecodeSecret(k.get_str());
+            CKey key = KeyIO::DecodeSecret(k.get_str());
             if (!key.IsValid())
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key");
             tempKeystore.AddKey(key);

@@ -151,9 +151,10 @@ void RequestDialog::onNextClicked(){
                 CChainParams::PUBKEY_ADDRESS :
                 CChainParams::STAKING_ADDRESS;
 
-        CBitcoinAddress address(*destination, addrType);
+        info->address = QString::fromStdString(
+            EncodeDestination(*destination, addrType)
+        );
 
-        info->address = QString::fromStdString(address.ToString());
         ui->labelTitle->setText(title);
 
         updateQr(info->address);

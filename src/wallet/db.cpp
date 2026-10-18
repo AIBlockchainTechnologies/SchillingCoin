@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
 #include <sstream>
 #include <tuple>
 #include <utility>
@@ -66,7 +67,7 @@ void CheckUniqueFileid(
                 "BerkeleyBatch: Can't open database %s "
                 "(duplicates fileid %s from %s)",
                 filename,
-                HexStr(item.second.value),
+                HexStr(std::begin(item.second.value), std::end(item.second.value)),
                 item.first));
         }
     }

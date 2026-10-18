@@ -39,6 +39,8 @@ struct BasicTestingSetup {
 
     BasicTestingSetup();
     ~BasicTestingSetup();
+
+    boost::filesystem::path SetDataDir(const std::string& name);
 };
 
 /** Testing setup that configures a complete environment.

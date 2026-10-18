@@ -77,10 +77,7 @@ void ColdStakingModel::refresh() {
     }
 }
 
-bool ColdStakingModel::parseCSDelegation(const CTxOut& out,
-                                         CSDelegation& ret,
-                                         const QString& txId,
-                                         const int& utxoIndex)
+bool ColdStakingModel::parseCSDelegation(const CTxOut& out, CSDelegation& ret, const QString& txId, const int& utxoIndex)
 {
     txnouttype type;
     std::vector<CTxDestination> addresses;
@@ -95,17 +92,18 @@ bool ColdStakingModel::parseCSDelegation(const CTxOut& out,
                      utxoIndex);
     }
 
-    std::string stakingAddressStr = CBitcoinAddress(
+    std::string stakingAddressStr = EncodeDestination(
         addresses[0],
         CChainParams::STAKING_ADDRESS
-    ).ToString();
+    );
 
-    std::string ownerAddressStr = CBitcoinAddress(
+    std::string ownerAddressStr = EncodeDestination(
         addresses[1],
         CChainParams::PUBKEY_ADDRESS
-    ).ToString();
+    );
 
     ret = CSDelegation(stakingAddressStr, ownerAddressStr);
+
     return true;
 }
 

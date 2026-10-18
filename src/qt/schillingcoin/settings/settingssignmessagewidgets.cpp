@@ -1,19 +1,19 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "qt/schillingcoin/qtutils.h"
 #include "qt/schillingcoin/settings/settingssignmessagewidgets.h"
 #include "qt/schillingcoin/settings/forms/ui_settingssignmessagewidgets.h"
-#include "qt/schillingcoin/qtutils.h"
-#include "guiutil.h"
-#include "walletmodel.h"
 
-#include "base58.h"
-#include "init.h"
-#include "wallet/wallet.h"
-#include "askpassphrasedialog.h"
 #include "addressbookpage.h"
+#include "askpassphrasedialog.h"
+#include "guiutil.h"
+#include "init.h"
+#include "key_io.h"
+#include "walletmodel.h"
+#include "wallet/wallet.h"
 
 #include <string>
 #include <vector>
@@ -165,14 +165,17 @@ void SettingsSignMessageWidgets::onSignMessageButtonSMClicked(){
     /* Clear old signature to ensure users don't get confused on error with an old signature displayed */
     ui->signatureOut_SM->clear();
 
-    CBitcoinAddress addr(ui->addressIn_SM->text().toStdString());
-    if (!addr.IsValid()) {
+    const CTxDestination dest =
+        DecodeDestination(ui->addressIn_SM->text().toStdString());
+
+    if (!IsValidDestination(dest)) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("The entered address is invalid.") + QString(" ") + tr("Please check the address and try again."));
         return;
     }
-    CKeyID keyID;
-    if (!addr.GetKeyID(keyID)) {
+
+    const CKeyID* keyID = boost::get<CKeyID>(&dest);
+    if (!keyID) {
         // TODO: change css..
         //ui->addressIn_SM->setValid(false);
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
@@ -188,7 +191,7 @@ void SettingsSignMessageWidgets::onSignMessageButtonSMClicked(){
     }
 
     CKey key;
-    if (!pwalletMain->GetKey(keyID, key)) {
+    if (!pwalletMain->GetKey(*keyID, key)) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("Private key for the entered address is not available."));
         return;
@@ -220,14 +223,17 @@ void SettingsSignMessageWidgets::onVerifyMessage(){
     ui->statusLabel_SM->setStyleSheet("QLabel { color: transparent; }");
      */
 
-    CBitcoinAddress addr(ui->addressIn_SM->text().toStdString());
-    if (!addr.IsValid()) {
+    const CTxDestination dest =
+        DecodeDestination(ui->addressIn_SM->text().toStdString());
+
+    if (!IsValidDestination(dest)) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("The entered address is invalid.") + QString(" ") + tr("Please check the address and try again."));
         return;
     }
-    CKeyID keyID;
-    if (!addr.GetKeyID(keyID)) {
+
+    const CKeyID* keyID = boost::get<CKeyID>(&dest);
+    if (!keyID) {
         //ui->addressIn_SM->setValid(false);
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("The entered address does not refer to a key.") + QString(" ") + tr("Please check the address and try again."));
@@ -256,7 +262,7 @@ void SettingsSignMessageWidgets::onVerifyMessage(){
         return;
     }
 
-    if (!(CBitcoinAddress(pubkey.GetID()) == addr)) {
+    if (pubkey.GetID() != *keyID) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(QString("<nobr>") + tr("Message verification failed.") + QString("</nobr>"));
         return;

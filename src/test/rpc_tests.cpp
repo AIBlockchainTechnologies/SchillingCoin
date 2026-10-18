@@ -7,12 +7,10 @@
 #include "rpc/server.h"
 #include "rpc/client.h"
 
-#include "base58.h"
 #include "netbase.h"
+#include "test/test_schillingcoin.h"
 #include "util.h"
 #include "util/system.h"
-
-#include "test/test_schillingcoin.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/test/unit_test.hpp>

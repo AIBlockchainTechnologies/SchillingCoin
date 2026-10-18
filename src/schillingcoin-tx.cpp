@@ -4,17 +4,16 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "base58.h"
 #include "clientversion.h"
 #include "coins.h"
 #include "core_io.h"
+#include "guiinterface.h"
+#include "key_io.h"
 #include "keystore.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
 #include "script/script.h"
 #include "script/sign.h"
-#include "guiinterface.h"
-#include <univalue.h>
 #include "util.h"
 #include "util/system.h"
 #include "utilmoneystr.h"
@@ -25,6 +24,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/assign/list_of.hpp>
 
+#include <univalue.h>
 
 static bool fCreateBlank;
 static std::map<std::string, UniValue> registers;
@@ -222,12 +222,16 @@ static void MutateTxAddOutAddr(CMutableTransaction& tx, const std::string& strIn
 
     // extract and validate ADDRESS
     std::string strAddr = strInput.substr(pos + 1, std::string::npos);
-    CBitcoinAddress addr(strAddr);
-    if (!addr.IsValid())
+
+    bool isStaking = false;
+    CTxDestination addr =
+        DecodeDestination(strAddr, isStaking);
+
+    if (!IsValidDestination(addr))
         throw std::runtime_error("invalid TX output address");
 
     // build standard output script via GetScriptForDestination()
-    CScript scriptPubKey = GetScriptForDestination(addr.Get());
+    CScript scriptPubKey = GetScriptForDestination(addr);
 
     // construct TxOut, append to transaction output list
     CTxOut txout(value, scriptPubKey);
@@ -355,7 +359,7 @@ static void MutateTxSign(CMutableTransaction& tx, const std::string& flagStr)
         if (!keysObj[kidx].isStr())
             throw std::runtime_error("privatekey not a string");
 
-        CKey key = DecodeSecret(keysObj[kidx].getValStr());
+        CKey key = KeyIO::DecodeSecret(keysObj[kidx].getValStr());
         if (!key.IsValid()) {
             throw std::runtime_error("privatekey not valid");
         }

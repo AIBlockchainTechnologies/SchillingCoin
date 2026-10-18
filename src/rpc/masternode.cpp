@@ -7,16 +7,17 @@
 #include "activemasternode.h"
 #include "db.h"
 #include "init.h"
+#include "key_io.h"
 #include "main.h"
 #include "masternode-payments.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
 #include "masternode-sync.h"
+#include "netbase.h"
 #include "rpc/server.h"
+#include "script/standard.h"
 #include "utilmoneystr.h"
 #include "wallet/wallet.h"
-#include "script/standard.h"
-#include "netbase.h"
 
 #include <univalue.h>
 #include <boost/tokenizer.hpp>
@@ -52,17 +53,14 @@ UniValue getpoolinfo(const JSONRPCRequest& request)
 UniValue listmasternodes(const JSONRPCRequest& request)
 {
     std::string strFilter = "";
-
     if (request.params.size() == 1) strFilter = request.params[0].get_str();
 
     if (request.fHelp || request.params.size() > 1)
         throw std::runtime_error(
             "listmasternodes ( \"filter\" )\n"
             "\nGet a ranked list of masternodes\n"
-
             "\nArguments:\n"
             "1. \"filter\"    (string, optional) Filter search text. Partial match by txhash, status, or addr.\n"
-
             "\nResult:\n"
             "[\n"
             "  {\n"
@@ -79,7 +77,6 @@ UniValue listmasternodes(const JSONRPCRequest& request)
             "  }\n"
             "  ,...\n"
             "]\n"
-
             "\nExamples:\n" +
             HelpExampleCli("listmasternodes", "") + HelpExampleRpc("listmasternodes", ""));
 
@@ -91,19 +88,25 @@ UniValue listmasternodes(const JSONRPCRequest& request)
         if (!pindex) return ret;
         nHeight = pindex->nHeight;
     }
+
     std::vector<std::pair<int, CMasternode> > vMasternodeRanks = mnodeman.GetMasternodeRanks(nHeight);
+
     for (PAIRTYPE(int, CMasternode) & s : vMasternodeRanks) {
         UniValue obj(UniValue::VOBJ);
         std::string strVin = s.second.vin.prevout.ToStringShort();
         std::string strTxHash = s.second.vin.prevout.hash.ToString();
         uint32_t oIdx = s.second.vin.prevout.n;
-
         CMasternode* mn = mnodeman.Find(s.second.vin);
 
         if (mn != NULL) {
-            if (strFilter != "" && strTxHash.find(strFilter) == std::string::npos &&
+            const std::string collateralAddress =
+                EncodeDestination(mn->pubKeyCollateralAddress.GetID());
+
+            if (strFilter != "" &&
+                strTxHash.find(strFilter) == std::string::npos &&
                 mn->Status().find(strFilter) == std::string::npos &&
-                CBitcoinAddress(mn->pubKeyCollateralAddress.GetID()).ToString().find(strFilter) == std::string::npos) continue;
+                collateralAddress.find(strFilter) == std::string::npos)
+                continue;
 
             std::string strStatus = mn->Status();
             std::string strHost;
@@ -118,12 +121,11 @@ UniValue listmasternodes(const JSONRPCRequest& request)
             obj.push_back(Pair("outidx", (uint64_t)oIdx));
             obj.push_back(Pair("pubkey", HexStr(mn->pubKeyMasternode)));
             obj.push_back(Pair("status", strStatus));
-            obj.push_back(Pair("addr", CBitcoinAddress(mn->pubKeyCollateralAddress.GetID()).ToString()));
+            obj.push_back(Pair("addr", collateralAddress));
             obj.push_back(Pair("version", mn->protocolVersion));
             obj.push_back(Pair("lastseen", (int64_t)mn->lastPing.sigTime));
             obj.push_back(Pair("activetime", (int64_t)(mn->lastPing.sigTime - mn->sigTime)));
             obj.push_back(Pair("lastpaid", (int64_t)mn->GetLastPaid()));
-
             ret.push_back(obj);
         }
     }
@@ -201,7 +203,6 @@ UniValue masternodecurrent(const JSONRPCRequest& request)
         throw std::runtime_error(
             "masternodecurrent\n"
             "\nGet current masternode winner (scheduled to be paid next).\n"
-
             "\nResult:\n"
             "{\n"
             "  \"protocol\": xxxx,        (numeric) Protocol version\n"
@@ -210,18 +211,18 @@ UniValue masternodecurrent(const JSONRPCRequest& request)
             "  \"lastseen\": xxx,         (numeric) Time since epoch of last seen\n"
             "  \"activeseconds\": xxx,    (numeric) Seconds MN has been active\n"
             "}\n"
-
             "\nExamples:\n" +
             HelpExampleCli("masternodecurrent", "") + HelpExampleRpc("masternodecurrent", ""));
 
     const int nHeight = WITH_LOCK(cs_main, return chainActive.Height() + 1);
     int nCount = 0;
     CMasternode* winner = mnodeman.GetNextMasternodeInQueueForPayment(nHeight, true, nCount);
+
     if (winner) {
         UniValue obj(UniValue::VOBJ);
         obj.push_back(Pair("protocol", (int64_t)winner->protocolVersion));
         obj.push_back(Pair("txhash", winner->vin.prevout.hash.ToString()));
-        obj.push_back(Pair("pubkey", CBitcoinAddress(winner->pubKeyCollateralAddress.GetID()).ToString()));
+        obj.push_back(Pair("pubkey", EncodeDestination(winner->pubKeyCollateralAddress.GetID())));
         obj.push_back(Pair("lastseen", (winner->lastPing == CMasternodePing()) ? winner->sigTime : (int64_t)winner->lastPing.sigTime));
         obj.push_back(Pair("activeseconds", (winner->lastPing == CMasternodePing()) ? 0 : (int64_t)(winner->lastPing.sigTime - winner->sigTime)));
         return obj;
@@ -456,7 +457,7 @@ UniValue createmasternodekey(const JSONRPCRequest& request)
     CKey secret;
     secret.MakeNewKey(false);
 
-    return EncodeSecret(secret);
+    return KeyIO::EncodeSecret(secret);
 }
 
 UniValue getmasternodeoutputs(const JSONRPCRequest& request)
@@ -560,7 +561,6 @@ UniValue getmasternodestatus(const JSONRPCRequest& request)
         throw std::runtime_error(
             "getmasternodestatus\n"
             "\nPrint masternode status\n"
-
             "\nResult:\n"
             "{\n"
             "  \"txhash\": \"xxxx\",      (string) Collateral transaction hash\n"
@@ -570,7 +570,6 @@ UniValue getmasternodestatus(const JSONRPCRequest& request)
             "  \"status\": n, (numeric) Masternode status code\n"
             "  \"message\": \"xxxx\"      (string) Masternode status message\n"
             "}\n"
-
             "\nExamples:\n" +
             HelpExampleCli("getmasternodestatus", "") + HelpExampleRpc("getmasternodestatus", ""));
 
@@ -583,11 +582,12 @@ UniValue getmasternodestatus(const JSONRPCRequest& request)
         mnObj.push_back(Pair("txhash", activeMasternode.vin.prevout.hash.ToString()));
         mnObj.push_back(Pair("outputidx", (uint64_t)activeMasternode.vin.prevout.n));
         mnObj.push_back(Pair("netaddr", activeMasternode.service.ToString()));
-        mnObj.push_back(Pair("addr", CBitcoinAddress(pmn->pubKeyCollateralAddress.GetID()).ToString()));
+        mnObj.push_back(Pair("addr", EncodeDestination(pmn->pubKeyCollateralAddress.GetID())));
         mnObj.push_back(Pair("status", activeMasternode.GetStatus()));
         mnObj.push_back(Pair("message", activeMasternode.GetStatusMessage()));
         return mnObj;
     }
+
     throw std::runtime_error("Masternode not found in the list of available masternodes. Current status: "
                         + activeMasternode.GetStatusMessage());
 }
@@ -876,10 +876,8 @@ UniValue decodemasternodebroadcast(const JSONRPCRequest& request)
         throw std::runtime_error(
             "decodemasternodebroadcast \"hexstring\"\n"
             "\nCommand to decode masternode broadcast messages\n"
-
             "\nArgument:\n"
             "1. \"hexstring\"        (string) The hex encoded masternode broadcast message\n"
-
             "\nResult:\n"
             "{\n"
             "  \"vin\": \"xxxx\"                (string) The unspent output which is holding the masternode collateral\n"
@@ -900,7 +898,6 @@ UniValue decodemasternodebroadcast(const JSONRPCRequest& request)
             "      \"nMessVersion\": \"nnn\"    (numeric) MNP Message version number\n"
             "  }\n"
             "}\n"
-
             "\nExamples:\n" +
             HelpExampleCli("decodemasternodebroadcast", "hexstring") + HelpExampleRpc("decodemasternodebroadcast", "hexstring"));
 
@@ -913,8 +910,8 @@ UniValue decodemasternodebroadcast(const JSONRPCRequest& request)
 
     resultObj.push_back(Pair("vin", mnb.vin.prevout.ToString()));
     resultObj.push_back(Pair("addr", mnb.addr.ToString()));
-    resultObj.push_back(Pair("pubkeycollateral", CBitcoinAddress(mnb.pubKeyCollateralAddress.GetID()).ToString()));
-    resultObj.push_back(Pair("pubkeymasternode", CBitcoinAddress(mnb.pubKeyMasternode.GetID()).ToString()));
+    resultObj.push_back(Pair("pubkeycollateral", EncodeDestination(mnb.pubKeyCollateralAddress.GetID())));
+    resultObj.push_back(Pair("pubkeymasternode", EncodeDestination(mnb.pubKeyMasternode.GetID())));
     resultObj.push_back(Pair("vchsig", mnb.GetSignatureBase64()));
     resultObj.push_back(Pair("sigtime", mnb.sigTime));
     resultObj.push_back(Pair("sigvalid", mnb.CheckSignature() ? "true" : "false"));
@@ -922,6 +919,7 @@ UniValue decodemasternodebroadcast(const JSONRPCRequest& request)
     resultObj.push_back(Pair("nMessVersion", mnb.nMessVersion));
 
     UniValue lastPingObj(UniValue::VOBJ);
+
     lastPingObj.push_back(Pair("vin", mnb.lastPing.vin.prevout.ToString()));
     lastPingObj.push_back(Pair("blockhash", mnb.lastPing.blockHash.ToString()));
     lastPingObj.push_back(Pair("sigtime", mnb.lastPing.sigTime));

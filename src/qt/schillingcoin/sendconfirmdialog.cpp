@@ -207,13 +207,21 @@ void TxDetailDialog::onOutputsClicked() {
                     QString labelRes;
                     CTxDestination dest;
                     bool isCsAddress = out.scriptPubKey.IsPayToColdStaking();
+
                     if (ExtractDestination(out.scriptPubKey, dest, isCsAddress)) {
-                        std::string address = ((isCsAddress) ? CBitcoinAddress::newCSInstance(dest) : CBitcoinAddress::newInstance(dest)).ToString();
+                        std::string address = EncodeDestination(
+                            dest,
+                            isCsAddress ?
+                                CChainParams::STAKING_ADDRESS :
+                                CChainParams::PUBKEY_ADDRESS
+                        );
+
                         labelRes = QString::fromStdString(address);
                         labelRes = labelRes.left(16) + "..." + labelRes.right(16);
                     } else {
                         labelRes = tr("Unknown");
                     }
+
                     label = new QLabel(labelRes);
                     QLabel *label1 = new QLabel(BitcoinUnits::formatWithUnit(nDisplayUnit, out.nValue, false, BitcoinUnits::separatorAlways));
                     label1->setAlignment(Qt::AlignCenter | Qt::AlignRight);

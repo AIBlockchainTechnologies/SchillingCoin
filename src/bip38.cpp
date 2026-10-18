@@ -6,6 +6,7 @@
 #include "bip38.h"
 #include "base58.h"
 #include "hash.h"
+#include "key_io.h"
 #include "pubkey.h"
 #include "util.h"
 #include "utilstrencodings.h"

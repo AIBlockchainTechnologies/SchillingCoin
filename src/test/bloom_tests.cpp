@@ -6,17 +6,17 @@
 
 #include "bloom.h"
 
-#include "base58.h"
 #include "clientversion.h"
 #include "key.h"
+#include "key_io.h"
 #include "merkleblock.h"
 #include "serialize.h"
 #include "streams.h"
+#include "test/test_schillingcoin.h"
 #include "uint256.h"
 #include "util.h"
 #include "util/system.h"
 #include "utilstrencodings.h"
-#include "test/test_schillingcoin.h"
 
 #include <vector>
 
@@ -86,12 +86,13 @@ BOOST_AUTO_TEST_CASE(bloom_create_insert_serialize_with_tweak)
 
 BOOST_AUTO_TEST_CASE(bloom_create_insert_key)
 {
-    std::string strSecret = std::string("5Kg1gnAjaLfKiwhhPpGS3QfRg2m6awQvaj98JCZBZQ5SuS2F15C");
-    CBitcoinSecret vchSecret;
-    BOOST_CHECK(vchSecret.SetString(strSecret));
+    const std::string strSecret =
+        "5Kg1gnAjaLfKiwhhPpGS3QfRg2m6awQvaj98JCZBZQ5SuS2F15C";
 
-    CKey key = vchSecret.GetKey();
-    CPubKey pubkey = key.GetPubKey();
+    const CKey key = KeyIO::DecodeSecret(strSecret);
+    BOOST_REQUIRE(key.IsValid());
+
+    const CPubKey pubkey = key.GetPubKey();
     std::vector<unsigned char> vchPubKey(pubkey.begin(), pubkey.end());
 
     CBloomFilter filter(2, 0.001, 0, BLOOM_UPDATE_ALL);

@@ -9,11 +9,11 @@
 #define SCHILLINGCOIN_WALLETDB_H
 
 #include "amount.h"
-#include "wallet/db.h"
-#include "wallet/hdchain.h"
 #include "key.h"
 #include "keystore.h"
 #include "stubs/legacy_zerocoin_consensus.h"
+#include "wallet/db.h"
+#include "wallet/hdchain.h"
 
 #include <list>
 #include <stdint.h>
@@ -23,7 +23,6 @@
 
 class CAccount;
 class CAccountingEntry;
-class CBitcoinAddress;
 struct CBlockLocator;
 class CKeyPool;
 class CMasterKey;
@@ -296,5 +295,8 @@ private:
 
 //! Called during init: Automatic backups
 bool AutoBackupWallet(CWallet& wallet, std::string& strBackupWarning, std::string& strBackupError);
+
+//! Compacts BDB state so that wallet.dat is self-contained (if there are changes)
+void MaybeCompactWalletDB();
 
 #endif // SCHILLINGCOIN_WALLETDB_H

@@ -10,6 +10,7 @@
 #include "pubkey.h"
 #include "script/script.h"
 #include "util.h"
+#include "util/system.h"
 #include "utilstrencodings.h"
 
 typedef std::vector<unsigned char> valtype;
@@ -87,8 +88,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::v
     }
 
     // Scan templates
-    const CScript& script1 = scriptPubKey;
-    for (const PAIRTYPE(txnouttype, CScript)& tplate : mTemplates)
+    const CScript& script1 = scriptPubKey; for (const std::pair<const txnouttype, CScript>& tplate : mTemplates)
     {
         const CScript& script2 = tplate.second;
         vSolutionsRet.clear();

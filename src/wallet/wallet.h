@@ -6,25 +6,25 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_H
-#define BITCOIN_WALLET_H
+#ifndef SCHILLINGCOIN_WALLET_H
+#define SCHILLINGCOIN_WALLET_H
 
 #include "addressbook.h"
 #include "amount.h"
-#include "base58.h"
 #include "consensus/tx_verify.h"
 #include "crypter.h"
+#include "guiinterface.h"
 #include "kernel.h"
 #include "key.h"
+#include "key_io.h"
 #include "keystore.h"
-#include "operationresult.h"
 #include "main.h"
+#include "operationresult.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
-#include "guiinterface.h"
 #include "util.h"
-#include "util/string.h"
 #include "util/memory.h"
+#include "util/string.h"
 #include "validationinterface.h"
 #include "wallet/scriptpubkeyman.h"
 #include "wallet/wallet_ismine.h"
@@ -42,6 +42,8 @@
 /**
  * Settings
  */
+extern CWallet* pwalletMain;
+
 extern CFeeRate payTxFee;
 extern CAmount maxTxFee;
 extern unsigned int nTxConfirmTarget;
@@ -52,28 +54,55 @@ extern bool fPayAtLeastCustomFee;
 
 //! -paytxfee default
 static const CAmount DEFAULT_TRANSACTION_FEE = 0;
+
 //! -paytxfee will warn if called with a higher fee than this amount (in satoshis) per KB
 static const CAmount nHighTransactionFeeWarning = 0.1 * COIN;
+
 //! -maxtxfee default
 static const CAmount DEFAULT_TRANSACTION_MAXFEE = 1 * COIN;
+
 //! -maxtxfee will warn if called with a higher fee than this amount (in satoshis)
 static const CAmount nHighTransactionMaxFeeWarning = 100 * nHighTransactionFeeWarning;
+
 //! Largest (in bytes) free transaction we're willing to create
 static const unsigned int MAX_FREE_TRANSACTION_CREATE_SIZE = 1000;
+
 //! if set, all keys will be derived by using BIP32
 static const bool DEFAULT_USE_HD_WALLET = false;
+
 //! if set, will show warning if the wallet is a hd wallet and is unencrypted
 static const bool DEFAULT_ENABLE_WARN_ENCRYPTHD = false;
+
+//! -txconfirmtarget default
+static const unsigned int DEFAULT_TX_CONFIRM_TARGET = 1;
+
 //! Default for -createwalletbackups
 static const unsigned int DEFAULT_CREATEWALLETBACKUPS = 10;
-//! Default for -spendzeroconfchange
+
 //! -minstakesplit default
 static const CAmount DEFAULT_MIN_STAKE_SPLIT_THRESHOLD = 1 * COIN;
+
+//! Default for -spendzeroconfchange
 static const bool DEFAULT_SPEND_ZEROCONF_CHANGE = true;
+
 //! Default for -sendfreetransactions
 static const bool DEFAULT_SEND_FREE_TRANSACTIONS = false;
+
+//! Default for -staking
+static const bool DEFAULT_STAKING = true;
+
+//! Default for -coldstaking
+static const bool DEFAULT_COLDSTAKING = true;
+
+//! Defaults for -gen and -genproclimit
+static const bool DEFAULT_GENERATE = false;
+static const unsigned int DEFAULT_GENERATE_PROCLIMIT = 1;
+
 //! Default for -disablewallet
 static const bool DEFAULT_DISABLE_WALLET = false;
+
+//! Default for -flushwallet
+static const bool DEFAULT_FLUSHWALLET = true;
 
 extern const char * DEFAULT_WALLET_DAT;
 
@@ -105,16 +134,6 @@ enum AvailableCoinsType {
     ONLY_NONDENOMINATED_NOT15000IFMN = 4,           // ONLY_NONDENOMINATED and not 15000 SCH at the same time
     ONLY_15000 = 5,                                 // find masternode outputs including locked ones (use with caution)
     STAKEABLE_COINS = 6                             // UTXO's that are valid for staking
-};
-
-struct CompactTallyItem {
-    CBitcoinAddress address;
-    CAmount nAmount;
-    std::vector<CTxIn> vecTxIn;
-    CompactTallyItem()
-    {
-        nAmount = 0;
-    }
 };
 
 /** A key pool entry */
@@ -377,7 +396,7 @@ public:
     // Get available p2cs utxo
     void GetAvailableP2CSCoins(std::vector<COutput>& vCoins) const;
 
-    std::map<CBitcoinAddress, std::vector<COutput> > AvailableCoinsByAddress(bool fConfirmed = true, CAmount maxCoinValue = 0);
+    std::map<CTxDestination, std::vector<COutput> > AvailableCoinsByAddress(bool fConfirmed = true, CAmount maxCoinValue = 0);
     bool SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int nConfTheirs, std::vector<COutput> vCoins, std::set<std::pair<const CWalletTx*, unsigned int> >& setCoinsRet, CAmount& nValueRet) const;
 
     /// Get 15000 SCH output and keys which can be used for the Masternode
@@ -413,7 +432,7 @@ public:
     CallResult<CTxDestination> getNewAddress(const std::string& label);
     CallResult<CTxDestination> getNewStakingAddress(const std::string& label);
     int64_t GetKeyCreationTime(CPubKey pubkey);
-    int64_t GetKeyCreationTime(const CBitcoinAddress& address);
+    int64_t GetKeyCreationTime(const CTxDestination& address);
 
     //! Adds a key to the store, and saves it to disk.
     bool AddKeyPubKey(const CKey& key, const CPubKey& pubkey);
@@ -534,7 +553,7 @@ public:
 
     std::set<CTxDestination> GetAccountAddresses(std::string strAccount) const;
 
-    bool IsUsed(const CBitcoinAddress address) const;
+    bool IsUsed(const CTxDestination address) const;
 
     isminetype IsMine(const CTxIn& txin) const;
     CAmount GetDebit(const CTxIn& txin, const isminefilter& filter) const;
@@ -553,7 +572,7 @@ public:
     DBErrors LoadWallet(bool& fFirstRunRet);
     DBErrors ZapWalletTx(std::vector<CWalletTx>& vWtx);
 
-    static CBitcoinAddress ParseIntoAddress(const CTxDestination& dest, const std::string& purpose);
+    static std::string ParseIntoAddress(const CTxDestination& dest, const std::string& purpose);
 
     bool SetAddressBook(const CTxDestination& address, const std::string& strName, const std::string& purpose);
     bool DelAddressBook(const CTxDestination& address, const CChainParams::Base58Type addrType = CChainParams::PUBKEY_ADDRESS);
@@ -596,9 +615,6 @@ public:
     //! Get wallet transactions that conflict with given transaction (spend same outputs)
     std::set<uint256> GetConflicts(const uint256& txid) const;
 
-    //! Verify the wallet database and perform salvage if required
-    static bool Verify();
-
     //! Flush the wallet database.
     void Flush(bool shutdown = false);
 
@@ -606,13 +622,39 @@ public:
     bool AbandonTransaction(const uint256& hashTx);
 
     /* Initializes the wallet, returns a new CWallet instance or a null pointer in case of an error */
-    static CWallet* CreateWalletFromFile(const std::string& walletFile, const std::vector<std::string>& words);
-    static bool InitLoadWallet(const std::vector<std::string>& words);
+    static CWallet* CreateWalletFromFile(const std::string& walletFile, const fs::path& walletPath, const std::vector<std::string>& words);
 
     /**
      * Creates a wallet backup in strDest path.
      */
     bool BackupWallet(const std::string& strDest);
+
+    /**
+     * Address book entry changed.
+     * @note called with lock cs_wallet held.
+     */
+    boost::signals2::signal<void(CWallet* wallet, const CTxDestination& address, const std::string& label, bool isMine, const std::string& purpose, ChangeType status)> NotifyAddressBookChanged;
+
+    /**
+     * Wallet transaction added, removed or updated.
+     * @note called with lock cs_wallet held.
+     */
+    boost::signals2::signal<void(CWallet* wallet, const uint256& hashTx, ChangeType status)> NotifyTransactionChanged;
+
+    /** Show progress e.g. for rescan */
+    boost::signals2::signal<void(const std::string& title, int nProgress)> ShowProgress;
+
+    /** Watch-only address added */
+    boost::signals2::signal<void(bool fHaveWatchOnly)> NotifyWatchonlyChanged;
+
+    /** Wallet lock/encryption status changed */
+    boost::signals2::signal<void(CWallet* wallet)> NotifyStatusChanged;
+
+    /** MultiSig state changed */
+    boost::signals2::signal<void(bool fHaveMultiSig)> NotifyMultiSigChanged;
+
+    /** Receive address changed */
+    boost::signals2::signal<void()> NotifyReceiveAddressChanged;
 };
 
 /** A key allocated from the key pool. */
@@ -1062,4 +1104,4 @@ private:
     std::vector<char> _ssExtra;
 };
 
-#endif // BITCOIN_WALLET_H
+#endif // SCHILLINGCOIN_WALLET_H

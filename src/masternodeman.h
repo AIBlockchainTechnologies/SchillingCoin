@@ -7,8 +7,8 @@
 #ifndef MASTERNODEMAN_H
 #define MASTERNODEMAN_H
 
-#include "base58.h"
 #include "key.h"
+#include "key_io.h"
 #include "main.h"
 #include "masternode.h"
 #include "net.h"

@@ -12,18 +12,18 @@
 #include "recentrequeststablemodel.h"
 #include "transactiontablemodel.h"
 
-#include "base58.h"
 #include "db.h"
+#include "guiinterface.h"
+#include "key_io.h"
 #include "keystore.h"
 #include "main.h"
 #include "sync.h"
-#include "guiinterface.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 
-#include <stdint.h>
 #include <iostream>
 #include <mutex>
+#include <stdint.h>
 
 #include <QDebug>
 #include <QSet>
@@ -312,14 +312,16 @@ void WalletModel::updateMultiSigFlag(bool fHaveMultiSig)
 
 bool WalletModel::validateAddress(const QString& address)
 {
-    CBitcoinAddress addressParsed(address.toStdString());
-    return addressParsed.IsValid();
+    bool isStaking = false;
+    CTxDestination destination = DecodeDestination(address.toStdString(), isStaking);
+    return IsValidDestination(destination);
 }
 
 bool WalletModel::validateAddress(const QString& address, bool fStaking)
 {
-    CBitcoinAddress addressParsed(address.toStdString());
-    return (addressParsed.IsValid() && fStaking == addressParsed.IsStakingAddress());
+    bool isStaking = false;
+    CTxDestination destination = DecodeDestination(address.toStdString(), isStaking);
+    return IsValidDestination(destination) && fStaking == isStaking;
 }
 
 bool WalletModel::updateAddressBookLabels(const CTxDestination& dest, const std::string& strName, const std::string& strPurpose)
@@ -366,10 +368,10 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         ++nAddresses;
 
         CScript scriptPubKey;
-        CBitcoinAddress out = CBitcoinAddress(rcp.address.toStdString());
+        CTxDestination out = DecodeDestination(rcp.address.toStdString());
 
         if (rcp.isP2CS) {
-            CBitcoinAddress ownerAdd;
+            CTxDestination ownerAddress;
             if (rcp.ownerAddress.isEmpty()) {
                 CallResult<CTxDestination> addressResult = getNewAddress();
 
@@ -381,20 +383,20 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
                 if (!destination)
                     return CannotCreateInternalAddress;
 
-                ownerAdd = CBitcoinAddress(*destination);
+                ownerAddress = *destination;
             } else {
-                ownerAdd = CBitcoinAddress(rcp.ownerAddress.toStdString());
+                ownerAddress = DecodeDestination(rcp.ownerAddress.toStdString());
             }
 
-            CKeyID stakerId;
-            CKeyID ownerId;
-            if (!out.GetKeyID(stakerId) || !ownerAdd.GetKeyID(ownerId)) {
+            const CKeyID* stakerId = boost::get<CKeyID>(&out);
+            const CKeyID* ownerId = boost::get<CKeyID>(&ownerAddress);
+            if (!stakerId || !ownerId) {
                 return InvalidAddress;
             }
 
-            scriptPubKey = GetScriptForStakeDelegation(stakerId, ownerId);
+            scriptPubKey = GetScriptForStakeDelegation(*stakerId, *ownerId);
         } else {
-            scriptPubKey = GetScriptForDestination(out.Get());
+            scriptPubKey = GetScriptForDestination(out);
         }
 
         vecSend.push_back(std::pair<CScript, CAmount>(scriptPubKey, rcp.amount));
@@ -508,12 +510,13 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
     }
 
     for (const SendCoinsRecipient& rcp : transaction.getRecipients()) {
-        CBitcoinAddress address = CBitcoinAddress(rcp.address.toStdString());
-        std::string purpose = address.IsStakingAddress()
+        bool isStaking = false;
+        CTxDestination address = DecodeDestination(rcp.address.toStdString(), isStaking);
+        std::string purpose = isStaking
             ? AddressBook::AddressBookPurpose::COLD_STAKING_SEND
             : AddressBook::AddressBookPurpose::SEND;
         std::string strLabel = rcp.label.toStdString();
-        updateAddressBookLabels(address.Get(), strLabel, purpose);
+        updateAddressBookLabels(address, strLabel, purpose);
 
         Q_EMIT coinsSent(wallet, rcp, transaction_array);
     }
@@ -625,10 +628,9 @@ static void NotifyKeyStoreStatusChanged(WalletModel* walletmodel, CCryptoKeyStor
 
 static void NotifyAddressBookChanged(WalletModel* walletmodel, CWallet* wallet, const CTxDestination& address, const std::string& label, bool isMine, const std::string& purpose, ChangeType status)
 {
-    QString strAddress = QString::fromStdString(pwalletMain->ParseIntoAddress(address, purpose).ToString());
+    QString strAddress = QString::fromStdString(wallet->ParseIntoAddress(address, purpose));
     QString strLabel = QString::fromStdString(label);
     QString strPurpose = QString::fromStdString(purpose);
-
     qDebug() << "NotifyAddressBookChanged : " + strAddress + " " + strLabel + " isMine=" + QString::number(isMine) + " purpose=" + strPurpose + " status=" + QString::number(status);
     QMetaObject::invokeMethod(walletmodel, "updateAddressBook", Qt::QueuedConnection,
         Q_ARG(QString, strAddress),
@@ -675,30 +677,6 @@ static void NotifyMultiSigChanged(WalletModel* walletmodel, bool fHaveMultiSig)
                               Q_ARG(bool, fHaveMultiSig));
 }
 
-static void NotifyWalletBacked(WalletModel* model, const bool& fSuccess, const std::string& filename)
-{
-    std::string message;
-    std::string title = "Backup ";
-    CClientUIInterface::MessageBoxFlags method;
-
-    if (fSuccess) {
-        message = "The wallet data was successfully saved to ";
-        title += "Successful: ";
-        method = CClientUIInterface::MSG_INFORMATION;
-    } else {
-        message = "There was an error trying to save the wallet data to ";
-        title += "Failed: ";
-        method = CClientUIInterface::MSG_ERROR;
-    }
-
-    message += _(filename.data());
-
-    QMetaObject::invokeMethod(model, "message", Qt::QueuedConnection,
-                              Q_ARG(QString, QString::fromStdString(title)),
-                              Q_ARG(QString, QString::fromStdString(message)),
-                              Q_ARG(unsigned int, (unsigned int)method));
-}
-
 void WalletModel::subscribeToCoreSignals()
 {
     // KeyStore status changed
@@ -717,7 +695,7 @@ void WalletModel::subscribeToCoreSignals()
                ChangeType status)
         {
             QString strAddress = QString::fromStdString(
-                pwalletMain->ParseIntoAddress(address, purpose).ToString());
+                walletIn->ParseIntoAddress(address, purpose));
             QString strLabel = QString::fromStdString(label);
             QString strPurpose = QString::fromStdString(purpose);
 
@@ -772,32 +750,6 @@ void WalletModel::subscribeToCoreSignals()
             QMetaObject::invokeMethod(this, "updateMultiSigFlag", Qt::QueuedConnection,
                                       Q_ARG(bool, fHaveMultiSig));
         });
-
-    // Wallet backup result
-    wallet->NotifyWalletBacked.connect(
-        [this](const bool& fSuccess, const std::string& filename)
-        {
-            std::string message;
-            std::string title = "Backup ";
-            CClientUIInterface::MessageBoxFlags method;
-
-            if (fSuccess) {
-                message = "The wallet data was successfully saved to ";
-                title += "Successful: ";
-                method = CClientUIInterface::MSG_INFORMATION;
-            } else {
-                message = "There was an error trying to save the wallet data to ";
-                title += "Failed: ";
-                method = CClientUIInterface::MSG_ERROR;
-            }
-
-            message += _(filename.data());
-
-            QMetaObject::invokeMethod(this, "message", Qt::QueuedConnection,
-                                      Q_ARG(QString, QString::fromStdString(title)),
-                                      Q_ARG(QString, QString::fromStdString(message)),
-                                      Q_ARG(unsigned int, (unsigned int)method));
-        });
 }
 
 void WalletModel::unsubscribeFromCoreSignals()
@@ -808,7 +760,6 @@ void WalletModel::unsubscribeFromCoreSignals()
     wallet->ShowProgress.disconnect_all_slots();
     wallet->NotifyWatchonlyChanged.disconnect_all_slots();
     wallet->NotifyMultiSigChanged.disconnect_all_slots();
-    wallet->NotifyWalletBacked.disconnect_all_slots();
 }
 
 // WalletModel::UnlockContext implementation
@@ -863,63 +814,64 @@ int64_t WalletModel::getKeyCreationTime(const CPubKey& key)
     return pwalletMain->GetKeyCreationTime(key);
 }
 
-int64_t WalletModel::getKeyCreationTime(const CBitcoinAddress& address)
+int64_t WalletModel::getKeyCreationTime(const CTxDestination& address)
 {
     if (this->isMine(address))
         return pwalletMain->GetKeyCreationTime(address);
     return 0;
 }
-
 CallResult<CTxDestination> WalletModel::getNewAddress(const std::string& label) const
 {
     return wallet->getNewAddress(label);
 }
-
 CallResult<CTxDestination> WalletModel::getNewStakingAddress(const std::string& label) const
 {
     return wallet->getNewStakingAddress(label);
 }
-
 bool WalletModel::whitelistAddressFromColdStaking(const QString& addressStr)
 {
     return updateAddressBookPurpose(addressStr, AddressBook::AddressBookPurpose::DELEGATOR);
 }
-
 bool WalletModel::blacklistAddressFromColdStaking(const QString& addressStr)
 {
     return updateAddressBookPurpose(addressStr, AddressBook::AddressBookPurpose::DELEGABLE);
 }
-
 bool WalletModel::updateAddressBookPurpose(const QString& addressStr, const std::string& purpose)
 {
-    CBitcoinAddress address(addressStr.toStdString());
-    if (address.IsStakingAddress())
+    bool isStaking = false;
+    const CTxDestination address =
+        DecodeDestination(addressStr.toStdString(), isStaking);
+
+    if (isStaking)
         return error("Invalid SchillingCoin address, cold staking address");
 
     CKeyID keyID;
     if (!getKeyId(address, keyID))
         return false;
 
-    return pwalletMain->SetAddressBook(keyID, getLabelForAddress(address), purpose);
+    return pwalletMain->SetAddressBook(
+        keyID,
+        getLabelForAddress(address),
+        purpose);
 }
-
-bool WalletModel::getKeyId(const CBitcoinAddress& address, CKeyID& keyID)
+bool WalletModel::getKeyId(const CTxDestination& address, CKeyID& keyID)
 {
-    if (!address.IsValid())
+    if (!IsValidDestination(address))
         return error("Invalid SchillingCoin address");
 
-    if (!address.GetKeyID(keyID))
+    const CKeyID* keyIDPtr = boost::get<CKeyID>(&address);
+    if (!keyIDPtr)
         return error("Unable to get KeyID from SchillingCoin address");
 
+    keyID = *keyIDPtr;
     return true;
 }
-
-std::string WalletModel::getLabelForAddress(const CBitcoinAddress& address)
+std::string WalletModel::getLabelForAddress(const CTxDestination& address)
 {
-    std::string label = "";
+    std::string label;
     {
         LOCK(wallet->cs_wallet);
-        auto mi = wallet->mapAddressBook.find(address.Get());
+        auto mi = wallet->mapAddressBook.find(address);
         if (mi != wallet->mapAddressBook.end()) {
             label = mi->second.name;
         }
@@ -1018,7 +970,7 @@ void WalletModel::listCoins(std::map<QString, std::vector<COutput> >& mapCoins) 
         if (!cout.tx) continue;
         if (!ExtractDestination(cout.tx->vout[cout.i].scriptPubKey, address)) continue;
 
-        QString qaddr = QString::fromStdString(CBitcoinAddress(address).ToString());
+        QString qaddr = QString::fromStdString(EncodeDestination(address));
         mapCoins[qaddr].push_back(out);
     }
 }
@@ -1060,22 +1012,23 @@ void WalletModel::loadReceiveRequests(std::vector<std::string>& vReceiveRequests
 
 bool WalletModel::saveReceiveRequest(const std::string& sAddress, const int64_t nId, const std::string& sRequest)
 {
-    CTxDestination dest = CBitcoinAddress(sAddress).Get();
+    const CTxDestination dest = DecodeDestination(sAddress);
+    if (!IsValidDestination(dest))
+        return false;
 
-    std::stringstream ss;
-    ss << nId;
-    std::string key = "rr" + ss.str();
+    const std::string strKey = "rr" + std::to_string(nId);
 
     LOCK(wallet->cs_wallet);
+
     if (sRequest.empty())
-        return wallet->EraseDestData(dest, key);
-    else
-        return wallet->AddDestData(dest, key, sRequest);
+        return wallet->EraseDestData(dest, strKey);
+
+    return wallet->AddDestData(dest, strKey, sRequest);
 }
 
-bool WalletModel::isMine(CBitcoinAddress address)
+bool WalletModel::isMine(const CTxDestination& address)
 {
-    return IsMine(*wallet, address.Get());
+    return IsMine(*wallet, address);
 }
 
 bool WalletModel::hdEnabled() const
@@ -1085,11 +1038,14 @@ bool WalletModel::hdEnabled() const
 
 bool WalletModel::isMine(const QString& addressStr)
 {
-    CBitcoinAddress address(addressStr.toStdString());
-    return IsMine(*wallet, address.Get());
+    const CTxDestination address =
+        DecodeDestination(addressStr.toStdString());
+
+    return IsValidDestination(address) &&
+           IsMine(*wallet, address) != ISMINE_NO;
 }
 
-bool WalletModel::isUsed(CBitcoinAddress address)
+bool WalletModel::isUsed(const CTxDestination& address)
 {
     return wallet->IsUsed(address);
 }

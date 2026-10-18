@@ -11,13 +11,14 @@
 #include "wallet/wallet.h"
 
 #include "coincontrol.h"
-#include "init.h"
 #include "guiinterfaceutil.h"
 #include "masternode.h"
 #include "script/sign.h"
 #include "script/standard.h"
 #include "util.h"
 #include "utilmoneystr.h"
+
+#include <init.h>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/thread.hpp>
@@ -56,8 +57,7 @@ const uint256 CMerkleTx::ABANDON_HASH(uint256S("00000000000000000000000000000000
  */
 
 struct CompareValueOnly {
-    bool operator()(const std::pair<CAmount, std::pair<const CWalletTx*, unsigned int> >& t1,
-        const std::pair<CAmount, std::pair<const CWalletTx*, unsigned int> >& t2) const
+    bool operator()(const std::pair<CAmount, std::pair<const CWalletTx*, unsigned int> >& t1, const std::pair<CAmount, std::pair<const CWalletTx*, unsigned int> >& t2) const
     {
         return t1.first < t2.first;
     }
@@ -104,10 +104,7 @@ CallResult<CTxDestination> CWallet::getNewStakingAddress(const std::string& labe
         CChainParams::STAKING_ADDRESS);
 }
 
-CallResult<CTxDestination> CWallet::getNewAddress(
-    const std::string& addressLabel,
-    const std::string purpose,
-    const CChainParams::Base58Type addrType)
+CallResult<CTxDestination> CWallet::getNewAddress(const std::string& addressLabel, const std::string purpose, const CChainParams::Base58Type addrType)
 {
     LOCK(cs_wallet);
 
@@ -175,12 +172,12 @@ int64_t CWallet::GetKeyCreationTime(CPubKey pubkey)
     return mapKeyMetadata[pubkey.GetID()].nCreateTime;
 }
 
-int64_t CWallet::GetKeyCreationTime(const CBitcoinAddress& address)
+int64_t CWallet::GetKeyCreationTime(const CTxDestination& address)
 {
-    CKeyID keyID;
-    if (address.GetKeyID(keyID)) {
+    const CKeyID* keyID = boost::get<CKeyID>(&address);
+    if (keyID) {
         CPubKey keyRet;
-        if (GetPubKey(keyID, keyRet)) {
+        if (GetPubKey(*keyID, keyRet)) {
             return GetKeyCreationTime(keyRet);
         }
     }
@@ -486,7 +483,7 @@ bool CWallet::LoadCScript(const CScript& redeemScript)
      * that never can be redeemed. However, old wallets may still contain
      * these. Do not add them to the wallet and warn. */
     if (redeemScript.size() > MAX_SCRIPT_ELEMENT_SIZE) {
-        std::string strAddr = CBitcoinAddress(CScriptID(redeemScript)).ToString();
+        std::string strAddr = EncodeDestination(CScriptID(redeemScript));
         LogPrintf("%s: Warning: This wallet contains a redeemScript of size %i which exceeds maximum size %i thus can never be redeemed. Do not use address %s.\n",
             __func__, redeemScript.size(), MAX_SCRIPT_ELEMENT_SIZE, strAddr);
         return true;
@@ -877,91 +874,6 @@ void CWallet::SyncMetaData(std::pair<TxSpends::iterator, TxSpends::iterator> ran
     }
 }
 
-///////// Init ////////////////
-
-bool CWallet::ParameterInteraction()
-{
-    if (gArgs.IsArgSet("-mintxfee")) {
-        const std::string mintTxFeeArg =
-            gArgs.GetArg("-mintxfee", "");
-
-        CAmount n = 0;
-        if (ParseMoney(mintTxFeeArg, n) && n > 0)
-            CWallet::minTxFee = CFeeRate(n);
-        else
-            return UIError(AmountErrMsg("mintxfee", mintTxFeeArg));
-    }
-
-    if (gArgs.IsArgSet("-paytxfee")) {
-        const std::string payTxFeeArg =
-            gArgs.GetArg("-paytxfee", "");
-
-        CAmount nFeePerK = 0;
-        if (!ParseMoney(payTxFeeArg, nFeePerK))
-            return UIError(AmountErrMsg("paytxfee", payTxFeeArg));
-
-        if (nFeePerK > nHighTransactionFeeWarning)
-            UIWarning(_("Warning: -paytxfee is set very high! This is the transaction fee you will pay if you send a transaction."));
-
-        payTxFee = CFeeRate(nFeePerK, 1000);
-
-        if (payTxFee < ::minRelayTxFee) {
-            return UIError(strprintf(
-                _("Invalid amount for -paytxfee=<amount>: '%s' (must be at least %s)"),
-                payTxFeeArg,
-                ::minRelayTxFee.ToString()));
-        }
-    }
-
-    if (gArgs.IsArgSet("-maxtxfee")) {
-        const std::string maxTxFeeArg =
-            gArgs.GetArg("-maxtxfee", "");
-
-        CAmount nMaxFee = 0;
-        if (!ParseMoney(maxTxFeeArg, nMaxFee))
-            return UIError(AmountErrMsg("maxtxfee", maxTxFeeArg));
-
-        if (nMaxFee > nHighTransactionMaxFeeWarning)
-            UIWarning(_("Warning: -maxtxfee is set very high! Fees this large could be paid on a single transaction."));
-
-        maxTxFee = nMaxFee;
-
-        if (CFeeRate(maxTxFee, 1000) < ::minRelayTxFee) {
-            return UIError(strprintf(
-                _("Invalid amount for -maxtxfee=<amount>: '%s' (must be at least the minrelay fee of %s to prevent stuck transactions)"),
-                maxTxFeeArg,
-                ::minRelayTxFee.ToString()));
-        }
-    }
-
-    if (gArgs.IsArgSet("-minstakesplit")) {
-        const std::string minStakeSplitArg =
-            gArgs.GetArg("-minstakesplit", "");
-
-        CAmount n = 0;
-        if (ParseMoney(minStakeSplitArg, n) && n > 0)
-            CWallet::minStakeSplitThreshold = n;
-        else
-            return UIError(AmountErrMsg("minstakesplit", minStakeSplitArg));
-    }
-
-    nTxConfirmTarget =
-        gArgs.GetArg("-txconfirmtarget", 1);
-
-    bSpendZeroConfChange =
-        gArgs.GetBoolArg("-spendzeroconfchange", DEFAULT_SPEND_ZEROCONF_CHANGE);
-
-    bdisableSystemnotifications =
-        gArgs.GetBoolArg("-disablesystemnotifications", false);
-
-    fSendFreeTransactions =
-        gArgs.GetBoolArg("-sendfreetransactions", DEFAULT_SEND_FREE_TRANSACTIONS);
-
-    return true;
-}
-
-//////// End Init ////////////
-
 ScriptPubKeyMan* CWallet::GetScriptPubKeyMan() const
 {
     return m_spk_man.get();
@@ -1025,13 +937,14 @@ bool CWallet::GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubK
 
     CTxDestination address1;
     ExtractDestination(pubScript, address1, fColdStake);
-    CBitcoinAddress address2(address1);
 
-    CKeyID keyID;
-    if (!address2.GetKeyID(keyID)) {
+    const CKeyID* keyIDPtr = boost::get<CKeyID>(&address1);
+    if (!keyIDPtr) {
         LogPrintf("CWallet::GetVinAndKeysFromOutput -- Address does not refer to a key\n");
         return false;
     }
+
+    CKeyID keyID = *keyIDPtr;
 
     if (!GetKey(keyID, keyRet)) {
         LogPrintf("CWallet::GetVinAndKeysFromOutput -- Private key for address is not known\n");
@@ -1646,10 +1559,10 @@ isminetype CWallet::IsMine(const CTxIn& txin) const
     return ISMINE_NO;
 }
 
-bool CWallet::IsUsed(const CBitcoinAddress address) const
+bool CWallet::IsUsed(const CTxDestination address) const
 {
     LOCK(cs_wallet);
-    CScript scriptPubKey = GetScriptForDestination(address.Get());
+    CScript scriptPubKey = GetScriptForDestination(address);
     if (!::IsMine(*this, scriptPubKey)) {
         return false;
     }
@@ -2063,11 +1976,7 @@ CAmount CWalletTx::GetLockedWatchOnlyCredit() const
     return nCredit;
 }
 
-void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived,
-    std::list<COutputEntry>& listSent,
-    CAmount& nFee,
-    std::string& strSentAccount,
-    const isminefilter& filter) const
+void CWalletTx::GetAmounts(std::list<COutputEntry>& listReceived, std::list<COutputEntry>& listSent, CAmount& nFee, std::string& strSentAccount, const isminefilter& filter) const
 {
     nFee = 0;
     listReceived.clear();
@@ -2278,55 +2187,6 @@ std::set<uint256> CWalletTx::GetConflicts() const
         result.erase(myHash);
     }
     return result;
-}
-
-bool CWallet::Verify()
-{
-    const std::string walletFile =
-        gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);
-
-    const fs::path walletPath =
-        GetDataDir() / walletFile;
-
-    uiInterface.InitMessage(_("Verifying wallet..."));
-
-    std::string warningStr;
-    std::string errorStr;
-
-    if (!WalletBatch::VerifyEnvironment(
-            walletPath,
-            errorStr)) {
-        return UIError(errorStr);
-    }
-
-    if (gArgs.GetBoolArg("-salvagewallet", false)) {
-        CWallet dummyWallet;
-        std::string backupFilename;
-
-        if (!WalletBatch::Recover(
-                walletPath,
-                &dummyWallet,
-                WalletBatch::RecoverKeysOnlyFilter,
-                backupFilename)) {
-            return UIError(strprintf(
-                _("Error recovering wallet %s"),
-                walletFile));
-        }
-    }
-
-    if (!WalletBatch::VerifyDatabaseFile(
-            walletPath,
-            warningStr,
-            errorStr,
-            WalletBatch::Recover)) {
-        return UIError(errorStr);
-    }
-
-    if (!warningStr.empty()) {
-        UIWarning(warningStr);
-    }
-
-    return true;
 }
 
 void CWallet::ResendWalletTransactions()
@@ -2621,16 +2481,7 @@ bool CWallet::GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& 
 /**
  * populate vCoins with vector of available COutputs.
  */
-bool CWallet::AvailableCoins(
-        std::vector<COutput>* pCoins,
-        bool fOnlyConfirmed,
-        const CCoinControl* coinControl,
-        bool fIncludeZeroValue,
-        AvailableCoinsType nCoinType,
-        bool fUseIX,
-        int nWatchonlyConfig,
-        bool fIncludeColdStaking,
-        bool fIncludeDelegated) const
+bool CWallet::AvailableCoins(std::vector<COutput>* pCoins, bool fOnlyConfirmed, const CCoinControl* coinControl, bool fIncludeZeroValue, AvailableCoinsType nCoinType, bool fUseIX, int nWatchonlyConfig, bool fIncludeColdStaking, bool fIncludeDelegated) const
 {
     if (pCoins) pCoins->clear();
     const bool fCoinsSelected = (coinControl != nullptr) && coinControl->HasSelected();
@@ -2697,13 +2548,13 @@ bool CWallet::AvailableCoins(
     }
 }
 
-std::map<CBitcoinAddress, std::vector<COutput> > CWallet::AvailableCoinsByAddress(bool fConfirmed, CAmount maxCoinValue)
+std::map<CTxDestination, std::vector<COutput> > CWallet::AvailableCoinsByAddress(bool fConfirmed, CAmount maxCoinValue)
 {
     std::vector<COutput> vCoins;
     // include cold and delegated coins
     AvailableCoins(&vCoins, fConfirmed, nullptr, false, ALL_COINS, false, 1, true, true);
 
-    std::map<CBitcoinAddress, std::vector<COutput> > mapCoins;
+    std::map<CTxDestination, std::vector<COutput> > mapCoins;
     for (COutput out : vCoins) {
         if (maxCoinValue > 0 && out.tx->vout[out.i].nValue > maxCoinValue)
             continue;
@@ -2713,12 +2564,12 @@ std::map<CBitcoinAddress, std::vector<COutput> > CWallet::AvailableCoinsByAddres
         if (!ExtractDestination(out.tx->vout[out.i].scriptPubKey, address, fColdStakeAddr)) {
             // if this is a P2CS we don't have the owner key - check if we have the staking key
             fColdStakeAddr = true;
-            if ( !out.tx->vout[out.i].scriptPubKey.IsPayToColdStaking() ||
-                    !ExtractDestination(out.tx->vout[out.i].scriptPubKey, address, fColdStakeAddr) )
+            if (!out.tx->vout[out.i].scriptPubKey.IsPayToColdStaking() ||
+                    !ExtractDestination(out.tx->vout[out.i].scriptPubKey, address, fColdStakeAddr))
                 continue;
         }
 
-        mapCoins[CBitcoinAddress(address, fColdStakeAddr ? CChainParams::STAKING_ADDRESS : CChainParams::PUBKEY_ADDRESS)].push_back(out);
+        mapCoins[address].push_back(out);
     }
 
     return mapCoins;
@@ -2763,24 +2614,6 @@ static void ApproximateBestSubset(std::vector<std::pair<CAmount, std::pair<const
     }
 }
 
-
-// TODO: find appropriate place for this sort function
-// move denoms down
-bool less_then_denom(const COutput& out1, const COutput& out2)
-{
-    const CWalletTx* pcoin1 = out1.tx;
-    const CWalletTx* pcoin2 = out2.tx;
-
-    bool found1 = false;
-    bool found2 = false;
-    for (CAmount d : obfuScationDenominations) // loop through predefined denoms
-    {
-        if (pcoin1->vout[out1.i].nValue == d) found1 = true;
-        if (pcoin2->vout[out2.i].nValue == d) found2 = true;
-    }
-    return (!found1 && found2);
-}
-
 bool CWallet::StakeableCoins(std::vector<COutput>* pCoins)
 {
     // SPORK_17_COLDSTAKING_ENFORCEMENT was removed and cold-staking is now a build-time behavior.
@@ -2803,41 +2636,35 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int
 
     random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
 
-    // move denoms down on the list
-    std::sort(vCoins.begin(), vCoins.end(), less_then_denom);
+    vValue.clear();
+    nTotalLower = 0;
 
-    // try to find nondenom first to prevent unneeded spending of mixed coins
-    for (unsigned int tryDenom = 0; tryDenom < 2; tryDenom++) {
-        if (fDebug) LogPrint(BCLog::SELECTCOINS, "tryDenom: %d\n", tryDenom);
-        vValue.clear();
-        nTotalLower = 0;
-        for (const COutput& output : vCoins) {
-            if (!output.fSpendable)
-                continue;
+    for (const COutput& output : vCoins) {
+        if (!output.fSpendable)
+            continue;
 
-            const CWalletTx* pcoin = output.tx;
+        const CWalletTx* pcoin = output.tx;
 
-            //            if (fDebug) LogPrint(BCLog::SELECTCOINS, "value %s confirms %d\n", FormatMoney(pcoin->vout[output.i].nValue), output.nDepth);
-            if (output.nDepth < (pcoin->IsFromMe(ISMINE_ALL) ? nConfMine : nConfTheirs))
-                continue;
+        // if (fDebug) LogPrint(BCLog::SELECTCOINS, "value %s confirms %d\n", FormatMoney(pcoin->vout[output.i].nValue), output.nDepth);
+        if (output.nDepth < (pcoin->IsFromMe(ISMINE_ALL) ? nConfMine : nConfTheirs))
+            continue;
 
-            int i = output.i;
-            CAmount n = pcoin->vout[i].nValue;
-            if (tryDenom == 0 && IsDenominatedAmount(n)) continue; // we don't want denom values on first run
+        int i = output.i;
+        CAmount n = pcoin->vout[i].nValue;
 
-            std::pair<CAmount, std::pair<const CWalletTx*, unsigned int> > coin = std::make_pair(n, std::make_pair(pcoin, i));
+        std::pair<CAmount, std::pair<const CWalletTx*, unsigned int> > coin = std::make_pair(n, std::make_pair(pcoin, i));
 
-            if (n == nTargetValue) {
-                setCoinsRet.insert(coin.second);
-                nValueRet += coin.first;
-                return true;
-            } else if (n < nTargetValue + CENT) {
-                vValue.push_back(coin);
-                nTotalLower += n;
-            } else if (n < coinLowestLarger.first) {
-                coinLowestLarger = coin;
-            }
+        if (n == nTargetValue) {
+            setCoinsRet.insert(coin.second);
+            nValueRet += coin.first;
+            return true;
+        } else if (n < nTargetValue + CENT) {
+            vValue.push_back(coin);
+            nTotalLower += n;
+        } else if (n < coinLowestLarger.first) {
+            coinLowestLarger = coin;
         }
+    }
 
         if (nTotalLower == nTargetValue) {
             for (unsigned int i = 0; i < vValue.size(); ++i) {
@@ -2848,23 +2675,13 @@ bool CWallet::SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int
         }
 
         if (nTotalLower < nTargetValue) {
-            if (coinLowestLarger.second.first == NULL) // there is no input larger than nTargetValue
-            {
-                if (tryDenom == 0)
-                    // we didn't look at denom yet, let's do it
-                    continue;
-                else
-                    // we looked at everything possible and didn't find anything, no luck
-                    return false;
-            }
+            if (coinLowestLarger.second.first == NULL)
+                return false;
+
             setCoinsRet.insert(coinLowestLarger.second);
             nValueRet += coinLowestLarger.first;
             return true;
         }
-
-        // nTotalLower > nTargetValue
-        break;
-    }
 
     // Solve subset sum by stochastic approximation
     std::sort(vValue.rbegin(), vValue.rend(), CompareValueOnly());
@@ -3153,13 +2970,7 @@ bool CWallet::CreateTransaction(CScript scriptPubKey, const CAmount& nValue, CWa
 }
 
 // ppcoin: create coin stake transaction
-bool CWallet::CreateCoinStake(
-        const CKeyStore& keystore,
-        const CBlockIndex* pindexPrev,
-        unsigned int nBits,
-        CMutableTransaction& txNew,
-        int64_t& nTxNewTime
-        )
+bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pindexPrev, unsigned int nBits, CMutableTransaction& txNew, int64_t& nTxNewTime)
 {
     // Get the list of stakable utxos
     std::vector<COutput> vCoins;
@@ -3423,17 +3234,15 @@ DBErrors CWallet::ZapWalletTx(std::vector<CWalletTx>& vWtx)
     return DB_LOAD_OK;
 }
 
-CBitcoinAddress CWallet::ParseIntoAddress(const CTxDestination& dest, const std::string& purpose) {
+std::string CWallet::ParseIntoAddress(const CTxDestination& dest, const std::string& purpose)
+{
     const CChainParams::Base58Type addrType =
             AddressBook::IsColdStakingPurpose(purpose) ?
             CChainParams::STAKING_ADDRESS : CChainParams::PUBKEY_ADDRESS;
-    return CBitcoinAddress(dest, addrType);
+    return EncodeDestination(dest, addrType);
 }
 
-bool CWallet::SetAddressBook(
-    const CTxDestination& address,
-    const std::string& strName,
-    const std::string& strPurpose)
+bool CWallet::SetAddressBook(const CTxDestination& address, const std::string& strName, const std::string& strPurpose)
 {
     bool fUpdated = HasAddressBook(address);
 
@@ -3462,7 +3271,7 @@ bool CWallet::SetAddressBook(
     const std::string addressStr =
         ParseIntoAddress(
             address,
-            mapAddressBook.at(address).purpose).ToString();
+            mapAddressBook.at(address).purpose);
 
     WalletBatch batch(*database);
 
@@ -3474,12 +3283,10 @@ bool CWallet::SetAddressBook(
     return batch.WriteName(addressStr, strName);
 }
 
-bool CWallet::DelAddressBook(
-    const CTxDestination& address,
-    const CChainParams::Base58Type addrType)
+bool CWallet::DelAddressBook(const CTxDestination& address, const CChainParams::Base58Type addrType)
 {
     const std::string strAddress =
-        CBitcoinAddress(address, addrType).ToString();
+        EncodeDestination(address, addrType);
 
     const std::string purpose =
         purposeForAddress(address);
@@ -3951,7 +3758,7 @@ bool CWallet::AddDestData(const CTxDestination& dest, const std::string& key, co
     WalletBatch batch(*database);
 
     return batch.WriteDestData(
-        CBitcoinAddress(dest).ToString(),
+        EncodeDestination(dest),
         key,
         value);
 }
@@ -3967,7 +3774,7 @@ bool CWallet::EraseDestData(const CTxDestination& dest, const std::string& key)
     WalletBatch batch(*database);
 
     return batch.EraseDestData(
-        CBitcoinAddress(dest).ToString(),
+        EncodeDestination(dest),
         key);
 }
 
@@ -3985,10 +3792,11 @@ void CWallet::AutoCombineDust()
         return;
     }
 
-    std::map<CBitcoinAddress, std::vector<COutput> > mapCoinsByAddress = AvailableCoinsByAddress(true, nAutoCombineThreshold * COIN);
+    std::map<CTxDestination, std::vector<COutput> > mapCoinsByAddress =
+            AvailableCoinsByAddress(true, nAutoCombineThreshold * COIN);
 
     //coins are sectioned by address. This combination code only wants to combine inputs that belong to the same address
-    for (std::map<CBitcoinAddress, std::vector<COutput> >::iterator it = mapCoinsByAddress.begin(); it != mapCoinsByAddress.end(); it++) {
+    for (std::map<CTxDestination, std::vector<COutput> >::iterator it = mapCoinsByAddress.begin(); it != mapCoinsByAddress.end(); it++) {
         std::vector<COutput> vCoins, vRewardCoins;
         bool maxSize = false;
         vCoins = it->second;
@@ -4037,7 +3845,7 @@ void CWallet::AutoCombineDust()
             continue;
 
         std::vector<std::pair<CScript, CAmount> > vecSend;
-        CScript scriptPubKey = GetScriptForDestination(it->first.Get());
+        CScript scriptPubKey = GetScriptForDestination(it->first);
         vecSend.push_back(std::make_pair(scriptPubKey, nTotalRewardsValue));
 
         //Send change to same address
@@ -4077,10 +3885,10 @@ void CWallet::AutoCombineDust()
     }
 }
 
-    void CWallet::MarkPreSplitKeys()
-    {
-        m_spk_man->MarkPreSplitKeys();
-    }
+void CWallet::MarkPreSplitKeys()
+{
+    m_spk_man->MarkPreSplitKeys();
+}
 
 bool CWallet::MultiSend()
 {
@@ -4123,7 +3931,7 @@ bool CWallet::MultiSend()
         //Disabled Addresses won't send MultiSend transactions
         if (vDisabledAddresses.size() > 0) {
             for (unsigned int i = 0; i < vDisabledAddresses.size(); i++) {
-                if (vDisabledAddresses[i] == CBitcoinAddress(destMyAddress).ToString()) {
+                if (vDisabledAddresses[i] == EncodeDestination(destMyAddress)) {
                     LogPrintf("Multisend: disabled address preventing multisend\n");
                     return false;
                 }
@@ -4147,9 +3955,14 @@ bool CWallet::MultiSend()
         for (unsigned int i = 0; i < vMultiSend.size(); i++) {
             // MultiSend vector is a pair of 1)Address as a std::string 2) Percent of stake to send as an int
             nAmount = ((out.tx->GetCredit(filter) - out.tx->GetDebit(filter)) * vMultiSend[i].second) / 100;
-            CBitcoinAddress strAddSend(vMultiSend[i].first);
+
+            bool isStaking = false;
+            CTxDestination strAddSend =
+                DecodeDestination(vMultiSend[i].first, isStaking);
+
             CScript scriptPubKey;
-            scriptPubKey = GetScriptForDestination(strAddSend.Get());
+            scriptPubKey = GetScriptForDestination(strAddSend);
+
             vecSend.push_back(std::make_pair(scriptPubKey, nAmount));
         }
 
@@ -4201,7 +4014,7 @@ bool CWallet::MultiSend()
     return true;
 }
 
-CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const std::vector<std::string>& words)
+CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const fs::path& walletPath, const std::vector<std::string>& words)
 {
     // Needed to restore wallet transaction metadata after -zapwallettxes.
     std::vector<CWalletTx> vWtx;
@@ -4209,19 +4022,10 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const std:
     if (gArgs.GetBoolArg("-zapwallettxes", false)) {
         uiInterface.InitMessage(_("Zapping all transactions from wallet..."));
 
-        std::string databaseFilename;
-        BerkeleyEnvironment* env =
-            GetWalletEnv(walletFile, databaseFilename);
-
-        std::unique_ptr<WalletDatabase> tempDatabase(
-            new BerkeleyDatabase(
-                env,
-                databaseFilename));
-
         CWallet* tempWallet =
             new CWallet(
                 walletFile,
-                std::move(tempDatabase));
+                WalletDatabase::Create(walletPath));
 
         const DBErrors nZapWalletRet = tempWallet->ZapWalletTx(vWtx);
         if (nZapWalletRet != DB_LOAD_OK) {
@@ -4239,19 +4043,10 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const std:
     const int64_t nStart = GetTimeMillis();
     bool fFirstRun = true;
 
-    std::string databaseFilename;
-    BerkeleyEnvironment* env =
-        GetWalletEnv(walletFile, databaseFilename);
-
-    std::unique_ptr<WalletDatabase> walletDatabase(
-        new BerkeleyDatabase(
-            env,
-            databaseFilename));
-
     CWallet* walletInstance =
         new CWallet(
             walletFile,
-            std::move(walletDatabase));
+            WalletDatabase::Create(walletPath));
 
     const DBErrors nLoadWalletRet = walletInstance->LoadWallet(fFirstRun);
 
@@ -4404,26 +4199,6 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const std:
 
     fVerifyingBlocks = false;
     return walletInstance;
-}
-
-bool CWallet::InitLoadWallet(const std::vector<std::string>& words)
-{
-    if (gArgs.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET)) {
-        pwalletMain = nullptr;
-        LogPrintf("Wallet disabled!\n");
-        return true;
-    }
-
-    std::string walletFile = gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);
-
-    CWallet * const pwallet = CreateWalletFromFile(walletFile, words);
-    if (!pwallet) {
-        return false;
-    }
-
-    pwalletMain = pwallet;
-
-    return true;
 }
 
 void CWallet::Flush(bool shutdown)

@@ -6,24 +6,22 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "wallet/walletdb.h"
-
-#include "base58.h"
 #include "fs.h"
+#include "key_io.h"
 #include "protocol.h"
 #include "reverse_iterate.h"
 #include "serialize.h"
+#include "stubs/legacy_zerocoin_types.h"
 #include "sync.h"
 #include "txdb.h"
+#include "uint256.h"
 #include "util.h"
 #include "util/string.h"
 #include "util/system.h"
 #include "utiltime.h"
 #include "wallet/wallet.h"
+#include "wallet/walletdb.h"
 #include "wallet/walletutil.h"
-
-#include "stubs/legacy_zerocoin_types.h"
-#include "uint256.h"
 
 #include <algorithm>
 #include <atomic>
@@ -467,11 +465,11 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
         if (strType == "name") {
             std::string strAddress;
             ssKey >> strAddress;
-            ssValue >> pwallet->mapAddressBook[CBitcoinAddress(strAddress).Get()].name;
+            ssValue >> pwallet->mapAddressBook[DecodeDestination(strAddress)].name;
         } else if (strType == "purpose") {
             std::string strAddress;
             ssKey >> strAddress;
-            ssValue >> pwallet->mapAddressBook[CBitcoinAddress(strAddress).Get()].purpose;
+            ssValue >> pwallet->mapAddressBook[DecodeDestination(strAddress)].purpose;
         } else if (strType == "tx") {
             uint256 hash;
             ssKey >> hash;
@@ -675,7 +673,7 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             ssKey >> i;
             std::pair<std::string, int> pMultiSend;
             ssValue >> pMultiSend;
-            if (CBitcoinAddress(pMultiSend.first).IsValid()) {
+            if (IsValidDestination(DecodeDestination(pMultiSend.first))) {
                 pwallet->vMultiSend.push_back(pMultiSend);
             }
         } else if (strType == "msettingsv2") //presstab HyperStake
@@ -700,7 +698,7 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             ssKey >> strAddress;
             ssKey >> strKey;
             ssValue >> strValue;
-            if (!pwallet->LoadDestData(CBitcoinAddress(strAddress).Get(), strKey, strValue)) {
+            if (!pwallet->LoadDestData(DecodeDestination(strAddress), strKey, strValue)) {
                 strErr = "Error reading wallet database: LoadDestData failed";
                 return false;
             }
@@ -1187,6 +1185,31 @@ bool WalletBatch::WriteDestData(const std::string& address, const std::string& k
 bool WalletBatch::EraseDestData(const std::string& address, const std::string& key)
 {
     return EraseIC(std::make_pair(std::string("destdata"), std::make_pair(address, key)));
+}
+
+bool WalletBatch::TxnBegin()
+{
+    return m_batch.TxnBegin();
+}
+
+bool WalletBatch::TxnCommit()
+{
+    return m_batch.TxnCommit();
+}
+
+bool WalletBatch::TxnAbort()
+{
+    return m_batch.TxnAbort();
+}
+
+bool WalletBatch::ReadVersion(int& nVersion)
+{
+    return m_batch.ReadVersion(nVersion);
+}
+
+bool WalletBatch::WriteVersion(int nVersion)
+{
+    return m_batch.WriteVersion(nVersion);
 }
 
 bool WalletBatch::WriteHDChain(const CHDChain& chain)

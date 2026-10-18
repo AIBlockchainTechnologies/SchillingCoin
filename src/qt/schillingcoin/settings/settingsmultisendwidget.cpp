@@ -1,17 +1,17 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "qt/schillingcoin/settings/settingsmultisendwidget.h"
-#include "qt/schillingcoin/settings/forms/ui_settingsmultisendwidget.h"
-#include "qt/schillingcoin/settings/settingsmultisenddialog.h"
 #include "qt/schillingcoin/qtutils.h"
+#include "qt/schillingcoin/settings/forms/ui_settingsmultisendwidget.h"
+#include "qt/schillingcoin/settings/settingsmultisendwidget.h"
+#include "qt/schillingcoin/settings/settingsmultisenddialog.h"
+
 #include "addresstablemodel.h"
-#include "base58.h"
 #include "init.h"
+#include "key_io.h"
 #include "walletmodel.h"
 #include "wallet/wallet.h"
-
 
 #define DECORATION_SIZE 65
 #define NUM_ITEMS 3
@@ -232,7 +232,7 @@ void SettingsMultisendWidget::clearAll(){
     std::vector<std::pair<std::string, int> > vMultiSendTemp = pwalletMain->vMultiSend;
     bool fRemoved = true;
     pwalletMain->vMultiSend.clear();
-    CWalletDB walletdb(pwalletMain->strWalletFile);
+    WalletBatch walletdb(pwalletMain->GetDBHandle());
     if (!walletdb.EraseMultiSend(vMultiSendTemp))
         fRemoved = false;
     if (!walletdb.WriteMultiSend(pwalletMain->vMultiSend))
@@ -272,7 +272,9 @@ void SettingsMultisendWidget::onAddRecipientClicked() {
 
 void SettingsMultisendWidget::addMultiSend(QString address, int percentage, QString addressLabel){
     std::string strAddress = address.toStdString();
-    if (!CBitcoinAddress(strAddress).IsValid()) {
+    CTxDestination dest = DecodeDestination(strAddress);
+
+    if (!IsValidDestination(dest)) {
         inform(tr("The entered address: %1 is invalid.\nPlease check the address and try again.").arg(address));
         return;
     }
@@ -289,6 +291,7 @@ void SettingsMultisendWidget::addMultiSend(QString address, int percentage, QStr
         inform(tr("The total amount of your MultiSend vector is over 100% of your stake reward"));
         return;
     }
+
     std::pair<std::string, int> pMultiSend;
     pMultiSend.first = strAddress;
     pMultiSend.second = nMultiSendPercent;
@@ -296,13 +299,14 @@ void SettingsMultisendWidget::addMultiSend(QString address, int percentage, QStr
 
     if (walletModel && walletModel->getAddressTableModel()) {
         // update the address book with the label given or no label if none was given.
-        CBitcoinAddress address(strAddress);
         std::string userInputLabel = addressLabel.toStdString();
-        walletModel->updateAddressBookLabels(address.Get(), (userInputLabel.empty()) ? "(no label)" : userInputLabel,
+        walletModel->updateAddressBookLabels(
+                dest,
+                (userInputLabel.empty()) ? "(no label)" : userInputLabel,
                 AddressBook::AddressBookPurpose::SEND);
     }
 
-    CWalletDB walletdb(pwalletMain->strWalletFile);
+    WalletBatch walletdb(pwalletMain->GetDBHandle());
     if(!walletdb.WriteMultiSend(pwalletMain->vMultiSend)) {
         inform(tr("Error saving  MultiSend, failed saving properties to the database."));
         return;
@@ -321,11 +325,11 @@ void SettingsMultisendWidget::activate(){
         strRet = tr("Unable to activate MultiSend, no available recipients");
     else if (!(ui->checkBoxStake->isChecked() || ui->checkBoxRewards->isChecked())) {
         strRet = tr("Unable to activate MultiSend\nCheck one or both of the check boxes to send on stake and/or masternode rewards");
-    } else if (CBitcoinAddress(pwalletMain->vMultiSend[0].first).IsValid()) {
+    } else if (IsValidDestinationString(pwalletMain->vMultiSend[0].first)) {
         pwalletMain->fMultiSendStake = ui->checkBoxStake->isChecked();
         pwalletMain->fMultiSendMasternodeReward = ui->checkBoxRewards->isChecked();
 
-        CWalletDB walletdb(pwalletMain->strWalletFile);
+        WalletBatch walletdb(pwalletMain->GetDBHandle());
         if (!walletdb.WriteMSettings(pwalletMain->fMultiSendStake, pwalletMain->fMultiSendMasternodeReward, pwalletMain->nLastMultiSendHeight))
             strRet = tr("MultiSend activated but writing settings to DB failed");
         else
@@ -340,7 +344,7 @@ void SettingsMultisendWidget::deactivate(){
     if(pwalletMain->isMultiSendEnabled()) {
         QString strRet;
         pwalletMain->setMultiSendDisabled();
-        CWalletDB walletdb(pwalletMain->strWalletFile);
+        WalletBatch walletdb(pwalletMain->GetDBHandle());
         inform(!walletdb.WriteMSettings(false, false, pwalletMain->nLastMultiSendHeight) ?
                tr("MultiSend deactivated but writing settings to DB failed") :
                tr("MultiSend deactivated")

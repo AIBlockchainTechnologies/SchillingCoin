@@ -5,18 +5,18 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "core_io.h"
-
-#include "base58.h"
+#include "key_io.h"
 #include "primitives/transaction.h"
 #include "script/script.h"
 #include "script/standard.h"
 #include "serialize.h"
 #include "streams.h"
-#include <univalue.h>
 #include "util.h"
 #include "util/system.h"
 #include "utilmoneystr.h"
 #include "utilstrencodings.h"
+
+#include <univalue.h>
 
 #include <boost/assign/list_of.hpp>
 
@@ -123,9 +123,7 @@ std::string EncodeHexTx(const CTransaction& tx)
     return HexStr(ssTx.begin(), ssTx.end());
 }
 
-void ScriptPubKeyToUniv(const CScript& scriptPubKey,
-    UniValue& out,
-    bool fIncludeHex)
+void ScriptPubKeyToUniv(const CScript& scriptPubKey, UniValue& out, bool fIncludeHex)
 {
     txnouttype type;
     std::vector<CTxDestination> addresses;
@@ -146,11 +144,11 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey,
 
     UniValue a(UniValue::VARR);
     if (type == TX_COLDSTAKE && addresses.size() == 2) {
-        a.push_back(CBitcoinAddress(addresses[0], CChainParams::STAKING_ADDRESS).ToString());
-        a.push_back(CBitcoinAddress(addresses[1], CChainParams::PUBKEY_ADDRESS).ToString());
+        a.push_back(EncodeDestination(addresses[0], CChainParams::STAKING_ADDRESS));
+        a.push_back(EncodeDestination(addresses[1], CChainParams::PUBKEY_ADDRESS));
     } else {
         for (const CTxDestination& addr : addresses)
-            a.push_back(CBitcoinAddress(addr).ToString());
+            a.push_back(EncodeDestination(addr));
     }
     out.pushKV("addresses", a);
 }

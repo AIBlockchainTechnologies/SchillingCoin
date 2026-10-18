@@ -1,6 +1,6 @@
 // Copyright (c) 2012-2014 The Bitcoin Core developers
 // Copyright (c) 2018-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -18,7 +18,7 @@ extern CWallet* pwalletMain;
 BOOST_FIXTURE_TEST_SUITE(accounting_tests, TestingSetup)
 
 static void
-GetResults(CWalletDB& walletdb, std::map<CAmount, CAccountingEntry>& results)
+GetResults(WalletBatch& walletdb, std::map<CAmount, CAccountingEntry>& results)
 {
     std::list<CAccountingEntry> aes;
 
@@ -33,7 +33,7 @@ GetResults(CWalletDB& walletdb, std::map<CAmount, CAccountingEntry>& results)
 
 BOOST_AUTO_TEST_CASE(acc_orderupgrade)
 {
-    CWalletDB walletdb(pwalletMain->strWalletFile);
+    WalletBatch walletdb(pwalletMain->GetDBHandle());
     std::vector<CWalletTx*> vpwtx;
     CWalletTx wtx;
     CAccountingEntry ae;

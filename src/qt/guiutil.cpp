@@ -13,6 +13,7 @@
 #include "walletmodel.h"
 
 #include "init.h"
+#include "key_io.h"
 #include "main.h"
 #include "primitives/transaction.h"
 #include "protocol.h"
@@ -262,7 +263,8 @@ QString formatBitcoinURI(const SendCoinsRecipient& info)
 
 bool isDust(const QString& address, const CAmount& amount)
 {
-    CTxDestination dest = CBitcoinAddress(address.toStdString()).Get();
+    bool isStaking = false;
+    CTxDestination dest = DecodeDestination(address.toStdString(), isStaking);
     CScript script = GetScriptForDestination(dest);
     CTxOut txOut(amount, script);
     return txOut.IsDust(::minRelayTxFee);

@@ -451,7 +451,7 @@ void OptionsModel::setDisplayUnit(const QVariant& value)
 void OptionsModel::setStakeSplitThreshold(const CAmount nStakeSplitThreshold)
 {
     if (pwalletMain && pwalletMain->nStakeSplitThreshold != nStakeSplitThreshold) {
-        CWalletDB walletdb(pwalletMain->strWalletFile);
+        WalletBatch walletdb(pwalletMain->GetDBHandle());
         LOCK(pwalletMain->cs_wallet);
         {
             pwalletMain->nStakeSplitThreshold = nStakeSplitThreshold;
@@ -460,7 +460,6 @@ void OptionsModel::setStakeSplitThreshold(const CAmount nStakeSplitThreshold)
         }
     }
 }
-
 
 bool OptionsModel::getProxySettings(QNetworkProxy& proxy) const
 {

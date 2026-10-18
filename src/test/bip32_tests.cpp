@@ -8,6 +8,7 @@
 
 #include "base58.h"
 #include "key.h"
+#include "key_io.h"
 #include "util.h"
 #include "test/test_schillingcoin.h"
 #include "uint256.h"
@@ -138,24 +139,20 @@ void RunTest(const TestVector& test)
         BOOST_CHECK(expectedPubPayload == actualPubPayload);
 
         // Verify SCH extended private-key Base58 encoding and decoding.
-        CBitcoinExtKey schExtKey;
-        schExtKey.SetKey(key);
+        const std::string schEncodedPriv =
+            KeyIO::EncodeExtKey(key);
 
-        const std::string schEncodedPriv = schExtKey.ToString();
-
-        CBitcoinExtKey schDecodedExtKey(schEncodedPriv);
-        CExtKey decodedPrivKey = schDecodedExtKey.GetKey();
+        const CExtKey decodedPrivKey =
+            KeyIO::DecodeExtKey(schEncodedPriv);
 
         BOOST_CHECK(decodedPrivKey == key);
 
         // Verify SCH extended public-key Base58 encoding and decoding.
-        CBitcoinExtPubKey schExtPubKey;
-        schExtPubKey.SetKey(pubkey);
+        const std::string schEncodedPub =
+            KeyIO::EncodeExtPubKey(pubkey);
 
-        const std::string schEncodedPub = schExtPubKey.ToString();
-
-        CBitcoinExtPubKey schDecodedExtPubKey(schEncodedPub);
-        CExtPubKey decodedPubKey = schDecodedExtPubKey.GetKey();
+        const CExtPubKey decodedPubKey =
+            KeyIO::DecodeExtPubKey(schEncodedPub);
 
         BOOST_CHECK(decodedPubKey == pubkey);
 

@@ -225,6 +225,7 @@ std::string get_filesystem_error_message(
         std::codecvt_utf8_utf16<wchar_t>,
         wchar_t
     >().to_bytes(utf16_string);
+#endif
 }
 
 #if defined WIN32 && defined __GLIBCXX__

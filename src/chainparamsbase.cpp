@@ -1,7 +1,7 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2016-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -81,9 +81,25 @@ CBaseChainParams& BaseParams(CBaseChainParams::Network network)
     }
 }
 
+std::string NetworkIdString(CBaseChainParams::Network network)
+{
+    switch (network) {
+    case CBaseChainParams::MAIN:
+        return "main";
+    case CBaseChainParams::TESTNET:
+        return "test";
+    case CBaseChainParams::REGTEST:
+        return "regtest";
+    default:
+        assert(false && "Unimplemented network");
+        return "main";
+    }
+}
+
 void SelectBaseParams(CBaseChainParams::Network network)
 {
     pCurrentBaseParams = &BaseParams(network);
+    gArgs.SelectConfigNetwork(NetworkIdString(network));
 }
 
 CBaseChainParams::Network NetworkIdFromCommandLine()

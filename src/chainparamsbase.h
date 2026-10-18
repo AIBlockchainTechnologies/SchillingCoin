@@ -47,6 +47,11 @@ const CBaseChainParams& BaseParams();
  */
 CBaseChainParams& BaseParams(CBaseChainParams::Network network);
 
+/**
+ * Return the configuration-section identifier for the given network.
+ */
+std::string NetworkIdString(CBaseChainParams::Network network);
+
 /** Sets the params returned by Params() to those for the given network. */
 void SelectBaseParams(CBaseChainParams::Network network);
 

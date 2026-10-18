@@ -5,12 +5,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "transactionrecord.h"
-
-#include "base58.h"
-#include "timedata.h"
-#include "wallet/wallet.h"
+#include "key_io.h"
 #include "main.h"
+#include "timedata.h"
+#include "transactionrecord.h"
+#include "wallet/wallet.h"
 
 #include <algorithm>
 #include <stdint.h>
@@ -20,9 +19,7 @@
  * Decompose a wallet transaction into individual TransactionRecord entries
  * for use by the Qt transaction model.
  */
-std::vector<TransactionRecord> TransactionRecord::decomposeTransaction(
-        const CWallet* wallet,
-        const CWalletTx& wtx)
+std::vector<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet* wallet, const CWalletTx& wtx)
 {
     std::vector<TransactionRecord> parts;
     parts.reserve(4);
@@ -54,7 +51,7 @@ std::vector<TransactionRecord> TransactionRecord::decomposeTransaction(
                 // Regular SCH stake reward
                 sub.involvesWatchAddress = (mine & ISMINE_WATCH_ONLY);
                 sub.type    = TransactionRecord::StakeMint;
-                sub.address = CBitcoinAddress(address).ToString();
+                sub.address = EncodeDestination(address);
                 sub.credit  = nNet;
             }
         } else {
@@ -67,7 +64,7 @@ std::vector<TransactionRecord> TransactionRecord::decomposeTransaction(
                 isminetype mineMN = wallet->IsMine(wtx.vout[nIndexMN]);
                 sub.involvesWatchAddress = (mineMN & ISMINE_WATCH_ONLY);
                 sub.type    = TransactionRecord::MNReward;
-                sub.address = CBitcoinAddress(destMN).ToString();
+                sub.address = EncodeDestination(destMN);
                 sub.credit  = wtx.vout[nIndexMN].nValue;
             }
         }
@@ -109,7 +106,7 @@ std::vector<TransactionRecord> TransactionRecord::decomposeTransaction(
             {
                 // Received to a standard SCH address
                 sub.type    = TransactionRecord::RecvWithAddress;
-                sub.address = CBitcoinAddress(address).ToString();
+                sub.address = EncodeDestination(address);
             } else {
                 // Received via non-standard means (IP, multisig, etc.)
                 sub.type    = TransactionRecord::RecvFromOther;
@@ -160,7 +157,7 @@ std::vector<TransactionRecord> TransactionRecord::decomposeTransaction(
 
             CTxDestination address;
             if (ExtractDestination(wtx.vout[0].scriptPubKey, address))
-                sub.address = CBitcoinAddress(address).ToString();
+                sub.address = EncodeDestination(address);
 
             const CAmount nChange = wtx.GetChange();
             sub.debit  = -(nDebit - nChange);
@@ -187,7 +184,7 @@ std::vector<TransactionRecord> TransactionRecord::decomposeTransaction(
                 CTxDestination address;
                 if (ExtractDestination(txout.scriptPubKey, address)) {
                     sub.type    = TransactionRecord::SendToAddress;
-                    sub.address = CBitcoinAddress(address).ToString();
+                    sub.address = EncodeDestination(address);
                 } else {
                     sub.type    = TransactionRecord::SendToOther;
                     auto itTo   = mapValue.find("to");
@@ -260,11 +257,7 @@ void TransactionRecord::loadUnlockColdStake(
     ExtractAddress(*p2csScript, false, record.address);
 }
 
-void TransactionRecord::loadHotOrColdStakeOrContract(
-        const CWallet* wallet,
-        const CWalletTx& wtx,
-        TransactionRecord& record,
-        bool isContract)
+void TransactionRecord::loadHotOrColdStakeOrContract(const CWallet* wallet, const CWalletTx& wtx, TransactionRecord& record, bool isContract)
 {
     record.involvesWatchAddress = false;
 
@@ -316,10 +309,7 @@ bool TransactionRecord::ExtractAddress(const CScript& scriptPubKey, bool fColdSt
         addressStr = "No available address";
         return false;
     } else {
-        addressStr = CBitcoinAddress(
-                address,
-                (fColdStake ? CChainParams::STAKING_ADDRESS : CChainParams::PUBKEY_ADDRESS)
-        ).ToString();
+        addressStr = EncodeDestination(address, fColdStake);
         return true;
     }
 }

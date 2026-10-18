@@ -7,10 +7,10 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "amount.h"
-#include "base58.h"
 #include "chainparams.h"
 #include "core_io.h"
 #include "init.h"
+#include "key_io.h"
 #include "main.h"
 #include "miner.h"
 #include "net.h"
@@ -621,10 +621,9 @@ UniValue getblocktemplate(const JSONRPCRequest& request)
     result.push_back(Pair("height", (int64_t)(pindexPrev->nHeight + 1)));
 
     if (pblock->payee != CScript()) {
-        CTxDestination address1;
-        ExtractDestination(pblock->payee, address1);
-        CBitcoinAddress address2(address1);
-        result.push_back(Pair("payee", address2.ToString().c_str()));
+        CTxDestination address;
+        ExtractDestination(pblock->payee, address);
+        result.push_back(Pair("payee", EncodeDestination(address)));
         result.push_back(Pair("payee_amount", (int64_t)pblock->vtx[0].vout[1].nValue));
     } else {
         result.push_back(Pair("payee", ""));

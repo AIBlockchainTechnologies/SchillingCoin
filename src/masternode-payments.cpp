@@ -4,18 +4,18 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "masternode-payments.h"
+#include "activemasternode.h"
 #include "addrman.h"
 #include "chainparams.h"
+#include "key_io.h"
+#include "masternode-payments.h"
 #include "masternode-sync.h"
 #include "masternodeman.h"
 #include "sync.h"
 #include "util.h"
 #include "util/system.h"
 #include "utilmoneystr.h"
-
 #include "version.h"
-#include "activemasternode.h"
 
 #include <boost/filesystem.hpp>
 
@@ -331,9 +331,11 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
                     unsigned int outputs = i-1;
                     CAmount mnPaymentSplit = masternodePayment / outputs;
                     CAmount mnPaymentRemainder = masternodePayment - (mnPaymentSplit * outputs);
+
                     for (unsigned int j = 1; j <= outputs; j++) {
                         txNew.vout[j].nValue -= mnPaymentSplit;
                     }
+
                     // in case it's not an even division, take the last bit of dust from the last one
                     txNew.vout[outputs].nValue -= mnPaymentRemainder;
                 }
@@ -345,11 +347,16 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
             txNew.vout[0].nValue = blockValue - masternodePayment;
         }
 
-        CTxDestination address1;
-        ExtractDestination(payee, address1);
-        CBitcoinAddress address2(address1);
+        CTxDestination address;
+        ExtractDestination(payee, address);
 
-        LogPrint(BCLog::MNPAYMENTS,"Masternode payment of %s to %s\n", FormatMoney(masternodePayment).c_str(), address2.ToString().c_str());
+        const std::string strPayee = EncodeDestination(address);
+
+        LogPrint(
+            BCLog::MNPAYMENTS,
+            "Masternode payment of %s to %s\n",
+            FormatMoney(masternodePayment).c_str(),
+            strPayee.c_str());
     }
 }
 
@@ -435,11 +442,12 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
             return;
         }
 
-        CTxDestination address1;
-        ExtractDestination(winner.payee, address1);
-        CBitcoinAddress address2(address1);
+        CTxDestination address;
+        ExtractDestination(winner.payee, address);
 
-        //   LogPrint(BCLog::MNPAYMENTS, "mnw - winning vote - Addr %s Height %d bestHeight %d - %s\n", address2.ToString().c_str(), winner.nBlockHeight, nHeight, winner.vinMasternode.prevout.ToStringShort());
+        const std::string strAddress = EncodeDestination(address);
+
+        //   LogPrint(BCLog::MNPAYMENTS, "mnw - winning vote - Addr %s Height %d bestHeight %d - %s\n", strAddress.c_str(), winner.nBlockHeight, nHeight, winner.vinMasternode.prevout.ToStringShort());
 
         if (masternodePayments.AddWinningMasternode(winner)) {
             winner.Relay();
@@ -542,6 +550,7 @@ bool CMasternodeBlockPayees::IsTransactionValid(const CTransaction& txNew)
 
     for (CMasternodePayee& payee : vecPayments) {
         bool found = false;
+
         for (CTxOut out : txNew.vout) {
             if (payee.scriptPubKey == out.scriptPubKey) {
                 if (out.nValue == requiredMasternodePayment)
@@ -555,19 +564,23 @@ bool CMasternodeBlockPayees::IsTransactionValid(const CTransaction& txNew)
         if (payee.nVotes >= MNPAYMENTS_SIGNATURES_REQUIRED) {
             if (found) return true;
 
-            CTxDestination address1;
-            ExtractDestination(payee.scriptPubKey, address1);
-            CBitcoinAddress address2(address1);
+            CTxDestination address;
+            ExtractDestination(payee.scriptPubKey, address);
 
-            if (strPayeesPossible == "") {
-                strPayeesPossible += address2.ToString();
+            const std::string strAddress = EncodeDestination(address);
+
+            if (strPayeesPossible.empty()) {
+                strPayeesPossible += strAddress;
             } else {
-                strPayeesPossible += "," + address2.ToString();
+                strPayeesPossible += "," + strAddress;
             }
         }
     }
 
-    LogPrint(BCLog::MNPAYMENTS,"CMasternodePayments::IsTransactionValid - Missing required payment of %s to %s\n", FormatMoney(requiredMasternodePayment).c_str(), strPayeesPossible.c_str());
+    LogPrint(BCLog::MNPAYMENTS,"CMasternodePayments::IsTransactionValid - Missing required payment of %s to %s\n",
+             FormatMoney(requiredMasternodePayment).c_str(),
+             strPayeesPossible.c_str());
+
     return false;
 }
 
@@ -578,14 +591,15 @@ std::string CMasternodeBlockPayees::GetRequiredPaymentsString()
     std::string ret = "Unknown";
 
     for (CMasternodePayee& payee : vecPayments) {
-        CTxDestination address1;
-        ExtractDestination(payee.scriptPubKey, address1);
-        CBitcoinAddress address2(address1);
+        CTxDestination address;
+        ExtractDestination(payee.scriptPubKey, address);
+
+        const std::string strAddress = EncodeDestination(address);
 
         if (ret != "Unknown") {
-            ret += ", " + address2.ToString() + ":" + std::to_string(payee.nVotes);
+            ret += ", " + strAddress + ":" + std::to_string(payee.nVotes);
         } else {
-            ret = address2.ToString() + ":" + std::to_string(payee.nVotes);
+            ret = strAddress + ":" + std::to_string(payee.nVotes);
         }
     }
 
@@ -693,13 +707,14 @@ bool CMasternodePayments::ProcessBlock(int nBlockHeight)
             GetScriptForDestination(pmn->pubKeyCollateralAddress.GetID());
         newWinner.AddPayee(payee);
 
-        CTxDestination address1;
-        ExtractDestination(payee, address1);
-        CBitcoinAddress address2(address1);
+        CTxDestination address;
+        ExtractDestination(payee, address);
+
+        const std::string strAddress = EncodeDestination(address);
 
         LogPrint(BCLog::MNPAYMENTS,
                  "CMasternodePayments::ProcessBlock() Winner payee %s nHeight %d. \n",
-                 address2.ToString().c_str(),
+                 strAddress.c_str(),
                  newWinner.nBlockHeight);
     } else {
         LogPrint(BCLog::MNPAYMENTS,

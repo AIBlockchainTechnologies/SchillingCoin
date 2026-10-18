@@ -10,6 +10,7 @@
 
 #include "allocators.h"
 #include "serialize.h"
+#include "support/allocators/zeroafterfree.h"
 
 #include <algorithm>
 #include <assert.h>

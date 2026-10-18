@@ -11,12 +11,14 @@
 #include "qt/schillingcoin/sendconfirmdialog.h"
 #include "qt/schillingcoin/myaddressrow.h"
 #include "qt/schillingcoin/guitransactionsutils.h"
-#include "clientmodel.h"
-#include "optionsmodel.h"
+
 #include "addresstablemodel.h"
+#include "clientmodel.h"
 #include "coincontrol.h"
-#include "script/standard.h"
+#include "key_io.h"
 #include "openuridialog.h"
+#include "optionsmodel.h"
+#include "script/standard.h"
 
 SendWidget::SendWidget(SchillingCoinGUI* parent) :
     PWidget(parent),
@@ -372,7 +374,7 @@ void SendWidget::updateEntryLabels(const std::vector<SendCoinsRecipient>& recipi
         if(!label.isNull()) {
             QString labelOld = walletModel->getAddressTableModel()->labelForAddress(rec.address);
             if(label.compare(labelOld) != 0) {
-                CTxDestination dest = CBitcoinAddress(rec.address.toStdString()).Get();
+                CTxDestination dest = DecodeDestination(rec.address.toStdString());
                 if (!walletModel->updateAddressBookLabels(dest, label.toStdString(),
                                                           this->walletModel->isMine(dest) ?
                                                                   AddressBook::AddressBookPurpose::RECEIVE :
@@ -390,13 +392,13 @@ void SendWidget::onChangeAddressClicked(){
     showHideOp(true);
     SendChangeAddressDialog* dialog = new SendChangeAddressDialog(window);
     if(!boost::get<CNoDestination>(&CoinControlDialog::coinControl->destChange)){
-        dialog->setAddress(QString::fromStdString(CBitcoinAddress(CoinControlDialog::coinControl->destChange).ToString()));
+        dialog->setAddress(QString::fromStdString(EncodeDestination(CoinControlDialog::coinControl->destChange)));
     }
     if(openDialogWithOpaqueBackgroundY(dialog, window, 3, 5)) {
         if(dialog->selected) {
             QString ret;
             if (dialog->getAddress(walletModel, &ret)) {
-                CoinControlDialog::coinControl->destChange = CBitcoinAddress(ret.toStdString()).Get();
+                CoinControlDialog::coinControl->destChange = DecodeDestination(ret.toStdString());
                 ui->btnChangeAddress->setActive(true);
             }else{
                 inform(tr("Invalid change address"));
@@ -574,8 +576,8 @@ void SendWidget::onContactMultiClicked(){
             inform(tr("Invalid address"));
             return;
         }
-        CBitcoinAddress schAdd = CBitcoinAddress(address.toStdString());
-        if (walletModel->isMine(schAdd)) {
+        CTxDestination destination = DecodeDestination(address.toStdString());
+        if (walletModel->isMine(destination)) {
             inform(tr("Cannot store your own address as contact"));
             return;
         }
@@ -595,7 +597,7 @@ void SendWidget::onContactMultiClicked(){
             if (label == dialog->getLabel()) {
                 return;
             }
-            if (walletModel->updateAddressBookLabels(schAdd.Get(), dialog->getLabel().toStdString(),
+            if (walletModel->updateAddressBookLabels(destination, dialog->getLabel().toStdString(),
                     AddressBook::AddressBookPurpose::SEND)) {
                 inform(tr("New Contact Stored"));
             } else {

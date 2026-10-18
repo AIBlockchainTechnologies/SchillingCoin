@@ -6,6 +6,7 @@
 #include "base58.h"
 #include "data/bip39_vectors.json.h"
 #include "key.h"
+#include "key_io.h"
 #include "test/test_schillingcoin.h"
 #include "utilstrencodings.h"
 #include "wallet/bip39.h"
@@ -118,17 +119,11 @@ BOOST_AUTO_TEST_CASE(bip39_vectors)
         BOOST_CHECK(expectedPayload == actualPayload);
 
         // Verify SCH extended private-key Base58 encoding and decoding.
-        CBitcoinExtKey schExtendedKey;
-        schExtendedKey.SetKey(masterKey);
-
         const std::string schEncodedKey =
-            schExtendedKey.ToString();
-
-        CBitcoinExtKey schDecodedExtendedKey(
-            schEncodedKey);
+            KeyIO::EncodeExtKey(masterKey);
 
         const CExtKey decodedMasterKey =
-            schDecodedExtendedKey.GetKey();
+            KeyIO::DecodeExtKey(schEncodedKey);
 
         BOOST_CHECK(decodedMasterKey == masterKey);
     }

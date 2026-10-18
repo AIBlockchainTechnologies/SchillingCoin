@@ -5,12 +5,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "paymentserver.h"
-
-#include "base58.h"
 #include "chainparams.h"
 #include "guiinterface.h"
 #include "guiutil.h"
+#include "key_io.h"
+#include "paymentserver.h"
 #include "util.h"
 #include "util/system.h"
 
@@ -57,11 +56,17 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
 
         SendCoinsRecipient recipient;
         if (GUIUtil::parseBitcoinURI(argument, &recipient) && !recipient.address.isEmpty()) {
-            const CBitcoinAddress address(recipient.address.toStdString());
+            const std::string address = recipient.address.toStdString();
 
-            if (address.IsValid(Params(CBaseChainParams::MAIN))) {
+            if (IsValidDestinationString(
+                    address,
+                    false,
+                    Params(CBaseChainParams::MAIN))) {
                 SelectParams(CBaseChainParams::MAIN);
-            } else if (address.IsValid(Params(CBaseChainParams::TESTNET))) {
+            } else if (IsValidDestinationString(
+                           address,
+                           false,
+                           Params(CBaseChainParams::TESTNET))) {
                 SelectParams(CBaseChainParams::TESTNET);
             }
         }
@@ -178,8 +183,10 @@ void PaymentServer::handleURIOrFile(const QString& value)
         return;
     }
 
-    const CBitcoinAddress address(recipient.address.toStdString());
-    if (!address.IsValid()) {
+    bool isStaking = false;
+    CTxDestination destination = DecodeDestination(recipient.address.toStdString(), isStaking);
+
+    if (!IsValidDestination(destination)) {
         Q_EMIT message(tr("URI handling"),
                        tr("Invalid payment address %1").arg(recipient.address),
                        CClientUIInterface::MSG_ERROR);

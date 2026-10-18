@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,6 +11,7 @@
 #include "qt/schillingcoin/addnewcontactdialog.h"
 #include "qt/schillingcoin/schillingcoingui.h"
 #include "guiutil.h"
+#include "key_io.h"
 #include "qt/schillingcoin/qtutils.h"
 #include "walletmodel.h"
 
@@ -191,8 +192,9 @@ void AddressesWidget::onStoreContactClicked(){
             return;
         }
 
-        CBitcoinAddress schAdd = CBitcoinAddress(address.toUtf8().constData());
-        if (walletModel->isMine(schAdd)) {
+        bool isStaking = false;
+        CTxDestination destination = DecodeDestination(address.toStdString(), isStaking);
+        if (walletModel->isMine(destination)) {
             setCssEditLine(ui->lineEditAddress, false, true);
             inform(tr("Cannot store your own address as contact"));
             return;
@@ -205,8 +207,8 @@ void AddressesWidget::onStoreContactClicked(){
             return;
         }
 
-        if (walletModel->updateAddressBookLabels(schAdd.Get(), label.toUtf8().constData(),
-                schAdd.IsStakingAddress() ? AddressBook::AddressBookPurpose::COLD_STAKING_SEND : AddressBook::AddressBookPurpose::SEND)
+        if (walletModel->updateAddressBookLabels(destination, label.toUtf8().constData(),
+                isStaking ? AddressBook::AddressBookPurpose::COLD_STAKING_SEND : AddressBook::AddressBookPurpose::SEND)
                 ) {
             ui->lineEditAddress->setText("");
             ui->lineEditName->setText("");
@@ -232,7 +234,7 @@ void AddressesWidget::onEditClicked(){
     dialog->setData(address, currentLabel);
     if(openDialogWithOpaqueBackground(dialog, window)){
         if(walletModel->updateAddressBookLabels(
-                CBitcoinAddress(address.toStdString()).Get(), dialog->getLabel().toStdString(), addressTablemodel->purposeForAddress(address.toStdString()))){
+                DecodeDestination(address.toStdString()), dialog->getLabel().toStdString(), addressTablemodel->purposeForAddress(address.toStdString()))){
             inform(tr("Contact edited"));
         }else{
             inform(tr("Contact edit failed"));
