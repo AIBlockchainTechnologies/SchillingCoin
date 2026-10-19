@@ -85,7 +85,7 @@ bool CHDChain::SetMnemonic(const SecureString& ssMnemonic, const SecureString& s
 
         // empty mnemonic i.e. "generate a new one"
         if (ssMnemonic.empty()) {
-            std::vector<std::string> generatedWords = CMnemonic::Generate(256);
+            std::vector<std::string> generatedWords = CMnemonic::Generate();
             std::string generatedMnemonic = join(generatedWords, " ");
             ssMnemonicTmp = SecureString(generatedMnemonic.begin(), generatedMnemonic.end());
         }

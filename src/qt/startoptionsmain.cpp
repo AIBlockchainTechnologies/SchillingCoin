@@ -7,24 +7,23 @@
 
 #include "startoptionsmain.h"
 #include "ui_startoptionsmain.h"
-#include <startoptionsdialog.h>
+
 #include "guiutil.h"
 #include "qt/schillingcoin/qtutils.h"
-
-#include <qt/guiutil.h>
-#include <QDebug>
-#include <QFileDialog>
-#include <iostream>
 #include "random.h"
-
-#include <guiinterface.h>
+#include "startoptionsdialog.h"
 #include "wallet/bip39.h"
 
-#include <boost/algorithm/string.hpp>
-
+#include <guiinterface.h>
+#include <QDebug>
+#include <QFileDialog>
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <QPushButton>
+
+#include <boost/algorithm/string.hpp>
+
+#include <iostream>
 
 StartOptionsMain::StartOptionsMain(QWidget *parent)
         : QDialog(parent), ui(new Ui::StartOptionsMain)
@@ -80,7 +79,7 @@ void StartOptionsMain::on_NewWallet_clicked()
     // SCH policy:
     // New wallets always generate a 24-word BIP39 recovery phrase.
     rows = 4;
-    words = CMnemonic::Generate(256);
+    words = CMnemonic::Generate();
 
     startOptionsRevealed = new StartOptionsRevealed(words, rows, this);
     ui->QStackTutorialContainer->addWidget(startOptionsRevealed);

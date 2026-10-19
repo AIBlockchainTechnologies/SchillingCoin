@@ -339,6 +339,25 @@ bool WalletModel::updateAddressBookLabels(const CTxDestination& dest, const std:
     return false;
 }
 
+bool WalletModel::addKeys(const CKey& key, const CPubKey& pubkey, WalletRescanReserver& reserver)
+{
+    {
+        LOCK(wallet->cs_wallet);
+        wallet->mapKeyMetadata[pubkey.GetID()].nCreateTime = 1;
+
+        if (!wallet->AddKeyPubKey(key, pubkey)) {
+            return false;
+        }
+
+        // whenever a key is imported, we need to scan the whole chain
+        wallet->nTimeFirstKey = 1; // 0 would be considered 'no value'
+    }
+
+    CBlockIndex* pindexGenesis = WITH_LOCK(cs_main, return chainActive.Genesis(); );
+    wallet->ScanForWalletTransactions(pindexGenesis, nullptr, reserver, true);
+    return true;
+}
+
 WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransaction& transaction, const CCoinControl* coinControl)
 {
     CAmount total = 0;

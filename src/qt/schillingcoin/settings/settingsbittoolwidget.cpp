@@ -2,22 +2,19 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "qt/schillingcoin/qtutils.h"
-#include "qt/schillingcoin/settings/settingsbittoolwidget.h"
-#include "qt/schillingcoin/settings/forms/ui_settingsbittoolwidget.h"
-
-#include "guiutil.h"
-#include "walletmodel.h"
-
 #include "askpassphrasedialog.h"
 #include "bip38.h"
+#include "guiutil.h"
 #include "init.h"
 #include "key_io.h"
+#include "qt/schillingcoin/qtutils.h"
+#include "qt/schillingcoin/settings/forms/ui_settingsbittoolwidget.h"
+#include "qt/schillingcoin/settings/settingsbittoolwidget.h"
 #include "wallet/wallet.h"
+#include "walletmodel.h"
 
 #include <string>
 #include <vector>
-
 
 SettingsBitToolWidget::SettingsBitToolWidget(SchillingCoinGUI* _window, QWidget *parent) :
     PWidget(_window, parent),
@@ -292,7 +289,16 @@ void SettingsBitToolWidget::onDecryptClicked(){
     );
 }
 
-void SettingsBitToolWidget::importAddressFromDecKey(){
+void SettingsBitToolWidget::importAddressFromDecKey()
+{
+    WalletRescanReserver reserver = walletModel->getRescanReserver();
+    if (!reserver.reserve()) {
+        ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
+        ui->statusLabel_DEC->setText(
+            tr("Wallet is currently rescanning. Abort existing rescan or wait."));
+        return;
+    }
+
     WalletModel::UnlockContext ctx(walletModel->requestUnlock());
     if (!ctx.isValid()) {
         ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
@@ -302,7 +308,8 @@ void SettingsBitToolWidget::importAddressFromDecKey(){
 
     if (!key.IsValid()) {
         ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
-        ui->statusLabel_DEC->setText(tr("Data Not Valid.") + QString(" ") + tr("Please try again."));
+        ui->statusLabel_DEC->setText(
+            tr("Data Not Valid.") + QString(" ") + tr("Please try again."));
         return;
     }
 
@@ -312,42 +319,41 @@ void SettingsBitToolWidget::importAddressFromDecKey(){
     const CPubKey pubkey = key.GetPubKey();
 
     if (!IsValidDestination(addressDest) ||
-        EncodeDestination(pubkey.GetID()) != EncodeDestination(addressDest)) {
+        EncodeDestination(pubkey.GetID()) !=
+            EncodeDestination(addressDest)) {
         ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
-        ui->statusLabel_DEC->setText(tr("Data Not Valid.") + QString(" ") + tr("Please try again."));
+        ui->statusLabel_DEC->setText(
+            tr("Data Not Valid.") + QString(" ") + tr("Please try again."));
         return;
     }
 
-    CKeyID vchAddress = pubkey.GetID();
-    {
+    const CKeyID vchAddress = pubkey.GetID();
+
+    ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
+    ui->statusLabel_DEC->setText(tr("Please wait while key is imported"));
+
+    walletModel->updateAddressBookLabels(
+        vchAddress,
+        "",
+        AddressBook::AddressBookPurpose::RECEIVE);
+
+    if (walletModel->haveKey(vchAddress)) {
         ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
-        ui->statusLabel_DEC->setText(tr("Please wait while key is imported"));
+        ui->statusLabel_DEC->setText(
+            tr("Cannot import address, key already held by the wallet"));
+        return;
+    }
 
-        pwalletMain->MarkDirty();
-        pwalletMain->SetAddressBook(vchAddress, "", AddressBook::AddressBookPurpose::RECEIVE);
-
-        // Don't throw error in case a key is already there
-        if (pwalletMain->HaveKey(vchAddress)) {
-            ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
-            ui->statusLabel_DEC->setText(tr("Cannot import address, key already held by the wallet"));
-            return;
-        }
-
-        pwalletMain->mapKeyMetadata[vchAddress].nCreateTime = 1;
-
-        if (!pwalletMain->AddKeyPubKey(key, pubkey)) {
-            ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
-            ui->statusLabel_DEC->setText(tr("Error adding key to the wallet"));
-            return;
-        }
-
-        // whenever a key is imported, we need to scan the whole chain
-        pwalletMain->nTimeFirstKey = 1; // 0 would be considered 'no value'
-        pwalletMain->ScanForWalletTransactions(chainActive.Genesis(), true);
+    if (!walletModel->addKeys(key, pubkey, reserver)) {
+        ui->statusLabel_DEC->setStyleSheet("QLabel { color: red; }");
+        ui->statusLabel_DEC->setText(
+            tr("Error adding key to the wallet"));
+        return;
     }
 
     ui->statusLabel_DEC->setStyleSheet("QLabel { color: green; }");
-    ui->statusLabel_DEC->setText(tr("Successfully added private key to the wallet"));
+    ui->statusLabel_DEC->setText(
+        tr("Successfully added private key to the wallet"));
 }
 
 void SettingsBitToolWidget::resizeEvent(QResizeEvent *event){

@@ -35,14 +35,11 @@
 
 #include <openssl/evp.h>
 
-std::vector<std::string> CMnemonic::Generate(int strength)
+std::vector<std::string> CMnemonic::Generate()
 {
-  assert(strength == 256);
-
   SecureVector data(32);
-  GetRandBytes(&data[0], 32);
-  std::vector<std::string> mnemonic = FromData(data, strength / 8);
-  return mnemonic;
+  GetRandBytes(&data[0], data.size());
+  return FromData(data, data.size());
 }
 
 // SecureString CMnemonic::FromData(const uint8_t *data, int len)

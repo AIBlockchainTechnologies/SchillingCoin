@@ -2075,53 +2075,158 @@ bool CWalletTx::WriteToDisk(WalletBatch* batch)
 }
 
 /**
- * Scan the block chain (starting in pindexStart) for transactions
- * from or to us. If fUpdate is true, found transactions that already
- * exist in the wallet will be updated.
- * @returns -1 if process was cancelled or the number of tx added to the wallet.
+ * Scan the blockchain, beginning with pindexStart, for transactions
+ * involving this wallet.
+ *
+ * Returns nullptr when the requested scan completes successfully.
+ * If a block cannot be read, the active chain changes beneath the scan,
+ * or startup shutdown is requested, returns the block where scanning
+ * stopped.
  */
-int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate, bool fromStartup)
+CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, CBlockIndex* pindexStop, const WalletRescanReserver& reserver, bool fUpdate, bool fromStartup)
 {
-    int ret = 0;
+    assert(reserver.isReserved());
+
+    if (pindexStop) {
+        assert(pindexStart);
+        assert(pindexStop->nHeight >= pindexStart->nHeight);
+    }
+
     int64_t nNow = GetTime();
-
     CBlockIndex* pindex = pindexStart;
+    CBlockIndex* failedBlock = nullptr;
+
+    ShowProgress(_("Rescanning..."), 0);
+
+    CBlockIndex* tip = nullptr;
+    double dProgressStart = 0.0;
+    double dProgressTip = 0.0;
+
     {
-        LOCK2(cs_main, cs_wallet);
+        LOCK(cs_main);
 
-        // no need to read and scan block, if block was created before
-        // our wallet birthday (as adjusted for block time variability)
-        while (pindex && nTimeFirstKey && (pindex->GetBlockTime() < (nTimeFirstKey - 7200)) && pindex->nHeight <= Params().GetConsensus().height_start_ZC)
+        // Do not scan blocks created before the wallet birthday, adjusted
+        // for block-time variability. Preserve SCH's historical boundary.
+        while (pindex &&
+               nTimeFirstKey &&
+               pindex->GetBlockTime() < (nTimeFirstKey - 7200) &&
+               pindex->nHeight <= Params().GetConsensus().height_start_ZC) {
             pindex = chainActive.Next(pindex);
+        }
 
-        ShowProgress(_("Rescanning..."), 0); // show rescan progress in GUI as dialog or on splashscreen, if -rescan on startup
-        double dProgressStart = Checkpoints::GuessVerificationProgress(pindex, false);
-        double dProgressTip = Checkpoints::GuessVerificationProgress(chainActive.Tip(), false);
-        std::set<uint256> setAddedToWallet;
-        while (pindex) {
-            if (pindex->nHeight % 100 == 0 && dProgressTip - dProgressStart > 0.0)
-                ShowProgress(_("Rescanning..."), std::max(1, std::min(99, (int)((Checkpoints::GuessVerificationProgress(pindex, false) - dProgressStart) / (dProgressTip - dProgressStart) * 100))));
+        tip = chainActive.Tip();
 
-            if (fromStartup && ShutdownRequested()) {
-                return -1;
+        if (pindex) {
+            dProgressStart =
+                Checkpoints::GuessVerificationProgress(pindex, false);
+        }
+
+        if (tip) {
+            dProgressTip =
+                Checkpoints::GuessVerificationProgress(tip, false);
+        }
+    }
+
+    while (pindex && !fAbortRescan) {
+        double progress = 0.0;
+
+        {
+            LOCK(cs_main);
+
+            if (!chainActive.Contains(pindex)) {
+                failedBlock = pindex;
+                break;
             }
 
-            CBlock block;
-            ReadBlockFromDisk(block, pindex);
+            progress =
+                Checkpoints::GuessVerificationProgress(pindex, false);
+        }
+
+        if (pindex->nHeight % 100 == 0 &&
+            dProgressTip - dProgressStart > 0.0) {
+            ShowProgress(
+                _("Rescanning..."),
+                std::max(
+                    1,
+                    std::min(
+                        99,
+                        static_cast<int>(
+                            (progress - dProgressStart) /
+                            (dProgressTip - dProgressStart) *
+                            100))));
+        }
+
+        if (GetTime() >= nNow + 60) {
+            nNow = GetTime();
+            LogPrintf(
+                "Still rescanning. At block %d. Progress=%f\n",
+                pindex->nHeight,
+                progress);
+        }
+
+        if (fromStartup && ShutdownRequested()) {
+            failedBlock = pindex;
+            break;
+        }
+
+        CBlock block;
+        if (!ReadBlockFromDisk(block, pindex)) {
+            failedBlock = pindex;
+            break;
+        }
+
+        {
+            LOCK2(cs_main, cs_wallet);
+
+            if (!chainActive.Contains(pindex)) {
+                failedBlock = pindex;
+                break;
+            }
+
             for (CTransaction& tx : block.vtx) {
-                if (AddToWalletIfInvolvingMe(tx, &block, fUpdate))
-                    ret++;
-            }
-
-            pindex = chainActive.Next(pindex);
-            if (GetTime() >= nNow + 60) {
-                nNow = GetTime();
-                LogPrintf("Still rescanning. At block %d. Progress=%f\n", pindex->nHeight, Checkpoints::GuessVerificationProgress(pindex));
+                AddToWalletIfInvolvingMe(tx, &block, fUpdate);
             }
         }
-        ShowProgress(_("Rescanning..."), 100); // hide progress dialog in GUI
+
+        if (pindex == pindexStop) {
+            break;
+        }
+
+        {
+            LOCK(cs_main);
+
+            pindex = chainActive.Next(pindex);
+
+            if (tip != chainActive.Tip()) {
+                tip = chainActive.Tip();
+
+                if (tip) {
+                    dProgressTip =
+                        Checkpoints::GuessVerificationProgress(
+                            tip,
+                            false);
+                }
+            }
+        }
     }
-    return ret;
+
+    if (pindex && fAbortRescan) {
+        double progress = 0.0;
+
+        {
+            LOCK(cs_main);
+            progress =
+                Checkpoints::GuessVerificationProgress(pindex, false);
+        }
+
+        LogPrintf(
+            "Rescan aborted at block %d. Progress=%f\n",
+            pindex->nHeight,
+            progress);
+    }
+
+    ShowProgress(_("Rescanning..."), 100);
+    return failedBlock;
 }
 
 void CWallet::ReacceptWalletTransactions(bool fFirstLoad)
@@ -2740,16 +2845,7 @@ bool CWallet::IsCollateralAmount(CAmount nInputAmount) const
     return (nInputAmount == GetMNCollateral() * COIN);
 }
 
-bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, CAmount> >& vecSend,
-    CWalletTx& wtxNew,
-    CReserveKey& reservekey,
-    CAmount& nFeeRet,
-    std::string& strFailReason,
-    const CCoinControl* coinControl,
-    AvailableCoinsType coin_type,
-    bool useIX,
-    CAmount nFeePay,
-    bool fIncludeDelegated)
+bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, CAmount> >& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl, AvailableCoinsType coin_type, bool useIX, CAmount nFeePay, bool fIncludeDelegated)
 {
     if (useIX && nFeePay < CENT) nFeePay = CENT;
 
@@ -4014,12 +4110,32 @@ bool CWallet::MultiSend()
     return true;
 }
 
-CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const fs::path& walletPath, const std::vector<std::string>& words)
+namespace
 {
+
+class WalletVerificationGuard
+{
+public:
+    WalletVerificationGuard()
+    {
+        fVerifyingBlocks = true;
+    }
+
+    ~WalletVerificationGuard()
+    {
+        fVerifyingBlocks = false;
+    }
+};
+
+CWallet* CreateWalletFromFileInternal(const std::string& walletFile, const fs::path& walletPath, const std::vector<std::string>& words, bool restoreFromMnemonic)
+{
+    WalletVerificationGuard verificationGuard;
+
     // Needed to restore wallet transaction metadata after -zapwallettxes.
     std::vector<CWalletTx> vWtx;
 
-    if (gArgs.GetBoolArg("-zapwallettxes", false)) {
+    if (!restoreFromMnemonic &&
+        gArgs.GetBoolArg("-zapwallettxes", false)) {
         uiInterface.InitMessage(_("Zapping all transactions from wallet..."));
 
         CWallet* tempWallet =
@@ -4038,7 +4154,6 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const fs::
     }
 
     uiInterface.InitMessage(_("Loading wallet..."));
-    fVerifyingBlocks = true;
 
     const int64_t nStart = GetTimeMillis();
     bool fFirstRun = true;
@@ -4074,6 +4189,24 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const fs::
         }
     }
 
+    if (restoreFromMnemonic) {
+        if (!fFirstRun) {
+            UIError(strprintf(
+                _("Cannot restore wallet %s because the wallet database is not empty."),
+                walletFile));
+            delete walletInstance;
+            return nullptr;
+        }
+
+        if (walletInstance->IsHDEnabled()) {
+            UIError(strprintf(
+                _("Cannot restore wallet %s because an HD chain already exists."),
+                walletFile));
+            delete walletInstance;
+            return nullptr;
+        }
+    }
+
     // Check the minimum stake-split threshold.
     if (walletInstance->nStakeSplitThreshold &&
         walletInstance->nStakeSplitThreshold < CWallet::minStakeSplitThreshold) {
@@ -4083,9 +4216,9 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const fs::
         walletInstance->nStakeSplitThreshold = CWallet::minStakeSplitThreshold;
     }
 
-    if (gArgs.GetBoolArg("-upgradewallet", fFirstRun) ||
-        (!words.empty() && !walletInstance->IsHDEnabled() && CheckIfWalletDatExists())) {
+    if (gArgs.GetBoolArg("-upgradewallet", fFirstRun)) {
         int nMaxVersion = gArgs.GetArg("-upgradewallet", 0);
+
         if (nMaxVersion == 0) {
             LogPrintf("Performing wallet upgrade to %i\n", FEATURE_LATEST);
             nMaxVersion = CLIENT_VERSION;
@@ -4104,16 +4237,27 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const fs::
     }
 
     if (fFirstRun) {
-        if ((gArgs.GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET) && !walletInstance->IsHDEnabled()) ||
-            (!words.empty() && !walletInstance->IsHDEnabled())) {
+        if ((gArgs.GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET) &&
+             !walletInstance->IsHDEnabled()) ||
+            (restoreFromMnemonic &&
+             !walletInstance->IsHDEnabled())) {
             if (gArgs.GetArg("-mnemonicpassphrase", "").size() > 256) {
                 UIError(_("Mnemonic passphrase is too long, must be at most 256 characters"));
                 delete walletInstance;
                 return nullptr;
             }
 
-            walletInstance->GenerateNewHDChain(words);
-            walletInstance->SetMinVersion(FEATURE_HD);
+            try {
+                walletInstance->GenerateNewHDChain(words);
+                walletInstance->SetMinVersion(FEATURE_HD);
+            } catch (const std::exception& e) {
+                UIError(strprintf(
+                    _("Unable to initialize the HD chain for wallet %s: %s"),
+                    walletFile,
+                    e.what()));
+                delete walletInstance;
+                return nullptr;
+            }
         }
 
         if (!walletInstance->TopUpKeyPool()) {
@@ -4122,68 +4266,119 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const fs::
             return nullptr;
         }
 
-        walletInstance->SetBestChain(chainActive.GetLocator());
+        if (!restoreFromMnemonic) {
+            walletInstance->SetBestChain(chainActive.GetLocator());
+        }
     } else if (gArgs.IsArgSet("-usehd")) {
-        const bool useHD = gArgs.GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET);
+        const bool useHD =
+            gArgs.GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET);
+
         if (walletInstance->IsHDEnabled() && !useHD) {
-            UIError(strprintf(_("Error loading %s: You can't disable HD on an already existing HD wallet"), walletFile));
+            UIError(strprintf(
+                _("Error loading %s: You can't disable HD on an already existing HD wallet"),
+                walletFile));
             delete walletInstance;
             return nullptr;
         }
+
         if (!walletInstance->IsHDEnabled() && useHD) {
-            UIError(strprintf(_("Error loading %s: You can't enable HD on an already existing non-HD wallet"), walletFile));
+            UIError(strprintf(
+                _("Error loading %s: You can't enable HD on an already existing non-HD wallet"),
+                walletFile));
             delete walletInstance;
             return nullptr;
         }
     }
 
     if (gArgs.GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET) &&
-        !walletInstance->IsLocked() && DEFAULT_ENABLE_WARN_ENCRYPTHD) {
+        !walletInstance->IsLocked() &&
+        DEFAULT_ENABLE_WARN_ENCRYPTHD) {
         UIWarning(_("Make sure to encrypt your wallet and delete all non-encrypted backups after you verified that wallet works!"));
     }
 
-    LogPrintf("Wallet completed loading in %15dms\n", GetTimeMillis() - nStart);
+    LogPrintf(
+        "Wallet completed loading in %15dms\n",
+        GetTimeMillis() - nStart);
 
     RegisterValidationInterface(walletInstance);
 
     CBlockIndex* pindexRescan = chainActive.Tip();
-    if (gArgs.GetBoolArg("-rescan", false)) {
+
+    if (restoreFromMnemonic ||
+        gArgs.GetBoolArg("-rescan", false)) {
         pindexRescan = chainActive.Genesis();
     } else {
         WalletBatch batch(*walletInstance->GetDBHandlePtr());
         CBlockLocator locator;
-        if (batch.ReadBestBlock(locator))
-            pindexRescan = FindForkInGlobalIndex(chainActive, locator);
-        else
+
+        if (batch.ReadBestBlock(locator)) {
+            pindexRescan =
+                FindForkInGlobalIndex(chainActive, locator);
+        } else {
             pindexRescan = chainActive.Genesis();
+        }
     }
 
-    if (chainActive.Tip() && chainActive.Tip() != pindexRescan) {
+    const bool shouldRescan =
+        chainActive.Tip() &&
+        pindexRescan &&
+        (restoreFromMnemonic ||
+         chainActive.Tip() != pindexRescan);
+
+    if (shouldRescan) {
         uiInterface.InitMessage(_("Rescanning..."));
-        LogPrintf("Rescanning last %i blocks (from block %i)...\n",
-                  chainActive.Height() - pindexRescan->nHeight,
-                  pindexRescan->nHeight);
+
+        LogPrintf(
+            "Rescanning last %i blocks (from block %i)...\n",
+            chainActive.Height() - pindexRescan->nHeight,
+            pindexRescan->nHeight);
 
         const int64_t nWalletRescanTime = GetTimeMillis();
-        if (walletInstance->ScanForWalletTransactions(pindexRescan, true, true) == -1) {
-            UnregisterValidationInterface(walletInstance);
-            UIError(_("Shutdown requested over the transaction scan. Exiting."));
-            delete walletInstance;
-            return nullptr;
+
+        {
+            WalletRescanReserver reserver(walletInstance);
+
+            if (!reserver.reserve()) {
+                UnregisterValidationInterface(walletInstance);
+                UIError(_("Failed to reserve the wallet for rescanning during initialization."));
+                delete walletInstance;
+                return nullptr;
+            }
+
+            if (walletInstance->ScanForWalletTransactions(
+                    pindexRescan,
+                    nullptr,
+                    reserver,
+                    true,
+                    true) != nullptr) {
+                UnregisterValidationInterface(walletInstance);
+                UIError(_("Unable to complete the wallet transaction scan during initialization."));
+                delete walletInstance;
+                return nullptr;
+            }
         }
 
-        LogPrintf("Rescan completed in %15dms\n", GetTimeMillis() - nWalletRescanTime);
+        LogPrintf(
+            "Rescan completed in %15dms\n",
+            GetTimeMillis() - nWalletRescanTime);
+
         walletInstance->SetBestChain(chainActive.GetLocator());
 
         // Restore wallet transaction metadata after -zapwallettxes=1.
-        if (gArgs.GetBoolArg("-zapwallettxes", false) && gArgs.GetArg("-zapwallettxes", "1") != "2") {
+        if (!restoreFromMnemonic &&
+            gArgs.GetBoolArg("-zapwallettxes", false) &&
+            gArgs.GetArg("-zapwallettxes", "1") != "2") {
             WalletBatch batch(*walletInstance->GetDBHandlePtr());
+
             for (const CWalletTx& wtxOld : vWtx) {
                 const uint256 hash = wtxOld.GetHash();
-                std::map<uint256, CWalletTx>::iterator mi = walletInstance->mapWallet.find(hash);
+                std::map<uint256, CWalletTx>::iterator mi =
+                    walletInstance->mapWallet.find(hash);
+
                 if (mi != walletInstance->mapWallet.end()) {
                     const CWalletTx* copyFrom = &wtxOld;
                     CWalletTx* copyTo = &mi->second;
+
                     copyTo->mapValue = copyFrom->mapValue;
                     copyTo->vOrderForm = copyFrom->vOrderForm;
                     copyTo->nTimeReceived = copyFrom->nTimeReceived;
@@ -4195,10 +4390,57 @@ CWallet* CWallet::CreateWalletFromFile(const std::string& walletFile, const fs::
                 }
             }
         }
+    } else if (restoreFromMnemonic) {
+        UnregisterValidationInterface(walletInstance);
+        UIError(_("Unable to scan the blockchain while restoring the wallet."));
+        delete walletInstance;
+        return nullptr;
     }
 
-    fVerifyingBlocks = false;
     return walletInstance;
+}
+
+} // namespace
+
+CWallet* CWallet::CreateWalletFromFile(
+    const std::string& walletFile,
+    const fs::path& walletPath)
+{
+    return CreateWalletFromFileInternal(
+        walletFile,
+        walletPath,
+        {},
+        false);
+}
+
+CWallet* CWallet::RestoreWalletFromMnemonic(const std::string& walletFile, const fs::path& walletPath, const std::vector<std::string>& words)
+{
+    if (words.size() != 24) {
+        UIError(_("The recovery phrase must contain exactly 24 words."));
+        return nullptr;
+    }
+
+    const std::string mnemonic = join(words, " ");
+
+    if (!CMnemonic::Check(mnemonic)) {
+        UIError(_("The recovery phrase is invalid or has an invalid checksum."));
+        return nullptr;
+    }
+
+    const fs::path walletDatabasePath = BDBDataFile(walletPath);
+
+    if (fs::exists(walletDatabasePath)) {
+        UIError(strprintf(
+            _("Cannot restore wallet %s because its wallet database already exists."),
+            walletFile));
+        return nullptr;
+    }
+
+    return CreateWalletFromFileInternal(
+        walletFile,
+        walletPath,
+        words,
+        true);
 }
 
 void CWallet::Flush(bool shutdown)

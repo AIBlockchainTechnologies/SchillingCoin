@@ -249,18 +249,6 @@ bool SoftSetBoolArg(const std::string& strArg, bool fValue)
         return SoftSetArg(strArg, std::string("0"));
 }
 
-bool CheckIfWalletDatExists(bool fNetSpecific) {
-
-    namespace fs = boost::filesystem;
-
-    std::string walletFile = gArgs.GetArg("-wallet", "wallet.dat");
-    boost::filesystem::path path(walletFile);
-    if (!path.is_absolute())
-        path = GetDataDir(fNetSpecific) / path;
-
-    return fs::exists(path);
-}
-
 boost::filesystem::path GetConfigFile()
 {
     boost::filesystem::path pathConfigFile(gArgs.GetArg("-conf", "schillingcoin.conf"));
@@ -277,8 +265,7 @@ boost::filesystem::path GetForgeConfigFile()
     return pathConfigFile;
 }
 
-void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet,
-    std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet)
+void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet, std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet)
 {
     boost::filesystem::ifstream streamConfig(GetConfigFile());
     if (!streamConfig.good()) {

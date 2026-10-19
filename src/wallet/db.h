@@ -124,6 +124,9 @@ public:
     }
 };
 
+/** Resolve the BerkeleyDB data file for a wallet path. */
+fs::path BDBDataFile(const fs::path& wallet_path);
+
 /** Get BerkeleyEnvironment and database filename given a wallet path. */
 BerkeleyEnvironment* GetWalletEnv(const fs::path& wallet_path, std::string& database_filename);
 

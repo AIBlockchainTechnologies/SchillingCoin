@@ -370,21 +370,22 @@ void BitcoinApplication::createOptionsModel()
     optionsModel = new OptionsModel();
 }
 
-// this will be used to get mnemonic words
-bool BitcoinApplication::setupMnemonicWords(std::vector<std::string>& wordlist) {
+bool BitcoinApplication::setupMnemonicWords(std::vector<std::string>& wordlist)
+{
     namespace fs = boost::filesystem;
 
     if (gArgs.GetBoolArg("-skipmnemonicstartupui", false)) {
         return true;
     }
 
-    std::string walletFile = gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);
+    const std::string walletFile = gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);
 
-    if (fs::exists(walletFile))
-        return true;
+    const fs::path walletPath =
+        GetDataDir() / walletFile;
 
-    if (CheckIfWalletDatExists())
+    if (fs::exists(BDBDataFile(walletPath))) {
         return true;
+    }
 
     StartOptionsMain dlg(nullptr);
     dlg.exec();
@@ -395,11 +396,13 @@ bool BitcoinApplication::setupMnemonicWords(std::vector<std::string>& wordlist) 
 bool BitcoinApplication::createWindow(const NetworkStyle* networkStyle)
 {
     /// Only display the MnemonicWords dialog on a wallet using HD
-    if (gArgs.GetBoolArg("-usehd", false)) {
+    if (gArgs.GetBoolArg("-usehd", DEFAULT_USE_HD_WALLET)) {
         if (!setupMnemonicWords(wordlist)) {
-          if (wordlist.empty()) return false;
+            if (wordlist.empty())
+                return false;
         }
     }
+
     window = new SchillingCoinGUI(networkStyle, 0);
 
     pollShutdownTimer = new QTimer(window);
@@ -711,16 +714,16 @@ int main(int argc, char* argv[])
     std::string strDataDir = GetDataDir().string();
 
     // Wallet file must be a plain filename without a directory
-    const fs::path walletPath(strWalletFile);
-    if (strWalletFile != walletPath.stem().string() + walletPath.extension().string()) {
+    const fs::path walletFilePath(strWalletFile);
+    if (strWalletFile != walletFilePath.stem().string() + walletFilePath.extension().string()) {
         throw std::runtime_error(
             strprintf(_("Wallet %s resides outside data directory %s"),
                       strWalletFile,
                       strDataDir));
     }
 
-    boost::filesystem::path pathBootstrap = GetDataDir() / strWalletFile;
-    if (!boost::filesystem::exists(pathBootstrap)) {
+    const fs::path walletPath = GetDataDir() / strWalletFile;
+    if (!fs::exists(BDBDataFile(walletPath))) {
         // wallet doesn't exist, popup tutorial screen.
         ret = app.createTutorialScreen();
     }
@@ -753,4 +756,4 @@ int main(int argc, char* argv[])
     }
     return app.getReturnValue();
 }
-#endif // BITCOIN_QT_TEST
+#endif // SCHILLINGCOIN_QT_TEST

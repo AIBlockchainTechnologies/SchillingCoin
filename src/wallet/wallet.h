@@ -31,7 +31,9 @@
 #include "wallet/walletdb.h"
 
 #include <algorithm>
+#include <atomic>
 #include <map>
+#include <mutex>
 #include <set>
 #include <stdexcept>
 #include <stdint.h>
@@ -68,7 +70,7 @@ static const CAmount nHighTransactionMaxFeeWarning = 100 * nHighTransactionFeeWa
 static const unsigned int MAX_FREE_TRANSACTION_CREATE_SIZE = 1000;
 
 //! if set, all keys will be derived by using BIP32
-static const bool DEFAULT_USE_HD_WALLET = false;
+static const bool DEFAULT_USE_HD_WALLET = true;
 
 //! if set, will show warning if the wallet is a hd wallet and is unencrypted
 static const bool DEFAULT_ENABLE_WARN_ENCRYPTHD = false;
@@ -112,6 +114,7 @@ class COutput;
 class CReserveKey;
 class CScript;
 class CWalletTx;
+class WalletRescanReserver;
 
 /** (client) version numbers for particular wallet features */
 enum WalletFeature {
@@ -229,6 +232,12 @@ public:
 class CWallet : public CCryptoKeyStore, public CValidationInterface
 {
 private:
+    std::atomic<bool> fAbortRescan{false};
+    std::atomic<bool> fScanningWallet{false};
+    std::mutex mutexScanning;
+
+    friend class WalletRescanReserver;
+
     bool SelectCoins(const CAmount& nTargetValue, std::set<std::pair<const CWalletTx*, unsigned int> >& setCoinsRet, CAmount& nValueRet, const CCoinControl* coinControl = NULL, AvailableCoinsType coin_type = ALL_COINS, bool useIX = true, bool fIncludeColdStaking=false, bool fIncludeDelegated=true) const;
     //it was public bool SelectCoins(int64_t nTargetValue, std::set<std::pair<const CWalletTx*,unsigned int> >& setCoinsRet, int64_t& nValueRet, const CCoinControl *coinControl = NULL, AvailableCoinsType coin_type=ALL_COINS, bool useIX = true) const;
 
@@ -412,6 +421,21 @@ public:
     void UnlockAllCoins();
     void ListLockedCoins(std::vector<COutPoint>& vOutpts);
 
+    void AbortRescan()
+    {
+        fAbortRescan = true;
+    }
+
+    bool IsAbortingRescan() const
+    {
+        return fAbortRescan;
+    }
+
+    bool IsScanning() const
+    {
+        return fScanningWallet;
+    }
+
     //  keystore implementation
 
     // Generate a new key
@@ -495,10 +519,17 @@ public:
     void EraseFromWallet(const uint256& hash);
 
     /**
-     * Upgrade wallet to HD if needed. Does nothing if not.
+     * Scan the blockchain for wallet transactions.
+     * Returns nullptr on successful completion, otherwise the
+     * block where scanning stopped or failed.
      */
+    CBlockIndex* ScanForWalletTransactions(
+        CBlockIndex* pindexStart,
+        CBlockIndex* pindexStop,
+        const WalletRescanReserver& reserver,
+        bool fUpdate = false,
+        bool fromStartup = false);
 
-    int ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate = false, bool fromStartup = false);
     void ReacceptWalletTransactions(bool fFirstLoad = false);
     void ResendWalletTransactions();
 
@@ -622,7 +653,10 @@ public:
     bool AbandonTransaction(const uint256& hashTx);
 
     /* Initializes the wallet, returns a new CWallet instance or a null pointer in case of an error */
-    static CWallet* CreateWalletFromFile(const std::string& walletFile, const fs::path& walletPath, const std::vector<std::string>& words);
+    static CWallet* CreateWalletFromFile(const std::string& walletFile, const fs::path& walletPath);
+
+    /* Restores a new wallet from a validated recovery phrase. */
+    static CWallet* RestoreWalletFromMnemonic(const std::string& walletFile, const fs::path& walletPath, const std::vector<std::string>& words);
 
     /**
      * Creates a wallet backup in strDest path.
@@ -1102,6 +1136,68 @@ public:
 
 private:
     std::vector<char> _ssExtra;
+};
+
+/** RAII object to check and reserve a wallet rescan */
+class WalletRescanReserver
+{
+private:
+    CWallet* m_wallet;
+    bool m_could_reserve;
+
+public:
+    explicit WalletRescanReserver(CWallet* wallet)
+        : m_wallet(wallet), m_could_reserve(false)
+    {
+        assert(m_wallet);
+    }
+
+    WalletRescanReserver(const WalletRescanReserver&) = delete;
+    WalletRescanReserver& operator=(const WalletRescanReserver&) = delete;
+
+    WalletRescanReserver(WalletRescanReserver&& other) noexcept
+        : m_wallet(other.m_wallet),
+          m_could_reserve(other.m_could_reserve)
+    {
+        other.m_wallet = nullptr;
+        other.m_could_reserve = false;
+    }
+
+    WalletRescanReserver& operator=(WalletRescanReserver&&) = delete;
+
+    bool reserve()
+    {
+        assert(m_wallet);
+        assert(!m_could_reserve);
+
+        std::lock_guard<std::mutex> lock(m_wallet->mutexScanning);
+
+        if (m_wallet->fScanningWallet) {
+            return false;
+        }
+
+        m_wallet->fAbortRescan = false;
+        m_wallet->fScanningWallet = true;
+        m_could_reserve = true;
+        return true;
+    }
+
+    bool isReserved() const
+    {
+        return m_wallet &&
+               m_could_reserve &&
+               m_wallet->fScanningWallet;
+    }
+
+    ~WalletRescanReserver()
+    {
+        if (!m_wallet || !m_could_reserve) {
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(m_wallet->mutexScanning);
+        m_wallet->fScanningWallet = false;
+    }
 };
 
 #endif // SCHILLINGCOIN_WALLET_H

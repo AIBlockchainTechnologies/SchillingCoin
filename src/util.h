@@ -10,8 +10,8 @@
  * Server/client environment: argument handling, config file parsing,
  * logging, thread wrappers
  */
-#ifndef BITCOIN_UTIL_H
-#define BITCOIN_UTIL_H
+#ifndef SCHILLINGCOIN_UTIL_H
+#define SCHILLINGCOIN_UTIL_H
 
 #if defined(HAVE_CONFIG_H)
 #include "config/schillingcoin-config.h"
@@ -68,8 +68,6 @@ void ParseParameters(int argc, const char* const argv[]);
  * Legacy SCH compatibility helper.
  */
 bool TryCreateDirectory(const fs::path& p);
-
-bool CheckIfWalletDatExists(bool fNetSpecific = true);
 
 fs::path GetConfigFile();
 fs::path GetForgeConfigFile();

@@ -85,21 +85,25 @@ bool WalletDatabaseFileId::operator==(const WalletDatabaseFileId& rhs) const
     return std::memcmp(value, rhs.value, sizeof(value)) == 0;
 }
 
+fs::path BDBDataFile(const fs::path& wallet_path)
+{
+    if (fs::is_regular_file(wallet_path)) {
+        // Backwards compatibility with legacy wallet.dat files.
+        return wallet_path;
+    }
+
+    // Modern wallet-directory layout.
+    return wallet_path / "wallet.dat";
+}
+
 BerkeleyEnvironment* GetWalletEnv(
     const fs::path& wallet_path,
     std::string& database_filename)
 {
-    fs::path env_directory;
+    const fs::path data_file = BDBDataFile(wallet_path);
+    const fs::path env_directory = data_file.parent_path();
 
-    if (fs::is_regular_file(wallet_path)) {
-        // Backwards compatibility with legacy wallet.dat files.
-        env_directory = wallet_path.parent_path();
-        database_filename = wallet_path.filename().string();
-    } else {
-        // Modern wallet-directory layout.
-        env_directory = wallet_path;
-        database_filename = "wallet.dat";
-    }
+    database_filename = data_file.filename().string();
 
     LOCK(cs_db);
 

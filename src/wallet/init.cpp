@@ -284,7 +284,9 @@ bool InitLoadWallet(const std::vector<std::string>& words)
         fs::absolute(walletFile, GetWalletDir());
 
     CWallet* const pwallet =
-        CWallet::CreateWalletFromFile(walletFile, walletPath, words);
+        words.empty()
+            ? CWallet::CreateWalletFromFile(walletFile, walletPath)
+            : CWallet::RestoreWalletFromMnemonic(walletFile, walletPath, words);
 
     if (!pwallet) {
         return false;

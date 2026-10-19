@@ -3381,7 +3381,6 @@ UniValue multisend(const JSONRPCRequest& request)
 
 UniValue upgradetohd(const JSONRPCRequest& request)
 {
-
     if (request.fHelp || request.params.size() == 0) {
         throw std::runtime_error(
                 "upgradetohd ( \"mnemonicwords\" \"password\" )\n"
@@ -3391,7 +3390,6 @@ UniValue upgradetohd(const JSONRPCRequest& request)
                 "1. \"words\"               (string, optional) The WIF private key to use as the new HD seed; if not provided a random seed will be used.\n"
                 "                             The mnemonic value can be retrieved using the dumpwallet command. It is the private key marked hdmaster=1\n"
                 "2. \"password\"               (boolean, optional) If your wallet is encrypted you must have your password here\n"
-
                 "\nExamples:\n"
                 + HelpExampleCli("upgradetohd", "")
                 + HelpExampleCli("upgradetohd", "\"mnemonicwords\"")
@@ -3399,88 +3397,127 @@ UniValue upgradetohd(const JSONRPCRequest& request)
     }
 
     if (IsInitialBlockDownload()) {
-        throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Cannot set a new HD seed while still in Initial Block Download");
+        throw JSONRPCError(
+            RPC_CLIENT_IN_INITIAL_DOWNLOAD,
+            "Cannot set a new HD seed while still in Initial Block Download");
     }
 
     if (request.params.size() == 1 && pwalletMain->IsLocked()) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot upgrade a encrypted wallet to hd without the password");
+        throw JSONRPCError(
+            RPC_WALLET_ERROR,
+            "Cannot upgrade a encrypted wallet to hd without the password");
     }
 
-    LOCK2(cs_main, pwalletMain->cs_wallet);
-
-    // Do not do anything to HD wallets
-    if (pwalletMain->IsHDEnabled()) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot upgrade a wallet to hd if It is already upgraded to hd.");
+    WalletRescanReserver reserver(pwalletMain);
+    if (!reserver.reserve()) {
+        throw JSONRPCError(
+            RPC_WALLET_ERROR,
+            "Wallet is currently rescanning. Abort existing rescan or wait.");
     }
 
-    EnsureWalletIsUnlocked(pwalletMain);
-
-    std::string words = request.params[0].get_str();
-
-    int prev_version = pwalletMain->GetVersion();
-
-    int nMaxVersion = gArgs.GetArg("-upgradewallet", 0);
-    if (nMaxVersion == 0) // the -upgradewallet without argument case
     {
-        LogPrintf("Performing wallet upgrade to %i\n", FEATURE_LATEST);
-        nMaxVersion = CLIENT_VERSION;
-        pwalletMain->SetMinVersion(FEATURE_LATEST); // permanently upgrade the wallet immediately
-    } else
-        LogPrintf("Allowing wallet upgrade up to %i\n", nMaxVersion);
-    if (nMaxVersion < pwalletMain->GetVersion()) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot downgrade wallet");
-    }
+        LOCK2(cs_main, pwalletMain->cs_wallet);
 
-    pwalletMain->SetMaxVersion(nMaxVersion);
+        // Do not do anything to HD wallets.
+        if (pwalletMain->IsHDEnabled()) {
+            throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Cannot upgrade a wallet to hd if It is already upgraded to hd.");
+        }
 
-    // Do not upgrade versions to any version between HD_SPLIT and FEATURE_PRE_SPLIT_KEYPOOL unless already supporting HD_SPLIT
-    int max_version = pwalletMain->GetVersion();
-    if (!pwalletMain->CanSupportFeature(FEATURE_HD) && max_version >=FEATURE_HD && max_version < FEATURE_PRE_SPLIT_KEYPOOL) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Cannot upgrade a non HD split wallet without upgrading to support pre split keypool. Please use -upgradewallet=169900 or -upgradewallet with no version specified.");
-    }
+        EnsureWalletIsUnlocked(pwalletMain);
 
-    bool hd_upgrade = false;
-    bool split_upgrade = false;
-    if (pwalletMain->CanSupportFeature(FEATURE_HD) && !pwalletMain->IsHDEnabled()) {
-        LogPrintf("Upgrading wallet to HD\n");
-        pwalletMain->SetMinVersion(FEATURE_HD);
+        const std::string words = request.params[0].get_str();
+        const int prev_version = pwalletMain->GetVersion();
 
-        // generate a new master key
-        SecureString strWalletPass;
-        strWalletPass.reserve(100);
-
-        // TODO: get rid of this .c_str() by implementing SecureString::operator=(std::string)
-        // Alternately, find a way to make request.params[0] mlock()'d to begin with.
-        if (request.params.size() < 2){
-            strWalletPass = std::string().c_str();
+        int nMaxVersion = gArgs.GetArg("-upgradewallet", 0);
+        if (nMaxVersion == 0) {
+            LogPrintf("Performing wallet upgrade to %i\n", FEATURE_LATEST);
+            nMaxVersion = CLIENT_VERSION;
+            pwalletMain->SetMinVersion(FEATURE_LATEST);
         } else {
-            strWalletPass = request.params[1].get_str().c_str();
+            LogPrintf("Allowing wallet upgrade up to %i\n", nMaxVersion);
         }
 
-        pwalletMain->GenerateNewHDChain(words, strWalletPass);
+        if (nMaxVersion < pwalletMain->GetVersion()) {
+            throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Cannot downgrade wallet");
+        }
 
-        hd_upgrade = true;
-    }
+        pwalletMain->SetMaxVersion(nMaxVersion);
 
-    // Upgrade to HD chain split if necessary
-    if (pwalletMain->CanSupportFeature(FEATURE_HD)) {
-        LogPrintf("Upgrading wallet to use HD chain split\n");
-        pwalletMain->SetMinVersion(FEATURE_PRE_SPLIT_KEYPOOL);
-        split_upgrade = FEATURE_HD > prev_version;
-    }
+        // Do not upgrade versions to any version between HD_SPLIT and
+        // FEATURE_PRE_SPLIT_KEYPOOL unless already supporting HD_SPLIT.
+        const int max_version = pwalletMain->GetVersion();
+        if (!pwalletMain->CanSupportFeature(FEATURE_HD) &&
+            max_version >= FEATURE_HD &&
+            max_version < FEATURE_PRE_SPLIT_KEYPOOL) {
+            throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Cannot upgrade a non HD split wallet without upgrading to support pre split keypool. "
+                "Please use -upgradewallet=169900 or -upgradewallet with no version specified.");
+        }
 
-    // Mark all keys currently in the keypool as pre-split
-    if (split_upgrade) {
-        pwalletMain->MarkPreSplitKeys();
-    }
-    // Regenerate the keypool if upgraded to HD
-    if (hd_upgrade) {
-        if (!pwalletMain->TopUpKeyPool()) {
-            throw JSONRPCError(RPC_WALLET_ERROR, "Unable to generate keys\n");
+        bool hd_upgrade = false;
+        bool split_upgrade = false;
+
+        if (pwalletMain->CanSupportFeature(FEATURE_HD) &&
+            !pwalletMain->IsHDEnabled()) {
+            LogPrintf("Upgrading wallet to HD\n");
+            pwalletMain->SetMinVersion(FEATURE_HD);
+
+            SecureString strWalletPass;
+            strWalletPass.reserve(100);
+
+            // TODO: get rid of this .c_str() by implementing
+            // SecureString::operator=(std::string).
+            // Alternately, find a way to make request.params[0] mlock()'d
+            // to begin with.
+            if (request.params.size() < 2) {
+                strWalletPass = std::string().c_str();
+            } else {
+                strWalletPass = request.params[1].get_str().c_str();
+            }
+
+            pwalletMain->GenerateNewHDChain(words, strWalletPass);
+            hd_upgrade = true;
+        }
+
+        // Upgrade to HD chain split if necessary.
+        if (pwalletMain->CanSupportFeature(FEATURE_HD)) {
+            LogPrintf("Upgrading wallet to use HD chain split\n");
+            pwalletMain->SetMinVersion(FEATURE_PRE_SPLIT_KEYPOOL);
+            split_upgrade = FEATURE_HD > prev_version;
+        }
+
+        // Mark all keys currently in the keypool as pre-split.
+        if (split_upgrade) {
+            pwalletMain->MarkPreSplitKeys();
+        }
+
+        // Regenerate the keypool if upgraded to HD.
+        if (hd_upgrade && !pwalletMain->TopUpKeyPool()) {
+            throw JSONRPCError(
+                RPC_WALLET_ERROR,
+                "Unable to generate keys\n");
         }
     }
 
-    pwalletMain->ScanForWalletTransactions(chainActive.Genesis(), true);
+    const CBlockIndex* failedBlock =
+        pwalletMain->ScanForWalletTransactions(
+            chainActive.Genesis(),
+            nullptr,
+            reserver,
+            true);
+
+    if (failedBlock) {
+        throw JSONRPCError(
+            RPC_WALLET_ERROR,
+            strprintf(
+                "Wallet rescan failed at block %s.",
+                failedBlock->GetBlockHash().GetHex()));
+    }
 
     return NullUniValue;
 }

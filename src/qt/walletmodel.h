@@ -202,7 +202,7 @@ public:
     class UnlockContext
     {
     public:
-        UnlockContext(WalletModel *wallet, bool valid, const WalletModel::EncryptionStatus& status_before);
+        UnlockContext(WalletModel* wallet, bool valid, const WalletModel::EncryptionStatus& status_before);
         ~UnlockContext();
 
         bool isValid() const { return valid; }
@@ -214,7 +214,7 @@ public:
         UnlockContext& operator=(UnlockContext&& rhs) { CopyFrom(std::move(rhs)); return *this; }
 
     private:
-        WalletModel *wallet;
+        WalletModel* wallet;
         bool valid;
         WalletModel::EncryptionStatus was_status;   // original status
         mutable bool relock; // mutable, as it can be set to false by copying
@@ -235,11 +235,32 @@ public:
      */
     CallResult<CTxDestination> getNewStakingAddress(const std::string& label = "") const;
 
+    //! Return a new wallet rescan reserver.
+    WalletRescanReserver getRescanReserver() const
+    {
+        return WalletRescanReserver(wallet);
+    }
+
     bool whitelistAddressFromColdStaking(const QString& addressStr);
     bool blacklistAddressFromColdStaking(const QString& address);
     bool updateAddressBookPurpose(const QString& addressStr, const std::string& purpose);
     std::string getLabelForAddress(const CTxDestination& address);
     bool getKeyId(const CTxDestination& address, CKeyID& keyID);
+
+    bool getKey(const CKeyID& keyID, CKey& key) const
+    {
+        return wallet->GetKey(keyID, key);
+    }
+
+    bool haveKey(const CKeyID& keyID) const
+    {
+        return wallet->HaveKey(keyID);
+    }
+
+    bool addKeys(
+        const CKey& key,
+        const CPubKey& pubkey,
+        WalletRescanReserver& reserver);
 
     bool isMine(const CTxDestination& address);
     bool isMine(const QString& addressStr);

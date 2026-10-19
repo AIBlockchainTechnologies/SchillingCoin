@@ -1,6 +1,7 @@
 /**
  * Copyright (c) 2013-2014 Tomas Dzetkulic
  * Copyright (c) 2013-2014 Pavol Rusnak
+ * Copyright (c) 2026 The SchillingCoin developers
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the "Software"),
@@ -29,7 +30,7 @@
 class CMnemonic
 {
 public:
-    static std::vector<std::string> Generate(int strength);    // strength in bits
+    static std::vector<std::string> Generate();
     static std::vector<std::string> FromData(const SecureVector& data, int len);
     static std::vector<std::string> getListOfAllWordInLanguage();
     static bool Check(std::string mnemonic);
