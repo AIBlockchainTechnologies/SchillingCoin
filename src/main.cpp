@@ -20,7 +20,6 @@
 #include "consensus/merkle.h"
 #include "consensus/tx_verify.h"
 #include "consensus/validation.h"
-#include "stubs/legacy_zerocoin_verify.h"
 #include "init.h"
 #include "kernel.h"
 #include "legacy/stakemodifier.h"
@@ -2206,11 +2205,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         vPos.emplace_back(tx.GetHash(), pos);
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
     }
-
-    // Track zSCH money supply in the block index
-    if (!UpdateZSCHSupply(block, pindex))
-        return state.DoS(100, error("%s: Failed to calculate new zSCH supply for block=%s height=%d", __func__,
-                                    block.GetHash().GetHex(), pindex->nHeight), REJECT_INVALID);
 
     // Track money supply and mint amount info
     CAmount nMoneySupplyPrev = pindex->pprev ? pindex->pprev->nMoneySupply : 0;

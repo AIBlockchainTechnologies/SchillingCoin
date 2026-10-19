@@ -21,7 +21,6 @@
 #include "checkpoints.h"
 #include "compat/sanity.h"
 #include "fs.h"
-#include "stubs/legacy_zerocoin_verify.h"
 #include "httpserver.h"
 #include "httprpc.h"
 #include "key.h"

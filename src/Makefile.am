@@ -176,8 +176,6 @@ BITCOIN_CORE_H = \
   stakeinput.h \
   streams.h \
   stubs/legacy_zerocoin_consensus.h \
-  stubs/legacy_zerocoin_types.h \
-  stubs/legacy_zerocoin_verify.h \
   support/allocators/zeroafterfree.h \
   support/cleanse.h \
   sync.h \
@@ -252,7 +250,6 @@ libbitcoin_server_a_SOURCES = \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
   script/sigcache.cpp \
-  stubs/legacy_zerocoin_verify.cpp \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \
