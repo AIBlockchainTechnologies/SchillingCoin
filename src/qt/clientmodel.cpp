@@ -44,6 +44,7 @@ static boost::signals2::connection g_connNotifyNumConnectionsChanged;
 static boost::signals2::connection g_connNotifyAlertChanged;
 static boost::signals2::connection g_connBannedListChanged;
 static boost::signals2::connection g_connNotifyBlockTip;
+static boost::signals2::connection g_connNotifyAdditionalDataSyncProgressChanged;
 
 ClientModel::ClientModel(OptionsModel* optionsModel, QObject* parent) :
     QObject(parent),
@@ -340,6 +341,16 @@ void ClientModel::subscribeToCoreSignals()
                 BlockTipChanged(this, initialSync, pIndex);
             }, Qt::QueuedConnection);
         });
+
+    g_connNotifyAdditionalDataSyncProgressChanged =
+        uiInterface.NotifyAdditionalDataSyncProgressChanged.connect(
+            [this](double nSyncProgress) {
+                QMetaObject::invokeMethod(
+                    this,
+                    "additionalDataSyncProgressChanged",
+                    Qt::QueuedConnection,
+                    Q_ARG(double, nSyncProgress));
+            });
 }
 
 void ClientModel::unsubscribeFromCoreSignals()
@@ -349,6 +360,9 @@ void ClientModel::unsubscribeFromCoreSignals()
     if (g_connNotifyAlertChanged.connected()) g_connNotifyAlertChanged.disconnect();
     if (g_connBannedListChanged.connected()) g_connBannedListChanged.disconnect();
     if (g_connNotifyBlockTip.connected()) g_connNotifyBlockTip.disconnect();
+    if (g_connNotifyAdditionalDataSyncProgressChanged.connected()) {
+        g_connNotifyAdditionalDataSyncProgressChanged.disconnect();
+    }
 }
 
 // --- Qt slots expected by moc_clientmodel (used by GUI) ---

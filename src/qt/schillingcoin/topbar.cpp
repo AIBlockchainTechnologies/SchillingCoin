@@ -3,40 +3,37 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "qt/schillingcoin/topbar.h"
+
+#include "addresstablemodel.h"
+#include "askpassphrasedialog.h"
+#include "bitcoinunits.h"
+#include "chainparams.h"
+#include "checkpoints.h"
+#include "clientmodel.h"
+#include "guiinterface.h"
+#include "masternode-sync.h"
+#include "optionsmodel.h"
+#include "qt/guiconstants.h"
+#include "qt/guiutil.h"
+#include "qt/platformstyle.h"
 #include "qt/schillingcoin/forms/ui_topbar.h"
-#include <QPixmap>
 #include "qt/schillingcoin/lockunlock.h"
 #include "qt/schillingcoin/qtutils.h"
 #include "qt/schillingcoin/receivedialog.h"
-#include "askpassphrasedialog.h"
-
-#include "bitcoinunits.h"
-#include "clientmodel.h"
-#include "checkpoints.h"
-#include "qt/guiconstants.h"
-#include "qt/guiutil.h"
-#include "optionsmodel.h"
-#include "qt/platformstyle.h"
 #include "wallet/wallet.h"
 #include "walletmodel.h"
-#include "addresstablemodel.h"
-#include "guiinterface.h"
 
-#include "chainparams.h"
-
-#include "masternode-sync.h"
-
+#include <QBuffer>
+#include <QDesktopServices>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPainter>
+#include <QPixmap>
 #include <QSettings>
 #include <QTimer>
-#include <QNetworkAccessManager>
 #include <QUrl>
-#include <QBuffer>
-#include <QNetworkRequest>
-#include <QNetworkReply>
-#include <QDesktopServices>
 #include <QUrlQuery>
-#include <QPixmap>
 
 uint timestmp;
 
@@ -454,6 +451,8 @@ void TopBar::loadClientModel(){
 
         setNumBlocks(clientModel->getNumBlocks());
         connect(clientModel, SIGNAL(numBlocksChanged(int)), this, SLOT(setNumBlocks(int)));
+        connect(clientModel, SIGNAL(additionalDataSyncProgressChanged(double)),
+                this, SLOT(setAdditionalDataSyncProgress(double)));
 
         timerStakingIcon = new QTimer(ui->pushButtonStack);
         connect(timerStakingIcon, SIGNAL(timeout()), this, SLOT(updateStakingStatus()));
@@ -655,6 +654,16 @@ void TopBar::setNumBlocks(int count) {
     }
 
     ui->pushButtonSync->setButtonText(tr(text.data()));
+}
+
+void TopBar::setAdditionalDataSyncProgress(double nSyncProgress)
+{
+    Q_UNUSED(nSyncProgress);
+
+    if (!clientModel)
+        return;
+
+    setNumBlocks(clientModel->getNumBlocks());
 }
 
 void TopBar::loadWalletModel() {

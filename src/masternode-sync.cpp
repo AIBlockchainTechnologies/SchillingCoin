@@ -132,6 +132,7 @@ void CMasternodeSync::GetNextAsset()
     case MASTERNODE_SYNC_MNW:
         LogPrintf("CMasternodeSync::GetNextAsset - Sync has finished\n");
         RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
+        uiInterface.NotifyAdditionalDataSyncProgressChanged(1.0);
         break;
     }
 
@@ -273,6 +274,7 @@ bool CMasternodeSync::SyncWithNode(CNode* pnode, bool isRegTestNet)
             pnode->PushMessage("mnget", nMnCount);
         } else {
             RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
+            uiInterface.NotifyAdditionalDataSyncProgressChanged(1.0);
         }
 
         RequestedMasternodeAttempt++;

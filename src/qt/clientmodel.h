@@ -5,8 +5,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_CLIENTMODEL_H
-#define BITCOIN_QT_CLIENTMODEL_H
+#ifndef SCHILLINGCOIN_QT_CLIENTMODEL_H
+#define SCHILLINGCOIN_QT_CLIENTMODEL_H
 
 #include "chain.h"
 #include "uint256.h"
@@ -110,6 +110,7 @@ private:
 Q_SIGNALS:
     void numConnectionsChanged(int count);
     void numBlocksChanged(int count);
+    void additionalDataSyncProgressChanged(double nSyncProgress);
     void strMasternodesChanged(const QString& strMasternodes);
     void alertsChanged(const QString& warnings);
     void bytesChanged(quint64 totalBytesIn, quint64 totalBytesOut);
@@ -136,4 +137,4 @@ private:
     Q_DISABLE_COPY(ClientModel)
 };
 
-#endif // BITCOIN_QT_CLIENTMODEL_H
+#endif // SCHILIINGCOIN_QT_CLIENTMODEL_H

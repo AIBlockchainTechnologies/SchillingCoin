@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2020 The SchillingCoin developers
+// Copyright (c) 2019-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -50,6 +50,7 @@ public Q_SLOTS:
 
     void setNumConnections(int count);
     void setNumBlocks(int count);
+    void setAdditionalDataSyncProgress(double nSyncProgress);
     void setStakingStatusActive(bool fActive);
     void updateStakingStatus();
     void setHDStatus(bool fActive);
