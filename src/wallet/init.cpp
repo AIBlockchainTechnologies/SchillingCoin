@@ -244,7 +244,7 @@ bool WalletVerify()
 
         if (gArgs.GetBoolArg("-salvagewallet", false)) {
             // Recover readable keypairs:
-            CWallet dummyWallet("dummy", WalletDatabase::CreateDummy());
+            CWallet dummyWallet("dummy", CreateDummyWalletDatabase());
             std::string backup_filename;
             // Even if we don't use this lock in this function, we want to preserve
             // lock order in LoadToWallet if query of chain state is needed to know

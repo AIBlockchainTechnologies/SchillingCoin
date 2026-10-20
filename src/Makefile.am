@@ -93,8 +93,6 @@ BITCOIN_CORE_H = \
   arith_uint256.h \
   base58.h \
   blob_uint256.h \
-  wallet/bip39.h \
-  wallet/bip39_english.h \
   bip38.h \
   bloom.h \
   blocksignature.h \
@@ -201,6 +199,9 @@ BITCOIN_CORE_H = \
   utiltime.h \
   validationinterface.h \
   version.h \
+  wallet/bdb.h \
+  wallet/bip39.h \
+  wallet/bip39_english.h \
   wallet/db.h \
   wallet/hdchain.h \
   wallet/init.h \
@@ -284,6 +285,7 @@ libbitcoin_wallet_a_SOURCES = \
   messagesigner.cpp \
   legacy/stakemodifier.cpp \
   kernel.cpp \
+  wallet/bdb.cpp \
   wallet/db.cpp \
   wallet/init.cpp \
   wallet/rpcdump.cpp \

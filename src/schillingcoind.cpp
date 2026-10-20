@@ -89,7 +89,7 @@ bool AppInit(int argc, char* argv[])
             return false;
         }
         try {
-            gArgs.ReadConfigFile("schillingcoin.conf");
+            gArgs.ReadConfigFile(gArgs.GetArg("-conf", SCHILLINGCOIN_CONF_FILENAME));
         } catch (const std::exception& e) {
             fprintf(stderr, "Error reading configuration file: %s\n", e.what());
             return false;

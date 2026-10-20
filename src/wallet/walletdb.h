@@ -13,6 +13,7 @@
 #include "keystore.h"
 #include "stubs/legacy_zerocoin_consensus.h"
 #include "wallet/db.h"
+#include "wallet/bdb.h"
 #include "wallet/hdchain.h"
 
 #include <list>
@@ -89,9 +90,6 @@ public:
     }
 };
 
-/** Backend-agnostic database type. */
-using WalletDatabase = BerkeleyDatabase;
-
 /**
  * Access to the wallet database.
  *
@@ -105,7 +103,7 @@ private:
     template <typename K, typename T>
     bool WriteIC(const K& key, const T& value, bool fOverwrite = true)
     {
-        if (!m_batch.Write(key, value, fOverwrite)) {
+        if (!m_batch->Write(key, value, fOverwrite)) {
             return false;
         }
 
@@ -116,7 +114,7 @@ private:
     template <typename K>
     bool EraseIC(const K& key)
     {
-        if (!m_batch.Erase(key)) {
+        if (!m_batch->Erase(key)) {
             return false;
         }
 
@@ -128,11 +126,7 @@ public:
     explicit WalletBatch(
         WalletDatabase& database,
         const char* pszMode = "r+",
-        bool fFlushOnClose = true)
-        : m_batch(database, pszMode, fFlushOnClose),
-          m_database(database)
-    {
-    }
+        bool fFlushOnClose = true);
 
     WalletBatch(const WalletBatch&) = delete;
     WalletBatch& operator=(const WalletBatch&) = delete;
@@ -265,7 +259,7 @@ public:
     bool WriteMintPoolPair(const uint256& hashMasterSeed, const uint256& hashPubcoin, const uint32_t& nCount);
 
 private:
-    BerkeleyBatch m_batch;
+    std::unique_ptr<DatabaseBatch> m_batch;
     WalletDatabase& m_database;
 
     bool WriteAccountingEntry(const uint64_t nAccEntryNum, const CAccountingEntry& acentry);

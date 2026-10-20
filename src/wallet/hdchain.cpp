@@ -3,12 +3,9 @@
 // Distributed under the MIT software license, see the accompanying
 
 #include "chainparams.h"
-#include "key_io.h"
 #include "tinyformat.h"
-#include "util.h"
 #include "util/string.h"
 #include "wallet/hdchain.h"
-#include <utilstrencodings.h>
 
 bool CHDChain::SetNull()
 {
@@ -40,35 +37,6 @@ bool CHDChain::IsCrypted() const
     return fCrypted;
 }
 
-void CHDChain::Debug(std::string strName) const
-{
-    DBG(
-            std::cout << __func__ << ": ---" << strName << "---" << std::endl;
-    if (fCrypted) {
-        std::cout << "mnemonic: ***CRYPTED***" << std::endl;
-        std::cout << "mnemonicpassphrase: ***CRYPTED***" << std::endl;
-        std::cout << "seed: ***CRYPTED***" << std::endl;
-    } else {
-        std::cout << "mnemonic: " << std::string(vchMnemonic.begin(), vchMnemonic.end()).c_str() << std::endl;
-        std::cout << "mnemonicpassphrase: " << std::string(vchMnemonicPassphrase.begin(), vchMnemonicPassphrase.end()).c_str() << std::endl;
-        std::cout << "seed: " << HexStr(vchSeed).c_str() << std::endl;
-
-        CExtKey extkey;
-        extkey.SetMaster(&vchSeed[0], vchSeed.size());
-
-        std::cout << "extended private masterkey: "
-                  << KeyIO::EncodeExtKey(extkey)
-                  << std::endl;
-
-        const CExtPubKey extpubkey = extkey.Neuter();
-
-        std::cout << "extended public masterkey: "
-                  << KeyIO::EncodeExtPubKey(extpubkey)
-                  << std::endl;
-    }
-    );
-}
-
 bool CHDChain::SetMnemonic(const SecureVector& vchMnemonic, const SecureVector& vchMnemonicPassphrase, bool fUpdateID)
 {
     return SetMnemonic(SecureString(vchMnemonic.begin(), vchMnemonic.end()), SecureString(vchMnemonicPassphrase.begin(), vchMnemonicPassphrase.end()), fUpdateID);
@@ -86,15 +54,14 @@ bool CHDChain::SetMnemonic(const SecureString& ssMnemonic, const SecureString& s
         // empty mnemonic i.e. "generate a new one"
         if (ssMnemonic.empty()) {
             std::vector<std::string> generatedWords = CMnemonic::Generate();
-            std::string generatedMnemonic = join(generatedWords, " ");
+            std::string generatedMnemonic = Join(generatedWords, " ");
             ssMnemonicTmp = SecureString(generatedMnemonic.begin(), generatedMnemonic.end());
         }
 
         // NOTE: default mnemonic passphrase is an empty string
 
-        // printf("mnemonic: %s\n", ssMnemonicTmp.c_str());
         if (!CMnemonic::Check(ssMnemonicTmp)) {
-            throw std::runtime_error(std::string(__func__) + ": invalid mnemonic: `" + std::string(ssMnemonicTmp.c_str()) + "`");
+            throw std::runtime_error(std::string(__func__) + ": invalid mnemonic");
         }
 
         CMnemonic::ToSeed(ssMnemonicTmp, ssMnemonicPassphrase, vchSeed);

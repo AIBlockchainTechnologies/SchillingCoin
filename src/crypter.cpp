@@ -245,7 +245,6 @@ bool CCryptoKeyStore::EncryptHDChain(const CKeyingMaterial& vMasterKeyIn)
     if (!EncryptSecret(vMasterKeyIn, hdChain.GetSeed(), hdChain.GetID(), vchCryptedSeed))
         return false;
 
-    hdChain.Debug(__func__);
     cryptedHDChain = hdChain;
     cryptedHDChain.SetCrypted(true);
 
@@ -268,6 +267,7 @@ bool CCryptoKeyStore::EncryptHDChain(const CKeyingMaterial& vMasterKeyIn)
 
         SecureVector vchSecureCryptedMnemonic(vchCryptedMnemonic.begin(), vchCryptedMnemonic.end());
         SecureVector vchSecureCryptedMnemonicPassphrase(vchCryptedMnemonicPassphrase.begin(), vchCryptedMnemonicPassphrase.end());
+
         if (!cryptedHDChain.SetMnemonic(vchSecureCryptedMnemonic, vchSecureCryptedMnemonicPassphrase, false))
             return false;
     }
@@ -281,6 +281,7 @@ bool CCryptoKeyStore::EncryptHDChain(const CKeyingMaterial& vMasterKeyIn)
 bool CCryptoKeyStore::EncryptHDChainUpgrade(const CKeyingMaterial& vMasterKeyIn, const CHDChain& chain)
 {
     hdChain = chain;
+
     // should call EncryptKeys first
     if (!IsCrypted())
         return false;
@@ -299,7 +300,6 @@ bool CCryptoKeyStore::EncryptHDChainUpgrade(const CKeyingMaterial& vMasterKeyIn,
     if (!EncryptSecret(vMasterKeyIn, hdChain.GetSeed(), hdChain.GetID(), vchCryptedSeed))
         return false;
 
-    hdChain.Debug(__func__);
     cryptedHDChain = hdChain;
     cryptedHDChain.SetCrypted(true);
 
@@ -322,6 +322,7 @@ bool CCryptoKeyStore::EncryptHDChainUpgrade(const CKeyingMaterial& vMasterKeyIn,
 
         SecureVector vchSecureCryptedMnemonic(vchCryptedMnemonic.begin(), vchCryptedMnemonic.end());
         SecureVector vchSecureCryptedMnemonicPassphrase(vchCryptedMnemonicPassphrase.begin(), vchCryptedMnemonicPassphrase.end());
+
         if (!cryptedHDChain.SetMnemonic(vchSecureCryptedMnemonic, vchSecureCryptedMnemonicPassphrase, false))
             return false;
     }
@@ -378,7 +379,6 @@ bool CCryptoKeyStore::DecryptHDChain(CHDChain& hdChainRet) const
     }
 
     hdChainRet.SetCrypted(false);
-    hdChainRet.Debug(__func__);
 
     return true;
 }

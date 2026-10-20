@@ -78,14 +78,11 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/predicate.hpp> // for startswith() and endswith()
 #include <boost/filesystem.hpp>
-#include <boost/filesystem/fstream.hpp>
-#include <boost/program_options/detail/config_file.hpp>
 #include <boost/program_options/parsers.hpp>
 #include <boost/thread.hpp>
 #include <openssl/conf.h>
 #include <openssl/crypto.h>
 #include <openssl/rand.h>
-
 
 // SchillingCoin only features
 // Masternode
@@ -247,49 +244,6 @@ bool SoftSetBoolArg(const std::string& strArg, bool fValue)
         return SoftSetArg(strArg, std::string("1"));
     else
         return SoftSetArg(strArg, std::string("0"));
-}
-
-boost::filesystem::path GetConfigFile()
-{
-    boost::filesystem::path pathConfigFile(gArgs.GetArg("-conf", "schillingcoin.conf"));
-    if (!pathConfigFile.is_absolute())
-        pathConfigFile = GetDataDir(false) / pathConfigFile;
-
-    return pathConfigFile;
-}
-
-boost::filesystem::path GetForgeConfigFile()
-{
-    boost::filesystem::path pathConfigFile(gArgs.GetArg("-forgeconf", "forge.conf"));
-    if (!pathConfigFile.is_absolute()) pathConfigFile = GetDataDir() / pathConfigFile;
-    return pathConfigFile;
-}
-
-void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet, std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet)
-{
-    boost::filesystem::ifstream streamConfig(GetConfigFile());
-    if (!streamConfig.good()) {
-        // Create empty schillingcoin.conf if it does not exist
-        FILE* configFile = fopen(GetConfigFile().string().c_str(), "a");
-        if (configFile != NULL)
-            fclose(configFile);
-        return; // Nothing to read, so just return
-    }
-
-    std::set<std::string> setOptions;
-    setOptions.insert("*");
-
-    for (boost::program_options::detail::config_file_iterator it(streamConfig, setOptions), end; it != end; ++it) {
-        // Don't overwrite existing settings so command line settings override schillingcoin.conf
-        std::string strKey = std::string("-") + it->string_key;
-        std::string strValue = it->value[0];
-        InterpretNegativeSetting(strKey, strValue);
-        if (mapSettingsRet.count(strKey) == 0)
-            mapSettingsRet[strKey] = strValue;
-        mapMultiSettingsRet[strKey].push_back(strValue);
-    }
-    // If datadir is changed in .conf file:
-    ClearDatadirCache();
 }
 
 #ifndef WIN32

@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
 // Copyright (c) 2019 The PIVX developers
 // Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
@@ -10,498 +10,348 @@
 
 #include "clientversion.h"
 #include "fs.h"
-#include "serialize.h"
 #include "streams.h"
-#include "support/cleanse.h"
-#include "sync.h"
-#include "version.h"
 
 #include <atomic>
-#include <condition_variable>
-#include <map>
+#include <cstdint>
+#include <exception>
 #include <memory>
 #include <string>
-#include <unordered_map>
-#include <vector>
-
-#include <db_cxx.h>
-
-class CDiskBlockIndex;
-class COutPoint;
-
-struct CBlockLocator;
-
-static const unsigned int DEFAULT_WALLET_DBLOGSIZE = 100;
-static const bool DEFAULT_WALLET_PRIVDB = true;
-
-struct WalletDatabaseFileId
-{
-    u_int8_t value[DB_FILE_ID_LEN];
-
-    bool operator==(const WalletDatabaseFileId& rhs) const;
-};
-
-class BerkeleyEnvironment
-{
-private:
-    bool fDbEnvInit;
-    bool fMockDb;
-
-    // Don't change into fs::path, as that can result in
-    // shutdown problems/crashes caused by a static initialized internal pointer.
-    std::string strPath;
-
-public:
-    std::unique_ptr<DbEnv> dbenv;
-    std::map<std::string, int> mapFileUseCount;
-    std::map<std::string, Db*> mapDb;
-    std::unordered_map<std::string, WalletDatabaseFileId> m_fileids;
-    std::condition_variable_any m_db_in_use;
-
-    explicit BerkeleyEnvironment(const fs::path& env_directory);
-    ~BerkeleyEnvironment();
-
-    void Reset();
-    void MakeMock();
-
-    bool IsMock() const
-    {
-        return fMockDb;
-    }
-
-    bool IsInitialized() const
-    {
-        return fDbEnvInit;
-    }
-
-    fs::path Directory() const
-    {
-        return strPath;
-    }
-
-    enum VerifyResult {
-        VERIFY_OK,
-        RECOVER_OK,
-        RECOVER_FAIL
-    };
-
-    typedef bool (*recoverFunc_type)(
-        const fs::path& file_path,
-        std::string& out_backup_filename);
-
-    VerifyResult Verify(
-        const std::string& strFile,
-        recoverFunc_type recoverFunc,
-        std::string& out_backup_filename);
-
-    typedef std::pair<
-        std::vector<unsigned char>,
-        std::vector<unsigned char>
-    > KeyValPair;
-
-    bool Salvage(
-        const std::string& strFile,
-        bool fAggressive,
-        std::vector<KeyValPair>& vResult);
-
-    bool Open(bool retry);
-    void Close();
-    void Flush(bool fShutdown);
-    void CheckpointLSN(const std::string& strFile);
-    void ResetLSN(const std::string& strFile);
-    void CloseDb(const std::string& strFile);
-    void ReloadDbEnv();
-
-    DbTxn* TxnBegin(int flags = DB_TXN_WRITE_NOSYNC)
-    {
-        DbTxn* ptxn = nullptr;
-        int ret = dbenv->txn_begin(nullptr, &ptxn, flags);
-
-        if (!ptxn || ret != 0)
-            return nullptr;
-
-        return ptxn;
-    }
-};
-
-/** Resolve the BerkeleyDB data file for a wallet path. */
-fs::path BDBDataFile(const fs::path& wallet_path);
-
-/** Get BerkeleyEnvironment and database filename given a wallet path. */
-BerkeleyEnvironment* GetWalletEnv(const fs::path& wallet_path, std::string& database_filename);
+#include <utility>
 
 /**
- * An instance of this class represents one database.
- * For BerkeleyDB this is just an (env, strFile) tuple.
+ * Backend-independent database batch interface.
+ *
+ * Concrete database backends implement the serialized key/value operations,
+ * transaction handling, and cursor handling. The public template functions
+ * preserve SCH's existing wallet record serialization.
  */
-class BerkeleyDatabase
+class DatabaseBatch
 {
-    friend class BerkeleyBatch;
-
-public:
-    /** Create dummy DB handle */
-    BerkeleyDatabase() :
-        nUpdateCounter(0),
-        nLastSeen(0),
-        nLastFlushed(0),
-        nLastWalletUpdate(0),
-        env(nullptr)
-    {
-    }
-
-    /** Create DB handle to real database */
-    explicit BerkeleyDatabase(const fs::path& wallet_path, bool mock = false) :
-        nUpdateCounter(0),
-        nLastSeen(0),
-        nLastFlushed(0),
-        nLastWalletUpdate(0)
-    {
-        env = GetWalletEnv(wallet_path, strFile);
-        if (mock) {
-            env->Close();
-            env->Reset();
-            env->MakeMock();
-        }
-    }
-
-    /** Return object for accessing database at specified path. */
-    static std::unique_ptr<BerkeleyDatabase> Create(const fs::path& path)
-    {
-        return std::make_unique<BerkeleyDatabase>(path);
-    }
-
-    /** Return object for accessing dummy database with no read/write capabilities. */
-    static std::unique_ptr<BerkeleyDatabase> CreateDummy()
-    {
-        return std::make_unique<BerkeleyDatabase>();
-    }
-
-    /** Return object for accessing temporary in-memory database. */
-    static std::unique_ptr<BerkeleyDatabase> CreateMock()
-    {
-        return std::make_unique<BerkeleyDatabase>("", true /* mock */);
-    }
-
-    /** Rewrite the entire database on disk, with the exception of key pszSkip if non-zero. */
-    bool Rewrite(const char* pszSkip = nullptr);
-
-    /** Back up the entire database to a file. */
-    bool Backup(const std::string& strDest);
-
-    /** Make sure all changes are flushed to disk. */
-    void Flush(bool shutdown);
-
-    void IncrementUpdateCounter();
-    void ReloadDbEnv();
-
-    std::atomic<unsigned int> nUpdateCounter;
-    unsigned int nLastSeen;
-    unsigned int nLastFlushed;
-    int64_t nLastWalletUpdate;
-
-    fs::path GetPathToFile()
-    {
-        return env->Directory() / strFile;
-    }
-
 private:
-    /** BerkeleyDB-specific ownership. */
-    BerkeleyEnvironment* env;
-    std::string strFile;
+    virtual bool ReadKey(
+        CDataStream&& key,
+        CDataStream& value) = 0;
 
-    /**
-     * Return whether this database handle is a dummy for testing.
-     * Only low-level database code should need to inspect this.
-     */
-    bool IsDummy()
-    {
-        return env == nullptr;
-    }
-};
+    virtual bool WriteKey(
+        CDataStream&& key,
+        CDataStream&& value,
+        bool overwrite) = 0;
 
-/** RAII class that provides access to a Berkeley database. */
-class BerkeleyBatch
-{
-protected:
-    Db* pdb;
-    std::string strFile;
-    DbTxn* activeTxn;
-    bool fReadOnly;
-    bool fFlushOnClose;
-    BerkeleyEnvironment* env;
+    virtual bool EraseKey(
+        CDataStream&& key) = 0;
+
+    virtual bool HasKey(
+        CDataStream&& key) = 0;
 
 public:
-    explicit BerkeleyBatch(
-        BerkeleyDatabase& database,
-        const char* pszMode = "r+",
-        bool fFlushOnCloseIn = true);
+    DatabaseBatch() = default;
+    virtual ~DatabaseBatch() = default;
 
-    ~BerkeleyBatch()
-    {
-        Close();
-    }
+    DatabaseBatch(const DatabaseBatch&) = delete;
+    DatabaseBatch& operator=(const DatabaseBatch&) = delete;
 
-    BerkeleyBatch(const BerkeleyBatch&) = delete;
-    BerkeleyBatch& operator=(const BerkeleyBatch&) = delete;
-
-    void Flush();
-    void Close();
-
-    static bool Recover(
-        const fs::path& file_path,
-        void* callbackDataIn,
-        bool (*recoverKVcallback)(
-            void* callbackData,
-            CDataStream ssKey,
-            CDataStream ssValue),
-        std::string& out_backup_filename);
-
-    /**
-     * Flush the wallet passively using TRY_LOCK.
-     * Intended to be called periodically.
-     */
-    static bool PeriodicFlush(BerkeleyDatabase& database);
-
-    /** Verify the database environment. */
-    static bool VerifyEnvironment(
-        const fs::path& file_path,
-        std::string& errorStr);
-
-    /** Verify the database file. */
-    static bool VerifyDatabaseFile(
-        const fs::path& file_path,
-        std::string& warningStr,
-        std::string& errorStr,
-        BerkeleyEnvironment::recoverFunc_type recoverFunc);
-
-public:
     template <typename K, typename T>
     bool Read(const K& key, T& value)
     {
-        if (!pdb)
-            return false;
-
         CDataStream ssKey(SER_DISK, CLIENT_VERSION);
         ssKey.reserve(1000);
         ssKey << key;
 
-        Dbt datKey(ssKey.data(), ssKey.size());
+        CDataStream ssValue(SER_DISK, CLIENT_VERSION);
 
-        Dbt datValue;
-        datValue.set_flags(DB_DBT_MALLOC);
-
-        int ret = pdb->get(activeTxn, &datKey, &datValue, 0);
-
-        memory_cleanse(datKey.get_data(), datKey.get_size());
-
-        bool success = false;
-        if (datValue.get_data() != nullptr) {
-            try {
-                CDataStream ssValue(
-                    static_cast<char*>(datValue.get_data()),
-                    static_cast<char*>(datValue.get_data()) + datValue.get_size(),
-                    SER_DISK,
-                    CLIENT_VERSION);
-
-                ssValue >> value;
-                success = true;
-            } catch (const std::exception&) {
-                // success remains false
-            }
-
-            memory_cleanse(datValue.get_data(), datValue.get_size());
-            free(datValue.get_data());
+        if (!ReadKey(std::move(ssKey), ssValue)) {
+            return false;
         }
 
-        return ret == 0 && success;
+        try {
+            ssValue >> value;
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
     }
 
     template <typename K, typename T>
-    bool Write(const K& key, const T& value, bool fOverwrite = true)
+    bool Write(
+        const K& key,
+        const T& value,
+        bool overwrite = true)
     {
-        if (!pdb)
-            return true;
-
-        if (fReadOnly)
-            assert(!"Write called on database in read-only mode");
-
         CDataStream ssKey(SER_DISK, CLIENT_VERSION);
         ssKey.reserve(1000);
         ssKey << key;
-
-        Dbt datKey(ssKey.data(), ssKey.size());
 
         CDataStream ssValue(SER_DISK, CLIENT_VERSION);
         ssValue.reserve(10000);
         ssValue << value;
 
-        Dbt datValue(ssValue.data(), ssValue.size());
-
-        int ret = pdb->put(
-            activeTxn,
-            &datKey,
-            &datValue,
-            fOverwrite ? 0 : DB_NOOVERWRITE);
-
-        memory_cleanse(datKey.get_data(), datKey.get_size());
-        memory_cleanse(datValue.get_data(), datValue.get_size());
-
-        return ret == 0;
+        return WriteKey(
+            std::move(ssKey),
+            std::move(ssValue),
+            overwrite);
     }
 
     template <typename K>
     bool Erase(const K& key)
     {
-        if (!pdb)
-            return false;
-
-        if (fReadOnly)
-            assert(!"Erase called on database in read-only mode");
-
         CDataStream ssKey(SER_DISK, CLIENT_VERSION);
         ssKey.reserve(1000);
         ssKey << key;
 
-        Dbt datKey(ssKey.data(), ssKey.size());
-
-        int ret = pdb->del(activeTxn, &datKey, 0);
-
-        memory_cleanse(datKey.get_data(), datKey.get_size());
-
-        return ret == 0 || ret == DB_NOTFOUND;
+        return EraseKey(std::move(ssKey));
     }
 
     template <typename K>
     bool Exists(const K& key)
     {
-        if (!pdb)
-            return false;
-
         CDataStream ssKey(SER_DISK, CLIENT_VERSION);
         ssKey.reserve(1000);
         ssKey << key;
 
-        Dbt datKey(ssKey.data(), ssKey.size());
-
-        int ret = pdb->exists(activeTxn, &datKey, 0);
-
-        memory_cleanse(datKey.get_data(), datKey.get_size());
-
-        return ret == 0;
+        return HasKey(std::move(ssKey));
     }
 
-    Dbc* GetCursor()
+    virtual void Flush() = 0;
+    virtual void Close() = 0;
+
+    virtual bool StartCursor() = 0;
+
+    virtual bool ReadAtCursor(
+        CDataStream& key,
+        CDataStream& value,
+        bool set_range,
+        bool& complete) = 0;
+
+    virtual void CloseCursor() = 0;
+
+    virtual bool TxnBegin() = 0;
+    virtual bool TxnCommit() = 0;
+    virtual bool TxnAbort() = 0;
+
+    bool ReadVersion(int& version)
     {
-        if (!pdb)
-            return nullptr;
-
-        Dbc* pcursor = nullptr;
-        int ret = pdb->cursor(nullptr, &pcursor, 0);
-
-        if (ret != 0)
-            return nullptr;
-
-        return pcursor;
+        version = 0;
+        return Read(std::string("version"), version);
     }
 
-    int ReadAtCursor(
-        Dbc* pcursor,
-        CDataStream& ssKey,
-        CDataStream& ssValue,
-        bool setRange = false)
+    bool WriteVersion(int version)
     {
-        Dbt datKey;
-        unsigned int fFlags = DB_NEXT;
+        return Write(std::string("version"), version);
+    }
+};
 
-        if (setRange) {
-            datKey.set_data(ssKey.data());
-            datKey.set_size(ssKey.size());
-            fFlags = DB_SET_RANGE;
-        }
-
-        Dbt datValue;
-
-        datKey.set_flags(DB_DBT_MALLOC);
-        datValue.set_flags(DB_DBT_MALLOC);
-
-        int ret = pcursor->get(&datKey, &datValue, fFlags);
-
-        if (ret != 0)
-            return ret;
-
-        if (datKey.get_data() == nullptr || datValue.get_data() == nullptr)
-            return 99999;
-
-        ssKey.SetType(SER_DISK);
-        ssKey.clear();
-        ssKey.write(
-            static_cast<char*>(datKey.get_data()),
-            datKey.get_size());
-
-        ssValue.SetType(SER_DISK);
-        ssValue.clear();
-        ssValue.write(
-            static_cast<char*>(datValue.get_data()),
-            datValue.get_size());
-
-        memory_cleanse(datKey.get_data(), datKey.get_size());
-        memory_cleanse(datValue.get_data(), datValue.get_size());
-
-        free(datKey.get_data());
-        free(datValue.get_data());
-
-        return 0;
+/**
+ * Backend-independent wallet database interface.
+ */
+class WalletDatabase
+{
+public:
+    WalletDatabase()
+        : nUpdateCounter(0),
+          nLastSeen(0),
+          nLastFlushed(0),
+          nLastWalletUpdate(0)
+    {
     }
 
-    bool TxnBegin()
+    virtual ~WalletDatabase() = default;
+
+    WalletDatabase(const WalletDatabase&) = delete;
+    WalletDatabase& operator=(const WalletDatabase&) = delete;
+
+    virtual bool Rewrite(
+        const char* skip = nullptr) = 0;
+
+    virtual bool Backup(
+        const std::string& destination) = 0;
+
+    virtual void Flush(
+        bool shutdown) = 0;
+
+    virtual bool PeriodicFlush() = 0;
+
+    virtual void IncrementUpdateCounter() = 0;
+    virtual void ReloadDbEnv() = 0;
+
+    virtual fs::path GetPathToFile() const = 0;
+
+    virtual std::string Filename() const = 0;
+    virtual std::string Format() const = 0;
+
+    virtual std::unique_ptr<DatabaseBatch> MakeBatch(
+        const char* mode = "r+",
+        bool flush_on_close = true) = 0;
+
+    std::atomic<unsigned int> nUpdateCounter;
+    unsigned int nLastSeen;
+    unsigned int nLastFlushed;
+    int64_t nLastWalletUpdate;
+};
+
+/**
+ * Database batch implementation with no persistent storage.
+ */
+class DummyBatch final : public DatabaseBatch
+{
+private:
+    bool ReadKey(
+        CDataStream&&,
+        CDataStream&) override
     {
-        if (!pdb || activeTxn)
-            return false;
+        return false;
+    }
 
-        DbTxn* ptxn = env->TxnBegin();
-        if (!ptxn)
-            return false;
-
-        activeTxn = ptxn;
+    bool WriteKey(
+        CDataStream&&,
+        CDataStream&&,
+        bool) override
+    {
         return true;
     }
 
-    bool TxnCommit()
+    bool EraseKey(
+        CDataStream&&) override
     {
-        if (!pdb || !activeTxn)
-            return false;
-
-        int ret = activeTxn->commit(0);
-        activeTxn = nullptr;
-
-        return ret == 0;
+        return true;
     }
 
-    bool TxnAbort()
+    bool HasKey(
+        CDataStream&&) override
     {
-        if (!pdb || !activeTxn)
-            return false;
-
-        int ret = activeTxn->abort();
-        activeTxn = nullptr;
-
-        return ret == 0;
+        return false;
     }
 
-    bool ReadVersion(int& nVersion)
+public:
+    void Flush() override
     {
-        nVersion = 0;
-        return Read(std::string("version"), nVersion);
     }
 
-    bool WriteVersion(int nVersion)
+    void Close() override
     {
-        return Write(std::string("version"), nVersion);
     }
 
-    static bool Rewrite(
-        BerkeleyDatabase& database,
-        const char* pszSkip = nullptr);
+    bool StartCursor() override
+    {
+        return true;
+    }
+
+    bool ReadAtCursor(
+        CDataStream&,
+        CDataStream&,
+        bool,
+        bool& complete) override
+    {
+        complete = true;
+        return true;
+    }
+
+    void CloseCursor() override
+    {
+    }
+
+    bool TxnBegin() override
+    {
+        return true;
+    }
+
+    bool TxnCommit() override
+    {
+        return true;
+    }
+
+    bool TxnAbort() override
+    {
+        return true;
+    }
 };
+
+/**
+ * Dummy wallet database used when persistent storage is unnecessary.
+ */
+class DummyDatabase final : public WalletDatabase
+{
+public:
+    bool Rewrite(
+        const char* = nullptr) override
+    {
+        return true;
+    }
+
+    bool Backup(
+        const std::string&) override
+    {
+        return true;
+    }
+
+    void Flush(
+        bool) override
+    {
+    }
+
+    bool PeriodicFlush() override
+    {
+        return true;
+    }
+
+    void IncrementUpdateCounter() override
+    {
+        ++nUpdateCounter;
+    }
+
+    void ReloadDbEnv() override
+    {
+    }
+
+    fs::path GetPathToFile() const override
+    {
+        return fs::path();
+    }
+
+    std::string Filename() const override
+    {
+        return "dummy";
+    }
+
+    std::string Format() const override
+    {
+        return "dummy";
+    }
+
+    std::unique_ptr<DatabaseBatch> MakeBatch(
+        const char* = "r+",
+        bool = true) override
+    {
+        return std::make_unique<DummyBatch>();
+    }
+};
+
+enum class DatabaseStatus {
+    SUCCESS,
+    FAILED_BAD_PATH,
+    FAILED_BAD_FORMAT,
+    FAILED_ALREADY_LOADED,
+    FAILED_ALREADY_EXISTS,
+    FAILED_NOT_FOUND,
+    FAILED_CREATE,
+    FAILED_LOAD,
+    FAILED_VERIFY
+};
+
+struct DatabaseOptions {
+    bool require_existing{false};
+    bool require_create{false};
+    bool verify{true};
+};
+
+std::unique_ptr<WalletDatabase> MakeDatabase(
+    const fs::path& path,
+    const DatabaseOptions& options,
+    DatabaseStatus& status,
+    std::string& error);
+
+std::unique_ptr<WalletDatabase> CreateDummyWalletDatabase();
+
+std::unique_ptr<WalletDatabase> CreateMockWalletDatabase();
 
 #endif // SCHILLINGCOIN_WALLET_DB_H

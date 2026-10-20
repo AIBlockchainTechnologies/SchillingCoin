@@ -596,15 +596,10 @@ bool CWallet::UpgradeHdChainEncrypted(const SecureString& strWalletPassphrase, c
                 continue; // try another master key
             }
 
-
             assert(EncryptHDChainUpgrade(vMasterKey, hdChainCurrent));
 
             CHDChain hdChainCrypted;
             assert(GetHDChain(hdChainCrypted));
-
-
-            LogPrintf("EncryptWallet -- current seed: '%s'\n", HexStr(hdChainCurrent.GetSeed()).c_str());
-            LogPrintf("EncryptWallet -- crypted seed: '%s'\n", HexStr(hdChainCrypted.GetSeed()).c_str());
 
             // ids should match, seed hashes should not
             assert(hdChainCurrent.GetID() == hdChainCrypted.GetID());
@@ -1030,9 +1025,6 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
             CHDChain hdChainCrypted;
             assert(GetHDChain(hdChainCrypted));
 
-            LogPrintf("EncryptWallet -- current seed: '%s'\n", HexStr(hdChainCurrent.GetSeed()).c_str());
-            LogPrintf("EncryptWallet -- crypted seed: '%s'\n", HexStr(hdChainCrypted.GetSeed()).c_str());
-
             // ids should match, seed hashes should not
             assert(hdChainCurrent.GetID() == hdChainCrypted.GetID());
             assert(hdChainCurrent.GetSeedHash() != hdChainCrypted.GetSeedHash());
@@ -1112,7 +1104,6 @@ void CWallet::GenerateNewHDChain(const std::string& words, const SecureString& s
         if (!newHdChain.SetMnemonic(vchMnemonic, vchMnemonicPassphrase, true))
             throw std::runtime_error(std::string(__func__) + ": SetMnemonic failed");
     }
-    newHdChain.Debug(__func__);
 
     if (IsCrypted()) {
         if (!UpgradeHdChainEncrypted(strWalletPassphrase, newHdChain))
@@ -1123,28 +1114,6 @@ void CWallet::GenerateNewHDChain(const std::string& words, const SecureString& s
             throw std::runtime_error(std::string(__func__) + ": SetHDChain failed");
     }
 
-    // Previous code called gArgs.mapArgs.erase("-hdseed"), gArgs.mapArgs.erase("-mnemonic"),
-    // and gArgs.mapArgs.erase("-mnemonicpassphrase"). Those calls erased the values only
-    // from SCH's old gArgs.mapArgs container. After SCH moved active argument storage
-    // and lookup to gArgs, the old cleanup no longer cleared the copies held by
-    // ArgsManager. The raw HD seed, 24-word recovery phrase, or separate mnemonic
-    // passphrase could therefore remain available after the HD chain was created.
-    //
-    // This was unsafe because malicious or compromised code running inside SCH
-    // could request the retained values through gArgs without the wallet owner
-    // knowing. If the 24-word recovery phrase and any separate mnemonic passphrase
-    // were exposed, an attacker could recreate the HD wallet, derive its private
-    // keys, and place the owner's funds at risk.
-    //
-    // These gArgs.ForceRemoveArg calls fix the incomplete cleanup. They make
-    // ArgsManager discard the command-line, configuration-file, and
-    // network-specific copies of -hdseed, -mnemonic, and -mnemonicpassphrase.
-    // After these calls complete, later argument lookups through gArgs cannot
-    // retrieve those startup recovery values.
-    //
-    // The current source under this comment changes only the temporary argument copies used during wallet startup.
-    // It does not erase or modify the HD chain, recovery information retained by
-    // the wallet, encrypted mnemonic records, or any records stored in wallet.dat.
     gArgs.ForceRemoveArg("-hdseed");
     gArgs.ForceRemoveArg("-mnemonic");
     gArgs.ForceRemoveArg("-mnemonicpassphrase");
@@ -4131,6 +4100,29 @@ CWallet* CreateWalletFromFileInternal(const std::string& walletFile, const fs::p
 {
     WalletVerificationGuard verificationGuard;
 
+    const auto makeWalletDatabase =
+        [&walletPath, &walletFile]() -> std::unique_ptr<WalletDatabase> {
+        DatabaseOptions options;
+        DatabaseStatus status;
+        std::string error;
+
+        std::unique_ptr<WalletDatabase> database =
+            MakeDatabase(
+                walletPath,
+                options,
+                status,
+                error);
+
+        if (!database) {
+            UIError(strprintf(
+                _("Error opening wallet database %s: %s"),
+                walletFile,
+                error));
+        }
+
+        return database;
+    };
+
     // Needed to restore wallet transaction metadata after -zapwallettxes.
     std::vector<CWalletTx> vWtx;
 
@@ -4138,10 +4130,17 @@ CWallet* CreateWalletFromFileInternal(const std::string& walletFile, const fs::p
         gArgs.GetBoolArg("-zapwallettxes", false)) {
         uiInterface.InitMessage(_("Zapping all transactions from wallet..."));
 
+        std::unique_ptr<WalletDatabase> tempDatabase =
+            makeWalletDatabase();
+
+        if (!tempDatabase) {
+            return nullptr;
+        }
+
         CWallet* tempWallet =
             new CWallet(
                 walletFile,
-                WalletDatabase::Create(walletPath));
+                std::move(tempDatabase));
 
         const DBErrors nZapWalletRet = tempWallet->ZapWalletTx(vWtx);
         if (nZapWalletRet != DB_LOAD_OK) {
@@ -4158,10 +4157,17 @@ CWallet* CreateWalletFromFileInternal(const std::string& walletFile, const fs::p
     const int64_t nStart = GetTimeMillis();
     bool fFirstRun = true;
 
+    std::unique_ptr<WalletDatabase> walletDatabase =
+        makeWalletDatabase();
+
+    if (!walletDatabase) {
+        return nullptr;
+    }
+
     CWallet* walletInstance =
         new CWallet(
             walletFile,
-            WalletDatabase::Create(walletPath));
+            std::move(walletDatabase));
 
     const DBErrors nLoadWalletRet = walletInstance->LoadWallet(fFirstRun);
 
@@ -4390,11 +4396,6 @@ CWallet* CreateWalletFromFileInternal(const std::string& walletFile, const fs::p
                 }
             }
         }
-    } else if (restoreFromMnemonic) {
-        UnregisterValidationInterface(walletInstance);
-        UIError(_("Unable to scan the blockchain while restoring the wallet."));
-        delete walletInstance;
-        return nullptr;
     }
 
     return walletInstance;

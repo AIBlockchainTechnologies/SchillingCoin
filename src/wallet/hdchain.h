@@ -2,8 +2,8 @@
 // Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 
-#ifndef SchillingCoin_HDCHAIN_H
-#define SchillingCoin_HDCHAIN_H
+#ifndef SCHILLINGCOIN_HDCHAIN_H
+#define SCHILLINGCOIN_HDCHAIN_H
 
 #include "key.h"
 #include "sync.h"
@@ -102,8 +102,6 @@ public:
     void SetCrypted(bool fCryptedIn);
     bool IsCrypted() const;
 
-    void Debug(std::string strName) const;
-
     bool SetMnemonic(const SecureVector& vchMnemonic, const SecureVector& vchMnemonicPassphrase, bool fUpdateID);
     bool SetMnemonic(const SecureString& ssMnemonic, const SecureString& ssMnemonicPassphrase, bool fUpdateID);
     bool GetMnemonic(SecureVector& vchMnemonicRet, SecureVector& vchMnemonicPassphraseRet) const;
@@ -153,4 +151,4 @@ public:
     std::string GetKeyPath() const;
 };
 
-#endif // SchillingCoin_HDCHAIN_H
+#endif // SCHILLINGCOIN_HDCHAIN_H

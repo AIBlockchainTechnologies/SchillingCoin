@@ -3381,7 +3381,7 @@ UniValue multisend(const JSONRPCRequest& request)
 
 UniValue upgradetohd(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() == 0) {
+    if (request.fHelp || request.params.size() > 2) {
         throw std::runtime_error(
                 "upgradetohd ( \"mnemonicwords\" \"password\" )\n"
                 "\nNon-HD wallets will not be upgraded to being a HD wallet. Wallets that are already\n"
@@ -3427,7 +3427,9 @@ UniValue upgradetohd(const JSONRPCRequest& request)
 
         EnsureWalletIsUnlocked(pwalletMain);
 
-        const std::string words = request.params[0].get_str();
+        std::string words;
+        if (request.params.size() > 0)
+            words = request.params[0].get_str();
         const int prev_version = pwalletMain->GetVersion();
 
         int nMaxVersion = gArgs.GetArg("-upgradewallet", 0);

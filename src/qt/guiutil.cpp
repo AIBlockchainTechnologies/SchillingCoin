@@ -52,18 +52,19 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDesktopWidget>
-#include <QRegExp>
-#include <QRegularExpression>
-#include <QRegularExpressionValidator>
 #include <QFileDialog>
 #include <QFont>
 #include <QLineEdit>
+#include <QList>
+#include <QMouseEvent>
+#include <QProcess>
+#include <QRegExp>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
 #include <QSettings>
-#include <QTextDocument> // for Qt::mightBeRichText
+#include <QTextDocument>
 #include <QThread>
 #include <QUrlQuery>
-#include <QMouseEvent>
-#include <QList>            // REQUIRED: queryItems() returns QList<QPair<QString, QString>>
 
 #if BOOST_FILESYSTEM_VERSION >= 3
 static boost::filesystem::detail::utf8_codecvt_facet utf8;
@@ -398,44 +399,42 @@ bool isObscured(QWidget* w)
     return !(checkPoint(QPoint(0, 0), w) && checkPoint(QPoint(w->width() - 1, 0), w) && checkPoint(QPoint(0, w->height() - 1), w) && checkPoint(QPoint(w->width() - 1, w->height() - 1), w) && checkPoint(QPoint(w->width() / 2, w->height() / 2), w));
 }
 
+/* Open file with the associated application */
+bool openFile(fs::path path, bool isTextFile)
+{
+    bool ret = false;
+    if (fs::exists(path)) {
+        ret = QDesktopServices::openUrl(QUrl::fromLocalFile(boostPathToQString(path)));
+#ifdef Q_OS_MAC
+        // Workaround for macOS-specific behavior; see btc@15409.
+        if (isTextFile && !ret) {
+            ret = QProcess::startDetached("/usr/bin/open", QStringList{"-t", boostPathToQString(path)});
+        }
+#endif
+    }
+    return ret;
+}
+
 bool openDebugLogfile()
 {
-    boost::filesystem::path pathDebug = GetDataDir() / "debug.log";
-
-    /* Open debug.log with the associated application */
-    if (boost::filesystem::exists(pathDebug))
-        return QDesktopServices::openUrl(QUrl::fromLocalFile(boostPathToQString(pathDebug)));
-    return false;
+    return openFile(GetDataDir() / "debug.log", true);
 }
 
 bool openConfigfile()
 {
-    boost::filesystem::path pathConfig = GetConfigFile();
-
-    /* Open schillingcoin.conf with the associated application */
-    if (boost::filesystem::exists(pathConfig))
-        return QDesktopServices::openUrl(QUrl::fromLocalFile(boostPathToQString(pathConfig)));
-    return false;
+    return openFile(
+        GetConfigFile(gArgs.GetArg("-conf", SCHILLINGCOIN_CONF_FILENAME)),
+        true);
 }
 
 bool openMNConfigfile()
 {
-    boost::filesystem::path pathConfig = GetMasternodeConfigFile();
-
-    /* Open masternode.conf with the associated application */
-    if (boost::filesystem::exists(pathConfig))
-        return QDesktopServices::openUrl(QUrl::fromLocalFile(boostPathToQString(pathConfig)));
-    return false;
+    return openFile(GetMasternodeConfigFile(), true);
 }
 
 bool showBackups()
 {
-    boost::filesystem::path pathBackups = GetDataDir() / "backups";
-
-    /* Open folder with default browser */
-    if (boost::filesystem::exists(pathBackups))
-        return QDesktopServices::openUrl(QUrl::fromLocalFile(boostPathToQString(pathBackups)));
-    return false;
+    return openFile(GetDataDir() / "backups", false);
 }
 
 void SubstituteFonts(const QString& language)
@@ -472,8 +471,7 @@ void SubstituteFonts(const QString& language)
 #endif
 }
 
-ToolTipToRichTextFilter::ToolTipToRichTextFilter(int size_threshold, QObject* parent) : QObject(parent),
-                                                                                        size_threshold(size_threshold)
+ToolTipToRichTextFilter::ToolTipToRichTextFilter(int size_threshold, QObject* parent) : QObject(parent), size_threshold(size_threshold)
 {
 }
 
@@ -591,9 +589,7 @@ void TableViewLastColumnResizingFixer::on_geometriesChanged()
  * Initializes all internal variables and prepares the
  * the resize modes of the last 2 columns of the table and
  */
-TableViewLastColumnResizingFixer::TableViewLastColumnResizingFixer(QTableView* table, int lastColMinimumWidth, int allColsMinimumWidth) : tableView(table),
-                                                                                                                                          lastColumnMinimumWidth(lastColMinimumWidth),
-                                                                                                                                          allColumnsMinimumWidth(allColsMinimumWidth)
+TableViewLastColumnResizingFixer::TableViewLastColumnResizingFixer(QTableView* table, int lastColMinimumWidth, int allColsMinimumWidth) : tableView(table), lastColumnMinimumWidth(lastColMinimumWidth), allColumnsMinimumWidth(allColsMinimumWidth)
 {
     columnCount = tableView->horizontalHeader()->count();
     lastColumnIndex = columnCount - 1;
@@ -607,8 +603,7 @@ TableViewLastColumnResizingFixer::TableViewLastColumnResizingFixer(QTableView* t
  * Class constructor.
  * @param[in] seconds   Number of seconds to convert to a DHMS string
  */
-DHMSTableWidgetItem::DHMSTableWidgetItem(const int64_t seconds) : QTableWidgetItem(),
-                                                                  value(seconds)
+DHMSTableWidgetItem::DHMSTableWidgetItem(const int64_t seconds) : QTableWidgetItem(), value(seconds)
 {
     this->setText(QString::fromStdString(DurationToDHMS(seconds)));
 }

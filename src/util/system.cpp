@@ -79,6 +79,7 @@
 
 const char* const SCHILLINGCOIN_CONF_FILENAME = "schillingcoin.conf";
 const char* const SCHILLINGCOIN_MASTERNODE_CONF_FILENAME = "masternode.conf";
+const char* const SCHILLINGCOIN_FORGE_CONF_FILENAME = "forge.conf";
 
 // SchillingCoin only features
 // Masternode
@@ -688,6 +689,12 @@ fs::path GetMasternodeConfigFile()
     return AbsPathForConfigVal(pathConfigFile);
 }
 
+fs::path GetForgeConfigFile()
+{
+    fs::path pathConfigFile(gArgs.GetArg("-forgeconf", SCHILLINGCOIN_FORGE_CONF_FILENAME));
+    return AbsPathForConfigVal(pathConfigFile);
+}
+
 static std::string TrimString(const std::string& str, const std::string& pattern)
 {
     std::string::size_type front = str.find_first_not_of(pattern);
@@ -745,10 +752,16 @@ void ArgsManager::ReadConfigFile(const std::string& confPath)
         m_config_args.clear();
     }
 
-    fsbridge::ifstream stream(GetConfigFile(confPath));
+    const fs::path configPath = GetConfigFile(confPath);
+    fsbridge::ifstream stream(configPath);
 
-    // ok to not have a config file
-    if (stream.good()) {
+    if (!stream.good()) {
+        // Create empty schillingcoin.conf if it does not exist
+        FILE* configFile = fsbridge::fopen(configPath, "a");
+        if (configFile != nullptr) {
+            fclose(configFile);
+        }
+    } else {
         ReadConfigStream(stream);
     }
 

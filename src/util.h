@@ -69,15 +69,8 @@ void ParseParameters(int argc, const char* const argv[]);
  */
 bool TryCreateDirectory(const fs::path& p);
 
-fs::path GetConfigFile();
-fs::path GetForgeConfigFile();
-
 #ifndef WIN32
 #endif
-
-void ReadConfigFile(
-    std::map<std::string, std::string>& mapSettingsRet,
-    std::map<std::string, std::vector<std::string>>& mapMultiSettingsRet);
 
 fs::path GetTempPath();
 

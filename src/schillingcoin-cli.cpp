@@ -90,7 +90,7 @@ static bool AppInitRPC(int argc, char* argv[])
         return false;
     }
     try {
-        gArgs.ReadConfigFile("schillingcoin.conf");
+        gArgs.ReadConfigFile(gArgs.GetArg("-conf", SCHILLINGCOIN_CONF_FILENAME));
     } catch (const std::exception& e) {
         fprintf(stderr, "Error reading configuration file: %s\n", e.what());
         return false;
@@ -167,9 +167,8 @@ UniValue CallRPC(const std::string& strMethod, const UniValue& params)
         // Try fall back to cookie-based authentication if no password is provided
         if (!GetAuthCookie(&strRPCUserColonPass)) {
             throw std::runtime_error(strprintf(
-                 _("Could not locate RPC credentials. No authentication cookie could be found, and no rpcpassword is set in the configuration file (%s)"),
-                    GetConfigFile().string().c_str()));
-
+                _("Could not locate RPC credentials. No authentication cookie could be found, and no rpcpassword is set in the configuration file (%s)"),
+                GetConfigFile(gArgs.GetArg("-conf", SCHILLINGCOIN_CONF_FILENAME)).string().c_str()));
         }
     } else {
         strRPCUserColonPass = gArgs.GetArg("-rpcuser", "") + ":" + gArgs.GetArg("-rpcpassword", "");

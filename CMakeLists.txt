@@ -335,6 +335,7 @@ set(WALLET_SOURCES
         ./src/bip38.cpp
         ./src/obfuscation.cpp
         ./src/obfuscation-relay.cpp
+        ./src/wallet/bdb.cpp
         ./src/wallet/db.cpp
         ./src/addressbook.cpp
         ./src/crypter.cpp

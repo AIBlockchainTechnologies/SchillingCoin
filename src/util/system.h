@@ -50,6 +50,7 @@ public:
 
 extern const char * const SCHILLINGCOIN_CONF_FILENAME;
 extern const char * const SCHILLINGCOIN_MASTERNODE_CONF_FILENAME;
+extern const char * const SCHILLINGCOIN_FORGE_CONF_FILENAME;
 extern const char * const DEFAULT_DEBUGLOGFILE;
 
 //SCHILLINGCOIN only features
@@ -104,6 +105,7 @@ bool CheckDataDirOption();
 void ClearDatadirCache();
 fs::path GetConfigFile(const std::string& confPath);
 fs::path GetMasternodeConfigFile();
+fs::path GetForgeConfigFile();
 #ifdef WIN32
 fs::path GetSpecialFolderPath(int nFolder, bool fCreate = true);
 #endif
