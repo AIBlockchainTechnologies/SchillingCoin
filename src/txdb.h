@@ -5,8 +5,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TXDB_H
-#define BITCOIN_TXDB_H
+#ifndef SCHILLINGCOIN_TXDB_H
+#define SCHILLINGCOIN_TXDB_H
 
 #include "dbwrapper.h"
 #include "main.h"
@@ -128,95 +128,4 @@ public:
     bool LoadBlockIndexGuts();
 };
 
-/**
- * Zerocoin database (zerocoin/)
- *
- * NOTE: This class previously inherited from CDBWrapper which caused the
- * on-disk LevelDB to be opened during object construction (implicitly creating
- * DATADIR/zerocoin). It has been refactored to contain a pointer to a
- * CDBWrapper (pdb) instead of inheriting it. The underlying LevelDB
- * wrapper is only allocated when explicitly requested (for example, when the
- * constructor is called with fMemory == true or when the zerocoin directory
- * already exists and you choose to open it). When pdb is nullptr, all DB
- * operations are no-ops or return safe defaults to preserve historical DB
- * compatibility without forcing disk I/O or directory creation.
- *
- * The public API is preserved so historical blocks and compatibility code can
- * remain unchanged; implementations must guard calls through pdb.
- */
-
-class CZerocoinDB
-{
-public:
-    // Constructor: nCacheSize is passed to the underlying wrapper if created.
-    // If fMemory is true, callers may request an in-memory DB.
-    CZerocoinDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
-    ~CZerocoinDB();
-
-private:
-    // non-copyable
-    CZerocoinDB(const CZerocoinDB&);
-    void operator=(const CZerocoinDB&);
-
-    // Pointer to the underlying LevelDB wrapper. May be nullptr if not initialized.
-    CDBWrapper* pdb;
-
-public:
-
-    /** --------------------------------------------------------------------
-     *  Zerocoin Mint Handling (Historical Only)
-     *  --------------------------------------------------------------------
-     *  Original SCH code used libzerocoin::PublicCoin. We replace it with
-     *  uint256, which stores the hash/commitment of the mint.
-     *
-     *  NOTE: These functions DO NOT perform Zerocoin validation anymore.
-     *        They only preserve DB compatibility for historical blocks.
-     */
-
-    bool WriteCoinMintBatch(const std::vector<std::pair<uint256, uint256>>& mintInfo);
-
-    // Read mint by BigNum (legacy) — now treated as uint256 hash
-    bool ReadCoinMint(const CBigNum& bnPubcoin, uint256& txHash);
-
-    // Read mint by hash
-    bool ReadCoinMint(const uint256& hashPubcoin, uint256& hashTx);
-
-    /** --------------------------------------------------------------------
-     *  Zerocoin Spend Handling (Historical Only)
-     *  --------------------------------------------------------------------
-     *  Original SCH code used libzerocoin::CoinSpend. We replace it with
-     *  uint256, which stores the serial hash.
-     */
-
-    bool WriteCoinSpendBatch(const std::vector<std::pair<uint256, uint256>>& spendInfo);
-
-    // Read spend by BigNum (legacy)
-    bool ReadCoinSpend(const CBigNum& bnSerial, uint256& txHash);
-
-    // Read spend by hash
-    bool ReadCoinSpend(const uint256& hashSerial, uint256 &txHash);
-
-    // Erase functions remain for DB cleanup compatibility
-    bool EraseCoinMint(const CBigNum& bnPubcoin);
-    bool EraseCoinSpend(const CBigNum& bnSerial);
-
-    // Wipe all Zerocoin entries of a given type
-    bool WipeCoins(std::string strType);
-
-    /** --------------------------------------------------------------------
-     *  Accumulator Checksum Handling
-     *  --------------------------------------------------------------------
-     *  SCH version 4 blocks contain non zero accumulator checkpoints.
-     *  We MUST preserve these DB entries to sync the chain.
-     *
-     *  libzerocoin::CoinDenomination is replaced with uint8_t.
-     *  (All denominations fit safely in 8 bits.)
-     */
-
-    bool WriteAccChecksum(const uint32_t& nChecksum, const uint8_t denom, const int nHeight);
-    bool ReadAccChecksum(const uint32_t& nChecksum, const uint8_t denom, int& nHeightRet);
-    bool EraseAccChecksum(const uint32_t& nChecksum, const uint8_t denom);
-    bool WipeAccChecksums();
-};
-
-#endif // BITCOIN_TXDB_H
+#endif // SCHILLINGCOIN_TXDB_H

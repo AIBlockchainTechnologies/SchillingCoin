@@ -76,8 +76,7 @@ bool CCoinsViewDB::GetCoin(
         coin);
 }
 
-bool CCoinsViewDB::HaveCoin(
-    const COutPoint& outpoint) const
+bool CCoinsViewDB::HaveCoin(const COutPoint& outpoint) const
 {
     return db.Exists(
         CoinEntry(&outpoint));
@@ -347,97 +346,4 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
     }
 
     return true;
-}
-
-/**
- * Zerocoin database (zerocoin/)
- *
- * This build intentionally disables any on-disk Zerocoin DB activity.
- * The underlying LevelDB wrapper is never allocated here, so DATADIR/zerocoin
- * will never be created or opened by this code path. All methods are safe
- * no-ops that return failure/safe defaults so the rest of the node can run
- * and sync normally without Zerocoin validation or disk I/O.
- */
-
-CZerocoinDB::CZerocoinDB(size_t nCacheSize, bool fMemory, bool fWipe)
-{
-    // Deliberately do not allocate the LevelDB wrapper under any condition.
-    // This guarantees no creation or opening of DATADIR/zerocoin from this binary.
-    pdb = nullptr;
-}
-
-CZerocoinDB::~CZerocoinDB()
-{
-    // Nothing to delete because we never allocate pdb here.
-    pdb = nullptr;
-}
-
-/* All operations are intentionally inert. They return safe defaults and
-   never touch disk or call into LevelDB. */
-
-bool CZerocoinDB::WriteCoinMintBatch(const std::vector<std::pair<uint256, uint256>>& /*mintInfo*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::ReadCoinMint(const uint256& /*pubcoinHash*/, uint256& /*hashTx*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::ReadCoinMint(const CBigNum& /*bnPubcoin*/, uint256& /*txHash*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::EraseCoinMint(const CBigNum& /*bnPubcoin*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::WriteCoinSpendBatch(const std::vector<std::pair<uint256, uint256>>& /*spendInfo*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::ReadCoinSpend(const CBigNum& /*bnSerial*/, uint256& /*txHash*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::ReadCoinSpend(const uint256& /*hashSerial*/, uint256 &/*txHash*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::EraseCoinSpend(const CBigNum& /*bnSerial*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::WipeCoins(std::string /*strType*/)
-{
-    return false;
-}
-
-/* Legacy accumulator checksum methods — inert as well */
-
-bool CZerocoinDB::WriteAccChecksum(const uint32_t& /*nChecksum*/, const uint8_t /*denom*/, const int /*nHeight*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::ReadAccChecksum(const uint32_t& /*nChecksum*/, const uint8_t /*denom*/, int& /*nHeightRet*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::EraseAccChecksum(const uint32_t& /*nChecksum*/, const uint8_t /*denom*/)
-{
-    return false;
-}
-
-bool CZerocoinDB::WipeAccChecksums()
-{
-    return false;
 }

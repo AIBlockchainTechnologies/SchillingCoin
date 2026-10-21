@@ -549,7 +549,6 @@ std::string HelpMessage(HelpMessageMode mode)
         strUsage += HelpMessageOpt("-fuzzmessagestest=<n>", _("Randomly fuzz 1 of every <n> network messages"));
         strUsage += HelpMessageOpt("-maxreorg", strprintf(_("Use a custom max chain reorganization depth (default: %u)"), 100));
         strUsage += HelpMessageOpt("-stopafterblockimport", strprintf(_("Stop running after importing blocks from disk (default: %u)"), 0));
-        strUsage += HelpMessageOpt("-sporkkey=<privkey>", _("Enable spork administration functionality with the appropriate private key."));
     }
     std::string debugCategories = "addrman, alert, bench, coindb, db, lock, rand, rpc, selectcoins, tor, mempool, net, proxy, http, libevent, schillingcoin, (masternode, mnpayments, staking)"; // Don't translate these and qt below
     if (mode == HMM_BITCOIN_QT)
@@ -605,9 +604,6 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-mnconflock=<n>", strprintf(_("Lock masternodes from masternode configuration file (default: %u)"), 1));
     strUsage += HelpMessageOpt("-masternodeprivkey=<n>", _("Set the masternode private key"));
     strUsage += HelpMessageOpt("-masternodeaddr=<n>", strprintf(_("Set external address:port to get to this masternode (example: %s)"), "128.127.106.235:9070"));
-
-    strUsage += HelpMessageGroup(_("Zerocoin options:"));
-    strUsage += HelpMessageOpt("-reindexzerocoin=<n>", strprintf(_("Delete all zerocoin spends and mints that have been recorded to the blockchain database and reindex them (0-1, default: %u)"), 0));
 
     strUsage += HelpMessageGroup(_("Node relay options:"));
     strUsage += HelpMessageOpt("-datacarrier", strprintf(_("Relay and mine data carrier transactions (default: %u)"), 1));
@@ -1135,13 +1131,6 @@ bool AppInit2(const std::vector<std::string>& words)
             threadGroup.create_thread(&ThreadScriptCheck);
     }
 
-    if (gArgs.IsArgSet("-sporkkey")) // SPORK private key (legacy)
-    {
-        // Spork subsystem removed: ignore -sporkkey if provided.
-        // Log a warning so users know the argument is being ignored.
-        LogPrintf("Warning: -sporkkey provided but spork subsystem removed; ignoring.\n");
-    }
-
     // Start the lightweight task scheduler thread
     CScheduler::Function serviceLoop = boost::bind(&CScheduler::serviceQueue, &scheduler);
     threadGroup.create_thread(boost::bind(&TraceThread<CScheduler::Function>, "scheduler", serviceLoop));
@@ -1166,10 +1155,8 @@ bool AppInit2(const std::vector<std::string>& words)
             // Delete the local blockchain folders to force a resync from scratch.
             boost::filesystem::path blocksDir = GetDataDir() / "blocks";
             boost::filesystem::path chainstateDir = GetDataDir() / "chainstate";
-            boost::filesystem::path sporksDir = GetDataDir() / "sporks";
-            boost::filesystem::path zerocoinDir = GetDataDir() / "zerocoin";
 
-            LogPrintf("Deleting blockchain folders blocks, chainstate, sporks and zerocoin\n");
+            LogPrintf("Deleting blockchain folders blocks and chainstate\n");
 
             // Delete in individual steps because one or more folders may already be missing.
             try {
@@ -1183,15 +1170,6 @@ bool AppInit2(const std::vector<std::string>& words)
                     LogPrintf("-resync: folder deleted: %s\n", chainstateDir.string().c_str());
                 }
 
-                if (boost::filesystem::exists(sporksDir)) {
-                    boost::filesystem::remove_all(sporksDir);
-                    LogPrintf("-resync: folder deleted: %s\n", sporksDir.string().c_str());
-                }
-
-                if (boost::filesystem::exists(zerocoinDir)) {
-                    boost::filesystem::remove_all(zerocoinDir);
-                    LogPrintf("-resync: folder deleted: %s\n", zerocoinDir.string().c_str());
-                }
             } catch (const boost::filesystem::filesystem_error& error) {
                 LogPrintf("Failed to delete blockchain folders %s\n", error.what());
             }
@@ -1380,10 +1358,6 @@ bool AppInit2(const std::vector<std::string>& words)
                 delete pcoinscatcher;
                 delete pblocktree;
 
-                // SchillingCoin specific: Zerocoin and SPORK DB's
-                // Minimal change: DO NOT construct the Zerocoin disk DB in this build.
-                // SPORK subsystem removed: do not create a spork DB.
-
                 pblocktree = new CBlockTreeDB(nBlockTreeDBCache, false, fReindex);
                 pcoinsdbview = new CCoinsViewDB(nCoinDBCache, false, fReindex);
                 pcoinscatcher = new CCoinsViewErrorCatcher(pcoinsdbview);
@@ -1394,11 +1368,6 @@ bool AppInit2(const std::vector<std::string>& words)
 
                 // End loop if shutdown was requested
                 if (ShutdownRequested()) break;
-
-                // Spork subsystem removed: do not load sporks from DB.
-                // Keep a user-facing message for clarity but do not call missing code.
-                uiInterface.InitMessage(_("Loading legacy sporks (ignored)..."));
-                LogPrintf("Info: spork subsystem removed; skipping LoadSporksFromDB().\n");
 
                 uiInterface.InitMessage(_("Loading block index..."));
                 std::string strBlockIndexError = "";

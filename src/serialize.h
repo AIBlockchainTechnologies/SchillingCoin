@@ -292,10 +292,6 @@ inline void Unserialize(Stream& s, libzerocoin::SpendType & a, int, int = 0)
     a = static_cast<libzerocoin::SpendType>(f);
 }
 
-// NOTE: SporkId serialization helpers have been removed because the spork subsystem
-// and its headers were deleted. If spork types are reintroduced, add the appropriate
-// type definitions and serialization helpers back in a dedicated header.
-
 /**
  * Compact Size
  * size <  253        -- 1 byte

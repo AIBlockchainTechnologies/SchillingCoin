@@ -249,14 +249,8 @@ public:
     bool ReadCurrentSeedHash(uint256& hashSeed);
     bool WriteZSCHSeed(const uint256& hashSeed, const std::vector<unsigned char>& seed);
     bool ReadZSCHSeed(const uint256& hashSeed, std::vector<unsigned char>& seed);
-    bool ReadZSCHSeed_deprecated(uint256& seed);
     bool EraseZSCHSeed();
     bool EraseZSCHSeed_deprecated();
-
-    bool WriteZSCHCount(const uint32_t& nCount);
-    bool ReadZSCHCount(uint32_t& nCount);
-    std::map<uint256, std::vector<std::pair<uint256, uint32_t> > > MapMintPool();
-    bool WriteMintPoolPair(const uint256& hashMasterSeed, const uint256& hashPubcoin, const uint32_t& nCount);
 
 private:
     std::unique_ptr<DatabaseBatch> m_batch;

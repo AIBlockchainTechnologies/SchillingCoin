@@ -685,9 +685,6 @@ CBlockIndex* FindForkInGlobalIndex(const CChain& chain, const CBlockLocator& loc
 
 CCoinsViewCache* pcoinsTip = NULL;
 CBlockTreeDB* pblocktree = NULL;
-// Global Zerocoin DB pointer. Do not instantiate disk DB when Zerocoin is removed.
-CZerocoinDB* zerocoinDB = nullptr;
-// Spork subsystem removed: no global spork DB pointer.
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -1875,49 +1872,6 @@ static bool AbortNode(CValidationState& state, const std::string& strMessage, co
     return state.Error(strMessage);
 }
 
-// Legacy Zerocoin DB: used for performance during IBD
-// (between Zerocoin_Block_V2_Start and Zerocoin_Block_Last_Checkpoint)
-//
-// NOTE: This build intentionally disables on-disk Zerocoin activity.
-// If zerocoinDB is nullptr, do nothing here to avoid creating/opening DATADIR/zerocoin.
-void DataBaseAccChecksum(CBlockIndex* pindex, bool fWrite)
-{
-    const Consensus::Params& consensus = Params().GetConsensus();
-
-    if (!pindex ||
-        pindex->nHeight < consensus.height_start_ZC_SerialsV2 ||
-        pindex->nHeight > consensus.height_last_ZC_AccumCheckpoint ||
-        pindex->nAccumulatorCheckpoint == pindex->pprev->nAccumulatorCheckpoint)
-        return;
-
-    // If Zerocoin DB is disabled in this build, skip any DB writes/erases.
-    if (!zerocoinDB) {
-        // Optional: Log at debug level so maintainers can verify behavior.
-        if (fDebug) LogPrintf("DataBaseAccChecksum: zerocoinDB is disabled; skipping acc checksum DB updates at height %d\n", pindex->nHeight);
-        return;
-    }
-
-    uint256 accCurr = pindex->nAccumulatorCheckpoint;
-    uint256 accPrev = pindex->pprev->nAccumulatorCheckpoint;
-
-    // add/remove changed checksums to/from DB
-    for (int i = (int)libzerocoin::zerocoinDenomList.size() - 1; i >= 0; --i) {
-        const uint32_t nChecksumCurr = accCurr.Get32();
-        const uint32_t nChecksumPrev = accPrev.Get32();
-
-        if (nChecksumCurr != nChecksumPrev) {
-            if (fWrite) {
-                zerocoinDB->WriteAccChecksum(nChecksumCurr, libzerocoin::zerocoinDenomList[i], pindex->nHeight);
-            } else {
-                zerocoinDB->EraseAccChecksum(nChecksumCurr, libzerocoin::zerocoinDenomList[i]);
-            }
-        }
-
-        accCurr >>= 32;
-        accPrev >>= 32;
-    }
-}
-
 enum DisconnectResult
 {
     DISCONNECT_OK,
@@ -1980,10 +1934,6 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
     for (int i = block.vtx.size() - 1; i >= 0; i--) {
         const CTransaction& tx = block.vtx[i];
 
-        // Zerocoin subsystem removed.
-        // SCH only uses accumulator checkpoints for v4 blocks.
-        // No Zerocoin mint/spend rollback required.
-
         const uint256 hash = tx.GetHash();
 
         // Remove every spendable output created by this transaction and verify
@@ -2022,13 +1972,6 @@ bool DisconnectBlock(CBlock& block, CValidationState& state, CBlockIndex* pindex
 
     // Move best block pointer to the previous block.
     view.SetBestBlock(pindex->pprev->GetBlockHash());
-
-    const Consensus::Params& consensus = Params().GetConsensus();
-    if (pindex->nHeight >= consensus.height_start_ZC_SerialsV2 &&
-            pindex->nHeight <= consensus.height_last_ZC_AccumCheckpoint) {
-        // Legacy Zerocoin DB: If Accumulators Checkpoint is changed, remove changed checksums.
-        DataBaseAccChecksum(pindex, false);
-    }
 
     if (pfClean) {
         *pfClean = fClean;
@@ -2132,15 +2075,12 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     unsigned int nSigOps = 0;
     CDiskTxPos pos(pindex->GetBlockPos(), GetSizeOfCompactSize(block.vtx.size()));
     std::vector<std::pair<uint256, CDiskTxPos> > vPos;
-    // Zerocoin subsystem removed, no spend vector required.
-    // Zerocoin subsystem removed, no mint vector required.
     vPos.reserve(block.vtx.size());
     CBlockUndo blockundo;
     blockundo.vtxundo.reserve(block.vtx.size() - 1);
     CAmount nValueOut = 0;
     CAmount nValueIn = 0;
     unsigned int nMaxBlockSigOps = MAX_BLOCK_SIGOPS_CURRENT;
-    // Zerocoin subsystem removed, no spend tracking required.
     for (unsigned int i = 0; i < block.vtx.size(); i++) {
         const CTransaction& tx = block.vtx[i];
 
@@ -2277,21 +2217,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     int64_t nTime4 = GetTimeMicros();
     nTimeCallbacks += nTime4 - nTime3;
     LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
-
-    // Legacy Zerocoin handling during accumulator checkpoint window
-    if (pindex->nHeight >= consensus.height_start_ZC_SerialsV2 &&
-        pindex->nHeight < consensus.height_last_ZC_AccumCheckpoint) {
-        // DataBaseAccChecksum is a no-op when zerocoinDB is nullptr (guarded inside).
-        DataBaseAccChecksum(pindex, true);
-    } else if (pindex->nHeight == consensus.height_last_ZC_AccumCheckpoint) {
-        // Wipe the checksum DB only if it exists (guarded to avoid nullptr deref).
-        if (zerocoinDB) {
-            if (fDebug) LogPrintf("ConnectBlock: Wiping Zerocoin accumulator checksums at height %d\n", pindex->nHeight);
-            zerocoinDB->WipeAccChecksums();
-        } else {
-            if (fDebug) LogPrintf("ConnectBlock: Zerocoin DB disabled; skipping WipeAccChecksums at height %d\n", pindex->nHeight);
-        }
-    }
 
     return true;
 }
@@ -4534,10 +4459,6 @@ bool static AlreadyHave(const CInv& inv)
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
 
-    case MSG_SPORK:
-        // Spork subsystem removed: treat spork inventory as not present.
-        return false;
-
     case MSG_MASTERNODE_WINNER:
         if (masternodePayments.mapMasternodePayeeVotes.count(inv.hash)) {
             masternodeSync.AddedMasternodeWinner(inv.hash);
@@ -4650,7 +4571,6 @@ void static ProcessGetData(CNode* pfrom)
     }
 }
 
-bool fRequestedSporksIDB = false;
 bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vRecv, int64_t nTimeReceived)
 {
     LogPrint(BCLog::NET, "received: %s (%u bytes) peer=%d\n", SanitizeString(strCommand), vRecv.size(), pfrom->id);
@@ -4699,16 +4619,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         }
 
         addrman.SetServices(pfrom->addr, ServiceFlags(pfrom->nServices));
-
-        // SchillingCoin: Legacy SPORK fetching removed.
-        // Original SCH binaries always behaved with SPORK_14 enforced and SPORK_15 unused.
-        // Dynamic SPORK requests during IBD are no longer needed, and the network now
-        // operates under static protocol enforcement rules.
-
-        LogPrintf("SCH: Skipping legacy SPORK request; static protocol enforcement active.\n");
-
-        // Mark SPORKS as requested so old logic never triggers.
-        fRequestedSporksIDB = true;
 
         pfrom->addrLocal = addrMe;
         if (pfrom->fInbound && addrMe.IsRoutable()) {
@@ -5417,28 +5327,15 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         // probably one of the extensions
         mnodeman.ProcessMessage(pfrom, strCommand, vRecv);
         masternodePayments.ProcessMessageMasternodePayments(pfrom, strCommand, vRecv);
-        // Spork subsystem removed: do not call sporkManager.ProcessSpork.
         masternodeSync.ProcessMessage(pfrom, strCommand, vRecv);
     }
 
     return true;
 }
 
-// Note: Whenever a protocol update is needed toggle between both implementations (comment out the formerly active one)
-//       so we can leave the existing clients untouched (old SPORK will stay on so they don't see even older clients).
-//       Those old clients won't react to the changes of the other (new) SPORK because at the time of their implementation
-//       it was the one which was commented out.
-//
-// SCH UPDATE:
-//       SchillingCoin never used SPORK_15 for protocol enforcement. In the original SCH binary,
-//       SPORK_15 was always inactive and no dynamic protocol switching ever occurred.
-//       SCH now uses static protocol enforcement, so the SPORK_15 toggle has been removed.
-//       For compatibility with original SCH behavior, we continue returning the
-//       BEFORE-enforcement protocol version until a future static upgrade is defined.
-
+// Preserve the protocol version used by original SCH with dynamic protocol enforcement inactive.
 int ActiveProtocol()
 {
-    // SCH: SPORK_15 removed; always behave as original SCH (SPORK_15 OFF).
     return MIN_PEER_PROTO_VERSION_BEFORE_ENFORCEMENT;
 }
 

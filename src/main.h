@@ -48,7 +48,6 @@
 
 class CBlockIndex;
 class CBlockTreeDB;
-class CZerocoinDB;
 class CBloomFilter;
 class CInv;
 class CScriptCheck;
@@ -411,14 +410,6 @@ extern CCoinsViewCache* pcoinsTip;
 
 /** Global variable that points to the active block tree (protected by cs_main) */
 extern CBlockTreeDB* pblocktree;
-
-/** Global variable that points to the zerocoin database (protected by cs_main)
- * NOTE: In this build Zerocoin support is intentionally disabled. The global
- * zerocoinDB must be initialized to nullptr in the single definition location
- * and callers must check for nullptr before use to avoid creating or opening
- * DATADIR/zerocoin.
- */
-extern CZerocoinDB* zerocoinDB;
 
 /** Core runtime helper: return whether cold staking enforcement is enabled on this node */
 bool IsColdStakingEnabled();

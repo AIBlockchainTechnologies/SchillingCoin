@@ -165,14 +165,11 @@ enum {
     // MSG_FILTERED_BLOCK should not appear in any invs except as a part of getdata.
     MSG_FILTERED_BLOCK,
 
-    // Inventory type values 4 and 5 were used by the retired SwiftTX system.
-    MSG_SPORK = 6,
-    MSG_MASTERNODE_WINNER,
-    MSG_MASTERNODE_SCANNING_ERROR,
+    // Inventory type values 4 through 6 were used by retired systems.
+    MSG_MASTERNODE_WINNER = 7,
 
-    // Inventory type values 9 through 12 were used by the retired budget system.
-    MSG_MASTERNODE_QUORUM = 13,
-    MSG_MASTERNODE_ANNOUNCE,
+    // Inventory type values 8 through 13 were retired or unused.
+    MSG_MASTERNODE_ANNOUNCE = 14,
     MSG_MASTERNODE_PING,
 };
 

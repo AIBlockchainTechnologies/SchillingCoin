@@ -24,11 +24,24 @@ static const char* ppszTypeName[] =
         "block",
         "filtered block",
         "mn winner",
-        "mn scan error",
-        "mn quorum",
         "mn announce",
         "mn ping",
     };
+
+static const int pnTypeValue[] =
+    {
+        0,
+        MSG_TX,
+        MSG_BLOCK,
+        MSG_FILTERED_BLOCK,
+        MSG_MASTERNODE_WINNER,
+        MSG_MASTERNODE_ANNOUNCE,
+        MSG_MASTERNODE_PING,
+    };
+
+static_assert(
+    ARRAYLEN(ppszTypeName) == ARRAYLEN(pnTypeValue),
+    "Inventory type names and values must remain aligned");
 
 CMessageHeader::CMessageHeader()
 {
@@ -109,15 +122,22 @@ CInv::CInv(int typeIn, const uint256& hashIn)
 
 CInv::CInv(const std::string& strType, const uint256& hashIn)
 {
-    unsigned int i;
-    for (i = 1; i < ARRAYLEN(ppszTypeName); i++) {
+    type = 0;
+
+    for (unsigned int i = 1; i < ARRAYLEN(ppszTypeName); ++i) {
         if (strType == ppszTypeName[i]) {
-            type = i;
+            type = pnTypeValue[i];
             break;
         }
     }
-    if (i == ARRAYLEN(ppszTypeName))
-        LogPrint(BCLog::NET, "CInv::CInv(string, uint256) : unknown type '%s'", strType);
+
+    if (type == 0) {
+        LogPrint(
+            BCLog::NET,
+            "CInv::CInv(string, uint256) : unknown type '%s'",
+            strType);
+    }
+
     hash = hashIn;
 }
 
@@ -128,22 +148,53 @@ bool operator<(const CInv& a, const CInv& b)
 
 bool CInv::IsKnownType() const
 {
-    return (type >= 1 && type < (int)ARRAYLEN(ppszTypeName));
+    switch (type) {
+    case MSG_TX:
+    case MSG_BLOCK:
+    case MSG_FILTERED_BLOCK:
+    case MSG_MASTERNODE_WINNER:
+    case MSG_MASTERNODE_ANNOUNCE:
+    case MSG_MASTERNODE_PING:
+        return true;
+    default:
+        return false;
+    }
 }
 
-bool CInv::IsMasterNodeType() const{
-     return (type >= 6);
+bool CInv::IsMasterNodeType() const
+{
+    switch (type) {
+    case MSG_MASTERNODE_WINNER:
+    case MSG_MASTERNODE_ANNOUNCE:
+    case MSG_MASTERNODE_PING:
+        return true;
+    default:
+        return false;
+    }
 }
 
 const char* CInv::GetCommand() const
 {
-    if (!IsKnownType()) {
-        LogPrint(BCLog::NET, "CInv::GetCommand() : type=%d unknown type", type);
-
-        return "UNKNOWN";
+    switch (type) {
+    case MSG_TX:
+        return ppszTypeName[1];
+    case MSG_BLOCK:
+        return ppszTypeName[2];
+    case MSG_FILTERED_BLOCK:
+        return ppszTypeName[3];
+    case MSG_MASTERNODE_WINNER:
+        return ppszTypeName[4];
+    case MSG_MASTERNODE_ANNOUNCE:
+        return ppszTypeName[5];
+    case MSG_MASTERNODE_PING:
+        return ppszTypeName[6];
+    default:
+        LogPrint(
+            BCLog::NET,
+            "CInv::GetCommand() : type=%d unknown type",
+            type);
+        return ppszTypeName[0];
     }
-
-    return ppszTypeName[type];
 }
 
 std::string CInv::ToString() const
