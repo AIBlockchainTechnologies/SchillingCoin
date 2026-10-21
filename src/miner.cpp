@@ -708,7 +708,7 @@ void GenerateBitcoins(bool fGenerate, CWallet* pwallet, int nThreads)
         minerThreads->create_thread(boost::bind(&ThreadBitcoinMiner, pwallet));
 }
 
-// ppcoin: stake minter thread
+// SCH stake minter thread
 void ThreadStakeMinter()
 {
     boost::this_thread::interruption_point();

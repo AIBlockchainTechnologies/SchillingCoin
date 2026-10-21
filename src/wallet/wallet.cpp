@@ -12,6 +12,7 @@
 
 #include "coincontrol.h"
 #include "guiinterfaceutil.h"
+#include "masternode-payments.h"
 #include "masternode.h"
 #include "script/sign.h"
 #include "script/standard.h"
@@ -3034,7 +3035,7 @@ bool CWallet::CreateTransaction(CScript scriptPubKey, const CAmount& nValue, CWa
     return CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet, strFailReason, coinControl, coin_type, useIX, nFeePay, fIncludeDelegated);
 }
 
-// ppcoin: create coin stake transaction
+// Create SCH coinstake transaction
 bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pindexPrev, unsigned int nBits, CMutableTransaction& txNew, int64_t& nTxNewTime)
 {
     // Get the list of stakable utxos
@@ -3046,9 +3047,9 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pind
 
     // Parse utxos into CSchStakes
     std::list<std::unique_ptr<CStakeInput> > listInputs;
-    for (const COutput &out : vCoins) {
+    for (const COutput& out : vCoins) {
         std::unique_ptr<CSchStake> input(new CSchStake());
-        input->SetPrevout((CTransaction) *out.tx, out.i);
+        input->SetPrevout((CTransaction)*out.tx, out.i);
         listInputs.emplace_back(std::move(input));
     }
 
@@ -3066,12 +3067,15 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pind
     CScript scriptPubKeyKernel;
     bool fKernelFound = false;
     int nAttempts = 0;
+
     for (std::unique_ptr<CStakeInput>& stakeInput : listInputs) {
-        //new block came in, move on
-        if (chainActive.Height() != pindexPrev->nHeight) return false;
+        // new block came in, move on
+        if (chainActive.Height() != pindexPrev->nHeight)
+            return false;
 
         // Make sure the wallet is unlocked and shutdown hasn't been requested
-        if (IsLocked() || ShutdownRequested()) return false;
+        if (IsLocked() || ShutdownRequested())
+            return false;
 
         nCredit = 0;
 
@@ -3082,7 +3086,8 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pind
         pStakerStatus->SetLastTime(nTxNewTime);
         pStakerStatus->SetLastTries(nAttempts);
 
-        if (!fKernelFound) continue;
+        if (!fKernelFound)
+            continue;
 
         // Found a kernel
         LogPrintf("CreateCoinStake : kernel found\n");
@@ -3090,7 +3095,8 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pind
 
         // Calculate reward
         CAmount nReward;
-        //Modified to match current SchillingCoin createcoinstake
+
+        // Modified to match current SchillingCoin CreateCoinStake
         nReward = GetBlockValue(chainActive.Height());
         nCredit += nReward;
 
@@ -3100,21 +3106,26 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pind
             LogPrintf("%s : failed to create output\n", __func__);
             continue;
         }
+
         txNew.vout.insert(txNew.vout.end(), vout.begin(), vout.end());
 
         CAmount nMinFee = 0;
+
         // Set output amount
         int outputs = txNew.vout.size() - 1;
         CAmount nRemaining = nCredit - nMinFee;
+
         if (outputs > 1) {
             // Split the stake across the outputs
             CAmount nShare = nRemaining / outputs;
+
             for (int i = 1; i < outputs; i++) {
                 // loop through all but the last one.
                 txNew.vout[i].nValue = nShare;
                 nRemaining -= nShare;
             }
         }
+
         // put the remaining on the last output (which all into the first if only one output)
         txNew.vout[outputs].nValue += nRemaining;
 
@@ -3123,9 +3134,11 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pind
         if (nBytes >= DEFAULT_BLOCK_MAX_SIZE / 5)
             return error("CreateCoinStake : exceeded coinstake size limit");
 
-        // Darksend/Obfuscation removed — masternode payments handled elsewhere
+        // Masternode payment
+        FillBlockPayee(txNew, nMinFee, true);
 
         uint256 hashTxOut = txNew.GetHash();
+
         CTxIn in;
         if (!stakeInput->CreateTxIn(this, in, hashTxOut)) {
             LogPrintf("%s : failed to create TxIn\n", __func__);
@@ -3133,10 +3146,12 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pind
             txNew.vout.clear();
             continue;
         }
+
         txNew.vin.emplace_back(in);
 
         break;
     }
+
     LogPrint(BCLog::STAKING, "%s: attempted staking %d times\n", __func__, nAttempts);
 
     if (!fKernelFound)
@@ -3145,7 +3160,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pind
     // Sign for SCH stakes
     int nIn = 0;
     for (CTxIn txIn : txNew.vin) {
-        const CWalletTx *wtx = GetWalletTx(txIn.prevout.hash);
+        const CWalletTx* wtx = GetWalletTx(txIn.prevout.hash);
         if (!SignSignature(*this, *wtx, txNew, nIn++, SIGHASH_ALL, true))
             return error("CreateCoinStake : failed to sign coinstake");
     }

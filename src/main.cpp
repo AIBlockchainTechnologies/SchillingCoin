@@ -2975,7 +2975,7 @@ CBlockIndex* AddToBlockIndex(const CBlock& block)
         pindexNew->nHeight = pindexNew->pprev->nHeight + 1;
         pindexNew->BuildSkip();
 
-        // ppcoin: compute stake entropy bit for stake modifier
+        // Compute stake entropy bit used by the stake-modifier selection process.
         if (!pindexNew->SetStakeEntropyBit(pindexNew->GetStakeEntropyBit()))
             LogPrintf("AddToBlockIndex() : SetStakeEntropyBit() failed \n");
 
@@ -2986,7 +2986,7 @@ CBlockIndex* AddToBlockIndex(const CBlock& block)
                 LogPrintf("AddToBlockIndex() : ComputeNextStakeModifier() failed \n");
             pindexNew->SetStakeModifier(nStakeModifier, fGeneratedStakeModifier);
         } else {
-            // compute new v2 stake modifier
+            // Compute the new V2 stake modifier.
             pindexNew->SetNewStakeModifier(block.vtx[1].vin[0].prevout.hash);
         }
     }

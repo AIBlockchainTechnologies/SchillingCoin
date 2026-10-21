@@ -5,8 +5,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_PRIMITIVES_BLOCK_H
-#define BITCOIN_PRIMITIVES_BLOCK_H
+#ifndef SCHILLINGCOIN_PRIMITIVES_BLOCK_H
+#define SCHILLINGCOIN_PRIMITIVES_BLOCK_H
 
 #include "primitives/transaction.h"
 #include "keystore.h"
@@ -79,14 +79,13 @@ public:
     }
 };
 
-
 class CBlock : public CBlockHeader
 {
 public:
     // network and disk
     std::vector<CTransaction> vtx;
 
-    // ppcoin: block signature - signed by one of the coin base txout[N]'s owner
+    // Block signature, signed by the owner of the staking output for PoS blocks.
     std::vector<unsigned char> vchBlockSig;
 
     // memory only
@@ -110,8 +109,8 @@ public:
     inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
         READWRITE(*(CBlockHeader*)this);
         READWRITE(vtx);
-	if(vtx.size() > 1 && vtx[1].IsCoinStake())
-		READWRITE(vchBlockSig);
+        if (vtx.size() > 1 && vtx[1].IsCoinStake())
+            READWRITE(vchBlockSig);
     }
 
     void SetNull()
@@ -151,13 +150,12 @@ public:
 
     std::pair<COutPoint, unsigned int> GetProofOfStake() const
     {
-        return IsProofOfStake()? std::make_pair(vtx[1].vin[0].prevout, nTime) : std::make_pair(COutPoint(), (unsigned int)0);
+        return IsProofOfStake() ? std::make_pair(vtx[1].vin[0].prevout, nTime) : std::make_pair(COutPoint(), (unsigned int)0);
     }
 
     std::string ToString() const;
     void print() const;
 };
-
 
 /** Describes a place in the block chain to another node such that if the
  * other node doesn't have the same branch, it can find a recent common trunk.
@@ -194,4 +192,4 @@ struct CBlockLocator
     }
 };
 
-#endif // BITCOIN_PRIMITIVES_BLOCK_H
+#endif // SCHILLINGCOIN_PRIMITIVES_BLOCK_H
