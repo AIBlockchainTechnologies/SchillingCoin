@@ -304,6 +304,7 @@ extern UniValue reconsiderblock(const JSONRPCRequest& request);
 extern UniValue getchaintxstats(const JSONRPCRequest& request);
 extern void validaterange(const UniValue& params, int& heightStart, int& heightEnd, int minHeightStart = 1);
 extern UniValue getblockindexstats(const JSONRPCRequest& request);
+extern UniValue gettransactionversionstats(const JSONRPCRequest& request);
 extern UniValue settxfee(const JSONRPCRequest& request);
 
 extern UniValue getpoolinfo(const JSONRPCRequest& request); // in rpc/masternode.cpp

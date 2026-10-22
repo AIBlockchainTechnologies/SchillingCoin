@@ -9,6 +9,7 @@
 #include "checkpoints.h"
 #include "clientversion.h"
 #include "hash.h"
+#include "init.h"
 #include "kernel.h"
 #include "key_io.h"
 #include "main.h"
@@ -20,6 +21,8 @@
 #include "utilmoneystr.h"
 #include "wallet/wallet.h"
 
+#include <boost/thread/thread.hpp>
+
 #include <condition_variable>
 #include <fstream>
 #include <iostream>
@@ -30,8 +33,6 @@
 #include <stdint.h>
 #include <univalue.h>
 #include <utility>
-
-#include <boost/thread/thread.hpp>
 
 struct CUpdatedBlock
 {
@@ -508,72 +509,100 @@ UniValue getblock(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
         throw std::runtime_error(
-            "getblock \"hash\" ( verbose )\n"
-            "\nIf verbose is false, returns a string that is serialized, hex-encoded data for block 'hash'.\n"
-            "If verbose is true, returns an Object with information about block <hash>.\n"
-
+            "getblock \"blockhash\" ( verbosity )\n"
+            "\nIf verbosity is 0, returns serialized, hex-encoded block data.\n"
+            "If verbosity is 1, returns an Object with information about the block.\n"
+            "If verbosity is 2, returns an Object with information about the block and each transaction.\n"
             "\nArguments:\n"
-            "1. \"hash\"          (string, required) The block hash\n"
-            "2. verbose           (boolean, optional, default=true) true for a json object, false for the hex encoded data\n"
-
-            "\nResult (for verbose = true):\n"
+            "1. \"blockhash\"      (string, required) The block hash\n"
+            "2. verbosity          (numeric, optional, default=1) 0 for hex-encoded data, 1 for a JSON object, and 2 for a JSON object with transaction data\n"
+            "\nFor backward compatibility, false is accepted as verbosity 0 and true is accepted as verbosity 1.\n"
+            "\nResult (for verbosity = 0):\n"
+            "\"data\"              (string) The serialized, hex-encoded block data\n"
+            "\nResult (for verbosity = 1):\n"
             "{\n"
-            "  \"hash\" : \"hash\",     (string) the block hash (same as provided)\n"
-            "  \"confirmations\" : n,   (numeric) The number of confirmations, or -1 if the block is not on the main chain\n"
-            "  \"size\" : n,            (numeric) The block size\n"
-            "  \"height\" : n,          (numeric) The block height or index\n"
-            "  \"version\" : n,         (numeric) The block version\n"
-            "  \"merkleroot\" : \"xxxx\", (string) The merkle root\n"
-            "  \"tx\" : [               (array of string) The transaction ids\n"
-            "     \"transactionid\"     (string) The transaction id\n"
-            "     ,...\n"
+            "  \"hash\" : \"hash\",\n"
+            "  \"confirmations\" : n,\n"
+            "  \"size\" : n,\n"
+            "  \"height\" : n,\n"
+            "  \"version\" : n,\n"
+            "  \"merkleroot\" : \"hash\",\n"
+            "  \"acc_checkpoint\" : \"hash\",\n"
+            "  \"tx\" : [\n"
+            "    \"transactionid\",\n"
+            "    ...\n"
             "  ],\n"
-            "  \"time\" : ttt,          (numeric) The block time in seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"mediantime\" : ttt,    (numeric) The median block time in seconds since epoch (Jan 1 1970 GMT)\n"
-            "  \"nonce\" : n,           (numeric) The nonce\n"
-            "  \"bits\" : \"1d00ffff\", (string) The bits\n"
-            "  \"difficulty\" : x.xxx,  (numeric) The difficulty\n"
-            "  \"previousblockhash\" : \"hash\",  (string) The hash of the previous block\n"
-            "  \"nextblockhash\" : \"hash\"       (string) The hash of the next block\n"
-            "  \"moneysupply\" : \"supply\"       (numeric) The money supply when this block was added to the blockchain\n"
-            "  \"stakeModifier\" : \"xxx\",       (string) Proof of Stake modifier\n"
-            "  \"hashProofOfStake\" : \"hash\",   (string) Proof of Stake hash\n"
-            "  }\n"
+            "  \"time\" : ttt,\n"
+            "  \"mediantime\" : ttt,\n"
+            "  \"nonce\" : n,\n"
+            "  \"bits\" : \"1d00ffff\",\n"
+            "  \"difficulty\" : x.xxx,\n"
+            "  \"chainwork\" : \"hex\",\n"
+            "  \"previousblockhash\" : \"hash\",\n"
+            "  \"nextblockhash\" : \"hash\",\n"
+            "  \"moneysupply\" : x.xxx,\n"
+            "  \"stakeModifier\" : \"hex\",\n"
+            "  \"hashProofOfStake\" : \"hash\"\n"
             "}\n"
-
-            "\nResult (for verbose=false):\n"
-            "\"data\"             (string) A string that is serialized, hex-encoded data for block 'hash'.\n"
-
+            "\nResult (for verbosity = 2):\n"
+            "{\n"
+            "  ..., same output as verbosity = 1,\n"
+            "  \"tx\" : [\n"
+            "    {\n"
+            "      \"txid\" : \"hash\",\n"
+            "      \"version\" : n,\n"
+            "      \"size\" : n,\n"
+            "      \"locktime\" : n,\n"
+            "      \"vin\" : [...],\n"
+            "      \"vout\" : [...],\n"
+            "      \"hex\" : \"data\"\n"
+            "    },\n"
+            "    ...\n"
+            "  ]\n"
+            "}\n"
             "\nExamples:\n" +
-            HelpExampleCli("getblock", "\"00000000000fd08c2fb661d2fcb0d49abb3a91e5f27082ce64feed3b4dede2e2\"") +
-            HelpExampleRpc("getblock", "\"00000000000fd08c2fb661d2fcb0d49abb3a91e5f27082ce64feed3b4dede2e2\""));
+            HelpExampleCli("getblock", "\"00000000000fd08c2fb661d2fcb0d49abb3a91e5f27082ce64feed3b4dede2e2\" 1") +
+            HelpExampleCli("getblock", "\"00000000000fd08c2fb661d2fcb0d49abb3a91e5f27082ce64feed3b4dede2e2\" 2") +
+            HelpExampleRpc("getblock", "\"00000000000fd08c2fb661d2fcb0d49abb3a91e5f27082ce64feed3b4dede2e2\", 2"));
 
     LOCK(cs_main);
 
-    std::string strHash = request.params[0].get_str();
-    uint256 hash(uint256S(strHash));
+    const uint256 hash = ParseHashV(request.params[0], "blockhash");
 
-    bool fVerbose = true;
-    if (request.params.size() > 1)
-        fVerbose = request.params[1].get_bool();
+    int verbosity = 1;
 
-    if (mapBlockIndex.count(hash) == 0)
+    if (request.params.size() > 1 && !request.params[1].isNull()) {
+        if (request.params[1].isNum()) {
+            verbosity = request.params[1].get_int();
+        } else if (request.params[1].isBool()) {
+            verbosity = request.params[1].get_bool() ? 1 : 0;
+        } else {
+            throw JSONRPCError(RPC_TYPE_ERROR, "Verbosity must be a number or boolean");
+        }
+    }
+
+    if (verbosity < 0 || verbosity > 2)
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "Verbosity must be 0, 1, or 2");
+
+    BlockMap::const_iterator it = mapBlockIndex.find(hash);
+
+    if (it == mapBlockIndex.end() || it->second == nullptr)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
 
+    CBlockIndex* pblockindex = it->second;
+
     CBlock block;
-    CBlockIndex* pblockindex = mapBlockIndex[hash];
 
     if (!ReadBlockFromDisk(block, pblockindex))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Can't read block from disk");
 
-    if (!fVerbose) {
+    if (verbosity == 0) {
         CDataStream ssBlock(SER_NETWORK, PROTOCOL_VERSION);
         ssBlock << block;
-        std::string strHex = HexStr(ssBlock.begin(), ssBlock.end());
-        return strHex;
+        return HexStr(ssBlock.begin(), ssBlock.end());
     }
 
-    return blockToJSON(block, pblockindex);
+    return blockToJSON(block, pblockindex, verbosity == 2);
 }
 
 UniValue getblockheader(const JSONRPCRequest& request)
@@ -1517,4 +1546,209 @@ UniValue getblockindexstats(const JSONRPCRequest& request)
     ret.push_back(Pair("feeperkb", FormatMoney(feeRate.GetFeePerK())));
 
     return ret;
+}
+
+UniValue gettransactionversionstats(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 2)
+        throw std::runtime_error(
+            "gettransactionversionstats height range\n"
+            "\nScans transactions in active-chain blocks:\n"
+            "[height, height+1, height+2, ..., height+range-1]\n"
+            "and reports every distinct signed 32-bit transaction version.\n"
+            "\nArguments:\n"
+            "1. height             (numeric, required) Block height where the scan starts\n"
+            "2. range              (numeric, required) Number of blocks to scan\n"
+            "\nResult:\n"
+            "{\n"
+            "  \"start_height\": n,\n"
+            "  \"end_height\": n,\n"
+            "  \"blocks_scanned\": n,\n"
+            "  \"transactions_scanned\": n,\n"
+            "  \"all_upper_16_bits_zero\": true,\n"
+            "  \"versions\": [\n"
+            "    {\n"
+            "      \"version\": n,\n"
+            "      \"version_hex\": \"xxxxxxxx\",\n"
+            "      \"lower_16_bits\": n,\n"
+            "      \"upper_16_bits\": n,\n"
+            "      \"upper_16_bits_nonzero\": b,\n"
+            "      \"transaction_count\": n,\n"
+            "      \"coinbase_count\": n,\n"
+            "      \"coinstake_count\": n,\n"
+            "      \"first_height\": n,\n"
+            "      \"last_height\": n,\n"
+            "      \"example_txid\": \"hash\"\n"
+            "    }\n"
+            "  ]\n"
+            "}\n"
+            "\nExamples:\n" +
+            HelpExampleCli("gettransactionversionstats", "0 1001") +
+            HelpExampleRpc("gettransactionversionstats", "0, 1001"));
+
+    int heightStart;
+    int heightEnd;
+    validaterange(request.params, heightStart, heightEnd, 0);
+
+    std::vector<CBlockIndex*> blockIndexes;
+    blockIndexes.reserve(heightEnd - heightStart + 1);
+
+    {
+        LOCK(cs_main);
+
+        for (int height = heightStart; height <= heightEnd; ++height) {
+            CBlockIndex* pindex = chainActive[height];
+
+            if (pindex == nullptr) {
+                throw JSONRPCError(
+                    RPC_DATABASE_ERROR,
+                    strprintf(
+                        "Failed to locate active-chain block at height %d",
+                        height));
+            }
+
+            blockIndexes.push_back(pindex);
+        }
+    }
+
+    struct TransactionVersionStats
+    {
+        int64_t transactionCount;
+        int64_t coinbaseCount;
+        int64_t coinstakeCount;
+        int firstHeight;
+        int lastHeight;
+        uint256 exampleTxid;
+
+        TransactionVersionStats()
+            : transactionCount(0),
+              coinbaseCount(0),
+              coinstakeCount(0),
+              firstHeight(-1),
+              lastHeight(-1)
+        {
+        }
+    };
+
+    std::map<int32_t, TransactionVersionStats> versionStats;
+
+    int64_t blocksScanned = 0;
+    int64_t transactionsScanned = 0;
+    bool allUpper16BitsZero = true;
+
+    for (CBlockIndex* pindex : blockIndexes) {
+        if (ShutdownRequested()) {
+            throw JSONRPCError(
+                RPC_MISC_ERROR,
+                "Transaction-version scan interrupted by shutdown");
+        }
+
+        CBlock block;
+
+        if (!ReadBlockFromDisk(block, pindex)) {
+            throw JSONRPCError(
+                RPC_DATABASE_ERROR,
+                strprintf(
+                    "Failed to read block at height %d from disk",
+                    pindex->nHeight));
+        }
+
+        ++blocksScanned;
+
+        for (const CTransaction& tx : block.vtx) {
+            ++transactionsScanned;
+
+            TransactionVersionStats& stats = versionStats[tx.nVersion];
+
+            if (stats.transactionCount == 0) {
+                stats.firstHeight = pindex->nHeight;
+                stats.exampleTxid = tx.GetHash();
+            }
+
+            ++stats.transactionCount;
+            stats.lastHeight = pindex->nHeight;
+
+            if (tx.IsCoinBase()) {
+                ++stats.coinbaseCount;
+            }
+
+            if (tx.IsCoinStake()) {
+                ++stats.coinstakeCount;
+            }
+
+            const uint32_t rawVersion =
+                static_cast<uint32_t>(tx.nVersion);
+            const uint32_t upper16Bits =
+                (rawVersion >> 16) & 0xffffU;
+
+            if (upper16Bits != 0) {
+                allUpper16BitsZero = false;
+            }
+        }
+    }
+
+    UniValue versions(UniValue::VARR);
+
+    for (const auto& entry : versionStats) {
+        const int32_t transactionVersion = entry.first;
+        const TransactionVersionStats& stats = entry.second;
+        const uint32_t rawVersion =
+            static_cast<uint32_t>(transactionVersion);
+        const uint32_t lower16Bits = rawVersion & 0xffffU;
+        const uint32_t upper16Bits =
+            (rawVersion >> 16) & 0xffffU;
+
+        UniValue versionEntry(UniValue::VOBJ);
+        versionEntry.push_back(Pair(
+            "version",
+            transactionVersion));
+        versionEntry.push_back(Pair(
+            "version_hex",
+            strprintf("%08x", rawVersion)));
+        versionEntry.push_back(Pair(
+            "lower_16_bits",
+            static_cast<int64_t>(lower16Bits)));
+        versionEntry.push_back(Pair(
+            "upper_16_bits",
+            static_cast<int64_t>(upper16Bits)));
+        versionEntry.push_back(Pair(
+            "upper_16_bits_nonzero",
+            upper16Bits != 0));
+        versionEntry.push_back(Pair(
+            "transaction_count",
+            stats.transactionCount));
+        versionEntry.push_back(Pair(
+            "coinbase_count",
+            stats.coinbaseCount));
+        versionEntry.push_back(Pair(
+            "coinstake_count",
+            stats.coinstakeCount));
+        versionEntry.push_back(Pair(
+            "first_height",
+            stats.firstHeight));
+        versionEntry.push_back(Pair(
+            "last_height",
+            stats.lastHeight));
+        versionEntry.push_back(Pair(
+            "example_txid",
+            stats.exampleTxid.GetHex()));
+
+        versions.push_back(versionEntry);
+    }
+
+    UniValue result(UniValue::VOBJ);
+    result.push_back(Pair("start_height", heightStart));
+    result.push_back(Pair("end_height", heightEnd));
+    result.push_back(Pair(
+        "blocks_scanned",
+        blocksScanned));
+    result.push_back(Pair(
+        "transactions_scanned",
+        transactionsScanned));
+    result.push_back(Pair(
+        "all_upper_16_bits_zero",
+        allUpper16BitsZero));
+    result.push_back(Pair("versions", versions));
+
+    return result;
 }

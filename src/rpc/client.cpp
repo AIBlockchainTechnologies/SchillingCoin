@@ -128,6 +128,8 @@ static const CRPCConvertParam vRPCConvertParams[] =
         {"getblockindexstats", 0},
         {"getblockindexstats", 1},
         {"getblockindexstats", 2},
+        {"gettransactionversionstats", 0},
+        {"gettransactionversionstats", 1},
         {"getfeeinfo", 0},
     };
 
