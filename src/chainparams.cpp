@@ -253,6 +253,9 @@ public:
         consensus.height_start_ZC_SerialRangeCheck = consensus.height_RHF;
         consensus.height_start_ZC_SerialsV2 = consensus.height_RHF;
 
+        // DIP0002 Transaction Framework
+        consensus.DIP0002Height = 3950000;
+
         // Zerocoin Related Params
         consensus.ZC_Modulus = "25416044959300777136321520272618123884878267469872720876714900694524520811086165804477622260391542"
 				 "2916860912160429994534893992485623461680952402850356984626817518270156621093170424291386667786210966842060702105"
@@ -346,6 +349,9 @@ public:
         consensus.height_start_ZC_PublicSpends = 1106100;
         consensus.height_start_ZC_SerialRangeCheck = 1;
         consensus.height_start_ZC_SerialsV2 = 444020;
+
+        // DIP0002 Transaction Framework
+        consensus.DIP0002Height = 1;
 
         // Zerocoin-related params
         consensus.ZC_Modulus = "25195908475657893494027183240048398571429282126204032027777137836043662020707595556264018525880784"
@@ -449,6 +455,9 @@ public:
         consensus.height_start_ZC_PublicSpends = 400;
         consensus.height_start_ZC_SerialRangeCheck = 300;
         consensus.height_start_ZC_SerialsV2 = 300;
+
+        // DIP0002 Transaction Framework
+        consensus.DIP0002Height = 1;
 
         // Zerocoin-related params
         consensus.ZC_Modulus = "25195908475657893494027183240048398571429282126204032027777137836043662020707595556264018525880784"

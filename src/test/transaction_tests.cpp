@@ -4,19 +4,18 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "clientversion.h"
+#include "consensus/consensus.h"
+#include "consensus/tx_verify.h"
+#include "core_io.h"
 #include "data/tx_invalid.json.h"
 #include "data/tx_valid.json.h"
-#include "test/test_schillingcoin.h"
-
-#include "consensus/tx_verify.h"
-#include "clientversion.h"
 #include "key.h"
 #include "keystore.h"
 #include "main.h"
 #include "script/script.h"
 #include "script/script_error.h"
-#include "core_io.h"
-#include "test_schillingcoin.h"
+#include "test/test_schillingcoin.h"
 
 #include <map>
 #include <string>
@@ -25,11 +24,10 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/assign/list_of.hpp>
 #include <boost/test/unit_test.hpp>
-#include <boost/assign/list_of.hpp>
 
 #include <univalue.h>
 
-// In script_tests.cpp
+// Defined in script_tests.cpp
 extern UniValue read_json(const std::string& jsondata);
 
 static std::map<std::string, unsigned int> mapFlagNames = boost::assign::map_list_of
@@ -393,6 +391,191 @@ BOOST_AUTO_TEST_CASE(test_IsStandard)
     t.vout[0].scriptPubKey = CScript() << OP_RETURN;
     t.vout[1].scriptPubKey = CScript() << OP_RETURN;
     BOOST_CHECK(!IsStandardTx(t, reason));
+}
+
+BOOST_AUTO_TEST_CASE(dip0002_transaction_validation)
+{
+    const auto MakeBaseTransaction = []() {
+        CMutableTransaction tx;
+        tx.nVersion = 1;
+        tx.nType = TRANSACTION_NORMAL;
+        tx.vin.resize(1);
+        tx.vin[0].prevout = COutPoint(uint256S("01"), 0);
+        tx.vin[0].scriptSig = CScript() << OP_1;
+        tx.vout.emplace_back(1, CScript() << OP_1);
+        tx.nLockTime = 0;
+        return tx;
+    };
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        CValidationState state;
+
+        BOOST_CHECK(CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsValid());
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.nVersion = CTransaction::SPECIAL_VERSION;
+
+        CValidationState state;
+
+        BOOST_CHECK(CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsValid());
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.nVersion = 0;
+
+        CValidationState state;
+
+        BOOST_CHECK(!CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsInvalid());
+        BOOST_CHECK_EQUAL(
+            state.GetRejectReason(),
+            "bad-txns-version");
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.nVersion = 2;
+
+        CValidationState state;
+
+        BOOST_CHECK(!CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsInvalid());
+        BOOST_CHECK_EQUAL(
+            state.GetRejectReason(),
+            "bad-txns-version");
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.nVersion = CTransaction::SPECIAL_VERSION + 1;
+
+        CValidationState state;
+
+        BOOST_CHECK(!CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsInvalid());
+        BOOST_CHECK_EQUAL(
+            state.GetRejectReason(),
+            "bad-txns-version");
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.nType = 1;
+
+        CValidationState state;
+
+        BOOST_CHECK(!CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsInvalid());
+        BOOST_CHECK_EQUAL(
+            state.GetRejectReason(),
+            "bad-txns-type");
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.vExtraPayload = {0x01};
+
+        CValidationState state;
+
+        BOOST_CHECK(!CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsInvalid());
+        BOOST_CHECK_EQUAL(
+            state.GetRejectReason(),
+            "bad-txns-payload");
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.nVersion = CTransaction::SPECIAL_VERSION;
+        tx.nType = TRANSACTION_NORMAL;
+        tx.vExtraPayload = {0x01};
+
+        CValidationState state;
+
+        BOOST_CHECK(!CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsInvalid());
+        BOOST_CHECK_EQUAL(
+            state.GetRejectReason(),
+            "bad-txns-payload");
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.nVersion = CTransaction::SPECIAL_VERSION;
+        tx.nType = 1;
+        tx.vExtraPayload = {0x01};
+
+        CValidationState state;
+
+        BOOST_CHECK(!CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsInvalid());
+        BOOST_CHECK_EQUAL(
+            state.GetRejectReason(),
+            "bad-txns-type");
+    }
+
+    {
+        CMutableTransaction tx = MakeBaseTransaction();
+        tx.nVersion = CTransaction::SPECIAL_VERSION;
+        tx.nType = 1;
+        tx.vExtraPayload.assign(
+            MAX_TX_EXTRA_PAYLOAD + 1,
+            0x01);
+
+        CValidationState state;
+
+        BOOST_CHECK(!CheckTransaction(
+            CTransaction(tx),
+            false,
+            state,
+            false));
+        BOOST_CHECK(state.IsInvalid());
+        BOOST_CHECK_EQUAL(
+            state.GetRejectReason(),
+            "bad-txns-payload-oversize");
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

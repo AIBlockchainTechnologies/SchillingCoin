@@ -6,6 +6,7 @@
 
 #include "clientversion.h"
 #include "coins.h"
+#include "consensus/consensus.h"
 #include "core_io.h"
 #include "guiinterface.h"
 #include "key_io.h"
@@ -19,10 +20,10 @@
 #include "utilmoneystr.h"
 #include "utilstrencodings.h"
 
-#include <stdio.h>
-
 #include <boost/algorithm/string.hpp>
 #include <boost/assign/list_of.hpp>
+
+#include <stdio.h>
 
 #include <univalue.h>
 
@@ -71,8 +72,10 @@ static bool AppInitRawTx(int argc, char* argv[])
         strUsage += HelpMessageOpt("delout=N", _("Delete output N from TX"));
         strUsage += HelpMessageOpt("in=TXID:VOUT", _("Add input to TX"));
         strUsage += HelpMessageOpt("locktime=N", _("Set TX lock time to N"));
+        strUsage += HelpMessageOpt("ntype=N", _("Set DIP0002 TX type to N"));
         strUsage += HelpMessageOpt("nversion=N", _("Set TX version to N"));
         strUsage += HelpMessageOpt("outaddr=VALUE:ADDRESS", _("Add address-based output to TX"));
+        strUsage += HelpMessageOpt("payload=HEX", _("Set DIP0002 extra payload from hexadecimal data"));
         strUsage += HelpMessageOpt("outscript=VALUE:SCRIPT", _("Add raw script output to TX"));
         strUsage += HelpMessageOpt("sign=SIGHASH-FLAGS", _("Add zero or more signatures to transaction") + ". " +
             _("This command requires JSON registers:") +
@@ -159,16 +162,53 @@ static void RegisterLoad(const std::string& strInput)
 
 static void MutateTxVersion(CMutableTransaction& tx, const std::string& cmdVal)
 {
-    int64_t newVersion = atoi64(cmdVal);
-    if (newVersion < 1 || newVersion > CTransaction::CURRENT_VERSION)
+    int64_t newVersion = 0;
+
+    if (!ParseInt64(cmdVal, &newVersion))
         throw std::runtime_error("Invalid TX version requested");
 
-    tx.nVersion = (int)newVersion;
+    if (newVersion < 1)
+        throw std::runtime_error("Invalid TX version requested");
+
+    if (newVersion == 2)
+        throw std::runtime_error("Transaction version 2 is reserved");
+
+    if (newVersion > CTransaction::SPECIAL_VERSION)
+        throw std::runtime_error("Invalid TX version requested");
+
+    tx.nVersion = static_cast<int32_t>(newVersion);
+}
+
+static void MutateTxType(CMutableTransaction& tx, const std::string& cmdVal)
+{
+    int64_t newType = 0;
+
+    if (!ParseInt64(cmdVal, &newType))
+        throw std::runtime_error("Invalid TX type requested");
+
+    if (newType < 0 || newType > 0xffff)
+        throw std::runtime_error("Invalid TX type requested");
+
+    tx.nType = static_cast<uint16_t>(newType);
+}
+
+static void MutateTxPayload(CMutableTransaction& tx, const std::string& cmdVal)
+{
+    if (!IsHex(cmdVal))
+        throw std::runtime_error("TX extra payload must be hexadecimal data");
+
+    std::vector<unsigned char> payload = ParseHex(cmdVal);
+
+    if (payload.size() > MAX_TX_EXTRA_PAYLOAD)
+        throw std::runtime_error("TX extra payload exceeds maximum size");
+
+    tx.vExtraPayload.assign(payload.begin(), payload.end());
 }
 
 static void MutateTxLocktime(CMutableTransaction& tx, const std::string& cmdVal)
 {
     int64_t newLocktime = atoi64(cmdVal);
+
     if (newLocktime < 0LL || newLocktime > 0xffffffffLL)
         throw std::runtime_error("Invalid TX locktime requested");
 
@@ -465,8 +505,13 @@ public:
 static void MutateTx(CMutableTransaction& tx, const std::string& command, const std::string& commandVal)
 {
     boost::scoped_ptr<Secp256k1Init> ecc;
+
     if (command == "nversion")
         MutateTxVersion(tx, commandVal);
+    else if (command == "ntype")
+        MutateTxType(tx, commandVal);
+    else if (command == "payload")
+        MutateTxPayload(tx, commandVal);
     else if (command == "locktime")
         MutateTxLocktime(tx, commandVal);
 

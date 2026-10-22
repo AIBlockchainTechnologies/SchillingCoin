@@ -119,6 +119,7 @@ BITCOIN_CORE_H = \
   cuckoocache.h \
   crypter.h \
   dbwrapper.h \
+  evo/specialtx.h \
   fs.h \
   hash.h \
   httprpc.h \
@@ -393,10 +394,9 @@ libbitcoin_common_a_SOURCES = \
   coins.cpp \
   compressor.cpp \
   consensus/merkle.cpp \
-  primitives/block.cpp \
-  primitives/transaction.cpp \
   core_read.cpp \
   core_write.cpp \
+  evo/specialtx.cpp \
   hash.cpp \
   wallet/hdchain.cpp \
   key.cpp \
@@ -404,6 +404,8 @@ libbitcoin_common_a_SOURCES = \
   keystore.cpp \
   netaddress.cpp\
   netbase.cpp \
+  primitives/block.cpp \
+  primitives/transaction.cpp \
   protocol.cpp \
   pubkey.cpp \
   scheduler.cpp \

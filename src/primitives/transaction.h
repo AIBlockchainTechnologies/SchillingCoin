@@ -5,8 +5,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_PRIMITIVES_TRANSACTION_H
-#define BITCOIN_PRIMITIVES_TRANSACTION_H
+#ifndef SCHILLINGCOIN_PRIMITIVES_TRANSACTION_H
+#define SCHILLINGCOIN_PRIMITIVES_TRANSACTION_H
 
 #include "amount.h"
 #include "optional.h"
@@ -291,6 +291,11 @@ public:
     std::string ToString() const;
 };
 
+enum TransactionType : uint16_t
+{
+    TRANSACTION_NORMAL = 0,
+};
+
 struct CMutableTransaction;
 
 /** The basic transaction that is broadcasted on the network and contained in
@@ -304,35 +309,43 @@ private:
     void UpdateHash() const;
 
 public:
-    static const int32_t CURRENT_VERSION=1;
+    static const int32_t CURRENT_VERSION = 1;
+    static const int32_t SPECIAL_VERSION = 3;
 
     const int32_t nVersion;
+    const uint16_t nType;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
     const uint32_t nLockTime;
+    std::vector<uint8_t> vExtraPayload;
 
     CTransaction();
     CTransaction(const CMutableTransaction &tx);
 
-    // ✅ Explicit copy constructor to avoid deprecated implicit copy
+    // Explicit copy constructor to avoid deprecated implicit copy.
     CTransaction(const CTransaction& tx) :
         hash(tx.hash),
         nVersion(tx.nVersion),
+        nType(tx.nType),
         vin(tx.vin),
         vout(tx.vout),
-        nLockTime(tx.nLockTime)
+        nLockTime(tx.nLockTime),
+        vExtraPayload(tx.vExtraPayload)
     {
     }
 
-    // ✅ Explicit copy assignment operator
+    // Explicit copy assignment operator.
     CTransaction& operator=(const CTransaction& tx)
     {
         if (this != &tx) {
-            // nVersion and nLockTime are const, so we update them via const_cast
+            // Const members are updated through the existing complete-object
+            // assignment compatibility path.
             *const_cast<int32_t*>(&nVersion)   = tx.nVersion;
+            *const_cast<uint16_t*>(&nType)     = tx.nType;
             vin                                = tx.vin;
             vout                               = tx.vout;
             *const_cast<uint32_t*>(&nLockTime) = tx.nLockTime;
+            vExtraPayload                      = tx.vExtraPayload;
             *const_cast<uint256*>(&hash)       = tx.hash;
         }
         return *this;
@@ -341,21 +354,54 @@ public:
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(*const_cast<int32_t*>(&this->nVersion));
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        uint32_t n32bitVersion =
+            static_cast<uint16_t>(this->nVersion) |
+            (static_cast<uint32_t>(this->nType) << 16);
+
+        READWRITE(n32bitVersion);
+
+        if (ser_action.ForRead()) {
+            *const_cast<int32_t*>(&this->nVersion) =
+                static_cast<int32_t>(n32bitVersion & 0xffff);
+            *const_cast<uint16_t*>(&this->nType) =
+                static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff);
+        }
+
         nVersion = this->nVersion;
+
         READWRITE(*const_cast<std::vector<CTxIn>*>(&vin));
         READWRITE(*const_cast<std::vector<CTxOut>*>(&vout));
         READWRITE(*const_cast<uint32_t*>(&nLockTime));
+
+        if (HasExtraPayloadField()) {
+            READWRITE(vExtraPayload);
+        } else if (ser_action.ForRead()) {
+            vExtraPayload.clear();
+        }
+
         if (ser_action.ForRead())
             UpdateHash();
     }
 
-    bool IsNull() const {
+    bool IsSpecialTxVersion() const
+    {
+        return nVersion >= SPECIAL_VERSION;
+    }
+
+    bool HasExtraPayloadField() const
+    {
+        return IsSpecialTxVersion() && nType != TRANSACTION_NORMAL;
+    }
+
+    bool IsNull() const
+    {
         return vin.empty() && vout.empty();
     }
 
-    const uint256& GetHash() const {
+    const uint256& GetHash() const
+    {
         return hash;
     }
 
@@ -407,9 +453,11 @@ public:
 struct CMutableTransaction
 {
     int32_t nVersion;
+    uint16_t nType;
     std::vector<CTxIn> vin;
     std::vector<CTxOut> vout;
     uint32_t nLockTime;
+    std::vector<uint8_t> vExtraPayload;
 
     CMutableTransaction();
     CMutableTransaction(const CTransaction& tx);
@@ -417,16 +465,46 @@ struct CMutableTransaction
     ADD_SERIALIZE_METHODS;
 
     template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(this->nVersion);
+    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    {
+        uint32_t n32bitVersion =
+            static_cast<uint16_t>(this->nVersion) |
+            (static_cast<uint32_t>(this->nType) << 16);
+
+        READWRITE(n32bitVersion);
+
+        if (ser_action.ForRead()) {
+            this->nVersion =
+                static_cast<int32_t>(n32bitVersion & 0xffff);
+            this->nType =
+                static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff);
+        }
+
         nVersion = this->nVersion;
+
         READWRITE(vin);
         READWRITE(vout);
         READWRITE(nLockTime);
+
+        if (HasExtraPayloadField()) {
+            READWRITE(vExtraPayload);
+        } else if (ser_action.ForRead()) {
+            vExtraPayload.clear();
+        }
+    }
+
+    bool IsSpecialTxVersion() const
+    {
+        return nVersion >= CTransaction::SPECIAL_VERSION;
+    }
+
+    bool HasExtraPayloadField() const
+    {
+        return IsSpecialTxVersion() && nType != TRANSACTION_NORMAL;
     }
 
     uint256 GetHash() const;
     std::string ToString() const;
 };
 
-#endif // BITCOIN_PRIMITIVES_TRANSACTION_H
+#endif // SCHILLINGCOIN_PRIMITIVES_TRANSACTION_H

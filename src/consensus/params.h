@@ -4,8 +4,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CONSENSUS_PARAMS_H
-#define BITCOIN_CONSENSUS_PARAMS_H
+#ifndef SCHILLINGCOIN_CONSENSUS_PARAMS_H
+#define SCHILLINGCOIN_CONSENSUS_PARAMS_H
 
 #include "amount.h"
 #include "optional.h"
@@ -55,11 +55,20 @@ struct Params {
     int height_start_ZC_SerialsV2;
     int height_RHF;
 
+    // Dash DIP0002-style transaction framework activation
+    int DIP0002Height;
+
     int64_t TargetTimespan(const bool fV2 = true) const { return fV2 ? nTargetTimespanV2 : nTargetTimespan; }
     uint256 ProofOfStakeLimit(const bool fV2) const { return fV2 ? posLimitV2 : posLimitV1; }
     bool MoneyRange(const CAmount& nValue) const { return (nValue >= 0 && nValue <= nMaxMoneyOut); }
     bool IsMessSigV2(const int nHeight) const { return nHeight >= height_start_MessSignaturesV2; }
     bool IsPastRHFBlock(const int nHeight) const {return nHeight >= height_RHF; }
+
+    bool IsDIP0002Active(const int nHeight) const
+    {
+        return nHeight >= DIP0002Height;
+    }
+
     bool IsTimeProtocolV2(const int nHeight) const { return nHeight >= height_start_TimeProtoV2; }
     bool IsStakeModifierV2(const int nHeight) const { return nHeight >= height_start_StakeModifierV2; }
 
@@ -107,4 +116,4 @@ struct Params {
 };
 } // namespace Consensus
 
-#endif // BITCOIN_CONSENSUS_PARAMS_H
+#endif // SCHILLINGCOIN_CONSENSUS_PARAMS_H

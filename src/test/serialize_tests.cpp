@@ -4,10 +4,11 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "hash.h"
 #include "optional.h"
+#include "primitives/transaction.h"
 #include "serialize.h"
 #include "streams.h"
-#include "hash.h"
 #include "test/test_schillingcoin.h"
 
 #include <stdint.h>
@@ -301,6 +302,141 @@ BOOST_AUTO_TEST_CASE(insert_delete)
     CSerializeData d;
     ss.GetAndClear(d);
     BOOST_CHECK_EQUAL(ss.size(), 0);
+}
+
+BOOST_AUTO_TEST_CASE(dip0002_transaction_serialization)
+{
+    {
+        CMutableTransaction tx;
+        tx.nVersion = 1;
+        tx.nType = TRANSACTION_NORMAL;
+
+        CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
+        stream << tx;
+
+        const std::vector<unsigned char> expected = {
+            0x01, 0x00, 0x00, 0x00,
+            0x00,
+            0x00,
+            0x00, 0x00, 0x00, 0x00
+        };
+
+        const std::vector<unsigned char> serialized(
+            stream.begin(),
+            stream.end());
+
+        BOOST_CHECK(serialized == expected);
+
+        CMutableTransaction decoded;
+        stream >> decoded;
+
+        BOOST_CHECK_EQUAL(decoded.nVersion, 1);
+        BOOST_CHECK_EQUAL(decoded.nType, TRANSACTION_NORMAL);
+        BOOST_CHECK(decoded.vExtraPayload.empty());
+        BOOST_CHECK(stream.empty());
+    }
+
+    {
+        CMutableTransaction tx;
+        tx.nVersion = CTransaction::SPECIAL_VERSION;
+        tx.nType = TRANSACTION_NORMAL;
+
+        CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
+        stream << tx;
+
+        const std::vector<unsigned char> expected = {
+            0x03, 0x00, 0x00, 0x00,
+            0x00,
+            0x00,
+            0x00, 0x00, 0x00, 0x00
+        };
+
+        const std::vector<unsigned char> serialized(
+            stream.begin(),
+            stream.end());
+
+        BOOST_CHECK(serialized == expected);
+
+        CMutableTransaction decoded;
+        stream >> decoded;
+
+        BOOST_CHECK_EQUAL(
+            decoded.nVersion,
+            CTransaction::SPECIAL_VERSION);
+        BOOST_CHECK_EQUAL(decoded.nType, TRANSACTION_NORMAL);
+        BOOST_CHECK(decoded.vExtraPayload.empty());
+        BOOST_CHECK(stream.empty());
+    }
+
+    {
+        CMutableTransaction tx;
+        tx.nVersion = CTransaction::SPECIAL_VERSION;
+        tx.nType = 1;
+        tx.vExtraPayload = {0x00};
+
+        CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
+        stream << tx;
+
+        const std::vector<unsigned char> expected = {
+            0x03, 0x00, 0x01, 0x00,
+            0x00,
+            0x00,
+            0x00, 0x00, 0x00, 0x00,
+            0x01,
+            0x00
+        };
+
+        const std::vector<unsigned char> serialized(
+            stream.begin(),
+            stream.end());
+
+        BOOST_CHECK(serialized == expected);
+
+        CMutableTransaction decoded;
+        stream >> decoded;
+
+        BOOST_CHECK_EQUAL(
+            decoded.nVersion,
+            CTransaction::SPECIAL_VERSION);
+        BOOST_CHECK_EQUAL(decoded.nType, 1);
+        BOOST_REQUIRE_EQUAL(decoded.vExtraPayload.size(), 1);
+        BOOST_CHECK_EQUAL(decoded.vExtraPayload[0], 0x00);
+        BOOST_CHECK(stream.empty());
+    }
+
+    {
+        CMutableTransaction tx;
+        tx.nVersion = CTransaction::SPECIAL_VERSION;
+        tx.nType = TRANSACTION_NORMAL;
+        tx.vExtraPayload = {0x01, 0x02, 0x03};
+
+        CDataStream stream(SER_NETWORK, PROTOCOL_VERSION);
+        stream << tx;
+
+        const std::vector<unsigned char> expected = {
+            0x03, 0x00, 0x00, 0x00,
+            0x00,
+            0x00,
+            0x00, 0x00, 0x00, 0x00
+        };
+
+        const std::vector<unsigned char> serialized(
+            stream.begin(),
+            stream.end());
+
+        BOOST_CHECK(serialized == expected);
+
+        CMutableTransaction decoded;
+        decoded.vExtraPayload = {0xff};
+        stream >> decoded;
+
+        BOOST_CHECK_EQUAL(
+            decoded.nVersion,
+            CTransaction::SPECIAL_VERSION);
+        BOOST_CHECK_EQUAL(decoded.nType, TRANSACTION_NORMAL);
+        BOOST_CHECK(decoded.vExtraPayload.empty());
+        BOOST_CHECK(stream.empty());
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

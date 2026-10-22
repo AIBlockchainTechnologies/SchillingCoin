@@ -20,32 +20,32 @@
 #include "consensus/merkle.h"
 #include "consensus/tx_verify.h"
 #include "consensus/validation.h"
+#include "guiinterface.h"
 #include "init.h"
 #include "kernel.h"
 #include "legacy/stakemodifier.h"
 #include "masternode-payments.h"
-#include "masternodeman.h"
 #include "masternode-sync.h"
+#include "masternodeman.h"
+#include "merkleblock.h"
 #include "messagesigner.h"
 #include "protocol.h"
+#include "stubs/legacy_zerocoin_consensus.h"
 #include "txdb.h"
 #include "txmempool.h"
-#include "guiinterface.h"
 #include "util.h"
 #include "utilmoneystr.h"
 #include "validationinterface.h"
 #include "wallet/wallet.h"
-#include "merkleblock.h"
 
-#include "stubs/legacy_zerocoin_consensus.h"
+#include <atomic>
+#include <queue>
 #include <sstream>
 
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <boost/thread.hpp>
-#include <atomic>
-#include <queue>
 
 #if defined(NDEBUG)
 #error "SchillingCoin cannot be compiled without assertions."
@@ -54,7 +54,6 @@
 /**
  * Global state
  */
-
 
 /**
  * Mutex to guard access to validation specific variables, such as reading
@@ -769,39 +768,43 @@ unsigned int LimitOrphanTxSize(unsigned int nMaxOrphans)
 bool IsStandardTx(const CTransaction& tx, std::string& reason)
 {
     AssertLockHeld(cs_main);
-    if (tx.nVersion > CTransaction::CURRENT_VERSION || tx.nVersion < 1) {
+
+    if (tx.nVersion < 1) {
         reason = "version";
+        return false;
+    }
+
+    if (tx.nVersion == 2) {
+        reason = "version";
+        return false;
+    }
+
+    if (tx.nVersion > CTransaction::SPECIAL_VERSION) {
+        reason = "version";
+        return false;
+    }
+
+    if (tx.nVersion == 1 && tx.nType != TRANSACTION_NORMAL) {
+        reason = "type";
+        return false;
+    }
+
+    if (tx.vExtraPayload.size() > MAX_TX_EXTRA_PAYLOAD) {
+        reason = "payload-size";
         return false;
     }
 
     // Treat non-final transactions as non-standard to prevent a specific type
     // of double-spend attack, as well as DoS attacks. (if the transaction
     // can't be mined, the attacker isn't expending resources broadcasting it)
-    // Basically we don't want to propagate transactions that can't be included in
-    // the next block.
-    //
-    // However, IsFinalTx() is confusing... Without arguments, it uses
-    // chainActive.Height() to evaluate nLockTime; when a block is accepted, chainActive.Height()
-    // is set to the value of nHeight in the block. However, when IsFinalTx()
-    // is called within CBlock::AcceptBlock(), the height of the block *being*
-    // evaluated is what is used. Thus if we want to know if a transaction can
-    // be part of the *next* block, we need to call IsFinalTx() with one more
-    // than chainActive.Height().
-    //
-    // Timestamps on the other hand don't get any special treatment, because we
-    // can't know what timestamp the next block will have, and there aren't
-    // timestamp applications where it matters.
     if (!IsFinalTx(tx, chainActive.Height() + 1)) {
         reason = "non-final";
         return false;
     }
 
-    // Extremely large transactions with lots of inputs can cost the network
-    // almost as much to process as they cost the sender in fees, because
-    // computing signature hashes is O(ninputs*txsize). Limiting transactions
-    // to MAX_STANDARD_TX_SIZE mitigates CPU exhaustion attacks.
-    unsigned int sz = tx.GetSerializeSize(SER_NETWORK, CTransaction::CURRENT_VERSION);
+    unsigned int sz = tx.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
     unsigned int nMaxSize = tx.ContainsZerocoins() ? MAX_ZEROCOIN_TX_SIZE : MAX_STANDARD_TX_SIZE;
+
     if (sz >= nMaxSize) {
         reason = "tx-size";
         return false;
@@ -810,17 +813,12 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
     for (const CTxIn& txin : tx.vin) {
         if (txin.IsZerocoinSpend())
             continue;
-        // Biggest 'standard' txin is a 15-of-15 P2SH multisig with compressed
-        // keys. (remember the 520 byte limit on redeemScript size) That works
-        // out to a (15*(33+1))+3=513 byte redeemScript, 513+1+15*(73+1)+3=1627
-        // bytes of scriptSig, which we round off to 1650 bytes for some minor
-        // future-proofing. That's also enough to spend a 20-of-20
-        // CHECKMULTISIG scriptPubKey, though such a scriptPubKey is not
-        // considered standard)
+
         if (txin.scriptSig.size() > 1650) {
             reason = "scriptsig-size";
             return false;
         }
+
         if (!txin.scriptSig.IsPushOnly()) {
             reason = "scriptsig-not-pushonly";
             return false;
@@ -829,15 +827,16 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
 
     unsigned int nDataOut = 0;
     txnouttype whichType;
+
     for (const CTxOut& txout : tx.vout) {
         if (!::IsStandard(txout.scriptPubKey, whichType)) {
             reason = "scriptpubkey";
             return false;
         }
 
-        if (whichType == TX_NULL_DATA)
+        if (whichType == TX_NULL_DATA) {
             nDataOut++;
-        else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
+        } else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
             reason = "bare-multisig";
             return false;
         } else if (txout.IsDust(::minRelayTxFee)) {
@@ -846,7 +845,6 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
         }
     }
 
-    // only one OP_RETURN txout is permitted
     if (nDataOut > 1) {
         reason = "multi-op-return";
         return false;
@@ -1004,8 +1002,7 @@ CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowF
     return nMinFee;
 }
 
-bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransaction& tx,
-                        bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee, bool ignoreFees)
+bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransaction& tx, bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee, bool ignoreFees)
 {
     AssertLockHeld(cs_main);
     if (pfMissingInputs)
@@ -1014,10 +1011,21 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
     const Consensus::Params& consensus = Params().GetConsensus();
 
     // Check transaction
-    int chainHeight = chainActive.Height();
-    bool fColdStakingActive = IsColdStakingEnabled(); // runtime flag, single source of truth
+    const int chainHeight = chainActive.Height();
+    const int nNextBlockHeight = chainHeight + 1;
+    const bool fColdStakingActive = IsColdStakingEnabled(); // runtime flag, single source of truth
+
     if (!CheckTransaction(tx, chainHeight >= consensus.height_start_ZC, state, fColdStakingActive))
-        return state.DoS(100, error("%s : CheckTransaction failed", __func__), REJECT_INVALID, "bad-tx");
+        return state.DoS(100, error("%s : CheckTransaction failed", __func__),
+            REJECT_INVALID, "bad-tx");
+
+    if (!consensus.IsDIP0002Active(nNextBlockHeight) &&
+        tx.nVersion >= CTransaction::SPECIAL_VERSION) {
+        return state.DoS(0,
+            error("%s : DIP0002 transaction before activation", __func__),
+            REJECT_NONSTANDARD,
+            "premature-dip2");
+    }
 
     // Coinbase is only valid in a block, not as a loose transaction
     if (tx.IsCoinBase())
@@ -1189,10 +1197,21 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
     if (pfMissingInputs)
         *pfMissingInputs = false;
 
+    const Consensus::Params& consensus = Params().GetConsensus();
     const int chainHeight = chainActive.Height();
+    const int nNextBlockHeight = chainHeight + 1;
+    const bool fColdStakingActive = IsColdStakingEnabled();
 
-    if (!CheckTransaction(tx, chainHeight >= Params().GetConsensus().height_start_ZC, state))
+    if (!CheckTransaction(tx, chainHeight >= consensus.height_start_ZC, state, fColdStakingActive))
         return error("AcceptableInputs: : CheckTransaction failed");
+
+    if (!consensus.IsDIP0002Active(nNextBlockHeight) &&
+        tx.nVersion >= CTransaction::SPECIAL_VERSION) {
+        return state.DoS(0,
+            error("AcceptableInputs: : DIP0002 transaction before activation"),
+            REJECT_NONSTANDARD,
+            "premature-dip2");
+    }
 
     if (tx.IsCoinBase())
         return state.DoS(100, error("AcceptableInputs: : coinbase as individual tx"),
@@ -1284,11 +1303,13 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
                 // Use an exponentially decaying ~10-minute window:
                 dFreeCount *= pow(1.0 - 1.0 / 600.0, (double)(nNow - nLastTime));
                 nLastTime = nNow;
+
                 // -limitfreerelay unit is thousand-bytes-per-minute
                 // At default rate it would take over a month to fill 1GB
                 if (dFreeCount >= gArgs.GetArg("-limitfreerelay", 30) * 10 * 1000)
                     return state.DoS(0, error("AcceptableInputs : free transaction rejected by rate limiter"),
                         REJECT_INSUFFICIENTFEE, "rate limited free transaction");
+
                 LogPrint(BCLog::MEMPOOL, "Rate limit dFreeCount: %g => %g\n", dFreeCount, dFreeCount + nSize);
                 dFreeCount += nSize;
             }
@@ -1306,30 +1327,14 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
         int flags = STANDARD_SCRIPT_VERIFY_FLAGS;
         if (fCLTVIsActivated)
             flags |= SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
+
         if (!CheckInputs(tx, state, view, false, flags, true)) {
             return error("AcceptableInputs: : ConnectInputs failed %s", hash.ToString());
         }
 
-        // Check again against just the consensus-critical mandatory script
-        // verification flags, in case of bugs in the standard flags that cause
-        // transactions to pass as valid when they're actually invalid. For
-        // instance the STRICTENC flag was incorrectly allowing certain
-        // CHECKSIG NOT scripts to pass, even though they were invalid.
-        //
-        // There is a similar check in CreateNewBlock() to prevent creating
-        // invalid blocks, however allowing such transactions into the mempool
-        // can be exploited as a DoS attack.
-        // for any real tx this will be checked on AcceptToMemoryPool anyway
-        //        if (!CheckInputs(tx, state, view, false, MANDATORY_SCRIPT_VERIFY_FLAGS, true))
-        //        {
-        //            return error("AcceptableInputs: : BUG! PLEASE REPORT THIS! ConnectInputs failed against MANDATORY but not STANDARD flags %s", hash.ToString());
-        //        }
-
         // Store transaction in memory
         // pool.addUnchecked(hash, entry);
     }
-
-    // SyncWithWallets(tx, NULL);
 
     return true;
 }
@@ -3360,23 +3365,38 @@ bool IsTransactionInChain(const uint256& txId, int& nHeightTx)
 bool ContextualCheckBlock(const CBlock& block, CValidationState& state, CBlockIndex* const pindexPrev)
 {
     const int nHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
+    const Consensus::Params& consensus = Params().GetConsensus();
 
     // Check that all transactions are finalized
-    for (const CTransaction& tx : block.vtx)
+    for (const CTransaction& tx : block.vtx) {
         if (!IsFinalTx(tx, nHeight, block.GetBlockTime())) {
-            return state.DoS(10, error("%s : contains a non-final transaction", __func__), REJECT_INVALID, "bad-txns-nonfinal");
+            return state.DoS(10, error("%s : contains a non-final transaction", __func__),
+                REJECT_INVALID, "bad-txns-nonfinal");
         }
+
+        if (!consensus.IsDIP0002Active(nHeight)) {
+            if (tx.nVersion >= CTransaction::SPECIAL_VERSION) {
+                return state.DoS(100,
+                    error("%s : DIP0002 transaction before activation", __func__),
+                    REJECT_INVALID,
+                    "bad-txns-premature-dip2");
+            }
+        }
+    }
 
     // Enforce block.nVersion=2 rule that the coinbase starts with serialized block height
     if (pindexPrev) { // pindexPrev is only null on the first block which is a version 1 block.
         CScript expect = CScript() << nHeight;
         bool isAfterRHF = Params().GetConsensus().IsPastRHFBlock(nHeight);
-        if(isAfterRHF)
+
+        if (isAfterRHF)
             if (block.vtx[0].vin[0].scriptSig.size() < expect.size() ||
                 !std::equal(expect.begin(), expect.end(), block.vtx[0].vin[0].scriptSig.begin()))
             {
-                return state.DoS(100, error("%s : block height mismatch in coinbase", __func__), REJECT_INVALID,
-                             "bad-cb-height");
+                return state.DoS(100,
+                    error("%s : block height mismatch in coinbase", __func__),
+                    REJECT_INVALID,
+                    "bad-cb-height");
             }
     }
 

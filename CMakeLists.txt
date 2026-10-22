@@ -471,32 +471,33 @@ set(COMMON_SOURCES
         ./src/bip38.cpp
         ./src/chainparams.cpp
         ./src/coins.cpp
-        ./src/key_io.cpp
+        ./src/core_read.cpp
+        ./src/core_write.cpp
         ./src/compressor.cpp
         ./src/consensus/merkle.cpp
         ./src/consensus/tx_verify.cpp
         ./src/consensus/zerocoin_verify.cpp
-        ./src/primitives/block.cpp
-        ./src/zsch/deterministicmint.cpp
-        ./src/primitives/transaction.cpp
-        ./src/zsch/zerocoin.cpp
-        ./src/core_read.cpp
-        ./src/core_write.cpp
+        ./src/evo/specialtx.cpp
         ./src/hash.cpp
         ./src/key.cpp
+        ./src/key_io.cpp
         ./src/keystore.cpp
         ./src/netaddress.cpp
         ./src/netbase.cpp
-        ./src/protocol.cpp
         ./src/pubkey.cpp
+        ./src/primitives/block.cpp
+        ./src/primitives/transaction.cpp
+        ./src/protocol.cpp
         ./src/scheduler.cpp
         ./src/script/interpreter.cpp
         ./src/script/script.cpp
+        ./src/script/script_error.cpp
         ./src/script/sign.cpp
         ./src/script/standard.cpp
-        ./src/script/script_error.cpp
         ./src/spork.cpp
         ./src/sporkdb.cpp
+        ./src/zsch/deterministicmint.cpp
+        ./src/zsch/zerocoin.cpp
         )
 add_library(COMMON_A STATIC ${BitcoinHeaders} ${COMMON_SOURCES})
 target_include_directories(COMMON_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src

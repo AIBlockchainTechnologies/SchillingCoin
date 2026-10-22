@@ -205,9 +205,6 @@ bool CNetAddr::IsMulticast() const
 
 bool CNetAddr::IsValid() const
 {
-    if (memcmp(ip, pchIPv4 + 3, sizeof(pchIPv4) - 3) == 0)
-        return false;
-
     unsigned char ipNone[16] = {};
     if (memcmp(ip, ipNone, 16) == 0)
         return false;
