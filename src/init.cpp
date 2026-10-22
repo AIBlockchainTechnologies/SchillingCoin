@@ -1108,8 +1108,12 @@ bool AppInit2(const std::vector<std::string>& words)
         return false;
     }
 #endif
-    if (gArgs.GetBoolArg("-shrinkdebugfile", g_logger->DefaultShrinkDebugFile()))
-        g_logger->ShrinkDebugFile();
+    if (g_logger->m_print_to_file) {
+        if (gArgs.GetBoolArg("-shrinkdebugfile", g_logger->DefaultShrinkDebugFile()))
+            g_logger->ShrinkDebugFile();
+        if (!g_logger->OpenDebugLog())
+            return UIError(strprintf(_("Could not open debug log file %s"), g_logger->m_file_path.string()));
+    }
     LogPrintf("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
     LogPrintf("SchillingCoin version %s (%s)\n", FormatFullVersionWithCodename(), CLIENT_DATE);
 #ifdef ENABLE_WALLET

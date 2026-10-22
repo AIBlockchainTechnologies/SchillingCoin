@@ -278,18 +278,6 @@ public:
 		pchMessageStart[3] = 0x56;
         nDefaultPort = 9070;
 
-        // Note that of those with the service bits flag, most only support a subset of possible options.
-		vSeeds.push_back(CDNSSeedData("seed1", "s1.schillingcoin.org"));
-		vSeeds.push_back(CDNSSeedData("seed2", "s2.schillingcoin.org"));
-		vSeeds.push_back(CDNSSeedData("seed3", "s3.schillingcoin.org"));
-		vSeeds.push_back(CDNSSeedData("seed4", "s4.schillingcoin.org"));
-		vSeeds.push_back(CDNSSeedData("seed5", "s5.schillingcoin.org"));
-		vSeeds.push_back(CDNSSeedData("seed6", "2001:19f0:5001:2c6b:5400:02ff:fe03:b81c"));
-		vSeeds.push_back(CDNSSeedData("seed7", "2001:19f0:5001:3e20:5400:02ff:fe03:b7e4"));
-		vSeeds.push_back(CDNSSeedData("seed8", "2001:19f0:6c01:28b0:5400:02ff:fe03:b7f1"));
-		vSeeds.push_back(CDNSSeedData("seed9", "2001:19f0:5:1920:5400:02ff:fe03:b7fa"));
-		vSeeds.push_back(CDNSSeedData("seed10", "2001:19f0:6801:45e:5400:02ff:fe03:b814"));
-
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 63);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 2);
         base58Prefixes[STAKING_ADDRESS] = std::vector<unsigned char>(1, 28); // Starting with 'S'
