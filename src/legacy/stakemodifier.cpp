@@ -113,7 +113,7 @@ bool GetOldModifier(const CBlockIndex* pindexFrom, uint64_t& nStakeModifier)
 
 bool GetOldStakeModifier(CStakeInput* stake, uint64_t& nStakeModifier)
 {
-    CBlockIndex* pindexFrom = stake->GetIndexFrom();
+    const CBlockIndex* pindexFrom = stake->GetIndexFrom();
     if (!pindexFrom) return error("%s : failed to get index from", __func__);
     if (!GetOldModifier(pindexFrom, nStakeModifier))
         return error("%s : failed to get kernel stake modifier", __func__);

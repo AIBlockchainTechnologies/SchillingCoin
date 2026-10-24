@@ -113,6 +113,7 @@ class CCoinControl;
 class COutput;
 class CReserveKey;
 class CScript;
+class CStakeableOutput;
 class CWalletTx;
 class WalletRescanReserver;
 
@@ -292,7 +293,7 @@ public:
     //TODO move to private after createwalletfromfile has been backported
     void MarkPreSplitKeys();
 
-    bool StakeableCoins(std::vector<COutput>* pCoins = nullptr);
+    bool StakeableCoins(std::vector<CStakeableOutput>* pCoins = nullptr);
     bool IsCollateralAmount(CAmount nInputAmount) const;
 
     /*
@@ -548,21 +549,12 @@ public:
     CAmount GetUnconfirmedWatchOnlyBalance() const;
     CAmount GetImmatureWatchOnlyBalance() const;
     CAmount GetLockedWatchOnlyBalance() const;
-    bool CreateTransaction(const std::vector<std::pair<CScript, CAmount> >& vecSend,
-        CWalletTx& wtxNew,
-        CReserveKey& reservekey,
-        CAmount& nFeeRet,
-        std::string& strFailReason,
-        const CCoinControl* coinControl = NULL,
-        AvailableCoinsType coin_type = ALL_COINS,
-        bool useIX = false,
-        CAmount nFeePay = 0,
-        bool fIncludeDelegated = false);
+    bool CreateTransaction(const std::vector<std::pair<CScript, CAmount> >& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl = NULL, AvailableCoinsType coin_type = ALL_COINS, bool useIX = false, CAmount nFeePay = 0, bool fIncludeDelegated = false);
     bool CreateTransaction(CScript scriptPubKey, const CAmount& nValue, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl = NULL, AvailableCoinsType coin_type = ALL_COINS, bool useIX = false, CAmount nFeePay = 0, bool fIncludeDelegated = false);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, std::string strCommand = "tx");
     bool AddAccountingEntry(const CAccountingEntry&, WalletBatch& batch);
-    int GenerateObfuscationOutputs(int nTotalValue, std::vector<CTxOut>& vout);
-    bool CreateCoinStake(const CKeyStore& keystore, const CBlockIndex* pindexPrev, unsigned int nBits, CMutableTransaction& txNew, int64_t& nTxNewTime);
+    bool CreateCoinStake(const CBlockIndex* pindexPrev, unsigned int nBits, CMutableTransaction& txNew, int64_t& nTxNewTime, std::vector<CStakeableOutput>* availableCoins, bool stopOnNewBlock);
+    bool SignCoinStake(CMutableTransaction& txNew) const;
     bool MultiSend();
     void AutoCombineDust();
 
@@ -1001,6 +993,22 @@ public:
     }
 
     std::string ToString() const;
+};
+
+class CStakeableOutput : public COutput
+{
+public:
+    const CBlockIndex* pindex;
+
+    CStakeableOutput(
+        const CWalletTx* txIn,
+        int iIn,
+        int nDepthIn,
+        const CBlockIndex* pindexIn)
+        : COutput(txIn, iIn, nDepthIn, true),
+          pindex(pindexIn)
+    {
+    }
 };
 
 /** Private key that includes an expiration date in case it never gets used. */

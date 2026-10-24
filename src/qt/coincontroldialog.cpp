@@ -10,14 +10,14 @@
 
 #include "addresstablemodel.h"
 #include "bitcoinunits.h"
+#include "coincontrol.h"
 #include "guiutil.h"
 #include "init.h"
-#include "optionsmodel.h"
-#include "walletmodel.h"
-
-#include "coincontrol.h"
 #include "main.h"
+#include "optionsmodel.h"
+#include "policy/policy.h"
 #include "wallet/wallet.h"
+#include "walletmodel.h"
 
 #include "qt/schillingcoin/qtutils.h"
 
@@ -583,7 +583,7 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
         if (amount > 0) {
             CTxOut txout(amount, (CScript)std::vector<unsigned char>(24, 0));
             txDummy.vout.push_back(txout);
-            if (txout.IsDust(::minRelayTxFee))
+            if (IsDust(txout, dustRelayFee))
                 fDust = true;
         }
     }
@@ -663,7 +663,7 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
 
             if (nChange > 0 && nChange < CENT) {
                 CTxOut txout(nChange, (CScript)std::vector<unsigned char>(24, 0));
-                if (txout.IsDust(::minRelayTxFee)) {
+                if (IsDust(txout, dustRelayFee)) {
                     nPayFee += nChange;
                     nChange = 0;
                 }
@@ -726,7 +726,7 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
                     .arg(BitcoinUnits::formatWithUnit(nDisplayUnit, CWallet::minTxFee.GetFeePerK()));
 
     QString toolTip3 = tr("This label turns red, if any recipient receives an amount smaller than %1.")
-                           .arg(BitcoinUnits::formatWithUnit(nDisplayUnit, ::minRelayTxFee.GetFee(546)));
+                           .arg(BitcoinUnits::formatWithUnit(nDisplayUnit, GetDustThreshold(dustRelayFee)));
 
     double dFeeVary;
     if (payTxFee.GetFeePerK() > 0)

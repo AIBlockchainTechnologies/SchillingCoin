@@ -267,12 +267,6 @@ public:
 
     uint256 GetHash() const;
 
-    bool IsDust(CFeeRate minRelayTxFee) const
-    {
-        size_t nSize = GetSerializeSize(SER_DISK,0)+148u;
-        return (nValue < 3*minRelayTxFee.GetFee(nSize));
-    }
-
     bool IsZerocoinMint() const;
     CAmount GetZerocoinMinted() const;
 

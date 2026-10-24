@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_STAKEINPUT_H
-#define SchillingCoin_STAKEINPUT_H
+#ifndef SCHILLINGCOIN_STAKEINPUT_H
+#define SCHILLINGCOIN_STAKEINPUT_H
 
 #include "chain.h"
 #include "streams.h"
@@ -17,12 +17,12 @@ class CWalletTx;
 class CStakeInput
 {
 protected:
-    CBlockIndex* pindexFrom = nullptr;
+    const CBlockIndex* pindexFrom = nullptr;
 
 public:
-    virtual ~CStakeInput(){};
+    virtual ~CStakeInput() {}
     virtual bool InitFromTxIn(const CTxIn& txin) = 0;
-    virtual CBlockIndex* GetIndexFrom() = 0;
+    virtual const CBlockIndex* GetIndexFrom() = 0;
     virtual bool CreateTxIn(CWallet* pwallet, CTxIn& txIn, uint256 hashTxOut = UINT256_ZERO) = 0;
     virtual bool GetTxFrom(CTransaction& tx) const = 0;
     virtual bool GetTxOutFrom(CTxOut& out) const = 0;
@@ -31,7 +31,6 @@ public:
     virtual CDataStream GetUniqueness() const = 0;
     virtual bool ContextCheck(int nHeight, uint32_t nTime) = 0;
 };
-
 
 class CSchStake : public CStakeInput
 {
@@ -43,9 +42,12 @@ public:
     CSchStake() {}
 
     bool InitFromTxIn(const CTxIn& txin);
-    bool SetPrevout(CTransaction txPrev, unsigned int n);
+    bool SetPrevout(
+        const CTransaction& txPrev,
+        unsigned int n,
+        const CBlockIndex* pindex = nullptr);
 
-    CBlockIndex* GetIndexFrom() override;
+    const CBlockIndex* GetIndexFrom() override;
     bool GetTxFrom(CTransaction& tx) const override;
     bool GetTxOutFrom(CTxOut& out) const override;
     CAmount GetValue() const override;
@@ -55,4 +57,4 @@ public:
     bool ContextCheck(int nHeight, uint32_t nTime) override;
 };
 
-#endif //SchillingCoin_STAKEINPUT_H
+#endif //SCHILLINGCOIN_STAKEINPUT_H

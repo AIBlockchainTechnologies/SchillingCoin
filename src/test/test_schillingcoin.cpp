@@ -30,7 +30,7 @@ FastRandomContext insecure_rand_ctx(insecure_rand_seed);
 extern bool fPrintToConsole;
 extern void noui_connect();
 
-BasicTestingSetup::BasicTestingSetup()
+BasicTestingSetup::BasicTestingSetup(CBaseChainParams::Network network)
 {
         RandomInit();
         ECC_Start();
@@ -38,7 +38,7 @@ BasicTestingSetup::BasicTestingSetup()
         SetupEnvironment();
         g_logger->m_print_to_file = false; // don't want to write to debug.log file
         fCheckBlockIndex = true;
-        SelectParams(CBaseChainParams::MAIN);
+        SelectParams(network);
 }
 
 BasicTestingSetup::~BasicTestingSetup()
@@ -55,7 +55,7 @@ boost::filesystem::path BasicTestingSetup::SetDataDir(const std::string& name)
         return path;
 }
 
-TestingSetup::TestingSetup()
+TestingSetup::TestingSetup(CBaseChainParams::Network network) : BasicTestingSetup(network)
 {
         ClearDatadirCache();
         pathTemp = GetTempPath() / strprintf("test_schillingcoin_%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(100000)));

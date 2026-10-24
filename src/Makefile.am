@@ -88,13 +88,14 @@ BITCOIN_CORE_H = \
   addrdb.h \
   addrman.h \
   allocators.h \
-  attributes.h \
   amount.h \
   arith_uint256.h \
+  attributes.h \
   base58.h \
   blob_uint256.h \
   bip38.h \
   bloom.h \
+  blockassembler.h \
   blocksignature.h \
   chain.h \
   chainparams.h \
@@ -120,17 +121,17 @@ BITCOIN_CORE_H = \
   crypter.h \
   dbwrapper.h \
   evo/specialtx.h \
+  forgeman.h \
   fs.h \
   hash.h \
   httprpc.h \
   httpserver.h \
   init.h \
-  legacy/stakemodifier.h \
   kernel.h \
-  swifttx.h \
   key.h \
   key_io.h \
   keystore.h \
+  legacy/stakemodifier.h \
   limitedmap.h \
   logging.h \
   main.h \
@@ -140,7 +141,6 @@ BITCOIN_CORE_H = \
   masternode-sync.h \
   masternodeman.h \
   masternodeconfig.h \
-  forgeman.h \
   merkleblock.h \
   messagesigner.h \
   miner.h \
@@ -151,6 +151,7 @@ BITCOIN_CORE_H = \
   noui.h \
   optional.h \
   operationresult.h \
+  policy/policy.h \
   pow.h \
   prevector.h \
   primitives/block.h \
@@ -164,13 +165,13 @@ BITCOIN_CORE_H = \
   rpc/protocol.h \
   rpc/server.h \
   scheduler.h \
+  script/script_error.h \
   script/interpreter.h \
   script/keyorigin.h \
   script/script.h \
   script/sigcache.h \
   script/sign.h \
   script/standard.h \
-  script/script_error.h \
   serialize.h \
   stakeinput.h \
   streams.h \
@@ -178,8 +179,8 @@ BITCOIN_CORE_H = \
   support/allocators/zeroafterfree.h \
   support/cleanse.h \
   sync.h \
-  threadsafety.h \
   threadinterrupt.h \
+  threadsafety.h \
   timedata.h \
   tinyformat.h \
   torcontrol.h \
@@ -190,14 +191,14 @@ BITCOIN_CORE_H = \
   uint256.h \
   undo.h \
   util.h \
+  utilmoneystr.h \
+  utilstrencodings.h \
+  utiltime.h \
   util/macros.h \
   util/memory.h \
   util/string.h \
   util/system.h \
   util/threadnames.h \
-  utilstrencodings.h \
-  utilmoneystr.h \
-  utiltime.h \
   validationinterface.h \
   version.h \
   wallet/bdb.h \
@@ -208,9 +209,9 @@ BITCOIN_CORE_H = \
   wallet/init.h \
   wallet/scriptpubkeyman.h \
   wallet/wallet.h \
-  wallet/wallet_ismine.h \
   wallet/walletdb.h \
   wallet/walletutil.h \
+  wallet/wallet_ismine.h \
   zmq/zmqabstractnotifier.h \
   zmq/zmqconfig.h \
   zmq/zmqnotificationinterface.h \
@@ -229,6 +230,7 @@ libbitcoin_server_a_SOURCES = \
   addrdb.cpp \
   addrman.cpp \
   bloom.cpp \
+  blockassembler.cpp \
   blocksignature.cpp \
   chain.cpp \
   checkpoints.cpp \
@@ -242,6 +244,7 @@ libbitcoin_server_a_SOURCES = \
   miner.cpp \
   net.cpp \
   noui.cpp \
+  policy/policy.cpp \
   pow.cpp \
   rest.cpp \
   rpc/blockchain.cpp \

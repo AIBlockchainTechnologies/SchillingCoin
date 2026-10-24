@@ -17,25 +17,31 @@ bool CSchStake::InitFromTxIn(const CTxIn& txin)
     CTransaction txPrev;
     if (!GetTransaction(txin.prevout.hash, txPrev, hashBlock, true))
         return error("%s : INFO: read txPrev failed, tx id prev: %s", __func__, txin.prevout.hash.GetHex());
-    SetPrevout(txPrev, txin.prevout.n);
 
-    // Find the index of the block of the previous transaction
-    if (mapBlockIndex.count(hashBlock)) {
-        CBlockIndex* pindex = mapBlockIndex.at(hashBlock);
-        if (chainActive.Contains(pindex)) pindexFrom = pindex;
+    // Find the index of the block containing the previous transaction
+    const CBlockIndex* pindex = nullptr;
+    const BlockMap::const_iterator blockIt = mapBlockIndex.find(hashBlock);
+    if (blockIt != mapBlockIndex.end() &&
+        blockIt->second &&
+        chainActive.Contains(blockIt->second)) {
+        pindex = blockIt->second;
     }
-    // Check that the input is in the active chain
-    if (!pindexFrom)
+
+    if (!pindex)
         return error("%s : Failed to find the block index for stake origin", __func__);
 
-    // All good
-    return true;
+    return SetPrevout(txPrev, txin.prevout.n, pindex);
 }
 
-bool CSchStake::SetPrevout(CTransaction txPrev, unsigned int n)
+bool CSchStake::SetPrevout(const CTransaction& txPrev, unsigned int n, const CBlockIndex* pindex)
 {
-    this->txFrom = txPrev;
-    this->nPosition = n;
+    if (txPrev.IsNull() || n >= txPrev.vout.size())
+        return false;
+
+    txFrom = txPrev;
+    nPosition = n;
+    pindexFrom = pindex;
+
     return true;
 }
 
@@ -125,22 +131,24 @@ CDataStream CSchStake::GetUniqueness() const
     return ss;
 }
 
-//The block that the UTXO was added to the chain
-CBlockIndex* CSchStake::GetIndexFrom()
+// The block that the UTXO was added to the chain
+const CBlockIndex* CSchStake::GetIndexFrom()
 {
     if (pindexFrom)
         return pindexFrom;
+
     uint256 hashBlock = UINT256_ZERO;
     CTransaction tx;
-    if (GetTransaction(txFrom.GetHash(), tx, hashBlock, true)) {
-        // If the index is in the chain, then set it as the "index from"
-        if (mapBlockIndex.count(hashBlock)) {
-            CBlockIndex* pindex = mapBlockIndex.at(hashBlock);
-            if (chainActive.Contains(pindex))
-                pindexFrom = pindex;
-        }
-    } else {
+    if (!GetTransaction(txFrom.GetHash(), tx, hashBlock, true)) {
         LogPrintf("%s : failed to find tx %s\n", __func__, txFrom.GetHash().GetHex());
+        return nullptr;
+    }
+
+    const BlockMap::const_iterator blockIt = mapBlockIndex.find(hashBlock);
+    if (blockIt != mapBlockIndex.end() &&
+        blockIt->second &&
+        chainActive.Contains(blockIt->second)) {
+        pindexFrom = blockIt->second;
     }
 
     return pindexFrom;
@@ -152,7 +160,7 @@ bool CSchStake::ContextCheck(int nHeight, uint32_t nTime)
     const Consensus::Params& consensus = Params().GetConsensus();
 
     // Get Stake input block time/height
-    CBlockIndex* pindexFrom = GetIndexFrom();
+    const CBlockIndex* pindexFrom = GetIndexFrom();
     if (!pindexFrom)
         return error("%s: unable to get previous index for stake input", __func__);
 

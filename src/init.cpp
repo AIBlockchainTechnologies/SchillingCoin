@@ -20,32 +20,33 @@
 #include "amount.h"
 #include "checkpoints.h"
 #include "compat/sanity.h"
+#include "forgeman.h"
 #include "fs.h"
+#include "guiinterface.h"
+#include "guiinterfaceutil.h"
 #include "httpserver.h"
 #include "httprpc.h"
 #include "key.h"
 #include "main.h"
 #include "masternode-payments.h"
-#include "masternodeconfig.h"
-#include "forgeman.h"
-#include "masternodeman.h"
 #include "masternode-sync.h"
+#include "masternodeconfig.h"
+#include "masternodeman.h"
 #include "messagesigner.h"
 #include "miner.h"
 #include "net.h"
 #include "netbase.h"
+#include "policy/policy.h"
 #include "rpc/server.h"
+#include "scheduler.h"
 #include "script/sigcache.h"
 #include "script/standard.h"
-#include "scheduler.h"
-#include "txdb.h"
 #include "torcontrol.h"
-#include "guiinterface.h"
-#include "guiinterfaceutil.h"
+#include "txdb.h"
 #include "util.h"
 #include "util/system.h"
-#include "utilmoneystr.h"
 #include "util/threadnames.h"
+#include "utilmoneystr.h"
 #include "validationinterface.h"
 
 #ifdef ENABLE_WALLET
@@ -502,7 +503,7 @@ std::string HelpMessage(HelpMessageMode mode)
     strUsage += HelpMessageOpt("-maxsendbuffer=<n>", strprintf(_("Maximum per-connection send buffer, <n>*1000 bytes (default: %u)"), 1000));
     strUsage += HelpMessageOpt("-onion=<ip:port>", strprintf(_("Use separate SOCKS5 proxy to reach peers via Tor hidden services (default: %s)"), "-proxy"));
     strUsage += HelpMessageOpt("-onlynet=<net>", _("Only connect to nodes in network <net> (ipv4, ipv6 or onion)"));
-    strUsage += HelpMessageOpt("-permitbaremultisig", strprintf(_("Relay non-P2SH multisig (default: %u)"), 1));
+    strUsage += HelpMessageOpt("-permitbaremultisig", strprintf(_("Relay non-P2SH multisig (default: %u)"), DEFAULT_PERMIT_BAREMULTISIG));
     strUsage += HelpMessageOpt("-peerbloomfilters", strprintf(_("Support filtering of blocks and transaction with bloom filters (default: %u)"), DEFAULT_PEERBLOOMFILTERS));
     strUsage += HelpMessageOpt("-port=<port>", strprintf(_("Listen for connections on <port> (default: %u or testnet: %u)"), 9070, 51474));
     strUsage += HelpMessageOpt("-proxy=<ip:port>", _("Connect through SOCKS5 proxy"));
@@ -613,7 +614,7 @@ std::string HelpMessage(HelpMessageMode mode)
     }
 
     strUsage += HelpMessageGroup(_("Block creation options:"));
-    strUsage += HelpMessageOpt("-blockminsize=<n>", strprintf(_("Set minimum block size in bytes (default: %u)"), 0));
+    strUsage += HelpMessageOpt("-blockminsize=<n>", strprintf(_("Set minimum block size in bytes (default: %u)"), DEFAULT_BLOCK_MIN_SIZE));
     strUsage += HelpMessageOpt("-blockmaxsize=<n>", strprintf(_("Set maximum block size in bytes (default: %d)"), DEFAULT_BLOCK_MAX_SIZE));
     strUsage += HelpMessageOpt("-blockprioritysize=<n>", strprintf(_("Set maximum size of high-priority/low-fee transactions in bytes (default: %d)"), DEFAULT_BLOCK_PRIORITY_SIZE));
 
@@ -1067,7 +1068,7 @@ bool AppInit2(const std::vector<std::string>& words)
     std::string strWalletFile = gArgs.GetArg("-wallet", DEFAULT_WALLET_DAT);
 #endif // ENABLE_WALLET
 
-    fIsBareMultisigStd = gArgs.GetBoolArg("-permitbaremultisig", true) != 0;
+    fIsBareMultisigStd = gArgs.GetBoolArg("-permitbaremultisig", DEFAULT_PERMIT_BAREMULTISIG);
     nMaxDatacarrierBytes = gArgs.GetArg("-datacarriersize", nMaxDatacarrierBytes);
 
     if (gArgs.GetBoolArg("-peerbloomfilters", DEFAULT_PEERBLOOMFILTERS))

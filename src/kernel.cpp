@@ -6,14 +6,16 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "arith_uint256.h"
 #include "db.h"
 #include "kernel.h"
 #include "legacy/stakemodifier.h"
+#include "policy/policy.h"
 #include "script/interpreter.h"
-#include "util.h"
-#include "util/system.h"
 #include "stakeinput.h"
+#include "util.h"
 #include "utilmoneystr.h"
+#include "util/system.h"
 
 /**
  * CStakeKernel Constructor
@@ -23,11 +25,7 @@
  * @param[in]   nBits           target difficulty bits of the kernel block
  * @param[in]   nTimeTx         time of the kernel block
  */
-CStakeKernel::CStakeKernel(const CBlockIndex* const pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int nTimeTx):
-    stakeUniqueness(stakeInput->GetUniqueness()),
-    nTime(nTimeTx),
-    nBits(nBits),
-    stakeValue(stakeInput->GetValue())
+CStakeKernel::CStakeKernel(const CBlockIndex* const pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int nTimeTx): stakeUniqueness(stakeInput->GetUniqueness()), nTime(nTimeTx), nBits(nBits), stakeValue(stakeInput->GetValue())
 {
     if (!Params().GetConsensus().IsStakeModifierV2(pindexPrev->nHeight + 1)) { // Modifier v1
         uint64_t nStakeModifier = 0;
@@ -37,7 +35,9 @@ CStakeKernel::CStakeKernel(const CBlockIndex* const pindexPrev, CStakeInput* sta
     } else { // Modifier v2
         stakeModifier << pindexPrev->GetStakeModifierV2();
     }
-    CBlockIndex* pindexFrom = stakeInput->GetIndexFrom();
+
+    const CBlockIndex* pindexFrom = stakeInput->GetIndexFrom();
+    assert(pindexFrom);
     nTimeBlockFrom = pindexFrom->nTime;
 }
 
@@ -53,12 +53,13 @@ uint256 CStakeKernel::GetHash() const
 bool CStakeKernel::CheckKernelHash(bool fSkipLog) const
 {
     // Get weighted target
-    uint256 bnTarget;
+    arith_uint256 bnTarget;
     bnTarget.SetCompact(nBits);
-    bnTarget *= (uint256(stakeValue) / 100);
+    bnTarget *= (arith_uint256(stakeValue) / 100);
 
     // Check PoS kernel hash
-    const uint256& hashProofOfStake = GetHash();
+    const arith_uint256 hashProofOfStake =
+        UintToArith256(GetHash());
     const bool res = hashProofOfStake < bnTarget;
 
     if (!fSkipLog || res) {
@@ -166,15 +167,6 @@ bool Stake(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int 
     return false;
 }
 
-/*
- * CheckProofOfStake    Check if block has valid proof of stake
- *
- * @param[in]   block           block being verified
- * @param[out]  strError        string error (if any, else empty)
- * @param[in]   pindexPrev      index of the parent block
- *                              (if nullptr, it will be searched in mapBlockIndex)
- * @return      bool            true if the block has a valid proof of stake
- */
 bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockIndex* pindexPrev)
 {
     // Initialize stake input
@@ -199,21 +191,31 @@ bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockI
 
     const CTransaction& tx = block.vtx[1];
     const CTxIn& txin = tx.vin[0];
-    ScriptError serror;
 
+    ScriptError serror;
     if (!VerifyScript(
             txin.scriptSig,
             stakePrevout.scriptPubKey,
             STANDARD_SCRIPT_VERIFY_FLAGS,
-            TransactionSignatureChecker(&tx, 0),
+            TransactionSignatureChecker(
+                &tx,
+                0,
+                stakePrevout.nValue),
+            SIGVERSION_BASE,
             &serror)) {
-        strError = strprintf("signature fails: %s",
-                             serror ? ScriptErrorString(serror) : "");
+        strError = strprintf(
+            "signature fails: %s",
+            serror ? ScriptErrorString(serror) : "");
         return false;
     }
 
     // Verify Proof Of Stake
-    CStakeKernel stakeKernel(pindexPrev, stakeInput.get(), block.nBits, block.nTime);
+    CStakeKernel stakeKernel(
+        pindexPrev,
+        stakeInput.get(),
+        block.nBits,
+        block.nTime);
+
     if (!stakeKernel.CheckKernelHash()) {
         strError = "kernel hash check fails";
         return false;
@@ -243,4 +245,3 @@ bool GetStakeKernelHash(uint256& hashRet, const CBlock& block, const CBlockIndex
     hashRet = stakeKernel.GetHash();
     return true;
 }
-

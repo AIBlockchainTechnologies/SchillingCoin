@@ -255,10 +255,15 @@ bool CScript::IsPayToColdStaking() const
 {
     // Extra-fast test for pay-to-cold-staking CScripts:
     return (this->size() == 51 &&
+            this->at(0) == OP_DUP &&
+            this->at(1) == OP_HASH160 &&
             this->at(2) == OP_ROT &&
+            this->at(3) == OP_IF &&
             this->at(4) == OP_CHECKCOLDSTAKEVERIFY &&
             this->at(5) == 0x14 &&
+            this->at(26) == OP_ELSE &&
             this->at(27) == 0x14 &&
+            this->at(48) == OP_ENDIF &&
             this->at(49) == OP_EQUALVERIFY &&
             this->at(50) == OP_CHECKSIG);
 }

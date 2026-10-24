@@ -254,17 +254,19 @@ target_include_directories(leveldb_sse42 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src/
         )
 
 file(GLOB HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.h)
-file(GLOB CRYPTO_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/*.h)
-file(GLOB PRIMITIVE_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/primitives/*.h)
-file(GLOB ZMQ_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/zmq/*.h)
-file(GLOB SCRIPT_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/script/*.h)
-file(GLOB RPC_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/*.h)
 file(GLOB COMPAT_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/compat/*.h)
 file(GLOB CONSENSUS_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/consensus/*.h)
+file(GLOB CRYPTO_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/crypto/*.h)
+file(GLOB POLICY_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/policy/*.h)
+file(GLOB PRIMITIVE_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/primitives/*.h)
+file(GLOB RPC_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/*.h)
+file(GLOB SCRIPT_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/script/*.h)
+file(GLOB ZMQ_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/zmq/*.h)
 
 source_group("BitcoinHeaders" FILES
         ${HEADERS}
         ${CRYPTO_HEADERS}
+        ${POLICY_HEADERS}
         ${PRIMITIVE_HEADERS}
         ${ZMQ_HEADERS}
         ${SCRIPT_HEADERS}
@@ -278,6 +280,7 @@ set(SERVER_SOURCES
         ./src/addrdb.cpp
         ./src/addrman.cpp
         ./src/bloom.cpp
+        ./src/blockassembler.cpp
         ./src/blocksignature.cpp
         ./src/chain.cpp
         ./src/checkpoints.cpp
@@ -290,6 +293,7 @@ set(SERVER_SOURCES
         ./src/miner.cpp
         ./src/net.cpp
         ./src/noui.cpp
+        ./src/policy/policy.cpp
         ./src/pow.cpp
         ./src/rest.cpp
         ./src/rpc/blockchain.cpp
@@ -339,7 +343,6 @@ set(WALLET_SOURCES
         ./src/wallet/db.cpp
         ./src/addressbook.cpp
         ./src/crypter.cpp
-        ./src/swifttx.cpp
         ./src/masternode.cpp
         ./src/masternode-payments.cpp
         ./src/masternode-sync.cpp

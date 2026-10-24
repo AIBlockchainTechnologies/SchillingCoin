@@ -69,6 +69,20 @@ RecursiveMutex cs_main;
 
 BlockMap mapBlockIndex;
 CChain chainActive;
+
+CBlockIndex* GetChainTip()
+{
+    LOCK(cs_main);
+
+    CBlockIndex* pindexTip = chainActive.Tip();
+    if (!pindexTip)
+        return nullptr;
+
+    // Do not return the chainActive tip pointer directly because the active
+    // chain can change. Return the corresponding mapBlockIndex entry.
+    return mapBlockIndex.at(pindexTip->GetBlockHash());
+}
+
 CBlockIndex* pindexBestHeader = NULL;
 int64_t nTimeBestReceived = 0;
 
@@ -81,7 +95,6 @@ int nScriptCheckThreads = 0;
 std::atomic<bool> fImporting{false};
 std::atomic<bool> fReindex{false};
 bool fTxIndex = true;
-bool fIsBareMultisigStd = true;
 bool fCheckBlockIndex = false;
 bool fVerifyingBlocks = false;
 unsigned int nCoinCacheSize = 5000;
@@ -765,163 +778,6 @@ unsigned int LimitOrphanTxSize(unsigned int nMaxOrphans)
     return nEvicted;
 }
 
-bool IsStandardTx(const CTransaction& tx, std::string& reason)
-{
-    AssertLockHeld(cs_main);
-
-    if (tx.nVersion < 1) {
-        reason = "version";
-        return false;
-    }
-
-    if (tx.nVersion == 2) {
-        reason = "version";
-        return false;
-    }
-
-    if (tx.nVersion > CTransaction::SPECIAL_VERSION) {
-        reason = "version";
-        return false;
-    }
-
-    if (tx.nVersion == 1 && tx.nType != TRANSACTION_NORMAL) {
-        reason = "type";
-        return false;
-    }
-
-    if (tx.vExtraPayload.size() > MAX_TX_EXTRA_PAYLOAD) {
-        reason = "payload-size";
-        return false;
-    }
-
-    // Treat non-final transactions as non-standard to prevent a specific type
-    // of double-spend attack, as well as DoS attacks. (if the transaction
-    // can't be mined, the attacker isn't expending resources broadcasting it)
-    if (!IsFinalTx(tx, chainActive.Height() + 1)) {
-        reason = "non-final";
-        return false;
-    }
-
-    unsigned int sz = tx.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
-    unsigned int nMaxSize = tx.ContainsZerocoins() ? MAX_ZEROCOIN_TX_SIZE : MAX_STANDARD_TX_SIZE;
-
-    if (sz >= nMaxSize) {
-        reason = "tx-size";
-        return false;
-    }
-
-    for (const CTxIn& txin : tx.vin) {
-        if (txin.IsZerocoinSpend())
-            continue;
-
-        if (txin.scriptSig.size() > 1650) {
-            reason = "scriptsig-size";
-            return false;
-        }
-
-        if (!txin.scriptSig.IsPushOnly()) {
-            reason = "scriptsig-not-pushonly";
-            return false;
-        }
-    }
-
-    unsigned int nDataOut = 0;
-    txnouttype whichType;
-
-    for (const CTxOut& txout : tx.vout) {
-        if (!::IsStandard(txout.scriptPubKey, whichType)) {
-            reason = "scriptpubkey";
-            return false;
-        }
-
-        if (whichType == TX_NULL_DATA) {
-            nDataOut++;
-        } else if ((whichType == TX_MULTISIG) && (!fIsBareMultisigStd)) {
-            reason = "bare-multisig";
-            return false;
-        } else if (txout.IsDust(::minRelayTxFee)) {
-            reason = "dust";
-            return false;
-        }
-    }
-
-    if (nDataOut > 1) {
-        reason = "multi-op-return";
-        return false;
-    }
-
-    return true;
-}
-
-/**
- * Check transaction inputs to mitigate two
- * potential denial-of-service attacks:
- *
- * 1. scriptSigs with extra data stuffed into them,
- *    not consumed by scriptPubKey (or P2SH script)
- * 2. P2SH scripts with a crazy number of expensive
- *    CHECKSIG/CHECKMULTISIG operations
- */
-bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
-{
-    if (tx.IsCoinBase() || tx.HasZerocoinSpendInputs())
-        return true; // coinbase has no inputs and zerocoinspend has a special input
-
-    for (unsigned int i = 0; i < tx.vin.size(); i++) {
-        const Coin& coin = mapInputs.AccessCoin(tx.vin[i].prevout);
-
-        if (coin.IsSpent())
-            return false;
-
-        const CTxOut& prev = coin.out;
-
-        std::vector<std::vector<unsigned char> > vSolutions;
-        txnouttype whichType;
-
-        const CScript& prevScript = prev.scriptPubKey;
-
-        if (!Solver(prevScript, whichType, vSolutions))
-            return false;
-
-        int nArgsExpected = ScriptSigArgsExpected(whichType, vSolutions);
-
-        if (nArgsExpected < 0)
-            return false;
-
-        std::vector<std::vector<unsigned char> > stack;
-
-        if (!EvalScript(stack, tx.vin[i].scriptSig, false, BaseSignatureChecker()))
-            return false;
-
-        if (whichType == TX_SCRIPTHASH) {
-            if (stack.empty())
-                return false;
-
-            CScript subscript(stack.back().begin(), stack.back().end());
-
-            std::vector<std::vector<unsigned char> > vSolutions2;
-            txnouttype whichType2;
-
-            if (Solver(subscript, whichType2, vSolutions2)) {
-                int tmpExpected = ScriptSigArgsExpected(whichType2, vSolutions2);
-
-                if (tmpExpected < 0)
-                    return false;
-
-                nArgsExpected += tmpExpected;
-            } else {
-                unsigned int sigops = subscript.GetSigOpCount(true);
-                return (sigops <= MAX_P2SH_SIGOPS);
-            }
-        }
-
-        if (stack.size() != (unsigned int)nArgsExpected)
-            return false;
-    }
-
-    return true;
-}
-
 int GetInputAge(CTxIn& vin)
 {
     CCoinsView viewDummy;
@@ -1165,19 +1021,40 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
 
         bool fCLTVIsActivated = (chainHeight >= consensus.height_start_BIP65);
 
+        PrecomputedTransactionData precomTxData(tx);
+
         // Check against previous transactions (standard flags)
         int flags = STANDARD_SCRIPT_VERIFY_FLAGS;
         if (fCLTVIsActivated)
             flags |= SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
-        if (!CheckInputs(tx, state, view, true, flags, true)) {
-            return error("%s : ConnectInputs failed %s", __func__, hash.ToString());
+
+        if (!CheckInputs(
+                tx,
+                state,
+                view,
+                true,
+                flags,
+                true,
+                precomTxData,
+                nullptr)) {
+            return error("%s : ConnectInputs failed %s",
+                    __func__, hash.ToString());
         }
 
         // Check again with mandatory flags
         flags = MANDATORY_SCRIPT_VERIFY_FLAGS;
         if (fCLTVIsActivated)
             flags |= SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
-        if (!CheckInputs(tx, state, view, true, flags, true)) {
+
+        if (!CheckInputs(
+                tx,
+                state,
+                view,
+                true,
+                flags,
+                true,
+                precomTxData,
+                nullptr)) {
             return error("%s : BUG! PLEASE REPORT THIS! ConnectInputs failed against MANDATORY but not STANDARD flags %s",
                     __func__, hash.ToString());
         }
@@ -1194,6 +1071,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
 bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransaction& tx, bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee)
 {
     AssertLockHeld(cs_main);
+
     if (pfMissingInputs)
         *pfMissingInputs = false;
 
@@ -1207,24 +1085,31 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
 
     if (!consensus.IsDIP0002Active(nNextBlockHeight) &&
         tx.nVersion >= CTransaction::SPECIAL_VERSION) {
-        return state.DoS(0,
+        return state.DoS(
+            0,
             error("AcceptableInputs: : DIP0002 transaction before activation"),
             REJECT_NONSTANDARD,
             "premature-dip2");
     }
 
     if (tx.IsCoinBase())
-        return state.DoS(100, error("AcceptableInputs: : coinbase as individual tx"),
-            REJECT_INVALID, "coinbase");
+        return state.DoS(
+            100,
+            error("AcceptableInputs: : coinbase as individual tx"),
+            REJECT_INVALID,
+            "coinbase");
 
     uint256 hash = tx.GetHash();
+
     if (pool.exists(hash))
         return false;
 
     if (!tx.HasZerocoinSpendInputs()) {
         LOCK(pool.cs);
+
         for (const auto& in : tx.vin) {
             COutPoint outpoint = in.prevout;
+
             if (pool.mapNextTx.count(outpoint)) {
                 return false;
             }
@@ -1234,10 +1119,11 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
     {
         CCoinsView dummy;
         CCoinsViewCache view(&dummy);
-
         CAmount nValueIn = 0;
+
         {
             LOCK(pool.cs);
+
             CCoinsViewMemPool viewMemPool(pcoinsTip, pool);
             view.SetBackend(viewMemPool);
 
@@ -1253,13 +1139,16 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
                 if (!view.HaveCoin(txin.prevout)) {
                     if (pfMissingInputs)
                         *pfMissingInputs = true;
+
                     return false;
                 }
             }
 
             if (!view.HaveInputs(tx))
-                return state.Invalid(error("AcceptableInputs : inputs already spent"),
-                    REJECT_DUPLICATE, "bad-txns-inputs-spent");
+                return state.Invalid(
+                    error("AcceptableInputs : inputs already spent"),
+                    REJECT_DUPLICATE,
+                    "bad-txns-inputs-spent");
 
             view.GetBestBlock();
             nValueIn = view.GetValueIn(tx);
@@ -1274,25 +1163,50 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
         CAmount nFees = nValueIn - nValueOut;
         double dPriority = view.GetPriority(tx, chainHeight);
 
-        CTxMemPoolEntry entry(tx, nFees, GetTime(), dPriority, chainHeight);
+        CTxMemPoolEntry entry(
+            tx,
+            nFees,
+            GetTime(),
+            dPriority,
+            chainHeight);
+
         unsigned int nSize = entry.GetTxSize();
 
         // Don't accept it if it can't get into a block
         {
             CAmount txMinFee = GetMinRelayFee(tx, nSize, true);
-            if (fLimitFree && nFees < txMinFee && !tx.HasZerocoinSpendInputs())
-                return state.DoS(0, error("AcceptableInputs : not enough fees %s, %d < %d", hash.ToString(), nFees, txMinFee),
-                    REJECT_INSUFFICIENTFEE, "insufficient fee");
+
+            if (fLimitFree &&
+                nFees < txMinFee &&
+                !tx.HasZerocoinSpendInputs()) {
+                return state.DoS(
+                    0,
+                    error(
+                        "AcceptableInputs : not enough fees %s, %d < %d",
+                        hash.ToString(),
+                        nFees,
+                        txMinFee),
+                    REJECT_INSUFFICIENTFEE,
+                    "insufficient fee");
+            }
 
             // Require that free transactions have sufficient priority to be mined in the next block.
-            if (gArgs.GetBoolArg("-relaypriority", true) && nFees < ::minRelayTxFee.GetFee(nSize) && !AllowFree(view.GetPriority(tx, chainHeight + 1))) {
-                return state.DoS(0, false, REJECT_INSUFFICIENTFEE, "insufficient priority");
+            if (gArgs.GetBoolArg("-relaypriority", true) &&
+                nFees < ::minRelayTxFee.GetFee(nSize) &&
+                !AllowFree(view.GetPriority(tx, chainHeight + 1))) {
+                return state.DoS(
+                    0,
+                    false,
+                    REJECT_INSUFFICIENTFEE,
+                    "insufficient priority");
             }
 
             // Continuously rate-limit free (really, very-low-fee) transactions
             // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
             // be annoying or make others' transactions take longer to confirm.
-            if (fLimitFree && nFees < ::minRelayTxFee.GetFee(nSize) && !tx.HasZerocoinSpendInputs()) {
+            if (fLimitFree &&
+                nFees < ::minRelayTxFee.GetFee(nSize) &&
+                !tx.HasZerocoinSpendInputs()) {
                 static RecursiveMutex csFreeLimiter;
                 static double dFreeCount;
                 static int64_t nLastTime;
@@ -1301,35 +1215,67 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
                 LOCK(csFreeLimiter);
 
                 // Use an exponentially decaying ~10-minute window:
-                dFreeCount *= pow(1.0 - 1.0 / 600.0, (double)(nNow - nLastTime));
+                dFreeCount *= pow(
+                    1.0 - 1.0 / 600.0,
+                    (double)(nNow - nLastTime));
+
                 nLastTime = nNow;
 
                 // -limitfreerelay unit is thousand-bytes-per-minute
                 // At default rate it would take over a month to fill 1GB
-                if (dFreeCount >= gArgs.GetArg("-limitfreerelay", 30) * 10 * 1000)
-                    return state.DoS(0, error("AcceptableInputs : free transaction rejected by rate limiter"),
-                        REJECT_INSUFFICIENTFEE, "rate limited free transaction");
+                if (dFreeCount >=
+                    gArgs.GetArg("-limitfreerelay", 30) * 10 * 1000) {
+                    return state.DoS(
+                        0,
+                        error("AcceptableInputs : free transaction rejected by rate limiter"),
+                        REJECT_INSUFFICIENTFEE,
+                        "rate limited free transaction");
+                }
 
-                LogPrint(BCLog::MEMPOOL, "Rate limit dFreeCount: %g => %g\n", dFreeCount, dFreeCount + nSize);
+                LogPrint(
+                    BCLog::MEMPOOL,
+                    "Rate limit dFreeCount: %g => %g\n",
+                    dFreeCount,
+                    dFreeCount + nSize);
+
                 dFreeCount += nSize;
             }
         }
 
-        if (fRejectInsaneFee && nFees > ::minRelayTxFee.GetFee(nSize) * 10000)
-            return error("AcceptableInputs: : insane fees %s, %d > %d",
+        if (fRejectInsaneFee &&
+            nFees > ::minRelayTxFee.GetFee(nSize) * 10000) {
+            return error(
+                "AcceptableInputs: : insane fees %s, %d > %d",
                 hash.ToString(),
-                nFees, ::minRelayTxFee.GetFee(nSize) * 10000);
+                nFees,
+                ::minRelayTxFee.GetFee(nSize) * 10000);
+        }
 
-        bool fCLTVIsActivated = chainActive.Tip()->nHeight >= Params().GetConsensus().height_start_BIP65;
+        bool fCLTVIsActivated =
+            chainActive.Tip()->nHeight >=
+            Params().GetConsensus().height_start_BIP65;
 
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         int flags = STANDARD_SCRIPT_VERIFY_FLAGS;
+
         if (fCLTVIsActivated)
             flags |= SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
 
-        if (!CheckInputs(tx, state, view, false, flags, true)) {
-            return error("AcceptableInputs: : ConnectInputs failed %s", hash.ToString());
+        PrecomputedTransactionData precomTxData(tx);
+
+        if (!CheckInputs(
+                tx,
+                state,
+                view,
+                false,
+                flags,
+                true,
+                precomTxData,
+                nullptr)) {
+            return error(
+                "AcceptableInputs: : ConnectInputs failed %s",
+                hash.ToString());
         }
 
         // Store transaction in memory
@@ -1511,32 +1457,35 @@ double ConvertBitsToDouble(unsigned int nBits)
 
 int64_t GetBlockValue(int nHeight)
 {
-	int64_t nSubsidy = 0;
+    int64_t nSubsidy = 0;
 
-	if (Params().NetworkID() == CBaseChainParams::TESTNET) {
-		if (nHeight < 200 && nHeight > 0)
-			return 1000000 * COIN;
-	}
+    if (Params().NetworkID() == CBaseChainParams::TESTNET) {
+        if (nHeight < 200 && nHeight > 0)
+            return 1000000 * COIN;
+    }
 
-	if (nHeight == 0) {
-		nSubsidy = 22000000 * COIN;
-	}
-	else {
-		nSubsidy = 32.3 * COIN;
-	}
+    if (nHeight == 0) {
+        nSubsidy = 22000000 * COIN;
+    }
+    else if (nHeight >= 5783307) {
+        nSubsidy = 16.15 * COIN;
+    }
+    else {
+        nSubsidy = 32.3 * COIN;
+    }
 
-	const Consensus::Params& consensus = Params().GetConsensus();
+    const Consensus::Params& consensus = Params().GetConsensus();
 
-	// Check if we reached the coin max supply.
-	//int64_t nMoneySupply = chainActive.Tip()->nMoneySupply;
+    // Check if we reached the coin max supply.
+    //int64_t nMoneySupply = chainActive.Tip()->nMoneySupply;
 
-	//if (nMoneySupply + nSubsidy >= consensus.nMaxMoneyOut)
-	//	nSubsidy = consensus.nMaxMoneyOut - nMoneySupply;
+    //if (nMoneySupply + nSubsidy >= consensus.nMaxMoneyOut)
+    //    nSubsidy = consensus.nMaxMoneyOut - nMoneySupply;
 
-	//if (nMoneySupply >= consensus.nMaxMoneyOut)
-	//	nSubsidy = 0;
+    //if (nMoneySupply >= consensus.nMaxMoneyOut)
+    //    nSubsidy = 0;
 
-	return nSubsidy;
+    return nSubsidy;
 }
 
 int64_t GetMasternodePayment(int nHeight, int64_t blockValue, int nMasternodeCount)
@@ -1740,13 +1689,24 @@ void UpdateCoins(const CTransaction& tx, CValidationState& state, CCoinsViewCach
 bool CScriptCheck::operator()()
 {
     const CScript& scriptSig = ptxTo->vin[nIn].scriptSig;
-    if (!VerifyScript(scriptSig, scriptPubKey, nFlags, CachingTransactionSignatureChecker(ptxTo, nIn, cacheStore), &error)) {
+    if (!VerifyScript(
+            scriptSig,
+            m_tx_out.scriptPubKey,
+            nFlags,
+            CachingTransactionSignatureChecker(
+                ptxTo,
+                nIn,
+                m_tx_out.nValue,
+                cacheStore,
+                *precomTxData),
+            SIGVERSION_BASE,
+            &error)) {
         return ::error("CScriptCheck(): %s:%d VerifySignature failed: %s", ptxTo->GetHash().ToString(), nIn, ScriptErrorString(error));
     }
     return true;
 }
 
-bool CheckInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& inputs, bool fScriptChecks, unsigned int flags, bool cacheStore, std::vector<CScriptCheck>* pvChecks)
+bool CheckInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& inputs, bool fScriptChecks, unsigned int flags, bool cacheStore, PrecomputedTransactionData& precomTxData, std::vector<CScriptCheck>* pvChecks)
 {
     if (!tx.IsCoinBase() && !tx.HasZerocoinSpendInputs()) {
         if (pvChecks)
@@ -1826,9 +1786,9 @@ bool CheckInputs(const CTransaction& tx, CValidationState& state, const CCoinsVi
                 assert(!coin.IsSpent());
 
                 // Verify signature
-                CScriptCheck check(coin, tx, i, flags, cacheStore);
+                CScriptCheck check(coin.out, tx, i, flags, cacheStore, &precomTxData);
                 if (pvChecks) {
-                    pvChecks->push_back(CScriptCheck());
+                    pvChecks->emplace_back();
                     check.swap(pvChecks->back());
                 } else if (!check()) {
                     if (flags & STANDARD_NOT_MANDATORY_VERIFY_FLAGS) {
@@ -1838,8 +1798,13 @@ bool CheckInputs(const CTransaction& tx, CValidationState& state, const CCoinsVi
                         // arguments; if so, don't trigger DoS protection to
                         // avoid splitting the network between upgraded and
                         // non-upgraded nodes.
-                        CScriptCheck check2(coin, tx, i,
-                            flags & ~STANDARD_NOT_MANDATORY_VERIFY_FLAGS, cacheStore);
+                        CScriptCheck check2(
+                            coin.out,
+                            tx,
+                            i,
+                            flags & ~STANDARD_NOT_MANDATORY_VERIFY_FLAGS,
+                            cacheStore,
+                            &precomTxData);
                         if (check2())
                             return state.Invalid(false, REJECT_NONSTANDARD, strprintf("non-mandatory-script-verify-flag (%s)", ScriptErrorString(check.GetScriptError())));
                     }
@@ -2028,6 +1993,7 @@ static int64_t nTimeTotal = 0;
 bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pindex, CCoinsViewCache& view, bool fJustCheck, bool fAlreadyChecked)
 {
     AssertLockHeld(cs_main);
+
     // Check it again in case a previous version let a bad block in
     if (!fAlreadyChecked && !CheckBlock(block, state, !fJustCheck, !fJustCheck)) {
         if (state.CorruptionPossible()) {
@@ -2072,7 +2038,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         fCLTVIsActivated = pindex->pprev->nHeight >= consensus.height_start_BIP65;
     }
 
-    CCheckQueueControl<CScriptCheck> control(fScriptChecks && nScriptCheckThreads ? &scriptcheckqueue : nullptr);
+    CCheckQueueControl<CScriptCheck> control(
+        fScriptChecks && nScriptCheckThreads ? &scriptcheckqueue : nullptr);
 
     int64_t nTimeStart = GetTimeMicros();
     CAmount nFees = 0;
@@ -2086,8 +2053,16 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     CAmount nValueOut = 0;
     CAmount nValueIn = 0;
     unsigned int nMaxBlockSigOps = MAX_BLOCK_SIGOPS_CURRENT;
+
+    std::vector<PrecomputedTransactionData> precomTxData;
+    precomTxData.reserve(block.vtx.size());
+
     for (unsigned int i = 0; i < block.vtx.size(); i++) {
         const CTransaction& tx = block.vtx[i];
+
+        // Keep transaction precomputed data alive until all queued script
+        // checks have completed.
+        precomTxData.emplace_back(tx);
 
         // First check for BIP30.
         // Do not allow blocks that contain transactions which 'overwrite' older transactions,
@@ -2109,7 +2084,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         nInputs += tx.vin.size();
         nSigOps += GetLegacySigOpCount(tx);
         if (nSigOps > nMaxBlockSigOps)
-            return state.DoS(100, error("ConnectBlock() : too many sigops"), REJECT_INVALID, "bad-blk-sigops");
+            return state.DoS(100, error("ConnectBlock() : too many sigops"),
+                             REJECT_INVALID, "bad-blk-sigops");
 
         // Zerocoin subsystem permanently removed — no Zerocoin transaction,
         // mint, or spend parsing, so no reason to have Zerocoin SPORK's in source.
@@ -2124,7 +2100,8 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             // an incredibly-expensive-to-validate block.
             nSigOps += GetP2SHSigOpCount(tx, view);
             if (nSigOps > nMaxBlockSigOps)
-                return state.DoS(100, error("ConnectBlock() : too many sigops"), REJECT_INVALID, "bad-blk-sigops");
+                return state.DoS(100, error("ConnectBlock() : too many sigops"),
+                                 REJECT_INVALID, "bad-blk-sigops");
 
             if (!tx.IsCoinStake())
                 nFees += view.GetValueIn(tx) - tx.GetValueOut();
@@ -2135,17 +2112,32 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
             if (fCLTVIsActivated)
                 flags |= SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
 
-            if (!CheckInputs(tx, state, view, fScriptChecks, flags, false, nScriptCheckThreads ? &vChecks : NULL))
+            if (!CheckInputs(
+                    tx,
+                    state,
+                    view,
+                    fScriptChecks,
+                    flags,
+                    false,
+                    precomTxData[i],
+                    nScriptCheckThreads ? &vChecks : nullptr))
                 return false;
+
             control.Add(vChecks);
         }
+
         nValueOut += tx.GetValueOut();
 
         CTxUndo undoDummy;
         if (i > 0) {
             blockundo.vtxundo.emplace_back();
         }
-        UpdateCoins(tx, state, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+        UpdateCoins(
+            tx,
+            state,
+            view,
+            i == 0 ? undoDummy : blockundo.vtxundo.back(),
+            pindex->nHeight);
 
         vPos.emplace_back(tx.GetHash(), pos);
         pos.nTxOffset += ::GetSerializeSize(tx, SER_DISK, CLIENT_VERSION);
@@ -2158,7 +2150,14 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     int64_t nTime1 = GetTimeMicros();
     nTimeConnect += nTime1 - nTimeStart;
-    LogPrint(BCLog::BENCH, "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n", (unsigned)block.vtx.size(), 0.001 * (nTime1 - nTimeStart), 0.001 * (nTime1 - nTimeStart) / block.vtx.size(), nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs - 1), nTimeConnect * 0.000001);
+    LogPrint(
+        BCLog::BENCH,
+        "      - Connect %u transactions: %.2fms (%.3fms/tx, %.3fms/txin) [%.2fs]\n",
+        (unsigned)block.vtx.size(),
+        0.001 * (nTime1 - nTimeStart),
+        0.001 * (nTime1 - nTimeStart) / block.vtx.size(),
+        nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs - 1),
+        nTimeConnect * 0.000001);
 
     // PoW phase redistributed fees to miner. PoS stage destroys fees.
     CAmount nExpectedMint = GetBlockValue(pindex->pprev->nHeight);
@@ -2167,16 +2166,32 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     // Check that the block does not overmint
     if (!IsBlockValueValid(block, nExpectedMint, nMint)) {
-        return state.DoS(100, error("ConnectBlock() : reward pays too much (actual=%s vs limit=%s)",
-                                    FormatMoney(nMint), FormatMoney(nExpectedMint)),
-                         REJECT_INVALID, "bad-cb-amount");
+        return state.DoS(
+            100,
+            error(
+                "ConnectBlock() : reward pays too much (actual=%s vs limit=%s)",
+                FormatMoney(nMint),
+                FormatMoney(nExpectedMint)),
+            REJECT_INVALID,
+            "bad-cb-amount");
     }
 
     if (!control.Wait())
-        return state.DoS(100, error("%s: CheckQueue failed", __func__), REJECT_INVALID, "block-validation-failed");
+        return state.DoS(
+            100,
+            error("%s: CheckQueue failed", __func__),
+            REJECT_INVALID,
+            "block-validation-failed");
+
     int64_t nTime2 = GetTimeMicros();
     nTimeVerify += nTime2 - nTimeStart;
-    LogPrint(BCLog::BENCH, "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs]\n", nInputs - 1, 0.001 * (nTime2 - nTimeStart), nInputs <= 1 ? 0 : 0.001 * (nTime2 - nTimeStart) / (nInputs - 1), nTimeVerify * 0.000001);
+    LogPrint(
+        BCLog::BENCH,
+        "    - Verify %u txins: %.2fms (%.3fms/txin) [%.2fs]\n",
+        nInputs - 1,
+        0.001 * (nTime2 - nTimeStart),
+        nInputs <= 1 ? 0 : 0.001 * (nTime2 - nTimeStart) / (nInputs - 1),
+        nTimeVerify * 0.000001);
 
     // IMPORTANT NOTE: Nothing before this point should actually store to disk (or even memory)
     if (fJustCheck)
@@ -2186,8 +2201,13 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
     if (pindex->GetUndoPos().IsNull() || !pindex->IsValid(BLOCK_VALID_SCRIPTS)) {
         if (pindex->GetUndoPos().IsNull()) {
             CDiskBlockPos diskPosBlock;
-            if (!FindUndoPos(state, pindex->nFile, diskPosBlock, ::GetSerializeSize(blockundo, SER_DISK, CLIENT_VERSION) + 40))
+            if (!FindUndoPos(
+                    state,
+                    pindex->nFile,
+                    diskPosBlock,
+                    ::GetSerializeSize(blockundo, SER_DISK, CLIENT_VERSION) + 40))
                 return error("ConnectBlock() : FindUndoPos failed");
+
             if (!blockundo.WriteToDisk(diskPosBlock, pindex->pprev->GetBlockHash()))
                 return AbortNode(state, "Failed to write undo data");
 
@@ -2200,9 +2220,6 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         setDirtyBlockIndex.insert(pindex);
     }
 
-    // Flush spend/mint info to disk
-    // Zerocoin subsystem removed — no Zerocoin mint/spend batch writes required.
-
     if (fTxIndex)
         if (!pblocktree->WriteTxIndex(vPos))
             return AbortNode(state, "Failed to write transaction index");
@@ -2212,7 +2229,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     int64_t nTime3 = GetTimeMicros();
     nTimeIndex += nTime3 - nTime2;
-    LogPrint(BCLog::BENCH, "    - Index writing: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeIndex * 0.000001);
+    LogPrint(
+        BCLog::BENCH,
+        "    - Index writing: %.2fms [%.2fs]\n",
+        0.001 * (nTime3 - nTime2),
+        nTimeIndex * 0.000001);
 
     // Watch for changes to the previous coinbase transaction.
     static uint256 hashPrevBestCoinBase;
@@ -2221,7 +2242,11 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
 
     int64_t nTime4 = GetTimeMicros();
     nTimeCallbacks += nTime4 - nTime3;
-    LogPrint(BCLog::BENCH, "    - Callbacks: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeCallbacks * 0.000001);
+    LogPrint(
+        BCLog::BENCH,
+        "    - Callbacks: %.2fms [%.2fs]\n",
+        0.001 * (nTime4 - nTime3),
+        nTimeCallbacks * 0.000001);
 
     return true;
 }

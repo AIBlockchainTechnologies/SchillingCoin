@@ -5,22 +5,21 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "guiutil.h"
-
 #include "bitcoinaddressvalidator.h"
 #include "bitcoinunits.h"
-#include "qvalidatedlineedit.h"
-#include "walletmodel.h"
-
+#include "guiutil.h"
 #include "init.h"
 #include "key_io.h"
 #include "main.h"
+#include "policy/policy.h"
 #include "primitives/transaction.h"
 #include "protocol.h"
+#include "qvalidatedlineedit.h"
 #include "script/script.h"
 #include "script/standard.h"
 #include "util.h"
 #include "util/system.h"
+#include "walletmodel.h"
 
 #ifdef WIN32
 #ifdef _WIN32_WINNT
@@ -268,7 +267,7 @@ bool isDust(const QString& address, const CAmount& amount)
     CTxDestination dest = DecodeDestination(address.toStdString(), isStaking);
     CScript script = GetScriptForDestination(dest);
     CTxOut txOut(amount, script);
-    return txOut.IsDust(::minRelayTxFee);
+    return IsDust(txOut, dustRelayFee);
 }
 
 QString HtmlEscape(const QString& str, bool fMultiLine)

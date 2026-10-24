@@ -46,7 +46,18 @@ Verify(const CScript& scriptSig, const CScript& scriptPubKey, bool fStrict, Scri
     txTo.vin[0].scriptSig = scriptSig;
     txTo.vout[0].nValue = 1;
 
-    return VerifyScript(scriptSig, scriptPubKey, fStrict ? SCRIPT_VERIFY_P2SH : SCRIPT_VERIFY_NONE, MutableTransactionSignatureChecker(&txTo, 0), &err);
+    return VerifyScript(
+        scriptSig,
+        scriptPubKey,
+        fStrict ?
+            SCRIPT_VERIFY_P2SH :
+            SCRIPT_VERIFY_NONE,
+        MutableTransactionSignatureChecker(
+            &txTo,
+            0,
+            txFrom.vout[0].nValue),
+        SIGVERSION_BASE,
+        &err);
 }
 
 BOOST_FIXTURE_TEST_SUITE(script_P2SH_tests, TestingSetup)
@@ -117,20 +128,22 @@ BOOST_AUTO_TEST_CASE(sign)
     // Check to make sure signature verification fails if we use the wrong ScriptSig.
     for (int i = 0; i < 8; i++)
     {
+        PrecomputedTransactionData precomTxData(txTo[i]);
+
         for (int j = 0; j < 8; j++)
         {
             CScript sigSave = txTo[i].vin[0].scriptSig;
             txTo[i].vin[0].scriptSig = txTo[j].vin[0].scriptSig;
 
             const CTxOut& output = txFrom.vout[txTo[i].vin[0].prevout.n];
-            Coin coin(output, 0, false, false);
 
             bool sigOK = CScriptCheck(
-                coin,
+                output,
                 txTo[i],
                 0,
                 SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_STRICTENC,
-                false)();
+                false,
+                &precomTxData)();
 
             if (i == j)
                 BOOST_CHECK_MESSAGE(

@@ -37,7 +37,7 @@ static inline std::vector<unsigned char> InsecureRandBytes(size_t len) { return 
 struct BasicTestingSetup {
     ECCVerifyHandle globalVerifyHandle;
 
-    BasicTestingSetup();
+    BasicTestingSetup(CBaseChainParams::Network network = CBaseChainParams::MAIN);
     ~BasicTestingSetup();
 
     boost::filesystem::path SetDataDir(const std::string& name);
@@ -52,7 +52,7 @@ struct TestingSetup: public BasicTestingSetup {
     boost::filesystem::path pathTemp;
     boost::thread_group threadGroup;
 
-    TestingSetup();
+    TestingSetup(CBaseChainParams::Network network = CBaseChainParams::MAIN);
     ~TestingSetup();
 };
 

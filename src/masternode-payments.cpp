@@ -271,14 +271,18 @@ bool IsBlockPayeeValid(const CBlock& block, int nBlockHeight)
     return false;
 }
 
-void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, bool fProofOfStake)
+void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, const CBlockIndex* pindexPrev, bool fProofOfStake)
 {
-    CBlockIndex* pindexPrev = chainActive.Tip();
-    if (!pindexPrev) return;
+    if (!pindexPrev)
+        return;
 
     // SCH does not use governance or superblocks.
     // Always use standard masternode payment logic.
-    masternodePayments.FillBlockPayee(txNew, nFees, fProofOfStake);
+    masternodePayments.FillBlockPayee(
+        txNew,
+        nFees,
+        pindexPrev,
+        fProofOfStake);
 }
 
 std::string GetRequiredPaymentsString(int nBlockHeight)
@@ -286,10 +290,10 @@ std::string GetRequiredPaymentsString(int nBlockHeight)
     return masternodePayments.GetRequiredPaymentsString(nBlockHeight);
 }
 
-void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFees, bool fProofOfStake)
+void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFees, const CBlockIndex* pindexPrev, bool fProofOfStake)
 {
-    CBlockIndex* pindexPrev = chainActive.Tip();
-    if (!pindexPrev) return;
+    if (!pindexPrev)
+        return;
 
     bool hasPayment = true;
     CScript payee;

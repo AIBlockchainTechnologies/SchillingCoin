@@ -27,6 +27,13 @@ GENERATED_TEST_FILES = $(JSON_TEST_FILES:.json=.json.h) $(RAW_TEST_FILES:.raw=.r
 BITCOIN_TEST_SUITE = \
   test/test_schillingcoin.h \
   test/test_schillingcoin.cpp
+
+if ENABLE_WALLET
+BITCOIN_TEST_SUITE += \
+  wallet/test/pos_test_fixture.cpp \
+  wallet/test/pos_test_fixture.h
+endif
+
 # test_schillingcoin binary #
 BITCOIN_TESTS =\
   test/addrman_tests.cpp \
@@ -59,6 +66,7 @@ BITCOIN_TESTS =\
   test/rpc_tests.cpp \
   test/sanity_tests.cpp \
   test/scheduler_tests.cpp \
+  test/script_P2CS_tests.cpp \
   test/script_P2SH_tests.cpp \
   test/script_tests.cpp \
   test/scriptnum_tests.cpp \
@@ -77,6 +85,7 @@ BITCOIN_TESTS =\
 if ENABLE_WALLET
 BITCOIN_TESTS += \
   test/accounting_tests.cpp \
+  wallet/test/pos_validations_tests.cpp \
   wallet/test/wallet_tests.cpp
 endif
 

@@ -9,8 +9,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_MAIN_H
-#define BITCOIN_MAIN_H
+#ifndef SCHILLINGCOIN_MAIN_H
+#define SCHILLINGCOIN_MAIN_H
 
 #if defined(HAVE_CONFIG_H)
 #include "config/schillingcoin-config.h"
@@ -22,6 +22,7 @@
 #include "coins.h"
 #include "consensus/validation.h"
 #include "net.h"
+#include "policy/policy.h"
 #include "pow.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
@@ -57,16 +58,10 @@ class CValidationState;
 struct CBlockTemplate;
 struct CNodeStateStats;
 
-/** Default for -blockmaxsize and -blockminsize, which control the range of sizes the mining code will create **/
-static const unsigned int DEFAULT_BLOCK_MAX_SIZE = 750000;
-static const unsigned int DEFAULT_BLOCK_MIN_SIZE = 0;
-/** Default for -blockprioritysize, maximum space for zero/low-fee transactions **/
-static const unsigned int DEFAULT_BLOCK_PRIORITY_SIZE = 50000;
 /** The maximum size for transactions we're willing to relay/mine */
 static const unsigned int MAX_STANDARD_TX_SIZE = 100000;
 static const unsigned int MAX_ZEROCOIN_TX_SIZE = 150000;
-/** Maximum number of signature check operations in an IsStandard() P2SH script */
-static const unsigned int MAX_P2SH_SIGOPS = 15;
+
 /** Default for -maxorphantx, maximum number of orphan transactions kept in memory */
 static const unsigned int DEFAULT_MAX_ORPHAN_TRANSACTIONS = 100;
 /** The maximum size of a blk?????.dat file (since 0.8) */
@@ -118,6 +113,12 @@ extern RecursiveMutex cs_main;
 extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;
+
+/**
+ * Return a reliable pointer in mapBlockIndex to the active chain's tip index.
+ */
+CBlockIndex* GetChainTip();
+
 extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockSize;
 extern const std::string strMessageMagic;
@@ -132,7 +133,6 @@ extern std::atomic<bool> fImporting;
 extern std::atomic<bool> fReindex;
 extern int nScriptCheckThreads;
 extern bool fTxIndex;
-extern bool fIsBareMultisigStd;
 extern bool fCheckBlockIndex;
 extern unsigned int nCoinCacheSize;
 extern CFeeRate minRelayTxFee;
@@ -225,7 +225,6 @@ void Misbehaving(NodeId nodeid, int howmuch);
 /** Flush all state, indexes and buffers to disk. */
 void FlushStateToDisk();
 
-
 /** (try to) add transaction to memory pool **/
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransaction& tx, bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee = false, bool ignoreFees = false);
 
@@ -243,30 +242,11 @@ struct CNodeStateStats {
 CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowFree);
 
 /**
- * Check transaction inputs, and make sure any
- * pay-to-script-hash transactions are evaluating IsStandard scripts
- *
- * Why bother? To avoid denial-of-service attacks; an attacker
- * can submit a standard HASH... OP_EQUAL transaction,
- * which will get accepted into blocks. The redemption
- * script can be anything; an attacker could use a very
- * expensive-to-check-upon-redemption script like:
- *   DUP CHECKSIG DROP ... repeated 100 times... OP_1
- */
-
-/**
- * Check for standard transaction types
- * @param[in] mapInputs    Map of previous transactions that have outputs we're spending
- * @return True if all inputs (scriptSigs) use only standard transaction forms
- */
-bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs);
-
-/**
  * Check whether all inputs of this transaction are valid (no double spends, scripts & sigs, amounts)
  * This does not modify the UTXO set. If pvChecks is not NULL, script checks are pushed onto it
  * instead of being performed inline.
  */
-bool CheckInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& view, bool fScriptChecks, unsigned int flags, bool cacheStore, std::vector<CScriptCheck>* pvChecks = NULL);
+bool CheckInputs(const CTransaction& tx, CValidationState& state, const CCoinsViewCache& view, bool fScriptChecks, unsigned int flags, bool cacheStore, PrecomputedTransactionData& precomTxData, std::vector<CScriptCheck>* pvChecks = nullptr);
 
 /** Apply the effects of this transaction on the UTXO set represented by view */
 void UpdateCoins(const CTransaction& tx, CValidationState& state, CCoinsViewCache& inputs, CTxUndo& txundo, int nHeight);
@@ -284,11 +264,6 @@ bool IsBlockHashInChain(const uint256& hashBlock);
  */
 bool CheckFinalTx(const CTransaction& tx, int flags = -1);
 
-/** Check for standard transaction types
- * @return True if all outputs (scriptPubKeys) use only standard transaction forms
- */
-bool IsStandardTx(const CTransaction& tx, std::string& reason);
-
 /**
  * Closure representing one script verification
  * Note that this stores references to the spending transaction.
@@ -296,12 +271,13 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason);
 class CScriptCheck
 {
 private:
-    CScript scriptPubKey;
+    CTxOut m_tx_out;
     const CTransaction* ptxTo;
     unsigned int nIn;
     unsigned int nFlags;
     bool cacheStore;
     ScriptError error;
+    PrecomputedTransactionData* precomTxData;
 
 public:
     CScriptCheck()
@@ -309,22 +285,25 @@ public:
           nIn(0),
           nFlags(0),
           cacheStore(false),
-          error(SCRIPT_ERR_UNKNOWN_ERROR)
+          error(SCRIPT_ERR_UNKNOWN_ERROR),
+          precomTxData(nullptr)
     {
     }
 
     CScriptCheck(
-        const Coin& coinIn,
+        const CTxOut& outIn,
         const CTransaction& txToIn,
         unsigned int nInIn,
         unsigned int nFlagsIn,
-        bool cacheIn)
-        : scriptPubKey(coinIn.out.scriptPubKey),
+        bool cacheIn,
+        PrecomputedTransactionData* cachedHashesIn)
+        : m_tx_out(outIn),
           ptxTo(&txToIn),
           nIn(nInIn),
           nFlags(nFlagsIn),
           cacheStore(cacheIn),
-          error(SCRIPT_ERR_UNKNOWN_ERROR)
+          error(SCRIPT_ERR_UNKNOWN_ERROR),
+          precomTxData(cachedHashesIn)
     {
     }
 
@@ -332,12 +311,13 @@ public:
 
     void swap(CScriptCheck& check)
     {
-        scriptPubKey.swap(check.scriptPubKey);
+        std::swap(m_tx_out, check.m_tx_out);
         std::swap(ptxTo, check.ptxTo);
         std::swap(nIn, check.nIn);
         std::swap(nFlags, check.nFlags);
         std::swap(cacheStore, check.cacheStore);
         std::swap(error, check.error);
+        std::swap(precomTxData, check.precomTxData);
     }
 
     ScriptError GetScriptError() const
@@ -350,7 +330,6 @@ public:
 bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos);
 bool ReadBlockFromDisk(CBlock& block, const CDiskBlockPos& pos);
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex);
-
 
 /** Functions for validating blocks and updating the block tree */
 
@@ -382,7 +361,6 @@ bool TestBlockValidity(CValidationState& state, const CBlock& block, CBlockIndex
 /** Store block on disk. If dbp is provided, the file is known to already reside on disk */
 bool AcceptBlock(CBlock& block, CValidationState& state, CBlockIndex** pindex, CDiskBlockPos* dbp = NULL, bool fAlreadyCheckedBlock = false);
 bool AcceptBlockHeader(const CBlockHeader& block, CValidationState& state, CBlockIndex** ppindex = NULL);
-
 
 /** RAII wrapper for VerifyDB: Verify consistency of the block and coin databases */
 class CVerifyDB
@@ -452,4 +430,4 @@ inline int64_t GetMNCollateral() {
     }
 }
 
-#endif // BITCOIN_MAIN_H
+#endif // SCHILLINGCOIN_MAIN_H
