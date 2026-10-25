@@ -8,16 +8,16 @@
 #include "walletmodel.h"
 
 #include "addresstablemodel.h"
-#include "guiconstants.h"
-#include "recentrequeststablemodel.h"
-#include "transactiontablemodel.h"
-
 #include "db.h"
 #include "guiinterface.h"
+#include "guiconstants.h"
 #include "key_io.h"
 #include "keystore.h"
 #include "main.h"
+#include "recentrequeststablemodel.h"
 #include "sync.h"
+#include "transactiontablemodel.h"
+#include "wallet/fees.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 
@@ -280,6 +280,41 @@ void WalletModel::checkBalanceChanged()
 void WalletModel::setWalletDefaultFee(CAmount fee)
 {
     payTxFee = CFeeRate(fee);
+}
+
+bool WalletModel::hasWalletCustomFee()
+{
+    LOCK(wallet->cs_wallet);
+    return wallet->fUseCustomFee;
+}
+
+bool WalletModel::getWalletCustomFee(CAmount& nFeeRet)
+{
+    LOCK(wallet->cs_wallet);
+    nFeeRet = wallet->nCustomFee;
+    return wallet->fUseCustomFee;
+}
+
+void WalletModel::setWalletCustomFee(bool fUseCustomFee, const CAmount nFee)
+{
+    LOCK(wallet->cs_wallet);
+
+    WalletBatch batch(*wallet->database);
+
+    if (wallet->fUseCustomFee != fUseCustomFee) {
+        wallet->fUseCustomFee = fUseCustomFee;
+        batch.WriteUseCustomFee(fUseCustomFee);
+    }
+
+    if (wallet->nCustomFee != nFee) {
+        wallet->nCustomFee = nFee;
+        batch.WriteCustomFeeValue(nFee);
+    }
+}
+
+CAmount WalletModel::getNetMinFee()
+{
+    return GetRequiredFee(1000);
 }
 
 void WalletModel::updateTransaction()

@@ -16,12 +16,12 @@
 #include "main.h"
 #include "optionsmodel.h"
 #include "policy/policy.h"
+#include "qt/schillingcoin/qtutils.h"
+#include "wallet/fees.h"
 #include "wallet/wallet.h"
 #include "walletmodel.h"
 
-#include "qt/schillingcoin/qtutils.h"
-
-#include <boost/assign/list_of.hpp> // for 'map_list_of()'
+#include <boost/assign/list_of.hpp>
 
 #include <QApplication>
 #include <QCheckBox>
@@ -37,7 +37,6 @@ std::vector<CAmount> CoinControlDialog::payAmounts;
 int CoinControlDialog::nSplitBlockDummy;
 CCoinControl* CoinControlDialog::coinControl = new CCoinControl();
 
-
 bool CCoinControlWidgetItem::operator<(const QTreeWidgetItem &other) const {
     int column = treeWidget()->sortColumn();
     if (column == CoinControlDialog::COLUMN_AMOUNT || column == CoinControlDialog::COLUMN_DATE || column == CoinControlDialog::COLUMN_CONFIRMATIONS)
@@ -45,10 +44,7 @@ bool CCoinControlWidgetItem::operator<(const QTreeWidgetItem &other) const {
     return QTreeWidgetItem::operator<(other);
 }
 
-
-CoinControlDialog::CoinControlDialog(QWidget* parent, bool fMultisigEnabled) : QDialog(parent, Qt::WindowSystemMenuHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint),
-                                                        ui(new Ui::CoinControlDialog),
-                                                        model(0)
+CoinControlDialog::CoinControlDialog(QWidget* parent, bool fMultisigEnabled) : QDialog(parent, Qt::WindowSystemMenuHint | Qt::WindowTitleHint | Qt::WindowCloseButtonHint), ui(new Ui::CoinControlDialog), model(0)
 {
     ui->setupUi(this);
 
@@ -641,18 +637,13 @@ void CoinControlDialog::updateLabels(WalletModel* model, QDialog* dialog)
                        : 2) * 34) +
                  10;
 
-        double mempoolEstimatePriority = mempool.estimatePriority(nTxConfirmTarget);
         dPriority = dPriorityInputs /
                     (nBytes - nBytesInputs + (nQuantityUncompressed * 29));
-        sPriorityLabel = CoinControlDialog::getPriorityLabel(dPriority, mempoolEstimatePriority);
+        sPriorityLabel = CoinControlDialog::getPriorityLabel(dPriority, 0);
 
-        nPayFee = CWallet::GetMinimumFee(nBytes, nTxConfirmTarget, mempool);
+        nPayFee = GetMinimumFee(nBytes, nTxConfirmTarget, mempool);
 
-        double dPriorityNeeded = mempoolEstimatePriority;
-        if (dPriorityNeeded <= 0)
-            dPriorityNeeded = AllowFreeThreshold();
-
-        fAllowFree = (dPriority >= dPriorityNeeded);
+        fAllowFree = AllowFree(dPriority);
 
         if (fSendFreeTransactions)
             if (fAllowFree && nBytes <= MAX_FREE_TRANSACTION_CREATE_SIZE)
@@ -774,7 +765,6 @@ void CoinControlDialog::updateView()
     QFlags<Qt::ItemFlag> flgTristate = Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable | Qt::ItemIsTristate;
 
     int nDisplayUnit = model->getOptionsModel()->getDisplayUnit();
-//    double mempoolEstimatePriority = mempool.estimatePriority(nTxConfirmTarget);
 
     std::map<QString, std::vector<COutput>> mapCoins;
     model->listCoins(mapCoins);

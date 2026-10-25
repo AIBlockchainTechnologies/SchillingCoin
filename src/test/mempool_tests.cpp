@@ -4,11 +4,14 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "main.h"
+
+#include "policy/feerate.h"
 #include "txmempool.h"
 #include "util.h"
 #include "util/system.h"
 
 #include <boost/test/unit_test.hpp>
+
 #include <list>
 
 BOOST_AUTO_TEST_SUITE(mempool_tests)

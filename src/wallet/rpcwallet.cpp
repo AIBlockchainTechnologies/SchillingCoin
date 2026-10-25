@@ -12,13 +12,14 @@
 #include "key_io.h"
 #include "net.h"
 #include "netbase.h"
+#include "policy/feerate.h"
 #include "rpc/server.h"
 #include "timedata.h"
 #include "util.h"
 #include "utilmoneystr.h"
 #include "wallet.h"
-#include "walletdb.h"
 #include "wallet/walletutil.h"
+#include "walletdb.h"
 
 #include <init.h>
 

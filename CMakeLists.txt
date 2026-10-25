@@ -293,6 +293,7 @@ set(SERVER_SOURCES
         ./src/miner.cpp
         ./src/net.cpp
         ./src/noui.cpp
+        ./src/policy/fees.cpp
         ./src/policy/policy.cpp
         ./src/pow.cpp
         ./src/rest.cpp
@@ -351,6 +352,7 @@ set(WALLET_SOURCES
         ./src/messagesigner.cpp
         ./src/zsch/mintpool.cpp
         ./src/wallet/hdchain.cpp
+        ./src/wallet/fees.cpp
         ./src/wallet/rpcdump.cpp
         ./src/zsch/deterministicmint.cpp
         ./src/zsch/zerocoin.cpp
@@ -469,7 +471,6 @@ target_include_directories(ZEROCOIN_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
 
 set(COMMON_SOURCES
         ./src/allocators.cpp
-        ./src/amount.cpp
         ./src/base58.cpp
         ./src/bip38.cpp
         ./src/chainparams.cpp
@@ -487,6 +488,7 @@ set(COMMON_SOURCES
         ./src/keystore.cpp
         ./src/netaddress.cpp
         ./src/netbase.cpp
+        ./src/policy/feerate.cpp
         ./src/pubkey.cpp
         ./src/primitives/block.cpp
         ./src/primitives/transaction.cpp

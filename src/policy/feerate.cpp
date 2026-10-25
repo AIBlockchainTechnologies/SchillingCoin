@@ -1,11 +1,11 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin developers
-// Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
+// Copyright (c) 2009-2017 The Bitcoin developers
+// Copyright (c) 2017-2020 The PIVX Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "amount.h"
+#include "feerate.h"
 
 #include "tinyformat.h"
 
@@ -31,8 +31,5 @@ CAmount CFeeRate::GetFee(size_t nSize) const
 
 std::string CFeeRate::ToString() const
 {
-    return strprintf("%d.%08d %s/kB",
-                     nSatoshisPerK / COIN,
-                     nSatoshisPerK % COIN,
-                     CURRENCY_UNIT);
+    return strprintf("%d.%08d %s/kB", nSatoshisPerK / COIN, nSatoshisPerK % COIN, CURRENCY_UNIT);
 }

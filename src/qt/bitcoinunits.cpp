@@ -7,6 +7,7 @@
 
 #include "bitcoinunits.h"
 #include "chainparams.h"
+#include "policy/feerate.h"
 #include "primitives/transaction.h"
 
 #include <QSettings>

@@ -22,6 +22,7 @@
 #include "coins.h"
 #include "consensus/validation.h"
 #include "net.h"
+#include "policy/feerate.h"
 #include "policy/policy.h"
 #include "pow.h"
 #include "primitives/block.h"
@@ -37,10 +38,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdint>
 #include <exception>
 #include <map>
 #include <set>
-#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -96,6 +97,9 @@ static const bool DEFAULT_PEERBLOOMFILTERS = true;
 
 /** If the tip is older than this (in seconds), the node is considered to be in initial block download. */
 static const int64_t DEFAULT_MAX_TIP_AGE = 24 * 60 * 60;
+
+/** Maximum age of our tip in seconds for us to be considered current for fee estimation. */
+static const int64_t MAX_FEE_ESTIMATION_TIP_AGE = 3 * 60 * 60;
 
 /** Default for -blockspamfilter, use header spam filter */
 static const bool DEFAULT_BLOCK_SPAM_FILTER = true;

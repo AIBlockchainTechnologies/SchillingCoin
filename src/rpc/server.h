@@ -221,7 +221,6 @@ extern UniValue prioritisetransaction(const JSONRPCRequest& request);
 extern UniValue getblocktemplate(const JSONRPCRequest& request);
 extern UniValue submitblock(const JSONRPCRequest& request);
 extern UniValue estimatefee(const JSONRPCRequest& request);
-extern UniValue estimatepriority(const JSONRPCRequest& request);
 
 extern UniValue delegatestake(const JSONRPCRequest& request); // in rpcwallet.cpp
 extern UniValue rawdelegatestake(const JSONRPCRequest& request);

@@ -16,6 +16,7 @@
 #include "script/standard.h"
 #include "util.h"
 #include "utilmoneystr.h"
+#include "wallet/fees.h"
 #include "wallet/wallet.h"
 
 #include <init.h>
@@ -3040,16 +3041,10 @@ bool CWallet::CreateTransaction(const std::vector<std::pair<CScript, CAmount> >&
                 dPriority = wtxNew.ComputePriority(dPriority, nBytes);
 
                 // Can we complete this as a free transaction?
-                if (fSendFreeTransactions && nBytes <= MAX_FREE_TRANSACTION_CREATE_SIZE) {
-                    // Not enough fee: enough priority?
-                    double dPriorityNeeded = mempool.estimatePriority(nTxConfirmTarget);
-                    // Not enough mempool history to estimate: use hard-coded AllowFree.
-                    if (dPriorityNeeded <= 0 && AllowFree(dPriority))
-                        break;
-
-                    // Small enough, and priority high enough, to send for free
-                    if (dPriorityNeeded > 0 && dPriority >= dPriorityNeeded)
-                        break;
+                if (fSendFreeTransactions &&
+                    nBytes <= MAX_FREE_TRANSACTION_CREATE_SIZE &&
+                    AllowFree(dPriority)) {
+                    break;
                 }
 
                 CAmount nFeeNeeded = std::max(nFeePay, GetMinimumFee(nBytes, nTxConfirmTarget, mempool));
@@ -3327,29 +3322,6 @@ bool CWallet::AddAccountingEntry(const CAccountingEntry& acentry, WalletBatch& b
     wtxOrdered.insert(std::make_pair(entry.nOrderPos, TxPair((CWalletTx*)0, &entry)));
 
     return true;
-}
-
-CAmount CWallet::GetMinimumFee(unsigned int nTxBytes, unsigned int nConfirmTarget, const CTxMemPool& pool)
-{
-    // payTxFee is user-set "I want to pay this much"
-    CAmount nFeeNeeded = payTxFee.GetFee(nTxBytes);
-    // user selected total at least (default=true)
-    if (fPayAtLeastCustomFee && nFeeNeeded > 0 && nFeeNeeded < payTxFee.GetFeePerK())
-        nFeeNeeded = payTxFee.GetFeePerK();
-    // User didn't set: use -txconfirmtarget to estimate...
-    if (nFeeNeeded == 0)
-        nFeeNeeded = pool.estimateFee(nConfirmTarget).GetFee(nTxBytes);
-    // ... unless we don't have enough mempool data, in which case fall
-    // back to a hard-coded fee
-    if (nFeeNeeded == 0)
-        nFeeNeeded = minTxFee.GetFee(nTxBytes);
-    // prevent user from paying a non-sense fee (like 1 satoshi): 0 < fee < minRelayFee
-    if (nFeeNeeded < ::minRelayTxFee.GetFee(nTxBytes))
-        nFeeNeeded = ::minRelayTxFee.GetFee(nTxBytes);
-    // But always obey the maximum
-    if (nFeeNeeded > maxTxFee)
-        nFeeNeeded = maxTxFee;
-    return nFeeNeeded;
 }
 
 DBErrors CWallet::LoadWallet(bool& fFirstRunRet)

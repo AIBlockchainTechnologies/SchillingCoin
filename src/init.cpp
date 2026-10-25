@@ -36,6 +36,7 @@
 #include "miner.h"
 #include "net.h"
 #include "netbase.h"
+#include "policy/feerate.h"
 #include "policy/policy.h"
 #include "rpc/server.h"
 #include "scheduler.h"

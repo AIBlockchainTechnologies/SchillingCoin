@@ -26,6 +26,7 @@
 #include "legacy/stakemodifier.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
+#include "masternodeconfig.h"
 #include "masternodeman.h"
 #include "merkleblock.h"
 #include "messagesigner.h"
@@ -858,6 +859,24 @@ CAmount GetMinRelayFee(const CTransaction& tx, unsigned int nBytes, bool fAllowF
     return nMinFee;
 }
 
+static bool IsCurrentForFeeEstimation()
+{
+    AssertLockHeld(cs_main);
+
+    if (IsInitialBlockDownload())
+        return false;
+
+    if (chainActive.Tip()->GetBlockTime() <
+        GetTime() - MAX_FEE_ESTIMATION_TIP_AGE) {
+        return false;
+    }
+
+    if (chainActive.Height() < pindexBestHeader->nHeight - 1)
+        return false;
+
+    return true;
+}
+
 bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransaction& tx, bool fLimitFree, bool* pfMissingInputs, bool fRejectInsaneFee, bool ignoreFees)
 {
     AssertLockHeld(cs_main);
@@ -1059,8 +1078,15 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
                     __func__, hash.ToString());
         }
 
+        // This transaction should only count for fee estimation if
+        // the node is current and it does not depend on another
+        // transaction already in the mempool.
+        const bool validForFeeEstimation =
+            IsCurrentForFeeEstimation() &&
+            pool.HasNoInputsOf(tx);
+
         // Store transaction in memory
-        pool.addUnchecked(hash, entry);
+        pool.addUnchecked(hash, entry, validForFeeEstimation);
     }
 
     SyncWithWallets(tx, nullptr);
@@ -1278,8 +1304,6 @@ bool AcceptableInputs(CTxMemPool& pool, CValidationState& state, const CTransact
                 hash.ToString());
         }
 
-        // Store transaction in memory
-        // pool.addUnchecked(hash, entry);
     }
 
     return true;

@@ -750,33 +750,3 @@ UniValue estimatefee(const JSONRPCRequest& request)
 
     return ValueFromAmount(feeRate.GetFeePerK());
 }
-
-UniValue estimatepriority(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 1)
-        throw std::runtime_error(
-            "estimatepriority nblocks\n"
-            "\nEstimates the approximate priority\n"
-            "a zero-fee transaction needs to begin confirmation\n"
-            "within nblocks blocks.\n"
-
-            "\nArguments:\n"
-            "1. nblocks     (numeric)\n"
-
-            "\nResult:\n"
-            "n :    (numeric) estimated priority\n"
-            "\n"
-            "-1.0 is returned if not enough transactions and\n"
-            "blocks have been observed to make an estimate.\n"
-
-            "\nExample:\n" +
-            HelpExampleCli("estimatepriority", "6"));
-
-    RPCTypeCheck(request.params, boost::assign::list_of(UniValue::VNUM));
-
-    int nBlocks = request.params[0].get_int();
-    if (nBlocks < 1)
-        nBlocks = 1;
-
-    return mempool.estimatePriority(nBlocks);
-}

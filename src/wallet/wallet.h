@@ -20,6 +20,7 @@
 #include "keystore.h"
 #include "main.h"
 #include "operationresult.h"
+#include "policy/feerate.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
 #include "util.h"
@@ -559,7 +560,6 @@ public:
     void AutoCombineDust();
 
     static CFeeRate minTxFee;
-    static CAmount GetMinimumFee(unsigned int nTxBytes, unsigned int nConfirmTarget, const CTxMemPool& pool);
 
     size_t KeypoolCountExternalKeys();
     size_t KeypoolCountInternalKeys();

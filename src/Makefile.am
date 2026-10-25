@@ -151,6 +151,8 @@ BITCOIN_CORE_H = \
   noui.h \
   optional.h \
   operationresult.h \
+  policy/feerate.h \
+  policy/fees.h \
   policy/policy.h \
   pow.h \
   prevector.h \
@@ -206,6 +208,7 @@ BITCOIN_CORE_H = \
   wallet/bip39_english.h \
   wallet/db.h \
   wallet/hdchain.h \
+  wallet/fees.h \
   wallet/init.h \
   wallet/scriptpubkeyman.h \
   wallet/wallet.h \
@@ -244,6 +247,7 @@ libbitcoin_server_a_SOURCES = \
   miner.cpp \
   net.cpp \
   noui.cpp \
+  policy/fees.cpp \
   policy/policy.cpp \
   pow.cpp \
   rest.cpp \
@@ -291,6 +295,7 @@ libbitcoin_wallet_a_SOURCES = \
   kernel.cpp \
   wallet/bdb.cpp \
   wallet/db.cpp \
+  wallet/fees.cpp \
   wallet/init.cpp \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
@@ -389,7 +394,6 @@ libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_common_a_SOURCES = \
   allocators.cpp \
-  amount.cpp \
   base58.cpp \
   wallet/bip39.cpp \
   bip38.cpp \
@@ -407,6 +411,7 @@ libbitcoin_common_a_SOURCES = \
   keystore.cpp \
   netaddress.cpp\
   netbase.cpp \
+  policy/feerate.cpp \
   primitives/block.cpp \
   primitives/transaction.cpp \
   protocol.cpp \

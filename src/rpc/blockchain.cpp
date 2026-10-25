@@ -13,6 +13,7 @@
 #include "kernel.h"
 #include "key_io.h"
 #include "main.h"
+#include "policy/feerate.h"
 #include "rpc/server.h"
 #include "sync.h"
 #include "txdb.h"

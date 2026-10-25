@@ -355,7 +355,6 @@ SOURCES += src/activemasternode.cpp \
            src/addrman.cpp \
            src/alert.cpp \
            src/allocators.cpp \
-           src/amount.cpp \
            src/arith_uint256.cpp \
            src/base58.cpp \
            src/bloom.cpp \

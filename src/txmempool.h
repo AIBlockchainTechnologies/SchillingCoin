@@ -5,13 +5,14 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TXMEMPOOL_H
-#define BITCOIN_TXMEMPOOL_H
+#ifndef SCHILLINGCOIN_TXMEMPOOL_H
+#define SCHILLINGCOIN_TXMEMPOOL_H
 
 #include <list>
 
 #include "amount.h"
 #include "coins.h"
+#include "policy/feerate.h"
 #include "primitives/transaction.h"
 #include "sync.h"
 #include "random.h"
@@ -60,7 +61,7 @@ public:
     unsigned int GetHeight() const { return nHeight; }
 };
 
-class CMinerPolicyEstimator;
+class CBlockPolicyEstimator;
 
 /** An inpoint - a combination of a transaction and an index n into its vin */
 class CInPoint
@@ -98,7 +99,7 @@ class CTxMemPool
 private:
     bool fSanityCheck; //! Normally false, true if -checkmempool or -regtest
     unsigned int nTransactionsUpdated;
-    CMinerPolicyEstimator* minerPolicyEstimator;
+    CBlockPolicyEstimator* minerPolicyEstimator;
 
     CFeeRate minRelayFee; //! Passed to constructor to avoid dependency on main
     uint64_t totalTxSize; //! sum of all mempool tx' byte sizes
@@ -147,8 +148,7 @@ public:
      */
     void check(const CCoinsViewCache* pcoins) const;
     void setSanityCheck(bool _fSanityCheck) { fSanityCheck = _fSanityCheck; }
-
-    bool addUnchecked(const uint256& hash, const CTxMemPoolEntry& entry);
+    bool addUnchecked(const uint256& hash, const CTxMemPoolEntry& entry, bool validFeeEstimate = true);
     void remove(const CTransaction& tx, std::list<CTransaction>& removed, bool fRecursive = false);
     void removeCoinbaseSpends(const CCoinsViewCache* pcoins, unsigned int nMemPoolHeight);
     void removeConflicts(const CTransaction& tx, std::list<CTransaction>& removed);
@@ -182,6 +182,8 @@ public:
         return (mapTx.count(hash) != 0);
     }
 
+    bool HasNoInputsOf(const CTransaction& tx) const;
+
     bool exists(const COutPoint& outpoint)
     {
         LOCK(cs);
@@ -198,8 +200,12 @@ public:
     /** Estimate fee rate needed to get into the next nBlocks */
     CFeeRate estimateFee(int nBlocks) const;
 
-    /** Estimate priority needed to get into the next nBlocks */
-    double estimatePriority(int nBlocks) const;
+    /**
+     * Estimate fee rate needed to be included within the next nBlocks.
+     * If no estimate is available at the requested target, return an
+     * estimate at the lowest target for which one can be calculated.
+     */
+    CFeeRate estimateSmartFee(int nBlocks, int* answerFoundAtBlocks = nullptr) const;
 
     /** Write/Read estimates to disk */
     bool WriteFeeEstimates(CAutoFile& fileout) const;
@@ -222,4 +228,4 @@ public:
     bool HaveCoin(const COutPoint& outpoint) const override;
 };
 
-#endif // BITCOIN_TXMEMPOOL_H
+#endif // SCHILLINGCOIN_TXMEMPOOL_H
