@@ -2,23 +2,22 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "qt/schillingcoin/send.h"
-#include "qt/schillingcoin/forms/ui_send.h"
-#include "qt/schillingcoin/addnewcontactdialog.h"
-#include "qt/schillingcoin/qtutils.h"
-#include "qt/schillingcoin/sendchangeaddressdialog.h"
-#include "qt/schillingcoin/optionbutton.h"
-#include "qt/schillingcoin/sendconfirmdialog.h"
-#include "qt/schillingcoin/myaddressrow.h"
-#include "qt/schillingcoin/guitransactionsutils.h"
-
 #include "addresstablemodel.h"
 #include "clientmodel.h"
-#include "coincontrol.h"
 #include "key_io.h"
 #include "openuridialog.h"
 #include "optionsmodel.h"
+#include "qt/schillingcoin/addnewcontactdialog.h"
+#include "qt/schillingcoin/forms/ui_send.h"
+#include "qt/schillingcoin/guitransactionsutils.h"
+#include "qt/schillingcoin/myaddressrow.h"
+#include "qt/schillingcoin/optionbutton.h"
+#include "qt/schillingcoin/qtutils.h"
+#include "qt/schillingcoin/send.h"
+#include "qt/schillingcoin/sendchangeaddressdialog.h"
+#include "qt/schillingcoin/sendconfirmdialog.h"
 #include "script/standard.h"
+#include "wallet/coincontrol.h"
 
 SendWidget::SendWidget(SchillingCoinGUI* parent) :
     PWidget(parent),

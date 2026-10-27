@@ -25,7 +25,7 @@ extern CMasternodePayments masternodePayments;
 #define MNPAYMENTS_SIGNATURES_TOTAL 10
 
 void ProcessMessageMasternodePayments(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
-bool IsBlockPayeeValid(const CBlock& block, int nBlockHeight);
+bool IsBlockPayeeValid(const CBlock& block, int nBlockHeight, CAmount nFees);
 std::string GetRequiredPaymentsString(int nBlockHeight);
 bool IsBlockValueValid(const CBlock& block, CAmount nExpectedValue, CAmount nMinted);
 void FillBlockPayee(CMutableTransaction& txNew, CAmount nFees, const CBlockIndex* pindexPrev, bool fProofOfStake);
@@ -104,13 +104,9 @@ public:
         return *this;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasternodePayee, obj)
     {
-        READWRITE(scriptPubKey);
-        READWRITE(nVotes);
+        READWRITE(obj.scriptPubKey, obj.nVotes);
     }
 };
 
@@ -204,16 +200,12 @@ public:
         return false;
     }
 
-    bool IsTransactionValid(const CTransaction& txNew);
+    bool IsTransactionValid(const CTransaction& txNew, CAmount nFees);
     std::string GetRequiredPaymentsString();
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasternodeBlockPayees, obj)
     {
-        READWRITE(nBlockHeight);
-        READWRITE(vecPayments);
+        READWRITE(obj.nBlockHeight, obj.vecPayments);
     }
 };
 
@@ -294,20 +286,25 @@ public:
         payee = payeeIn;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasternodePaymentWinner, obj)
     {
-        READWRITE(vinMasternode);
-        READWRITE(nBlockHeight);
-        READWRITE(payee);
-        READWRITE(vchSig);
-        try {
-            READWRITE(nMessVersion);
-        } catch (...) {
-            nMessVersion = MessageVersion::MESS_VER_STRMESS;
-        }
+        READWRITE(
+            obj.vinMasternode,
+            obj.nBlockHeight,
+            obj.payee,
+            obj.vchSig);
+
+        SER_WRITE(obj,
+            ::Serialize(s, obj.nMessVersion);
+        );
+
+        SER_READ(obj,
+            try {
+                ::Unserialize(s, obj.nMessVersion);
+            } catch (...) {
+                obj.nMessVersion = MessageVersion::MESS_VER_STRMESS;
+            }
+        );
     }
 
     std::string ToString()
@@ -404,7 +401,7 @@ public:
     int LastPayment(CMasternode& mn);
 
     bool GetBlockPayee(int nBlockHeight, CScript& payee);
-    bool IsTransactionValid(const CTransaction& txNew, int nBlockHeight);
+    bool IsTransactionValid(const CTransaction& txNew, int nBlockHeight, CAmount nFees);
     bool IsScheduled(CMasternode& mn, int nNotBlockHeight);
 
     bool CanVote(COutPoint outMasternode, int nBlockHeight)
@@ -430,13 +427,11 @@ public:
     int GetOldestBlock();
     int GetNewestBlock();
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasternodePayments, obj)
     {
-        READWRITE(mapMasternodePayeeVotes);
-        READWRITE(mapMasternodeBlocks);
+        READWRITE(
+            obj.mapMasternodePayeeVotes,
+            obj.mapMasternodeBlocks);
     }
 };
 

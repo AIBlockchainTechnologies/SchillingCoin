@@ -5,11 +5,12 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_TRANSACTIONRECORD_H
-#define BITCOIN_QT_TRANSACTIONRECORD_H
+#ifndef SCHILLINGCOIN_QT_TRANSACTIONRECORD_H
+#define SCHILLINGCOIN_QT_TRANSACTIONRECORD_H
 
 #include "amount.h"
 #include "optional.h"
+#include "script/script.h"
 #include "uint256.h"
 
 #include <vector>
@@ -180,4 +181,4 @@ public:
 
 };
 
-#endif // BITCOIN_QT_TRANSACTIONRECORD_H
+#endif // SCHILLINGCOIN_QT_TRANSACTIONRECORD_H

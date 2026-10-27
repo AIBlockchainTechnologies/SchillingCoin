@@ -48,21 +48,25 @@ public:
     CMasternodePing();
     CMasternodePing(CTxIn& newVin);
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasternodePing, obj)
     {
-        READWRITE(vin);
-        READWRITE(blockHash);
-        READWRITE(sigTime);
-        READWRITE(vchSig);
-        try
-        {
-            READWRITE(nMessVersion);
-        } catch (...) {
-            nMessVersion = MessageVersion::MESS_VER_STRMESS;
-        }
+        READWRITE(
+            obj.vin,
+            obj.blockHash,
+            obj.sigTime,
+            obj.vchSig);
+
+        SER_WRITE(obj,
+            ::Serialize(s, obj.nMessVersion);
+        );
+
+        SER_READ(obj,
+            try {
+                ::Unserialize(s, obj.nMessVersion);
+            } catch (...) {
+                obj.nMessVersion = MessageVersion::MESS_VER_STRMESS;
+            }
+        );
     }
 
     uint256 GetHash() const;
@@ -197,28 +201,26 @@ public:
 
     uint256 CalculateScore(int mod = 1, int64_t nBlockHeight = 0);
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasternode, obj)
     {
-        LOCK(cs);
+        LOCK(obj.cs);
 
-        READWRITE(vin);
-        READWRITE(addr);
-        READWRITE(pubKeyCollateralAddress);
-        READWRITE(pubKeyMasternode);
-        READWRITE(vchSig);
-        READWRITE(sigTime);
-        READWRITE(protocolVersion);
-        READWRITE(activeState);
-        READWRITE(lastPing);
-        READWRITE(cacheInputAge);
-        READWRITE(cacheInputAgeBlock);
-        READWRITE(unitTest);
-        READWRITE(nLastDsq);
-        READWRITE(nScanningErrorCount);
-        READWRITE(nLastScanningErrorBlockHeight);
+        READWRITE(
+            obj.vin,
+            obj.addr,
+            obj.pubKeyCollateralAddress,
+            obj.pubKeyMasternode,
+            obj.vchSig,
+            obj.sigTime,
+            obj.protocolVersion,
+            obj.activeState,
+            obj.lastPing,
+            obj.cacheInputAge,
+            obj.cacheInputAgeBlock,
+            obj.unitTest,
+            obj.nLastDsq,
+            obj.nScanningErrorCount,
+            obj.nLastScanningErrorBlockHeight);
     }
 
     int64_t SecondsSincePayment();
@@ -318,22 +320,22 @@ public:
     // for compatibility with pre-v2.0 masternode messages
     std::string GetOldStrMessage() const;
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasternodeBroadcast, obj)
     {
-        READWRITE(vin);
-        READWRITE(addr);
-        READWRITE(pubKeyCollateralAddress);
-        READWRITE(pubKeyMasternode);
-        READWRITE(vchSig);
-        READWRITE(sigTime);
-        READWRITE(protocolVersion);
-        READWRITE(lastPing);
-        READWRITE(nMessVersion);    // abuse nLastDsq (which will be removed) for old serialization
-        if (ser_action.ForRead())
-            nLastDsq = 0;
+        READWRITE(
+            obj.vin,
+            obj.addr,
+            obj.pubKeyCollateralAddress,
+            obj.pubKeyMasternode,
+            obj.vchSig,
+            obj.sigTime,
+            obj.protocolVersion,
+            obj.lastPing,
+            obj.nMessVersion);
+
+        SER_READ(obj,
+            obj.nLastDsq = 0;
+        );
     }
 
     /// Create Masternode broadcast, needs to be relayed manually after that

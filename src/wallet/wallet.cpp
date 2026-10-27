@@ -6,7 +6,6 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "coincontrol.h"
 #include "guiinterfaceutil.h"
 #include "masternode-payments.h"
 #include "masternode.h"
@@ -16,6 +15,7 @@
 #include "script/standard.h"
 #include "util.h"
 #include "utilmoneystr.h"
+#include "wallet/coincontrol.h"
 #include "wallet/fees.h"
 #include "wallet/wallet.h"
 
@@ -3210,8 +3210,8 @@ bool CWallet::CreateCoinStake(const CBlockIndex* pindexPrev, unsigned int nBits,
         if (nBytes >= DEFAULT_BLOCK_MAX_SIZE / 5)
             return error("CreateCoinStake : exceeded coinstake size limit");
 
-        // Masternode payment
-        FillBlockPayee(txNew, nMinFee, pindexPrev, true);
+        // The final masternode payment is applied by the block assembler
+        // after ordinary transactions and their fees have been selected.
 
         uint256 hashTxOut = txNew.GetHash();
 
@@ -4706,6 +4706,10 @@ void CWallet::SetNull()
     }
     // Stake split threshold
     nStakeSplitThreshold = DEFAULT_STAKE_SPLIT_THRESHOLD;
+
+    // User-defined transaction fee per kilobyte
+    fUseCustomFee = false;
+    nCustomFee = CWallet::minTxFee.GetFeePerK();
 
     //MultiSend
     vMultiSend.clear();

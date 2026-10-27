@@ -4,15 +4,15 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_RECENTREQUESTSTABLEMODEL_H
-#define BITCOIN_QT_RECENTREQUESTSTABLEMODEL_H
+#ifndef SCHILLINGCOIN_QT_RECENTREQUESTSTABLEMODEL_H
+#define SCHILLINGCOIN_QT_RECENTREQUESTSTABLEMODEL_H
 
 #include "walletmodel.h"
 
 #include <QAbstractTableModel>
 #include <QDateTime>
 #include <QStringList>
-#include <vector>   // added for std::vector
+#include <vector>
 
 class CWallet;
 
@@ -27,21 +27,23 @@ public:
     QDateTime date;
     SendCoinsRecipient recipient;
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(RecentRequestEntry, obj)
     {
-        unsigned int nDate = date.toTime_t();
+        unsigned int nDate;
 
-        READWRITE(this->nVersion);
-        nVersion = this->nVersion;
-        READWRITE(id);
-        READWRITE(nDate);
-        READWRITE(recipient);
+        SER_WRITE(obj,
+            nDate = obj.date.toTime_t();
+        );
 
-        if (ser_action.ForRead())
-            date = QDateTime::fromTime_t(nDate);
+        READWRITE(
+            obj.nVersion,
+            obj.id,
+            nDate,
+            obj.recipient);
+
+        SER_READ(obj,
+            obj.date = QDateTime::fromTime_t(nDate);
+        );
     }
 };
 
@@ -112,4 +114,4 @@ private:
     QString getAmountTitle();
 };
 
-#endif // BITCOIN_QT_RECENTREQUESTSTABLEMODEL_H
+#endif // SCHILLINGCOIN_QT_RECENTREQUESTSTABLEMODEL_H

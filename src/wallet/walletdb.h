@@ -67,17 +67,14 @@ public:
         nCreateTime = nCreateTime_;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CKeyMetadata, obj)
     {
-        READWRITE(this->nVersion);
-        READWRITE(nCreateTime);
+        READWRITE(obj.nVersion);
+        READWRITE(obj.nCreateTime);
 
-        if (this->nVersion >= VERSION_WITH_KEY_ORIGIN) {
-            READWRITE(key_origin);
-            READWRITE(has_key_origin);
+        if (obj.nVersion >= VERSION_WITH_KEY_ORIGIN) {
+            READWRITE(obj.key_origin);
+            READWRITE(obj.has_key_origin);
         }
     }
 
@@ -158,6 +155,8 @@ public:
     bool WriteOrderPosNext(int64_t nOrderPosNext);
 
     bool WriteStakeSplitThreshold(CAmount nStakeSplitThreshold);
+    bool WriteUseCustomFee(bool fUse);
+    bool WriteCustomFeeValue(const CAmount& nCustomFee);
     bool WriteMultiSend(std::vector<std::pair<std::string, int> > vMultiSend);
     bool EraseMultiSend(std::vector<std::pair<std::string, int> > vMultiSend);
     bool WriteMSettings(bool fMultiSendStake, bool fMultiSendMasternode, int nLastMultiSendHeight);

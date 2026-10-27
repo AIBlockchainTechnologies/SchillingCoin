@@ -5,8 +5,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SCHILLINGCOIN_COINCONTROL_H
-#define SCHILLINGCOIN_COINCONTROL_H
+#ifndef SCHILLINGCOIN_WALLET_COINCONTROL_H
+#define SCHILLINGCOIN_WALLET_COINCONTROL_H
 
 #include "optional.h"
 #include "policy/feerate.h"
@@ -26,6 +26,12 @@ public:
     bool fAllowWatchOnly;
     //! Minimum absolute fee (not per kilobyte)
     CAmount nMinimumTotalFee;
+    //! Override automatic minimum and maximum fee checks
+    bool fOverrideFeeRate;
+    //! Override the wallet's selected fee rate when set
+    Optional<CFeeRate> m_feerate;
+    //! Override the wallet's default confirmation target when set
+    Optional<unsigned int> m_confirm_target;
 
     CCoinControl()
     {
@@ -39,6 +45,9 @@ public:
         fAllowOtherInputs = false;
         fAllowWatchOnly = true;
         nMinimumTotalFee = 0;
+        fOverrideFeeRate = false;
+        m_feerate = nullopt;
+        m_confirm_target = nullopt;
         fSplitBlock = false;
         nSplitBlock = 1;
     }
@@ -48,10 +57,14 @@ public:
         return (!setSelected.empty());
     }
 
+    bool IsSelected(const COutPoint& output) const
+    {
+        return setSelected.count(output) > 0;
+    }
+
     bool IsSelected(const uint256& hash, unsigned int n) const
     {
-        COutPoint outpt(hash, n);
-        return (setSelected.count(outpt) > 0);
+        return IsSelected(COutPoint(hash, n));
     }
 
     void Select(const COutPoint& output)
@@ -79,14 +92,13 @@ public:
         return setSelected.size();
     }
 
-    void SetSelection(std::set<COutPoint> setSelected)
+    void SetSelection(const std::set<COutPoint>& selected)
     {
-        this->setSelected.clear();
-        this->setSelected = setSelected;
+        setSelected = selected;
     }
 
 private:
     std::set<COutPoint> setSelected;
 };
 
-#endif // SCHILLINGCOIN_COINCONTROL_H
+#endif // SCHILLINGCOIN_WALLET_COINCONTROL_H

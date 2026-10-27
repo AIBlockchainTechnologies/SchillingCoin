@@ -104,7 +104,6 @@ BITCOIN_CORE_H = \
   checkpoints.h \
   checkqueue.h \
   clientversion.h \
-  coincontrol.h \
   coins.h \
   compat.h \
   compat/byteswap.h \
@@ -206,6 +205,7 @@ BITCOIN_CORE_H = \
   wallet/bdb.h \
   wallet/bip39.h \
   wallet/bip39_english.h \
+  wallet/coincontrol.h \
   wallet/db.h \
   wallet/hdchain.h \
   wallet/fees.h \

@@ -71,7 +71,6 @@ HEADERS += src/activemasternode.h \
            src/checkpoints.h \
            src/checkqueue.h \
            src/clientversion.h \
-           src/coincontrol.h \
            src/coins.h \
            src/compat.h \
            src/compressor.h \
@@ -129,9 +128,7 @@ HEADERS += src/activemasternode.h \
            src/utilstrencodings.h \
            src/utiltime.h \
            src/version.h \
-           src/wallet.h \
-           src/wallet_ismine.h \
-           src/walletdb.h \
+           
            src/compat/sanity.h \
            src/config/schillingcoin-config.h \
            src/crypto/common.h \
@@ -334,6 +331,10 @@ HEADERS += src/activemasternode.h \
            src/qt/overviewpage.moc \
            src/qt/rpcconsole.moc \
            src/secp256k1/src/secp256k1.c
+           src/wallet.h \
+           src/wallet/coincontrol.h \
+           src/wallet_ismine.h \
+           src/walletdb.h \
 FORMS += src/qt/forms/addressbookpage.ui \
          src/qt/forms/askpassphrasedialog.ui \
          src/qt/forms/coincontroldialog.ui \

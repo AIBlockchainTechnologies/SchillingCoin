@@ -5,18 +5,17 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "coincontroldialog.h"
-#include "ui_coincontroldialog.h"
-
 #include "addresstablemodel.h"
 #include "bitcoinunits.h"
-#include "coincontrol.h"
+#include "coincontroldialog.h"
 #include "guiutil.h"
 #include "init.h"
 #include "main.h"
 #include "optionsmodel.h"
 #include "policy/policy.h"
 #include "qt/schillingcoin/qtutils.h"
+#include "ui_coincontroldialog.h"
+#include "wallet/coincontrol.h"
 #include "wallet/fees.h"
 #include "wallet/wallet.h"
 #include "walletmodel.h"

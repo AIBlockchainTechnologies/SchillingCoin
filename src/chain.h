@@ -8,8 +8,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CHAIN_H
-#define BITCOIN_CHAIN_H
+#ifndef SCHILLINGCOIN_CHAIN_H
+#define SCHILLINGCOIN_CHAIN_H
 
 #include "chainparams.h"
 #include "optional.h"
@@ -35,18 +35,16 @@ public:
     uint64_t nTimeFirst;       //!< earliest time of block in file
     uint64_t nTimeLast;        //!< latest time of block in file
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CBlockFileInfo, obj)
     {
-        READWRITE(VARINT(nBlocks));
-        READWRITE(VARINT(nSize));
-        READWRITE(VARINT(nUndoSize));
-        READWRITE(VARINT(nHeightFirst));
-        READWRITE(VARINT(nHeightLast));
-        READWRITE(VARINT(nTimeFirst));
-        READWRITE(VARINT(nTimeLast));
+        READWRITE(
+            VARINT(obj.nBlocks),
+            VARINT(obj.nSize),
+            VARINT(obj.nUndoSize),
+            VARINT(obj.nHeightFirst),
+            VARINT(obj.nHeightLast),
+            VARINT(obj.nTimeFirst),
+            VARINT(obj.nTimeLast));
     }
 
     void SetNull()
@@ -86,13 +84,9 @@ struct CDiskBlockPos {
     int nFile;
     unsigned int nPos;
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CDiskBlockPos, obj)
     {
-        READWRITE(VARINT(nFile));
-        READWRITE(VARINT(nPos));
+        READWRITE(VARINT(obj.nFile), VARINT(obj.nPos));
     }
 
     CDiskBlockPos()
@@ -302,78 +296,94 @@ public:
         hashPrev = (pprev ? pprev->GetBlockHash() : UINT256_ZERO);
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nSerVersion)
+    SERIALIZE_METHODS(CDiskBlockIndex, obj)
     {
-        if (!(nType & SER_GETHASH))
+        int nSerVersion = s.GetVersion();
+
+        if (!(s.GetType() & SER_GETHASH))
             READWRITE(VARINT(nSerVersion));
 
-        READWRITE(VARINT(nHeight));
-        READWRITE(VARINT(nStatus));
-        READWRITE(VARINT(nTx));
-        if (nStatus & (BLOCK_HAVE_DATA | BLOCK_HAVE_UNDO))
-            READWRITE(VARINT(nFile));
-        if (nStatus & BLOCK_HAVE_DATA)
-            READWRITE(VARINT(nDataPos));
-        if (nStatus & BLOCK_HAVE_UNDO)
-            READWRITE(VARINT(nUndoPos));
+        READWRITE(VARINT(obj.nHeight));
+        READWRITE(VARINT(obj.nStatus));
+        READWRITE(VARINT(obj.nTx));
+
+        if (obj.nStatus & (BLOCK_HAVE_DATA | BLOCK_HAVE_UNDO))
+            READWRITE(VARINT(obj.nFile));
+
+        if (obj.nStatus & BLOCK_HAVE_DATA)
+            READWRITE(VARINT(obj.nDataPos));
+
+        if (obj.nStatus & BLOCK_HAVE_UNDO)
+            READWRITE(VARINT(obj.nUndoPos));
 
         if (nSerVersion >= DBI_OLD_SER_VERSION) {
             // Serialization with CLIENT_VERSION > 4009900
-            READWRITE(nMoneySupply);
-            READWRITE(nFlags);
-            READWRITE(this->nVersion);
-            READWRITE(vStakeModifier);
-            READWRITE(hashPrev);
-            READWRITE(hashMerkleRoot);
-            READWRITE(nTime);
-            READWRITE(nBits);
-            READWRITE(nNonce);
-            if (this->nVersion > 3) {
-                READWRITE(mapZerocoinSupply);
-                if (this->nVersion == 4) READWRITE(nAccumulatorCheckpoint);
-            }
+            READWRITE(obj.nMoneySupply);
+            READWRITE(obj.nFlags);
+            READWRITE(obj.nVersion);
+            READWRITE(obj.vStakeModifier);
+            READWRITE(obj.hashPrev);
+            READWRITE(obj.hashMerkleRoot);
+            READWRITE(obj.nTime);
+            READWRITE(obj.nBits);
+            READWRITE(obj.nNonce);
 
+            if (obj.nVersion > 3) {
+                READWRITE(obj.mapZerocoinSupply);
+
+                if (obj.nVersion == 4)
+                    READWRITE(obj.nAccumulatorCheckpoint);
+            }
         } else {
             // Serialization with CLIENT_VERSION <= 4009900
             int64_t nMint = 0;
             uint256 hashNext;
+
             READWRITE(nMint);
-            READWRITE(nMoneySupply);
-            READWRITE(nFlags);
-            if (!Params().GetConsensus().IsStakeModifierV2(nHeight)) {
+            READWRITE(obj.nMoneySupply);
+            READWRITE(obj.nFlags);
+
+            if (!Params().GetConsensus().IsStakeModifierV2(obj.nHeight)) {
                 uint64_t nStakeModifier = 0;
                 READWRITE(nStakeModifier);
-                this->SetStakeModifier(nStakeModifier, this->GeneratedStakeModifier());
+
+                SER_READ(obj,
+                    obj.SetStakeModifier(
+                        nStakeModifier,
+                        obj.GeneratedStakeModifier()));
             } else {
                 uint256 nStakeModifierV2;
                 READWRITE(nStakeModifierV2);
-                this->SetStakeModifier(nStakeModifierV2);
+
+                SER_READ(obj,
+                    obj.SetStakeModifier(nStakeModifierV2));
             }
-            if (IsProofOfStake()) {
+
+            if (obj.IsProofOfStake()) {
                 COutPoint prevoutStake;
                 unsigned int nStakeTime = 0;
+
                 READWRITE(prevoutStake);
                 READWRITE(nStakeTime);
             }
-            READWRITE(this->nVersion);
-            READWRITE(hashPrev);
+
+            READWRITE(obj.nVersion);
+            READWRITE(obj.hashPrev);
             READWRITE(hashNext);
-            READWRITE(hashMerkleRoot);
-            READWRITE(nTime);
-            READWRITE(nBits);
-            READWRITE(nNonce);
-            if(this->nVersion > 3) {
+            READWRITE(obj.hashMerkleRoot);
+            READWRITE(obj.nTime);
+            READWRITE(obj.nBits);
+            READWRITE(obj.nNonce);
+
+            if (obj.nVersion > 3) {
                 std::vector<libzerocoin::CoinDenomination> vMintDenominationsInBlock;
-                READWRITE(nAccumulatorCheckpoint);
-                READWRITE(mapZerocoinSupply);
+
+                READWRITE(obj.nAccumulatorCheckpoint);
+                READWRITE(obj.mapZerocoinSupply);
                 READWRITE(vMintDenominationsInBlock);
             }
         }
     }
-
 
     uint256 GetBlockHash() const
     {
@@ -388,7 +398,6 @@ public:
             block.nAccumulatorCheckpoint = nAccumulatorCheckpoint;
         return block.GetHash();
     }
-
 
     std::string ToString() const
     {
@@ -478,4 +487,4 @@ public:
     bool NewSigsActive() { return Params().GetConsensus().IsMessSigV2(Height()); }
 };
 
-#endif // BITCOIN_CHAIN_H
+#endif // SCHILLINGCOIN_CHAIN_H

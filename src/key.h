@@ -5,8 +5,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_KEY_H
-#define SchillingCoin_KEY_H
+#ifndef SCHILLINGCOIN_KEY_H
+#define SCHILLINGCOIN_KEY_H
 
 #include "allocators.h"
 #include "serialize.h"
@@ -172,20 +172,30 @@ struct CExtKey {
     CExtPubKey Neuter() const;
     void SetMaster(const unsigned char* seed, unsigned int nSeedLen);
     template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
+    void Serialize(Stream& s) const
     {
-        unsigned int len = BIP32_EXTKEY_SIZE;
+        const unsigned int len = BIP32_EXTKEY_SIZE;
         ::WriteCompactSize(s, len);
+
         unsigned char code[BIP32_EXTKEY_SIZE];
         Encode(code);
-        s.write((const char *)&code[0], len);
+        s.write(
+            reinterpret_cast<const char*>(&code[0]),
+            len);
     }
+
     template <typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion)
+    void Unserialize(Stream& s)
     {
-        unsigned int len = ::ReadCompactSize(s);
+        const unsigned int len = ::ReadCompactSize(s);
+
+        if (len != BIP32_EXTKEY_SIZE)
+            throw std::runtime_error("Invalid extended key size\n");
+
         unsigned char code[BIP32_EXTKEY_SIZE];
-        s.read((char *)&code[0], len);
+        s.read(
+            reinterpret_cast<char*>(&code[0]),
+            len);
         Decode(code);
     }
 };
@@ -199,4 +209,4 @@ void ECC_Stop(void);
 /** Check that required EC support is available at runtime. */
 bool ECC_InitSanityCheck(void);
 
-#endif // SchillingCoin_KEY_H
+#endif // SCHILLINGCOIN_KEY_H

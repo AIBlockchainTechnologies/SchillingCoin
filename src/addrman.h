@@ -5,8 +5,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ADDRMAN_H
-#define BITCOIN_ADDRMAN_H
+#ifndef SCHILLINGCOIN_ADDRMAN_H
+#define SCHILLINGCOIN_ADDRMAN_H
 
 #include "netbase.h"
 #include "optional.h"
@@ -27,7 +27,6 @@
  */
 class CAddrInfo : public CAddress
 {
-
 
 public:
     //! last try whatsoever by us (memory only)
@@ -58,15 +57,13 @@ private:
     friend class CAddrMan;
 
 public:
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CAddrInfo, obj)
     {
-        READWRITE(*(CAddress*)this);
-        READWRITE(source);
-        READWRITE(nLastSuccess);
-        READWRITE(nAttempts);
+        READWRITE(
+            AsBase<CAddress>(obj),
+            obj.source,
+            obj.nLastSuccess,
+            obj.nAttempts);
     }
 
     void Init()
@@ -312,11 +309,11 @@ public:
      * This format is more complex, but significantly smaller (at most 1.5 MiB), and supports
      * changes to the ADDRMAN_ parameters without breaking the on-disk structure.
      *
-     * We don't use ADD_SERIALIZE_METHODS since the serialization and deserialization code has
-     * very little in common.
+     * We intentionally use separate Serialize and Unserialize methods because the
+     * serialization and deserialization code has very little in common.
      */
     template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersionDummy) const
+    void Serialize(Stream& s) const
     {
         LOCK(cs);
 
@@ -366,7 +363,7 @@ public:
     }
 
     template <typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersionDummy)
+    void Unserialize(Stream& s)
     {
         LOCK(cs);
 
@@ -461,11 +458,6 @@ public:
         }
 
         Check();
-    }
-
-    unsigned int GetSerializeSize(int nType, int nVersion) const
-    {
-        return (CSizeComputer(nType, nVersion) << *this).size();
     }
 
     void Clear()
@@ -645,4 +637,4 @@ public:
     }
 };
 
-#endif // BITCOIN_ADDRMAN_H
+#endif // SCHILLINGCOIN_ADDRMAN_H

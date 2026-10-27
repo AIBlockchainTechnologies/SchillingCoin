@@ -76,20 +76,18 @@ public:
     // keep track of dsq count to prevent masternodes from gaming obfuscation queue
     int64_t nDsqCount;
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasternodeMan, obj)
     {
-        LOCK(cs);
-        READWRITE(vMasternodes);
-        READWRITE(mAskedUsForMasternodeList);
-        READWRITE(mWeAskedForMasternodeList);
-        READWRITE(mWeAskedForMasternodeListEntry);
-        READWRITE(nDsqCount);
+        LOCK(obj.cs);
 
-        READWRITE(mapSeenMasternodeBroadcast);
-        READWRITE(mapSeenMasternodePing);
+        READWRITE(
+            obj.vMasternodes,
+            obj.mAskedUsForMasternodeList,
+            obj.mWeAskedForMasternodeList,
+            obj.mWeAskedForMasternodeListEntry,
+            obj.nDsqCount,
+            obj.mapSeenMasternodeBroadcast,
+            obj.mapSeenMasternodePing);
     }
 
     CMasternodeMan();

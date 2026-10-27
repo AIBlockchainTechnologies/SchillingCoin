@@ -13,6 +13,10 @@
 #include <map>
 #include <string>
 
+namespace libzerocoin {
+class ZerocoinParams;
+} // namespace libzerocoin
+
 namespace Consensus {
 
 /**
@@ -58,6 +62,9 @@ struct Params {
     // Dash DIP0002-style transaction framework activation
     int DIP0002Height;
 
+    // PoS transaction-fee distribution activation
+    int FeeRewardDistributionHeight;
+
     int64_t TargetTimespan(const bool fV2 = true) const { return fV2 ? nTargetTimespanV2 : nTargetTimespan; }
     uint256 ProofOfStakeLimit(const bool fV2) const { return fV2 ? posLimitV2 : posLimitV1; }
     bool MoneyRange(const CAmount& nValue) const { return (nValue >= 0 && nValue <= nMaxMoneyOut); }
@@ -67,6 +74,11 @@ struct Params {
     bool IsDIP0002Active(const int nHeight) const
     {
         return nHeight >= DIP0002Height;
+    }
+
+    bool IsFeeRewardDistributionActive(const int nHeight) const
+    {
+        return nHeight >= FeeRewardDistributionHeight;
     }
 
     bool IsTimeProtocolV2(const int nHeight) const { return nHeight >= height_start_TimeProtoV2; }

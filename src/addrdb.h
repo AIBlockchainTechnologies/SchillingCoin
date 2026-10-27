@@ -6,8 +6,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ADDRDB_H
-#define BITCOIN_ADDRDB_H
+#ifndef SCHILLINGCOIN_ADDRDB_H
+#define SCHILLINGCOIN_ADDRDB_H
 
 #include "fs.h"
 #include "serialize.h"
@@ -47,15 +47,13 @@ public:
         nCreateTime = nCreateTimeIn;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(this->nVersion);
-        nVersion = this->nVersion;
-        READWRITE(nCreateTime);
-        READWRITE(nBanUntil);
-        READWRITE(banReason);
+    SERIALIZE_METHODS(CBanEntry, obj)
+    {
+        READWRITE(
+            obj.nVersion,
+            obj.nCreateTime,
+            obj.nBanUntil,
+            obj.banReason);
     }
 
     void SetNull()
@@ -105,4 +103,4 @@ public:
     bool Read(banmap_t& banSet);
 };
 
-#endif //BITCOIN_ADDRDB_H
+#endif //SCHILLINGCOIN_ADDRDB_H

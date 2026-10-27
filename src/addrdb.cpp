@@ -93,7 +93,7 @@ bool CBanDB::Read(banmap_t& banSet)
 
     // read data and checksum from file
     try {
-        filein.read((char *)&vchData[0], dataSize);
+        filein.read(reinterpret_cast<char*>(&vchData[0]), dataSize);
         filein >> hashIn;
     }
     catch (const std::exception& e) {
@@ -201,7 +201,7 @@ bool CAddrDB::Read(CAddrMan& addr)
 
     // read data and checksum from file
     try {
-        filein.read((char*)&vchData[0], dataSize);
+        filein.read(reinterpret_cast<char*>(&vchData[0]), dataSize);
         filein >> hashIn;
     } catch (const std::exception& e) {
         return error("%s : Deserialize or I/O error - %s", __func__, e.what());

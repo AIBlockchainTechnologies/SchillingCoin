@@ -5,8 +5,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_BIGNUM_BIGNUM_H
-#define BITCOIN_BIGNUM_BIGNUM_H
+#ifndef SCHILLINGCOIN_BIGNUM_BIGNUM_H
+#define SCHILLINGCOIN_BIGNUM_BIGNUM_H
 
 #if defined HAVE_CONFIG_H
 #include "config/schillingcoin-config.h"
@@ -104,22 +104,17 @@ public:
     std::string GetHex() const;
     std::string GetDec() const;
 
-    unsigned int GetSerializeSize(int nType=0, int nVersion=PROTOCOL_VERSION) const
+    template <typename Stream>
+    void Serialize(Stream& s) const
     {
-        return ::GetSerializeSize(getvch(), nType, nVersion);
+        ::Serialize(s, getvch());
     }
 
-    template<typename Stream>
-    void Serialize(Stream& s, int nType=0, int nVersion=PROTOCOL_VERSION) const
-    {
-        ::Serialize(s, getvch(), nType, nVersion);
-    }
-
-    template<typename Stream>
-    void Unserialize(Stream& s, int nType=0, int nVersion=PROTOCOL_VERSION)
+    template <typename Stream>
+    void Unserialize(Stream& s)
     {
         std::vector<unsigned char> vch;
-        ::Unserialize(s, vch, nType, nVersion);
+        ::Unserialize(s, vch);
         setvch(vch);
     }
 

@@ -58,11 +58,9 @@ public:
         return *this;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(FLATDATA(*this));
+    SERIALIZE_METHODS(COutPoint, obj)
+    {
+        READWRITE(obj.hash, obj.n);
     }
 
     void SetNull() { hash.SetNull(); n = (uint32_t) -1; }
@@ -150,13 +148,9 @@ public:
         return *this;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(prevout);
-        READWRITE(scriptSig);
-        READWRITE(nSequence);
+    SERIALIZE_METHODS(CTxIn, obj)
+    {
+        READWRITE(obj.prevout, obj.scriptSig, obj.nSequence);
     }
 
     bool IsFinal() const
@@ -234,12 +228,9 @@ public:
         return *this;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(nValue);
-        READWRITE(scriptPubKey);
+    SERIALIZE_METHODS(CTxOut, obj)
+    {
+        READWRITE(obj.nValue, obj.scriptPubKey);
     }
 
     void SetNull()
@@ -345,38 +336,37 @@ public:
         return *this;
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CTransaction, obj)
     {
-        uint32_t n32bitVersion =
-            static_cast<uint16_t>(this->nVersion) |
-            (static_cast<uint32_t>(this->nType) << 16);
+        uint32_t n32bitVersion;
+
+        SER_WRITE(
+            obj,
+            n32bitVersion =
+                static_cast<uint16_t>(obj.nVersion) |
+                (static_cast<uint32_t>(obj.nType) << 16););
 
         READWRITE(n32bitVersion);
 
-        if (ser_action.ForRead()) {
-            *const_cast<int32_t*>(&this->nVersion) =
+        SER_READ(
+            obj,
+            *const_cast<int32_t*>(&obj.nVersion) =
                 static_cast<int32_t>(n32bitVersion & 0xffff);
-            *const_cast<uint16_t*>(&this->nType) =
-                static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff);
+            *const_cast<uint16_t*>(&obj.nType) =
+                static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff););
+
+        READWRITE(
+            obj.vin,
+            obj.vout,
+            *const_cast<uint32_t*>(&obj.nLockTime));
+
+        if (obj.HasExtraPayloadField()) {
+            READWRITE(obj.vExtraPayload);
+        } else {
+            SER_READ(obj, obj.vExtraPayload.clear(););
         }
 
-        nVersion = this->nVersion;
-
-        READWRITE(*const_cast<std::vector<CTxIn>*>(&vin));
-        READWRITE(*const_cast<std::vector<CTxOut>*>(&vout));
-        READWRITE(*const_cast<uint32_t*>(&nLockTime));
-
-        if (HasExtraPayloadField()) {
-            READWRITE(vExtraPayload);
-        } else if (ser_action.ForRead()) {
-            vExtraPayload.clear();
-        }
-
-        if (ser_action.ForRead())
-            UpdateHash();
+        SER_READ(obj, obj.UpdateHash(););
     }
 
     bool IsSpecialTxVersion() const
@@ -456,34 +446,31 @@ struct CMutableTransaction
     CMutableTransaction();
     CMutableTransaction(const CTransaction& tx);
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMutableTransaction, obj)
     {
-        uint32_t n32bitVersion =
-            static_cast<uint16_t>(this->nVersion) |
-            (static_cast<uint32_t>(this->nType) << 16);
+        uint32_t n32bitVersion;
+
+        SER_WRITE(
+            obj,
+            n32bitVersion =
+                static_cast<uint16_t>(obj.nVersion) |
+                (static_cast<uint32_t>(obj.nType) << 16););
 
         READWRITE(n32bitVersion);
 
-        if (ser_action.ForRead()) {
-            this->nVersion =
+        SER_READ(
+            obj,
+            obj.nVersion =
                 static_cast<int32_t>(n32bitVersion & 0xffff);
-            this->nType =
-                static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff);
-        }
+            obj.nType =
+                static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff););
 
-        nVersion = this->nVersion;
+        READWRITE(obj.vin, obj.vout, obj.nLockTime);
 
-        READWRITE(vin);
-        READWRITE(vout);
-        READWRITE(nLockTime);
-
-        if (HasExtraPayloadField()) {
-            READWRITE(vExtraPayload);
-        } else if (ser_action.ForRead()) {
-            vExtraPayload.clear();
+        if (obj.HasExtraPayloadField()) {
+            READWRITE(obj.vExtraPayload);
+        } else {
+            SER_READ(obj, obj.vExtraPayload.clear(););
         }
     }
 

@@ -4,8 +4,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_BLOOM_H
-#define BITCOIN_BLOOM_H
+#ifndef SCHILLINGCOIN_BLOOM_H
+#define SCHILLINGCOIN_BLOOM_H
 
 #include "bignum/bignum.h"
 #include "serialize.h"
@@ -72,15 +72,13 @@ public:
     CBloomFilter(unsigned int nElements, double nFPRate, unsigned int nTweak, unsigned char nFlagsIn);
     CBloomFilter() : isFull(true), isEmpty(false), nHashFuncs(0), nTweak(0), nFlags(0) {}
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CBloomFilter, obj)
     {
-        READWRITE(vData);
-        READWRITE(nHashFuncs);
-        READWRITE(nTweak);
-        READWRITE(nFlags);
+        READWRITE(
+            obj.vData,
+            obj.nHashFuncs,
+            obj.nTweak,
+            obj.nFlags);
     }
 
     void setNotFull();
@@ -142,4 +140,4 @@ private:
     CBloomFilter b1, b2;
 };
 
-#endif // BITCOIN_BLOOM_H
+#endif // SCHILLINGCOIN_BLOOM_H

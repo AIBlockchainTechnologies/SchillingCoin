@@ -6,12 +6,13 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_SCRIPT_SCRIPT_H
-#define BITCOIN_SCRIPT_SCRIPT_H
+#ifndef SCHILLINGCOIN_SCRIPT_SCRIPT_H
+#define SCHILLINGCOIN_SCRIPT_SCRIPT_H
 
 #include "memusage.h"
 #include "prevector.h"
 #include "pubkey.h"
+#include "serialize.h"
 
 #include <assert.h>
 #include <climits>
@@ -389,6 +390,11 @@ public:
     CScript(const_iterator pbegin, const_iterator pend) : std::vector<unsigned char>(pbegin, pend) { }
     CScript(const unsigned char* pbegin, const unsigned char* pend) : std::vector<unsigned char>(pbegin, pend) { }
 
+    SERIALIZE_METHODS(CScript, obj)
+    {
+        READWRITE(AsBase<std::vector<unsigned char>>(obj));
+    }
+
     // Added explicit copy and move assignment operators
     CScript& operator=(const CScript& other)
     {
@@ -664,4 +670,4 @@ public:
     size_t DynamicMemoryUsage() const;
 };
 
-#endif // BITCOIN_SCRIPT_SCRIPT_H
+#endif // SCHILLINGCOIN_SCRIPT_SCRIPT_H

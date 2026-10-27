@@ -6,8 +6,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_ARITH_UINT256_H
-#define SchillingCoin_ARITH_UINT256_H
+#ifndef SCHILLINGCOIN_ARITH_UINT256_H
+#define SCHILLINGCOIN_ARITH_UINT256_H
 
 #include "blob_uint256.h"
 #include <assert.h>
@@ -298,21 +298,20 @@ public:
         return pn[0] | (uint64_t)pn[1] << 32;
     }
 
-    unsigned int GetSerializeSize(int nType, int nVersion) const
+    template <typename Stream>
+    void Serialize(Stream& s) const
     {
-        return sizeof(pn);
+        s.write(
+            reinterpret_cast<const char*>(pn),
+            sizeof(pn));
     }
 
     template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
+    void Unserialize(Stream& s)
     {
-        s.write((char*)pn, sizeof(pn));
-    }
-
-    template <typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion)
-    {
-        s.read((char*)pn, sizeof(pn));
+        s.read(
+            reinterpret_cast<char*>(pn),
+            sizeof(pn));
     }
 
     // Temporary for migration to opaque uint160/256
@@ -396,4 +395,4 @@ public:
 
 /** End classes definitions */
 
-#endif // SchillingCoin_ARITH_UINT256_H
+#endif // SCHILLINGCOIN_ARITH_UINT256_H

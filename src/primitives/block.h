@@ -38,21 +38,19 @@ public:
         SetNull();
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(this->nVersion);
-        nVersion = this->nVersion;
-        READWRITE(hashPrevBlock);
-        READWRITE(hashMerkleRoot);
-        READWRITE(nTime);
-        READWRITE(nBits);
-        READWRITE(nNonce);
+    SERIALIZE_METHODS(CBlockHeader, obj)
+    {
+        READWRITE(
+            obj.nVersion,
+            obj.hashPrevBlock,
+            obj.hashMerkleRoot,
+            obj.nTime,
+            obj.nBits,
+            obj.nNonce);
 
         //zerocoin active, header changes to include accumulator checksum
-        if (nVersion == 4)
-            READWRITE(nAccumulatorCheckpoint);
+        if (obj.nVersion == 4)
+            READWRITE(obj.nAccumulatorCheckpoint);
     }
 
     void SetNull()
@@ -103,14 +101,12 @@ public:
         *((CBlockHeader*)this) = header;
     }
 
-    ADD_SERIALIZE_METHODS;
+    SERIALIZE_METHODS(CBlock, obj)
+    {
+        READWRITE(AsBase<CBlockHeader>(obj), obj.vtx);
 
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        READWRITE(*(CBlockHeader*)this);
-        READWRITE(vtx);
-        if (vtx.size() > 1 && vtx[1].IsCoinStake())
-            READWRITE(vchBlockSig);
+        if (obj.vtx.size() > 1 && obj.vtx[1].IsCoinStake())
+            READWRITE(obj.vchBlockSig);
     }
 
     void SetNull()
@@ -172,13 +168,14 @@ struct CBlockLocator
         vHave = vHaveIn;
     }
 
-    ADD_SERIALIZE_METHODS;
+    SERIALIZE_METHODS(CBlockLocator, obj)
+    {
+        int nVersion = s.GetVersion();
 
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion) {
-        if (!(nType & SER_GETHASH))
+        if (!(s.GetType() & SER_GETHASH))
             READWRITE(nVersion);
-        READWRITE(vHave);
+
+        READWRITE(obj.vHave);
     }
 
     void SetNull()

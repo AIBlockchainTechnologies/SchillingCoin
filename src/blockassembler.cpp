@@ -417,11 +417,41 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, 
             }
         }
 
-        if (!fProofOfStake) {
-            //Masternode and general budget payments
-            FillBlockPayee(txNew, nFees, pindexPrev, fProofOfStake);
+        if (fProofOfStake) {
+            CMutableTransaction txCoinStake(pblock->vtx[1]);
 
-            //Make payee
+            // Before activation, PoS transaction fees retain their historical
+            // behavior and are not added to the coinstake reward.
+            //
+            // After activation, add all ordinary transaction fees to the
+            // staking outputs first. FillBlockPayee then transfers the
+            // masternode's required 80% fee share to its payment output,
+            // leaving the remaining 20% with the staker.
+            if (consensus.IsFeeRewardDistributionActive(nHeight) &&
+                nFees > 0 &&
+                txCoinStake.vout.size() > 1) {
+                txCoinStake.vout.back().nValue += nFees;
+            }
+
+            // Apply the masternode subsidy payment and, after activation,
+            // the masternode's 80% share of ordinary transaction fees.
+            FillBlockPayee(txCoinStake, nFees, pindexPrev, true);
+
+            if (!pwallet->SignCoinStake(txCoinStake)) {
+                LogPrintf("%s: failed to sign finalized coinstake\n", __func__);
+                return nullptr;
+            }
+
+            pblock->vtx[1] = CTransaction(txCoinStake);
+
+            if (txCoinStake.vout.size() > 1) {
+                pblock->payee = txCoinStake.vout.back().scriptPubKey;
+            }
+        } else {
+            // Masternode payment
+            FillBlockPayee(txNew, nFees, pindexPrev, false);
+
+            // Make payee
             if (txNew.vout.size() > 1) {
                 pblock->payee = txNew.vout[1].scriptPubKey;
             } else {

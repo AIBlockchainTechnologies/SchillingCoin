@@ -2,22 +2,22 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "qt/schillingcoin/coldstakingwidget.h"
-#include "qt/schillingcoin/forms/ui_coldstakingwidget.h"
-#include "qt/schillingcoin/qtutils.h"
 #include "amount.h"
-#include "guiutil.h"
-#include "qt/schillingcoin/requestdialog.h"
-#include "qt/schillingcoin/tooltipmenu.h"
-#include "qt/schillingcoin/furlistrow.h"
-#include "qt/schillingcoin/sendconfirmdialog.h"
-#include "qt/schillingcoin/addnewcontactdialog.h"
-#include "qt/schillingcoin/guitransactionsutils.h"
-#include "walletmodel.h"
-#include "optionsmodel.h"
 #include "coincontroldialog.h"
-#include "coincontrol.h"
+#include "guiutil.h"
+#include "optionsmodel.h"
+#include "qt/schillingcoin/addnewcontactdialog.h"
+#include "qt/schillingcoin/coldstakingwidget.h"
 #include "qt/schillingcoin/csrow.h"
+#include "qt/schillingcoin/forms/ui_coldstakingwidget.h"
+#include "qt/schillingcoin/furlistrow.h"
+#include "qt/schillingcoin/guitransactionsutils.h"
+#include "qt/schillingcoin/qtutils.h"
+#include "qt/schillingcoin/requestdialog.h"
+#include "qt/schillingcoin/sendconfirmdialog.h"
+#include "qt/schillingcoin/tooltipmenu.h"
+#include "wallet/coincontrol.h"
+#include "walletmodel.h"
 
 #define DECORATION_SIZE 70
 #define NUM_ITEMS 3

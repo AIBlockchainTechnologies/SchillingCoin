@@ -33,13 +33,11 @@ static const int64_t nMinDbCache = 4;
 struct CDiskTxPos : public CDiskBlockPos {
     unsigned int nTxOffset; // after header
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CDiskTxPos, obj)
     {
-        READWRITE(*(CDiskBlockPos*)this);
-        READWRITE(VARINT(nTxOffset));
+        READWRITE(
+            AsBase<CDiskBlockPos>(obj),
+            VARINT(obj.nTxOffset));
     }
 
     CDiskTxPos(const CDiskBlockPos& blockIn, unsigned int nTxOffsetIn) : CDiskBlockPos(blockIn.nFile, blockIn.nPos), nTxOffset(nTxOffsetIn)

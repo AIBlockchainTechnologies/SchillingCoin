@@ -4,8 +4,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CRYPTER_H
-#define BITCOIN_CRYPTER_H
+#ifndef SCHILLINGCOIN_CRYPTER_H
+#define SCHILLINGCOIN_CRYPTER_H
 
 #include "allocators.h"
 #include "keystore.h"
@@ -47,16 +47,14 @@ public:
     //! such as the various parameters to scrypt
     std::vector<unsigned char> vchOtherDerivationParameters;
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CMasterKey, obj)
     {
-        READWRITE(vchCryptedKey);
-        READWRITE(vchSalt);
-        READWRITE(nDerivationMethod);
-        READWRITE(nDeriveIterations);
-        READWRITE(vchOtherDerivationParameters);
+        READWRITE(
+            obj.vchCryptedKey,
+            obj.vchSalt,
+            obj.nDerivationMethod,
+            obj.nDeriveIterations,
+            obj.vchOtherDerivationParameters);
     }
 
     CMasterKey()
@@ -219,4 +217,4 @@ public:
     boost::signals2::signal<void(CCryptoKeyStore* wallet)> NotifyStatusChanged;
 };
 
-#endif // BITCOIN_CRYPTER_H
+#endif // SCHILLINGCOIN_CRYPTER_H

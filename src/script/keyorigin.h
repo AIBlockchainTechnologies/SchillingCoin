@@ -1,9 +1,10 @@
 // Copyright (c) 2019 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_SCRIPT_KEYORIGIN_H
-#define SchillingCoin_SCRIPT_KEYORIGIN_H
+#ifndef SCHILLINGCOIN_SCRIPT_KEYORIGIN_H
+#define SCHILLINGCOIN_SCRIPT_KEYORIGIN_H
 
 #include <serialize.h>
 #include <vector>
@@ -18,12 +19,11 @@ struct KeyOriginInfo
         return std::equal(std::begin(a.fingerprint), std::end(a.fingerprint), std::begin(b.fingerprint)) && a.path == b.path;
     }
 
-    ADD_SERIALIZE_METHODS;
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(KeyOriginInfo, obj)
     {
-        READWRITE(FLATDATA(fingerprint));
-        READWRITE(path);
+        READWRITE(
+            FLATDATA(obj.fingerprint),
+            obj.path);
     }
 
     void clear()
@@ -52,4 +52,4 @@ struct KeyOriginInfo
     }
 };
 
-#endif // SchillingCoin_SCRIPT_KEYORIGIN_H
+#endif // SCHILLINGCOIN_SCRIPT_KEYORIGIN_H

@@ -170,6 +170,16 @@ bool WalletBatch::WriteStakeSplitThreshold(CAmount nStakeSplitThreshold)
     return WriteIC(std::string("stakeSplitThreshold"), nStakeSplitThreshold);
 }
 
+bool WalletBatch::WriteUseCustomFee(bool fUse)
+{
+    return WriteIC(std::string("fUseCustomFee"), fUse);
+}
+
+bool WalletBatch::WriteCustomFeeValue(const CAmount& nCustomFee)
+{
+    return WriteIC(std::string("nCustomFee"), nCustomFee);
+}
+
 // presstab HyperStake
 bool WalletBatch::WriteMultiSend(std::vector<std::pair<std::string, int> > vMultiSend)
 {
@@ -676,9 +686,13 @@ bool ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue, CW
             // if ~1, force the value to the default to prevent thousands of accidental UTXO splits
             if (pwallet->nStakeSplitThreshold > 0 && pwallet->nStakeSplitThreshold <= 1 * COIN) {
                 LogPrintf("WalletDB : nStakeSplitThreshold is too low (%u), setting to %u instead...\n", pwallet->nStakeSplitThreshold / COIN,
-                                                                                                         (int)CWallet::DEFAULT_STAKE_SPLIT_THRESHOLD);
+                                                                                                        (int)CWallet::DEFAULT_STAKE_SPLIT_THRESHOLD);
                 pwallet->nStakeSplitThreshold = CWallet::DEFAULT_STAKE_SPLIT_THRESHOLD * COIN;
             }
+        } else if (strType == "fUseCustomFee") {
+            ssValue >> pwallet->fUseCustomFee;
+        } else if (strType == "nCustomFee") {
+            ssValue >> pwallet->nCustomFee;
         } else if (strType == "multisend") //presstab HyperStake
         {
             unsigned int i;

@@ -272,34 +272,30 @@ public:
     }
 
     template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
+    void Serialize(Stream& s) const
     {
         // Special case: stream << stream concatenates like stream += stream
-        if (!vch.empty())
-            s.write((char*)&vch[0], vch.size() * sizeof(vch[0]));
-    }
-
-    template <typename T>
-    unsigned int GetSerializeSize(const T& obj)
-    {
-        // Tells the size of the object if serialized to this stream
-        return ::GetSerializeSize(obj, nType, nVersion);
+        if (!vch.empty()) {
+            s.write(
+                reinterpret_cast<const char*>(vch.data()),
+                vch.size() * sizeof(value_type));
+        }
     }
 
     template <typename T>
     CDataStream& operator<<(const T& obj)
     {
         // Serialize to this stream
-        ::Serialize(*this, obj, nType, nVersion);
-        return (*this);
+        ::Serialize(*this, obj);
+        return *this;
     }
 
     template <typename T>
-    CDataStream& operator>>(T& obj)
+    CDataStream& operator>>(T&& obj)
     {
         // Unserialize from this stream
-        ::Unserialize(*this, obj, nType, nVersion);
-        return (*this);
+        ::Unserialize(*this, obj);
+        return *this;
     }
 
     void GetAndClear(CSerializeData& data)
@@ -413,30 +409,25 @@ public:
     }
 
     template <typename T>
-    unsigned int GetSerializeSize(const T& obj)
-    {
-        // Tells the size of the object if serialized to this stream
-        return ::GetSerializeSize(obj, nType, nVersion);
-    }
-
-    template <typename T>
     CAutoFile& operator<<(const T& obj)
     {
         // Serialize to this stream
         if (!file)
             throw std::ios_base::failure("CAutoFile::operator<< : file handle is NULL");
-        ::Serialize(*this, obj, nType, nVersion);
-        return (*this);
+
+        ::Serialize(*this, obj);
+        return *this;
     }
 
     template <typename T>
-    CAutoFile& operator>>(T& obj)
+    CAutoFile& operator>>(T&& obj)
     {
         // Unserialize from this stream
         if (!file)
             throw std::ios_base::failure("CAutoFile::operator>> : file handle is NULL");
-        ::Unserialize(*this, obj, nType, nVersion);
-        return (*this);
+
+        ::Unserialize(*this, obj);
+        return *this;
     }
 };
 
@@ -579,11 +570,11 @@ public:
     }
 
     template <typename T>
-    CBufferedFile& operator>>(T& obj)
+    CBufferedFile& operator>>(T&& obj)
     {
         // Unserialize from this stream
-        ::Unserialize(*this, obj, nType, nVersion);
-        return (*this);
+        ::Unserialize(*this, obj);
+        return *this;
     }
 
     // search for a given byte in the stream, and remain positioned on it

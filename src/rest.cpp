@@ -45,7 +45,15 @@ struct CCoin {
     uint32_t nHeight;
     CTxOut out;
 
-    ADD_SERIALIZE_METHODS;
+    SERIALIZE_METHODS(CCoin, obj)
+    {
+        uint32_t nTxVerDummy = 0;
+
+        READWRITE(
+            nTxVerDummy,
+            obj.nHeight,
+            obj.out);
+    }
 
     CCoin() : nHeight(0) {}
 
@@ -53,15 +61,6 @@ struct CCoin {
         : nHeight(in.nHeight),
           out(std::move(in.out))
     {
-    }
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
-    {
-        uint32_t nTxVerDummy = 0;
-        READWRITE(nTxVerDummy);
-        READWRITE(nHeight);
-        READWRITE(out);
     }
 };
 

@@ -32,27 +32,12 @@ struct CoinEntry
     {
     }
 
-    unsigned int GetSerializeSize(int nType, int nVersion) const
+    SERIALIZE_METHODS(CoinEntry, obj)
     {
-        return ::GetSerializeSize(key, nType, nVersion) +
-               ::GetSerializeSize(outpoint->hash, nType, nVersion) +
-               ::GetSerializeSize(VARINT(outpoint->n), nType, nVersion);
-    }
-
-    template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
-    {
-        ::Serialize(s, key, nType, nVersion);
-        ::Serialize(s, outpoint->hash, nType, nVersion);
-        ::Serialize(s, VARINT(outpoint->n), nType, nVersion);
-    }
-
-    template <typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion)
-    {
-        ::Unserialize(s, key, nType, nVersion);
-        ::Unserialize(s, outpoint->hash, nType, nVersion);
-        ::Unserialize(s, VARINT(outpoint->n), nType, nVersion);
+        READWRITE(
+            obj.key,
+            obj.outpoint->hash,
+            VARINT(obj.outpoint->n));
     }
 };
 

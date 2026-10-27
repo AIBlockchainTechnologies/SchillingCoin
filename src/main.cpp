@@ -717,7 +717,7 @@ bool AddOrphanTx(const CTransaction& tx, NodeId peer)
     // have been mined or received.
     // 10,000 orphans, each of which is at most 5,000 bytes big is
     // at most 500 megabytes of orphans:
-    unsigned int sz = tx.GetSerializeSize(SER_NETWORK, CTransaction::CURRENT_VERSION);
+    unsigned int sz = ::GetSerializeSize(tx, SER_NETWORK, CTransaction::CURRENT_VERSION);
     if (sz > 5000) {
         LogPrint(BCLog::MEMPOOL, "ignoring large orphan tx (size: %u, hash: %s)\n", sz, hash.ToString());
         return false;
@@ -1406,7 +1406,7 @@ bool WriteBlockToDisk(CBlock& block, CDiskBlockPos& pos)
         return error("WriteBlockToDisk : OpenBlockFile failed");
 
     // Write index header
-    unsigned int nSize = fileout.GetSerializeSize(block);
+    unsigned int nSize = ::GetSerializeSize(block, fileout.GetType(), fileout.GetVersion());
     fileout << FLATDATA(Params().MessageStart()) << nSize;
 
     // Write block
@@ -1481,24 +1481,34 @@ double ConvertBitsToDouble(unsigned int nBits)
 
 int64_t GetBlockValue(int nHeight)
 {
+    const Consensus::Params& consensus = Params().GetConsensus();
+
+    // Account for SCH's historical reward-height bug below activation.
+    // Consensus callers pass the height of the block being created or
+    // validated. Historical blocks used the previous block height when
+    // evaluating the reward schedule.
+    int nScheduleHeight = nHeight;
+    if (!consensus.IsFeeRewardDistributionActive(nHeight) &&
+        nScheduleHeight > 0) {
+        --nScheduleHeight;
+    }
+
     int64_t nSubsidy = 0;
 
     if (Params().NetworkID() == CBaseChainParams::TESTNET) {
-        if (nHeight < 200 && nHeight > 0)
+        if (nScheduleHeight < 200 && nScheduleHeight > 0)
             return 1000000 * COIN;
     }
 
-    if (nHeight == 0) {
+    if (nScheduleHeight == 0) {
         nSubsidy = 22000000 * COIN;
     }
-    else if (nHeight >= 5783307) {
+    else if (nScheduleHeight >= 5783307) {
         nSubsidy = 16.15 * COIN;
     }
     else {
         nSubsidy = 32.3 * COIN;
     }
-
-    const Consensus::Params& consensus = Params().GetConsensus();
 
     // Check if we reached the coin max supply.
     //int64_t nMoneySupply = chainActive.Tip()->nMoneySupply;
@@ -2183,12 +2193,15 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
         nInputs <= 1 ? 0 : 0.001 * (nTime1 - nTimeStart) / (nInputs - 1),
         nTimeConnect * 0.000001);
 
-    // PoW phase redistributed fees to miner. PoS stage destroys fees.
+    // PoW blocks distribute fees to the miner. After fee-reward activation,
+    // PoS blocks distribute fees between the staker and masternode.
     CAmount nExpectedMint = GetBlockValue(pindex->pprev->nHeight);
-    if (block.IsProofOfWork())
+    if (block.IsProofOfWork() ||
+        Params().GetConsensus().IsFeeRewardDistributionActive(pindex->nHeight)) {
         nExpectedMint += nFees;
+    }
 
-    // Check that the block does not overmint
+    // Check that the block does not overmint.
     if (!IsBlockValueValid(block, nExpectedMint, nMint)) {
         return state.DoS(
             100,
@@ -2198,6 +2211,20 @@ bool ConnectBlock(const CBlock& block, CValidationState& state, CBlockIndex* pin
                 FormatMoney(nExpectedMint)),
             REJECT_INVALID,
             "bad-cb-amount");
+    }
+
+    // After activation, validate the PoS masternode payment using the
+    // transaction fees independently calculated from the UTXO set.
+    if (block.IsProofOfStake() &&
+        Params().GetConsensus().IsFeeRewardDistributionActive(
+            pindex->nHeight) &&
+        !IsBlockPayeeValid(block, pindex->nHeight, nFees)) {
+        return state.DoS(
+            100,
+            error(
+                "ConnectBlock() : invalid PoS masternode fee payment"),
+            REJECT_INVALID,
+            "bad-cs-payee");
     }
 
     if (!control.Wait())
@@ -3252,11 +3279,26 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
             // Resolve cold-staking enforcement from runtime configuration
             fColdStakingActive = IsColdStakingEnabled();
 
-            // check masternode/budget payment
-            if (!IsBlockPayeeValid(block, nHeight)) {
-                mapRejectedBlocks.insert(std::make_pair(block.GetHash(), GetTime()));
-                return state.DoS(0, error("%s : Couldn't find masternode/budget payment", __func__),
-                        REJECT_INVALID, "bad-cb-payee");
+            // Before fee-reward activation, retain the legacy payee check here.
+            // Activated PoS blocks are checked in ConnectBlock after their
+            // transaction fees have been calculated from the UTXO set.
+            const bool deferPoSFeePayeeValidation =
+                IsPoS &&
+                Params().GetConsensus().IsFeeRewardDistributionActive(
+                    nHeight);
+
+            if (!deferPoSFeePayeeValidation &&
+                !IsBlockPayeeValid(block, nHeight, 0)) {
+                mapRejectedBlocks.insert(
+                    std::make_pair(block.GetHash(), GetTime()));
+
+                return state.DoS(
+                    0,
+                    error(
+                        "%s : Couldn't find masternode/budget payment",
+                        __func__),
+                    REJECT_INVALID,
+                    "bad-cb-payee");
             }
         } else {
             if (fDebug)
@@ -3813,8 +3855,7 @@ bool ProcessNewBlock(CValidationState& state, CNode* pfrom, CBlock* pblock, CDis
             pwalletMain->AutoCombineDust();
     }
 
-    LogPrintf("%s : ACCEPTED Block %ld in %ld milliseconds with size=%d\n", __func__, GetHeight(), GetTimeMillis() - nStartTime,
-              pblock->GetSerializeSize(SER_DISK, CLIENT_VERSION));
+    LogPrintf("%s : ACCEPTED Block %ld in %ld milliseconds with size=%d\n", __func__, GetHeight(), GetTimeMillis() - nStartTime, ::GetSerializeSize(*pblock, SER_DISK, CLIENT_VERSION));
 
     return true;
 }
@@ -5746,7 +5787,7 @@ bool CBlockUndo::WriteToDisk(CDiskBlockPos& pos, const uint256& hashBlock)
         return error("CBlockUndo::WriteToDisk : OpenUndoFile failed");
 
     // Write index header
-    unsigned int nSize = fileout.GetSerializeSize(*this);
+    unsigned int nSize = ::GetSerializeSize(*this, fileout.GetType(), fileout.GetVersion());
     fileout << FLATDATA(Params().MessageStart()) << nSize;
 
     // Write undo data

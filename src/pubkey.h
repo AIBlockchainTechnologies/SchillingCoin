@@ -5,8 +5,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_PUBKEY_H
-#define SchillingCoin_PUBKEY_H
+#ifndef SCHILLINGCOIN_PUBKEY_H
+#define SCHILLINGCOIN_PUBKEY_H
 
 #include "hash.h"
 #include "serialize.h"
@@ -123,28 +123,31 @@ public:
     }
 
     //! Implement serialization, as if this was a byte vector.
-    unsigned int GetSerializeSize(int nType, int nVersion) const
-    {
-        return size() + 1;
-    }
     template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
+    void Serialize(Stream& s) const
     {
-        unsigned int len = size();
+        const unsigned int len = size();
         ::WriteCompactSize(s, len);
-        s.write((char*)vch, len);
+        s.write(
+            reinterpret_cast<const char*>(vch),
+            len);
     }
+
     template <typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion)
+    void Unserialize(Stream& s)
     {
-        unsigned int len = ::ReadCompactSize(s);
+        const unsigned int len = ::ReadCompactSize(s);
+
         if (len <= PUBLIC_KEY_SIZE) {
-            s.read((char*)vch, len);
+            s.read(
+                reinterpret_cast<char*>(vch),
+                len);
+
+            if (len != size())
+                Invalidate();
         } else {
-            // invalid pubkey, skip available data
-            char dummy;
-            while (len--)
-                s.read(&dummy, 1);
+            // Invalid public key; skip the available serialized data.
+            s.ignore(len);
             Invalidate();
         }
     }
@@ -227,30 +230,6 @@ struct CExtPubKey {
     void Decode(const unsigned char code[BIP32_EXTKEY_SIZE]);
     bool Derive(CExtPubKey& out, unsigned int nChild) const;
 
-    unsigned int GetSerializeSize(int nType, int nVersion) const
-    {
-        return BIP32_EXTKEY_SIZE+1; //add one byte for the size (compact int)
-    }
-    template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
-    {
-        unsigned int len = BIP32_EXTKEY_SIZE;
-        ::WriteCompactSize(s, len);
-        unsigned char code[BIP32_EXTKEY_SIZE];
-        Encode(code);
-        s.write((const char *)&code[0], len);
-    }
-    template <typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion)
-    {
-        unsigned int len = ::ReadCompactSize(s);
-        unsigned char code[BIP32_EXTKEY_SIZE];
-        if (len != BIP32_EXTKEY_SIZE)
-            throw std::runtime_error("Invalid extended key size\n");
-        s.read((char *)&code[0], len);
-        Decode(code);
-    }
-
     void Serialize(CSizeComputer& s) const
     {
         // Optimized implementation for ::GetSerializeSize that avoids copying.
@@ -263,7 +242,9 @@ struct CExtPubKey {
         ::WriteCompactSize(s, len);
         unsigned char code[BIP32_EXTKEY_SIZE];
         Encode(code);
-        s.write((const char *)&code[0], len);
+        s.write(
+            reinterpret_cast<const char*>(&code[0]),
+            len);
     }
     template <typename Stream>
     void Unserialize(Stream& s)
@@ -272,7 +253,9 @@ struct CExtPubKey {
         unsigned char code[BIP32_EXTKEY_SIZE];
         if (len != BIP32_EXTKEY_SIZE)
             throw std::runtime_error("Invalid extended key size\n");
-        s.read((char *)&code[0], len);
+        s.read(
+            reinterpret_cast<char*>(&code[0]),
+            len);
         Decode(code);
     }
 };
@@ -288,4 +271,4 @@ public:
     ~ECCVerifyHandle();
 };
 
-#endif // SchillingCoin_PUBKEY_H
+#endif // SCHILLINGCOIN_PUBKEY_H

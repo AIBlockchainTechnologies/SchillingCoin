@@ -96,7 +96,7 @@ bool IsStandardTx(const CTransaction& tx, std::string& reason)
         return false;
     }
 
-    unsigned int sz = tx.GetSerializeSize(SER_NETWORK, PROTOCOL_VERSION);
+    unsigned int sz = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
     unsigned int nMaxSize = tx.ContainsZerocoins() ? MAX_ZEROCOIN_TX_SIZE : MAX_STANDARD_TX_SIZE;
 
     if (sz >= nMaxSize) {

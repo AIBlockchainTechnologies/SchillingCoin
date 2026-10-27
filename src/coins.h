@@ -5,12 +5,12 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_COINS_H
-#define BITCOIN_COINS_H
+#ifndef SCHILLINGCOIN_COINS_H
+#define SCHILLINGCOIN_COINS_H
 
 #include "compressor.h"
 #include "memusage.h"
-#include "consensus/consensus.h"  // can be removed once policy/ established
+#include "consensus/consensus.h"
 #include "script/standard.h"
 #include "serialize.h"
 #include "uint256.h"
@@ -26,7 +26,7 @@
  *
  * Serialized format:
  * - VARINT((coinbase ? 2 : 0) | (coinstake ? 1 : 0) | (height << 2))
- * - the non-spent CTxOut (via CTxOutCompressor)
+ * - the non-spent CTxOut (via TxOutCompression)
  */
 class Coin
 {
@@ -88,7 +88,8 @@ public:
         return out.IsNull();
     }
 
-    unsigned int GetSerializeSize(int nType, int nVersion) const
+    template <typename Stream>
+    void Serialize(Stream& s) const
     {
         assert(!IsSpent());
 
@@ -97,59 +98,22 @@ public:
             (fCoinBase ? 2 : 0) +
             (fCoinStake ? 1 : 0);
 
-        return ::GetSerializeSize(
-                   VARINT(code),
-                   nType,
-                   nVersion) +
-               ::GetSerializeSize(
-                   CTxOutCompressor(REF(out)),
-                   nType,
-                   nVersion);
+        ::Serialize(s, VARINT(code));
+        ::Serialize(s, Using<TxOutCompression>(out));
     }
 
     template <typename Stream>
-    void Serialize(Stream& s, int nType, int nVersion) const
-    {
-        assert(!IsSpent());
-
-        uint32_t code =
-            nHeight * 4 +
-            (fCoinBase ? 2 : 0) +
-            (fCoinStake ? 1 : 0);
-
-        ::Serialize(
-            s,
-            VARINT(code),
-            nType,
-            nVersion);
-
-        ::Serialize(
-            s,
-            CTxOutCompressor(REF(out)),
-            nType,
-            nVersion);
-    }
-
-    template <typename Stream>
-    void Unserialize(Stream& s, int nType, int nVersion)
+    void Unserialize(Stream& s)
     {
         uint32_t code = 0;
 
-        ::Unserialize(
-            s,
-            VARINT(code),
-            nType,
-            nVersion);
+        ::Unserialize(s, VARINT(code));
 
         nHeight = code >> 2;
         fCoinBase = (code & 2) != 0;
         fCoinStake = (code & 1) != 0;
 
-        ::Unserialize(
-            s,
-            REF(CTxOutCompressor(out)),
-            nType,
-            nVersion);
+        ::Unserialize(s, Using<TxOutCompression>(out));
     }
 
     size_t DynamicMemoryUsage() const
@@ -370,4 +334,4 @@ void AddCoins(CCoinsViewCache& cache, const CTransaction& tx, int nHeight);
 //! Utility function to find any unspent output with a given txid.
 const Coin& AccessByTxid(const CCoinsViewCache& cache, const uint256& txid);
 
-#endif // BITCOIN_COINS_H
+#endif // SCHILLINGCOIN_COINS_H

@@ -1524,7 +1524,7 @@ UniValue getblockindexstats(const JSONRPCRequest& request)
                 nValueOut += txout.nValue;
 
             nFees += nValueIn - nValueOut;
-            nBytes += tx.GetSerializeSize(SER_NETWORK, CLIENT_VERSION);
+            nBytes += ::GetSerializeSize(tx, SER_NETWORK, CLIENT_VERSION);
         }
 
         if (pindex->nHeight < heightEnd) {

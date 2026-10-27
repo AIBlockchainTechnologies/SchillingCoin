@@ -6,8 +6,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_HASH_H
-#define SchillingCoin_HASH_H
+#ifndef SCHILLINGCOIN_HASH_H
+#define SCHILLINGCOIN_HASH_H
 
 #include "crypto/ripemd160.h"
 #include "crypto/sha256.h"
@@ -325,7 +325,7 @@ public:
     CHashWriter& operator<<(const T& obj)
     {
         // Serialize to this stream
-        ::Serialize(*this, obj, nType, nVersion);
+        ::Serialize(*this, obj);
         return *this;
     }
 };
@@ -361,10 +361,10 @@ public:
     }
 
     template <typename T>
-    CHashVerifier<Source>& operator>>(T& obj)
+    CHashVerifier<Source>& operator>>(T&& obj)
     {
         // Unserialize from this stream
-        ::Unserialize(*this, obj, GetType(), GetVersion());
+        ::Unserialize(*this, obj);
         return *this;
     }
 };
@@ -678,4 +678,4 @@ public:
 uint64_t SipHashUint256(uint64_t k0, uint64_t k1, const uint256& val);
 uint64_t SipHashUint256Extra(uint64_t k0, uint64_t k1, const uint256& val, uint32_t extra);
 
-#endif // SchillingCoin_HASH_H
+#endif // SCHILLINGCOIN_HASH_H

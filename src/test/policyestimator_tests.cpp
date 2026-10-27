@@ -13,6 +13,44 @@
 
 #include <boost/test/unit_test.hpp>
 
+class TestMemPoolEntryHelper
+{
+private:
+    CAmount nFee{0};
+    int64_t nTime{0};
+    double dPriority{0};
+    unsigned int nHeight{1};
+
+public:
+    TestMemPoolEntryHelper& Fee(CAmount fee)
+    {
+        nFee = fee;
+        return *this;
+    }
+
+    TestMemPoolEntryHelper& Time(int64_t time)
+    {
+        nTime = time;
+        return *this;
+    }
+
+    TestMemPoolEntryHelper& Height(unsigned int height)
+    {
+        nHeight = height;
+        return *this;
+    }
+
+    CTxMemPoolEntry FromTx(const CMutableTransaction& tx) const
+    {
+        return CTxMemPoolEntry(
+            CTransaction(tx),
+            nFee,
+            nTime,
+            dPriority,
+            nHeight);
+    }
+};
+
 BOOST_FIXTURE_TEST_SUITE(policyestimator_tests, TestingSetup)
 
 BOOST_AUTO_TEST_CASE(BlockPolicyEstimates)
@@ -46,7 +84,8 @@ BOOST_AUTO_TEST_CASE(BlockPolicyEstimates)
     CFeeRate baseRate(basefee, ::GetSerializeSize(tx, PROTOCOL_VERSION));
 
     // Create a fake block
-    std::vector<CTransactionRef> block;
+    std::vector<CTransaction> block;
+    std::list<CTransaction> conflicts;
     int blocknum = 0;
 
     // Loop through 200 blocks
@@ -67,13 +106,15 @@ BOOST_AUTO_TEST_CASE(BlockPolicyEstimates)
             // 9/10 blocks add 2nd highest and so on until ...
             // 1/10 blocks add lowest fee transactions
             while (txHashes[9-h].size()) {
-                CTransactionRef ptx = mpool.get(txHashes[9-h].back());
-                if (ptx)
-                    block.emplace_back(ptx);
+                CTransaction blockTx;
+                if (mpool.lookup(txHashes[9-h].back(), blockTx)) {
+                    block.push_back(blockTx);
+                }
                 txHashes[9-h].pop_back();
             }
         }
-        mpool.removeForBlock(block, ++blocknum);
+        mpool.removeForBlock(block, ++blocknum, conflicts);
+        conflicts.clear();
         block.clear();
         if (blocknum == 30) {
             // At this point we should need to combine 5 buckets to get enough data points
@@ -111,8 +152,10 @@ BOOST_AUTO_TEST_CASE(BlockPolicyEstimates)
 
     // Mine 50 more blocks with no transactions happening, estimates shouldn't change
     // We haven't decayed the moving average enough so we still have enough data points in every bucket
-    while (blocknum < 250)
-        mpool.removeForBlock(block, ++blocknum);
+    while (blocknum < 250) {
+        mpool.removeForBlock(block, ++blocknum, conflicts);
+        conflicts.clear();
+    }
 
     for (int i = 1; i < 10;i++) {
         BOOST_CHECK(mpool.estimateFee(i).GetFeePerK() < origFeeEst[i-1] + deltaFee);
@@ -130,7 +173,8 @@ BOOST_AUTO_TEST_CASE(BlockPolicyEstimates)
                 txHashes[j].push_back(hash);
             }
         }
-        mpool.removeForBlock(block, ++blocknum);
+        mpool.removeForBlock(block, ++blocknum, conflicts);
+        conflicts.clear();
     }
 
     int answerFound;
@@ -142,14 +186,16 @@ BOOST_AUTO_TEST_CASE(BlockPolicyEstimates)
     // Mine all those transactions
     // Estimates should still not be below original
     for (int j = 0; j < 10; j++) {
-        while(txHashes[j].size()) {
-            CTransactionRef ptx = mpool.get(txHashes[j].back());
-            if (ptx)
-                block.emplace_back(ptx);
+        while (txHashes[j].size()) {
+            CTransaction blockTx;
+            if (mpool.lookup(txHashes[j].back(), blockTx)) {
+                block.push_back(blockTx);
+            }
             txHashes[j].pop_back();
         }
     }
-    mpool.removeForBlock(block, 265);
+    mpool.removeForBlock(block, 265, conflicts);
+    conflicts.clear();
     block.clear();
     for (int i = 1; i < 10;i++) {
         BOOST_CHECK(mpool.estimateFee(i).GetFeePerK() > origFeeEst[i-1] - deltaFee);
@@ -163,27 +209,23 @@ BOOST_AUTO_TEST_CASE(BlockPolicyEstimates)
                 tx.vin[0].prevout.n = 10000*blocknum+100*j+k;
                 uint256 hash = tx.GetHash();
                 mpool.addUnchecked(hash, entry.Fee(feeV[j]).Time(GetTime()).Height(blocknum).FromTx(tx));
-                CTransactionRef ptx = mpool.get(hash);
-                if (ptx)
-                    block.emplace_back(ptx);
+                CTransaction blockTx;
+                if (mpool.lookup(hash, blockTx)) {
+                    block.push_back(blockTx);
+                }
             }
         }
-        mpool.removeForBlock(block, ++blocknum);
+        mpool.removeForBlock(block, ++blocknum, conflicts);
+        conflicts.clear();
         block.clear();
     }
     for (int i = 1; i < 10; i++) {
         BOOST_CHECK(mpool.estimateFee(i).GetFeePerK() < origFeeEst[i-1] - deltaFee);
     }
 
-    // Test that if the mempool is limited, estimateSmartFee won't return a value below the mempool min fee
-    mpool.addUnchecked(tx.GetHash(),  entry.Fee(feeV[5]).Time(GetTime()).Height(blocknum).FromTx(tx));
-    // evict that transaction which should set a mempool min fee of minRelayTxFee + feeV[5]
-    mpool.TrimToSize(1);
-    BOOST_CHECK(mpool.GetMinFee(1).GetFeePerK() > feeV[5]);
-    for (int i = 1; i < 10; i++) {
-        BOOST_CHECK(mpool.estimateSmartFee(i).GetFeePerK() >= mpool.estimateFee(i).GetFeePerK());
-        BOOST_CHECK(mpool.estimateSmartFee(i).GetFeePerK() >= mpool.GetMinFee(1).GetFeePerK());
-    }
+    // Rolling mempool minimum-fee tracking will be tested after
+    // TrimToSize() and GetMinFee() are added during the
+    // ancestor-aware mempool modernization.
 }
 
 BOOST_AUTO_TEST_SUITE_END()

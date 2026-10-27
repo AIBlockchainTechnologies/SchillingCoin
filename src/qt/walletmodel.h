@@ -70,27 +70,25 @@ public:
     static const int CURRENT_VERSION = 1;
     int nVersion;
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(SendCoinsRecipient, obj)
     {
-        std::string sAddress = address.toStdString();
-        std::string sLabel = label.toStdString();
-        std::string sMessage = message.toStdString();
+        std::string sAddress = obj.address.toStdString();
+        std::string sLabel = obj.label.toStdString();
+        std::string sMessage = obj.message.toStdString();
 
-        READWRITE(this->nVersion);
-        nVersion = this->nVersion;
-        READWRITE(sAddress);
-        READWRITE(sLabel);
-        READWRITE(amount);
-        READWRITE(sMessage);
+        READWRITE(obj.nVersion);
 
-        if (ser_action.ForRead()) {
-            address = QString::fromStdString(sAddress);
-            label = QString::fromStdString(sLabel);
-            message = QString::fromStdString(sMessage);
-        }
+        READWRITE(
+            sAddress,
+            sLabel,
+            obj.amount,
+            sMessage);
+
+        SER_READ(obj,
+            obj.address = QString::fromStdString(sAddress);
+            obj.label = QString::fromStdString(sLabel);
+            obj.message = QString::fromStdString(sMessage);
+        );
     }
 };
 

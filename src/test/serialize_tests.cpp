@@ -64,12 +64,12 @@ public:
     {
     }
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CReadWriteManyTest, obj)
     {
-        READWRITEMANY(first, second, third);
+        READWRITE(
+            obj.first,
+            obj.second,
+            obj.third);
     }
 
     bool operator==(const CReadWriteManyTest& other) const
@@ -87,7 +87,7 @@ BOOST_AUTO_TEST_CASE(serialize_many)
     const std::string third = "SCH";
 
     CDataStream manyStream(SER_DISK, 0);
-    SerializeMany(manyStream, SER_DISK, 0, first, second, third);
+    SerializeMany(manyStream, first, second, third);
 
     CDataStream legacyStream(SER_DISK, 0);
     legacyStream << first << second << third;
@@ -108,8 +108,6 @@ BOOST_AUTO_TEST_CASE(serialize_many)
 
     UnserializeMany(
         manyStream,
-        SER_DISK,
-        0,
         firstOut,
         secondOut,
         thirdOut);

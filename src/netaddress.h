@@ -4,8 +4,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NETADDRESS_H
-#define BITCOIN_NETADDRESS_H
+#ifndef SCHILLINGCOIN_NETADDRESS_H
+#define SCHILLINGCOIN_NETADDRESS_H
 
 #if defined(HAVE_CONFIG_H)
 #include "config/schillingcoin-config.h"
@@ -84,12 +84,9 @@ public:
     friend bool operator!=(const CNetAddr& a, const CNetAddr& b);
     friend bool operator<(const CNetAddr& a, const CNetAddr& b);
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CNetAddr, obj)
     {
-        READWRITE(FLATDATA(ip));
+        READWRITE(FLATDATA(obj.ip));
     }
 
     friend class CSubNet;
@@ -116,14 +113,12 @@ public:
     friend bool operator!=(const CSubNet& a, const CSubNet& b);
     friend bool operator<(const CSubNet& a, const CSubNet& b);
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CSubNet, obj)
     {
-        READWRITE(network);
-        READWRITE(FLATDATA(netmask));
-        READWRITE(FLATDATA(valid));
+        READWRITE(
+            obj.network,
+            FLATDATA(obj.netmask),
+            FLATDATA(obj.valid));
     }
 };
 
@@ -162,17 +157,18 @@ public:
     friend bool operator!=(const CService& a, const CService& b);
     friend bool operator<(const CService& a, const CService& b);
 
-    ADD_SERIALIZE_METHODS;
-
-    template <typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action, int nType, int nVersion)
+    SERIALIZE_METHODS(CService, obj)
     {
-        READWRITE(FLATDATA(ip));
-        unsigned short portN = htons(port);
+        READWRITE(FLATDATA(obj.ip));
+
+        unsigned short portN = htons(obj.port);
+
         READWRITE(portN);
-        if (ser_action.ForRead())
-            port = ntohs(portN);
+
+        SER_READ(obj,
+            obj.port = ntohs(portN);
+        );
     }
 };
 
-#endif // BITCOIN_NETADDRESS_H
+#endif // SCHILLINGCOIN_NETADDRESS_H
