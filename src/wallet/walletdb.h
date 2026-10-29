@@ -8,12 +8,12 @@
 #ifndef SCHILLINGCOIN_WALLETDB_H
 #define SCHILLINGCOIN_WALLETDB_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 #include "key.h"
 #include "keystore.h"
 #include "stubs/legacy_zerocoin_consensus.h"
-#include "wallet/db.h"
 #include "wallet/bdb.h"
+#include "wallet/db.h"
 #include "wallet/hdchain.h"
 
 #include <list>

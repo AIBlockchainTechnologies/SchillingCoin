@@ -7,7 +7,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "addressbook.h"
-#include "amount.h"
+#include "consensus/amount.h"
 #include "core_io.h"
 #include "key_io.h"
 #include "net.h"

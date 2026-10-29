@@ -1,13 +1,13 @@
 // Copyright (c) 2011-2013 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_TRANSACTIONFILTERPROXY_H
-#define BITCOIN_QT_TRANSACTIONFILTERPROXY_H
+#ifndef SCHILLINGCOIN_QT_TRANSACTIONFILTERPROXY_H
+#define SCHILLINGCOIN_QT_TRANSACTIONFILTERPROXY_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 
 #include <QDateTime>
 #include <QSortFilterProxyModel>
@@ -92,4 +92,4 @@ private:
     bool isColdStake(int type) const;
 };
 
-#endif // BITCOIN_QT_TRANSACTIONFILTERPROXY_H
+#endif // SCHILLINGCOIN_QT_TRANSACTIONFILTERPROXY_H

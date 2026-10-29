@@ -12,93 +12,92 @@
 #include "policy/feerate.h"
 #include "primitives/transaction.h"
 #include "script/standard.h"
+#include "util/fees.h"
+
+#include <set>
+#include <vector>
+
+static constexpr bool DEFAULT_AVOIDPARTIALSPENDS = false;
+static constexpr int DEFAULT_MIN_DEPTH = 0;
+static constexpr int DEFAULT_MAX_DEPTH = 9999999;
 
 /** Coin Control Features. */
 class CCoinControl
 {
 public:
+    //! Custom change destination, if not set a new destination is generated.
     CTxDestination destChange = CNoDestination();
+
+    //! SCH split-block controls.
     bool fSplitBlock;
     int nSplitBlock;
-    //! If false, allows unselected inputs, but requires all selected inputs be used
+
+    //! Allow the selection process to add unselected wallet inputs.
     bool fAllowOtherInputs;
-    //! Includes watch only addresses which match the ISMINE_WATCH_SOLVABLE criteria
+
+    //! Require every selected input to be used.
+    bool fRequireAllInputs;
+
+    //! Include watch-only addresses that are solvable.
     bool fAllowWatchOnly;
-    //! Minimum absolute fee (not per kilobyte)
+
+    //! Minimum absolute transaction fee, not a rate.
     CAmount nMinimumTotalFee;
-    //! Override automatic minimum and maximum fee checks
+
+    //! Override automatic minimum and maximum fee checks.
     bool fOverrideFeeRate;
-    //! Override the wallet's selected fee rate when set
+
+    //! Override the wallet-selected transaction fee rate.
     Optional<CFeeRate> m_feerate;
-    //! Override the wallet's default confirmation target when set
+
+    //! Override the discard fee rate used during transaction creation.
+    Optional<CFeeRate> m_discard_feerate;
+
+    //! Override the wallet's default confirmation target.
     Optional<unsigned int> m_confirm_target;
 
-    CCoinControl()
-    {
-        SetNull();
-    }
+    //! Avoid partial use of funds sent to the same address.
+    bool m_avoid_partial_spends;
 
-    void SetNull()
-    {
-        destChange = CNoDestination();
-        setSelected.clear();
-        fAllowOtherInputs = false;
-        fAllowWatchOnly = true;
-        nMinimumTotalFee = 0;
-        fOverrideFeeRate = false;
-        m_feerate = nullopt;
-        m_confirm_target = nullopt;
-        fSplitBlock = false;
-        nSplitBlock = 1;
-    }
+    //! Avoid spending outputs associated with previously used addresses.
+    bool m_avoid_address_reuse;
 
-    bool HasSelected() const
-    {
-        return (!setSelected.empty());
-    }
+    //! Select economical, conservative, or default fee estimation.
+    FeeEstimateMode m_fee_mode;
 
-    bool IsSelected(const COutPoint& output) const
-    {
-        return setSelected.count(output) > 0;
-    }
+    //! Minimum chain depth for available coins.
+    int m_min_depth;
+
+    //! Maximum chain depth for available coins.
+    int m_max_depth;
+
+    CCoinControl();
+
+    void SetNull();
+
+    bool HasSelected() const;
+
+    bool IsSelected(const COutPoint& output) const;
 
     bool IsSelected(const uint256& hash, unsigned int n) const
     {
         return IsSelected(COutPoint(hash, n));
     }
 
-    void Select(const COutPoint& output)
-    {
-        setSelected.insert(output);
-    }
+    void Select(const COutPoint& output);
 
-    void UnSelect(const COutPoint& output)
-    {
-        setSelected.erase(output);
-    }
+    void UnSelect(const COutPoint& output);
 
-    void UnSelectAll()
-    {
-        setSelected.clear();
-    }
+    void UnSelectAll();
 
-    void ListSelected(std::vector<COutPoint>& vOutpoints) const
-    {
-        vOutpoints.assign(setSelected.begin(), setSelected.end());
-    }
+    void ListSelected(std::vector<COutPoint>& outpoints) const;
 
-    unsigned int QuantitySelected() const
-    {
-        return setSelected.size();
-    }
+    unsigned int QuantitySelected() const;
 
-    void SetSelection(const std::set<COutPoint>& selected)
-    {
-        setSelected = selected;
-    }
+    void SetSelection(const std::set<COutPoint>& selected);
 
 private:
-    std::set<COutPoint> setSelected;
+    std::set<COutPoint> m_selected;
 };
 
 #endif // SCHILLINGCOIN_WALLET_COINCONTROL_H

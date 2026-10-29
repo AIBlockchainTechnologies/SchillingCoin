@@ -10,9 +10,8 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "blockassembler.h"
-
-#include "amount.h"
 #include "blocksignature.h"
+#include "consensus/amount.h"
 #include "consensus/merkle.h"
 #include "consensus/tx_verify.h"
 #include "hash.h"

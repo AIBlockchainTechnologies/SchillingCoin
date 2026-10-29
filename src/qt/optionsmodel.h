@@ -4,10 +4,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_OPTIONSMODEL_H
-#define BITCOIN_QT_OPTIONSMODEL_H
+#ifndef SCHILLINGCOIN_QT_OPTIONSMODEL_H
+#define SCHILLINGCOIN_QT_OPTIONSMODEL_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 
 #include <QAbstractListModel>
 #include <QSettings>
@@ -123,4 +123,4 @@ Q_SIGNALS:
     void hideOrphansChanged(bool);
 };
 
-#endif // BITCOIN_QT_OPTIONSMODEL_H
+#endif // SCHILLINGCOIN_QT_OPTIONSMODEL_H

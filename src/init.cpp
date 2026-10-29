@@ -17,9 +17,9 @@
 
 #include "activemasternode.h"
 #include "addrman.h"
-#include "amount.h"
 #include "checkpoints.h"
 #include "compat/sanity.h"
+#include "consensus/amount.h"
 #include "forgeman.h"
 #include "fs.h"
 #include "guiinterface.h"

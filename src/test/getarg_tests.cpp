@@ -4,9 +4,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "util.h"
-#include "util/system.h"
 #include "test/test_schillingcoin.h"
+#include "util/system.h"
 
 #include <string>
 #include <vector>
@@ -20,17 +19,17 @@ static void ResetArgs(const std::string& strArg)
 {
     std::vector<std::string> vecArg;
     if (strArg.size())
-      boost::split(vecArg, strArg, boost::is_space(), boost::token_compress_on);
+        boost::split(vecArg, strArg, boost::is_space(), boost::token_compress_on);
 
     // Insert dummy executable name:
-    vecArg.insert(vecArg.begin(), "testbitcoin");
+    vecArg.insert(vecArg.begin(), "testschillingcoin");
 
     // Convert to char*:
     std::vector<const char*> vecChar;
-    for (std::string& s : vecArg)
+    for (const std::string& s : vecArg)
         vecChar.push_back(s.c_str());
 
-    ParseParameters(vecChar.size(), &vecChar[0]);
+    gArgs.ParseParameters(vecChar.size(), vecChar.data());
 }
 
 BOOST_AUTO_TEST_CASE(boolarg)

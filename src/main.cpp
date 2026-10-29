@@ -12,11 +12,11 @@
 #include "main.h"
 
 #include "addrman.h"
-#include "amount.h"
 #include "blocksignature.h"
 #include "chainparams.h"
 #include "checkpoints.h"
 #include "checkqueue.h"
+#include "consensus/amount.h"
 #include "consensus/merkle.h"
 #include "consensus/tx_verify.h"
 #include "consensus/validation.h"
@@ -30,6 +30,7 @@
 #include "masternodeman.h"
 #include "merkleblock.h"
 #include "messagesigner.h"
+#include "policy/fees.h"
 #include "protocol.h"
 #include "stubs/legacy_zerocoin_consensus.h"
 #include "txdb.h"
@@ -40,6 +41,7 @@
 #include "wallet/wallet.h"
 
 #include <atomic>
+#include <memory>
 #include <queue>
 #include <sstream>
 
@@ -109,7 +111,10 @@ int64_t nMaxTipAge = DEFAULT_MAX_TIP_AGE;
  */
 CFeeRate minRelayTxFee = CFeeRate(10000);
 
-CTxMemPool mempool(::minRelayTxFee);
+std::unique_ptr<CBlockPolicyEstimator> feeEstimator =
+    std::make_unique<CBlockPolicyEstimator>();
+
+CTxMemPool mempool(feeEstimator.get(), ::minRelayTxFee);
 
 struct COrphanTx {
     CTransaction tx;

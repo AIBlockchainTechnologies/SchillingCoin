@@ -5,10 +5,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_BITCOINUNITS_H
-#define BITCOIN_QT_BITCOINUNITS_H
+#ifndef SCHILLINGCOIN_QT_BITCOINUNITS_H
+#define SCHILLINGCOIN_QT_BITCOINUNITS_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 
 #include <QAbstractListModel>
 #include <QString>
@@ -120,4 +120,4 @@ private:
 
 typedef BitcoinUnits::Unit BitcoinUnit;
 
-#endif // BITCOIN_QT_BITCOINUNITS_H
+#endif // SCHILLINGCOIN_QT_BITCOINUNITS_H

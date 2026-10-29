@@ -8,7 +8,7 @@
 #ifndef SCHILLINGCOIN_BLOCKASSEMBLER_H
 #define SCHILLINGCOIN_BLOCKASSEMBLER_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 #include "primitives/block.h"
 
 #include <cstdint>

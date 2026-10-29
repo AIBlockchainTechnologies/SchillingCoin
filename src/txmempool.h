@@ -10,8 +10,8 @@
 
 #include <list>
 
-#include "amount.h"
 #include "coins.h"
+#include "consensus/amount.h"
 #include "policy/feerate.h"
 #include "primitives/transaction.h"
 #include "sync.h"
@@ -99,7 +99,7 @@ class CTxMemPool
 private:
     bool fSanityCheck; //! Normally false, true if -checkmempool or -regtest
     unsigned int nTransactionsUpdated;
-    CBlockPolicyEstimator* minerPolicyEstimator;
+    CBlockPolicyEstimator* minerPolicyEstimator; //! Non-owning; estimator must outlive the mempool
 
     CFeeRate minRelayFee; //! Passed to constructor to avoid dependency on main
     uint64_t totalTxSize; //! sum of all mempool tx' byte sizes
@@ -137,8 +137,7 @@ public:
     std::map<COutPoint, CInPoint> mapNextTx;
     std::map<uint256, std::pair<double, CAmount> > mapDeltas;
 
-    CTxMemPool(const CFeeRate& _minRelayFee);
-    ~CTxMemPool();
+    CTxMemPool(CBlockPolicyEstimator* estimator, const CFeeRate& _minRelayFee);
 
     /**
      * If sanity-checking is turned on, check makes sure the pool is

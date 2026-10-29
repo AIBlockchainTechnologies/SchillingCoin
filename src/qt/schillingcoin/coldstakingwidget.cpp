@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "amount.h"
 #include "coincontroldialog.h"
+#include "consensus/amount.h"
 #include "guiutil.h"
 #include "optionsmodel.h"
 #include "qt/schillingcoin/addnewcontactdialog.h"
@@ -23,7 +23,6 @@
 #define NUM_ITEMS 3
 #define LOAD_MIN_TIME_INTERVAL 15
 #define REQUEST_LOAD_TASK 1
-
 
 class CSDelegationHolder : public FurListRow<QWidget*>
 {

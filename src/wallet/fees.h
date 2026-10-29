@@ -8,7 +8,7 @@
 #ifndef SCHILLINGCOIN_WALLET_FEES_H
 #define SCHILLINGCOIN_WALLET_FEES_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 
 class CTxMemPool;
 

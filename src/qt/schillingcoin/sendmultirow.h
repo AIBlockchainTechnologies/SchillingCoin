@@ -1,17 +1,18 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef SENDMULTIROW_H
 #define SENDMULTIROW_H
 
-#include <QWidget>
-#include <QPushButton>
-#include <QAction>
-#include "walletmodel.h"
-#include "amount.h"
+#include "consensus/amount.h"
 #include "qt/schillingcoin/pwidget.h"
+#include "walletmodel.h"
+
+#include <QAction>
+#include <QPushButton>
+#include <QWidget>
 
 class WalletModel;
 class SendCoinsRecipient;

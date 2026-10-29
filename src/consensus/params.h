@@ -7,9 +7,10 @@
 #ifndef SCHILLINGCOIN_CONSENSUS_PARAMS_H
 #define SCHILLINGCOIN_CONSENSUS_PARAMS_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 #include "optional.h"
 #include "uint256.h"
+
 #include <map>
 #include <string>
 

@@ -8,7 +8,8 @@
 #ifndef SCHILLINGCOIN_CONSENSUS_CONSENSUS_H
 #define SCHILLINGCOIN_CONSENSUS_CONSENSUS_H
 
-#include "amount.h"
+#include "consensus/amount.h"
+
 #include <stdint.h>
 
 /** The maximum allowed size for a block, in bytes (only for buffer size limits) */

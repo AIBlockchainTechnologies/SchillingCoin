@@ -88,7 +88,6 @@ BITCOIN_CORE_H = \
   addrdb.h \
   addrman.h \
   allocators.h \
-  amount.h \
   arith_uint256.h \
   attributes.h \
   base58.h \
@@ -110,6 +109,7 @@ BITCOIN_CORE_H = \
   compat/endian.h \
   compat/sanity.h \
   compressor.h \
+  consensus/amount.h \
   consensus/consensus.h \
   consensus/merkle.h \
   consensus/validation.h \
@@ -195,6 +195,7 @@ BITCOIN_CORE_H = \
   utilmoneystr.h \
   utilstrencodings.h \
   utiltime.h \
+  util/fees.h \
   util/macros.h \
   util/memory.h \
   util/string.h \
@@ -294,6 +295,7 @@ libbitcoin_wallet_a_SOURCES = \
   legacy/stakemodifier.cpp \
   kernel.cpp \
   wallet/bdb.cpp \
+  wallet/coincontrol.cpp \
   wallet/db.cpp \
   wallet/fees.cpp \
   wallet/init.cpp \
@@ -447,6 +449,7 @@ libbitcoin_util_a_SOURCES = \
   threadinterrupt.cpp \
   uint256.cpp \
   util.cpp \
+  util/fees.cpp \
   util/string.cpp \
   util/system.cpp \
   util/threadnames.cpp \

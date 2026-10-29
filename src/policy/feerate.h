@@ -7,35 +7,75 @@
 #ifndef SCHILLINGCOIN_POLICY_FEERATE_H
 #define SCHILLINGCOIN_POLICY_FEERATE_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 #include "serialize.h"
 
+#include <concepts>
+#include <cstdint>
 #include <string>
 
-extern const std::string CURRENCY_UNIT;
+inline const std::string CURRENCY_UNIT = "SCH";
+inline const std::string CURRENCY_ATOM = "sat";
+
+/* Used to determine type of fee estimation requested */
+enum class FeeEstimateMode {
+    UNSET,        //!< Use default settings based on other criteria
+    ECONOMICAL,   //!< Force estimateSmartFee to use non-conservative estimates
+    CONSERVATIVE, //!< Force estimateSmartFee to use conservative estimates
+    SCH_KB,       //!< Use SCH/kB fee rate unit
+    SAT_B,        //!< Use sat/B fee rate unit
+};
 
 /**
- * Fee rate in SCH per kilobyte: CAmount / kB
+ * Fee rate in satoshis per kilobyte: CAmount / kB
  */
 class CFeeRate
 {
 private:
-    CAmount nSatoshisPerK; // unit is satoshis-per-1,000-bytes
-public:
-    CFeeRate() : nSatoshisPerK(0) {}
-    explicit CFeeRate(const CAmount& _nSatoshisPerK) : nSatoshisPerK(_nSatoshisPerK) {}
-    CFeeRate(const CAmount& nFeePaid, size_t nSize);
+    /** Fee rate in sat/kB (satoshis per 1000 bytes) */
+    CAmount nSatoshisPerK;
 
-    CAmount GetFee(size_t size) const;                  // unit returned is satoshis
-    CAmount GetFeePerK() const { return GetFee(1000); } // satoshis-per-1000-bytes
+public:
+    /** Fee rate of 0 satoshis per kB */
+    CFeeRate() : nSatoshisPerK(0) {}
+
+    template<std::integral I> // Disallow silent float -> int conversion
+    explicit CFeeRate(const I _nSatoshisPerK) : nSatoshisPerK(_nSatoshisPerK)
+    {
+    }
+
+    /**
+     * Construct a fee rate from a fee in satoshis and a size in bytes.
+     */
+    CFeeRate(const CAmount& nFeePaid, uint32_t num_bytes);
+
+    /**
+     * Return the fee in satoshis for the given size in bytes.
+     * If the calculated fee would have fractional satoshis, the returned fee
+     * is rounded up to the nearest satoshi for positive fee rates.
+     */
+    CAmount GetFee(uint32_t num_bytes) const;
+
+    /** Return the fee in satoshis for a size of 1000 bytes. */
+    CAmount GetFeePerK() const { return nSatoshisPerK; }
 
     friend bool operator<(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK < b.nSatoshisPerK; }
     friend bool operator>(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK > b.nSatoshisPerK; }
     friend bool operator==(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK == b.nSatoshisPerK; }
     friend bool operator<=(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK <= b.nSatoshisPerK; }
     friend bool operator>=(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK >= b.nSatoshisPerK; }
-    CFeeRate& operator+=(const CFeeRate& a) { nSatoshisPerK += a.nSatoshisPerK; return *this; }
-    std::string ToString() const;
+    friend bool operator!=(const CFeeRate& a, const CFeeRate& b) { return a.nSatoshisPerK != b.nSatoshisPerK; }
+
+    CFeeRate& operator+=(const CFeeRate& a)
+    {
+        nSatoshisPerK += a.nSatoshisPerK;
+        return *this;
+    }
+
+    std::string ToString(const FeeEstimateMode& fee_estimate_mode = FeeEstimateMode::SCH_KB) const;
+
+    friend CFeeRate operator*(const CFeeRate& f, int a) { return CFeeRate(a * f.nSatoshisPerK); }
+    friend CFeeRate operator*(int a, const CFeeRate& f) { return CFeeRate(a * f.nSatoshisPerK); }
 
     SERIALIZE_METHODS(CFeeRate, obj) { READWRITE(obj.nSatoshisPerK); }
 };

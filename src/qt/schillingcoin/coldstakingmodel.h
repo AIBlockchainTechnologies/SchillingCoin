@@ -6,12 +6,13 @@
 #ifndef COLDSTAKINGMODEL_H
 #define COLDSTAKINGMODEL_H
 
-#include <QAbstractTableModel>
-#include "amount.h"
-#include "transactiontablemodel.h"
 #include "addresstablemodel.h"
+#include "consensus/amount.h"
 #include "transactionrecord.h"
+#include "transactiontablemodel.h"
 #include "walletmodel.h"
+
+#include <QAbstractTableModel>
 
 class CSDelegation {
 public:

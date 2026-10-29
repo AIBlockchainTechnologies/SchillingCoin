@@ -11,9 +11,9 @@
 
 #include "miner.h"
 
-#include "amount.h"
 #include "blockassembler.h"
 #include "blocksignature.h"
+#include "consensus/amount.h"
 #include "consensus/merkle.h"
 #include "consensus/tx_verify.h"
 #include "hash.h"

@@ -16,10 +16,10 @@
 #include "config/schillingcoin-config.h"
 #endif
 
-#include "amount.h"
 #include "chain.h"
 #include "chainparams.h"
 #include "coins.h"
+#include "consensus/amount.h"
 #include "consensus/validation.h"
 #include "net.h"
 #include "policy/feerate.h"
@@ -41,6 +41,7 @@
 #include <cstdint>
 #include <exception>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -49,6 +50,7 @@
 #include <boost/unordered_map.hpp>
 
 class CBlockIndex;
+class CBlockPolicyEstimator;
 class CBlockTreeDB;
 class CBloomFilter;
 class CInv;
@@ -114,6 +116,7 @@ struct BlockHasher {
 
 extern CScript COINBASE_FLAGS;
 extern RecursiveMutex cs_main;
+extern std::unique_ptr<CBlockPolicyEstimator> feeEstimator;
 extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
 extern BlockMap mapBlockIndex;

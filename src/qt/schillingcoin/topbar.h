@@ -5,13 +5,14 @@
 #ifndef TOPBAR_H
 #define TOPBAR_H
 
-#include <QWidget>
-#include <QLabel>
-#include "qt/schillingcoin/pwidget.h"
+#include "consensus/amount.h"
 #include "qt/schillingcoin/lockunlock.h"
-#include "amount.h"
-#include <QTimer>
+#include "qt/schillingcoin/pwidget.h"
+
+#include <QLabel>
 #include <QProgressBar>
+#include <QTimer>
+#include <QWidget>
 
 class SchillingCoinGUI;
 class WalletModel;

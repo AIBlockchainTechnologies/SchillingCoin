@@ -10,11 +10,11 @@
 #define BOOST_TEST_MODULE Zerocoin Test Suite
 #define BOOST_TEST_MAIN
 
-#include "stubs/legacy_zerocoin_consensus.h"
-#include "amount.h"
+#include "consensus/amount.h"
 #include "chainparams.h"
 #include "main.h"
 #include "txdb.h"
+#include "stubs/legacy_zerocoin_consensus.h"
 
 #include <boost/test/unit_test.hpp>
 #include <iostream>

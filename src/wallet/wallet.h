@@ -10,7 +10,7 @@
 #define SCHILLINGCOIN_WALLET_H
 
 #include "addressbook.h"
-#include "amount.h"
+#include "consensus/amount.h"
 #include "consensus/tx_verify.h"
 #include "crypter.h"
 #include "guiinterface.h"

@@ -8,7 +8,7 @@
 #ifndef SCHILLINGCOIN_PRIMITIVES_TRANSACTION_H
 #define SCHILLINGCOIN_PRIMITIVES_TRANSACTION_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 #include "optional.h"
 #include "script/script.h"
 #include "serialize.h"

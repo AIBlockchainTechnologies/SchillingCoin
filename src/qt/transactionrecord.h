@@ -8,7 +8,7 @@
 #ifndef SCHILLINGCOIN_QT_TRANSACTIONRECORD_H
 #define SCHILLINGCOIN_QT_TRANSACTIONRECORD_H
 
-#include "amount.h"
+#include "consensus/amount.h"
 #include "optional.h"
 #include "script/script.h"
 #include "uint256.h"

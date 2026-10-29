@@ -3,14 +3,14 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "qt/schillingcoin/requestdialog.h"
-#include "qt/schillingcoin/forms/ui_requestdialog.h"
-#include <QListView>
-
-#include "qt/schillingcoin/qtutils.h"
+#include "consensus/amount.h"
 #include "guiutil.h"
-#include "amount.h"
 #include "optionsmodel.h"
+#include "qt/schillingcoin/forms/ui_requestdialog.h"
+#include "qt/schillingcoin/qtutils.h"
+#include "qt/schillingcoin/requestdialog.h"
+
+#include <QListView>
 
 RequestDialog::RequestDialog(QWidget *parent) :
     QDialog(parent),

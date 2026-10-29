@@ -6,8 +6,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "amount.h"
 #include "chainparams.h"
+#include "consensus/amount.h"
 #include "core_io.h"
 #include "init.h"
 #include "key_io.h"
@@ -18,6 +18,7 @@
 #include "rpc/server.h"
 #include "util.h"
 #include "validationinterface.h"
+
 #ifdef ENABLE_WALLET
 #include "wallet/db.h"
 #include "wallet/wallet.h"
