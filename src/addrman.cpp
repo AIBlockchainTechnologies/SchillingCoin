@@ -6,11 +6,11 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "addrman.h"
-
 #include "hash.h"
 #include "optional.h"
 #include "serialize.h"
 #include "streams.h"
+#include "util/asmap.h"
 
 #include <iterator>
 

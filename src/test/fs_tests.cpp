@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "fs.h"
 #include "test/test_schillingcoin.h"
+#include "util/fs.h"
 
 #include <boost/test/unit_test.hpp>
 

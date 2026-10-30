@@ -6,10 +6,11 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_UINT256_H
-#define SchillingCoin_UINT256_H
+#ifndef SCHILLINGCOIN_UINT256_H
+#define SCHILLINGCOIN_UINT256_H
 
 #include "arith_uint256.h"
+
 #include <assert.h>
 #include <cstring>
 #include <stdexcept>
@@ -66,6 +67,7 @@ public:
      */
     uint256& SetCompact(uint32_t nCompact, bool* pfNegative = NULL, bool* pfOverflow = NULL);
     uint32_t GetCompact(bool fNegative = false) const;
+
     uint64_t GetHash(const uint256& salt) const;
 };
 
@@ -126,4 +128,4 @@ arith_uint512 UintToArith512(const uint512 &);
 const uint256 UINT256_ZERO = uint256();
 const uint256 UINT256_ONE = uint256("0000000000000000000000000000000000000000000000000000000000000001");
 
-#endif // SchillingCoin_UINT256_H
+#endif // SCHILLINGCOIN_UINT256_H

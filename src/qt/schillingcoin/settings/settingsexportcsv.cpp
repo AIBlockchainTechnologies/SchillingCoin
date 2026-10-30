@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -56,12 +56,11 @@ SettingsExportCSV::SettingsExportCSV(SchillingCoinGUI* _window, QWidget *parent)
     connect(ui->pushButtonAddressDocuments, &QPushButton::clicked, [this](){selectFileOutput(false);});
 }
 
-void SettingsExportCSV::selectFileOutput(const bool& isTxExport)
+void SettingsExportCSV::selectFileOutput(const bool isTxExport)
 {
     QString filename = GUIUtil::getSaveFileName(this,
-                                        isTxExport ? tr("Export CSV") : tr("Export Address List"), QString(),
-                                        isTxExport ? tr("SchillingCoin_tx_csv_export(*.csv)") : tr("SchillingCoin_addresses_csv_export(*.csv)"),
-                                        nullptr);
+                                        isTxExport ? tr("Export Transaction History") : tr("Export Address Book"), QString(),
+                                        tr("Comma separated file (*.csv)"), nullptr);
 
     if (isTxExport) {
         if (!filename.isEmpty()) {
@@ -141,7 +140,7 @@ void SettingsExportCSV::exportTxes(const QString& filename)
         writer.addColumn(tr("Label"), 0, TransactionTableModel::LabelRole);
         writer.addColumn(tr("Address"), 0, TransactionTableModel::AddressRole);
         writer.addColumn(BitcoinUnits::getAmountColumnTitle(walletModel->getOptionsModel()->getDisplayUnit()), 0, TransactionTableModel::FormattedAmountRole);
-        writer.addColumn(tr("ID"), 0, TransactionTableModel::TxIDRole);
+        writer.addColumn(tr("ID"), 0, TransactionTableModel::TxHashRole);
         fExport = writer.write();
     }
 

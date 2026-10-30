@@ -6,10 +6,10 @@
 #include "wallet/test/pos_test_fixture.h"
 
 #include "arith_uint256.h"
-#include "blockassembler.h"
 #include "chainparams.h"
 #include "consensus/merkle.h"
 #include "main.h"
+#include "node/miner.h"
 #include "pow.h"
 #include "script/standard.h"
 #include "util.h"

@@ -124,10 +124,10 @@ HEADERS += src/activemasternode.h \
            src/masternodeconfig.h \
            src/masternodeman.h \
            src/merkleblock.h \
-           src/miner.h \
            src/mruset.h \
            src/net.h \
            src/netbase.h \
+           src/node/miner.h \
            src/noui.h \
            src/optional.h \
            src/operationresult.h \
@@ -388,10 +388,10 @@ SOURCES += src/activemasternode.cpp \
            src/masternodeconfig.cpp \
            src/masternodeman.cpp \
            src/merkleblock.cpp \
-           src/miner.cpp \
            src/net.cpp \
            src/netaddress.cpp \
            src/netbase.cpp \
+           src/node/miner.cpp \
            src/noui.cpp \
            src/pow.cpp \
            src/protocol.cpp \

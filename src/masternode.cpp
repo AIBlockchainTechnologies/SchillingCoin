@@ -10,9 +10,10 @@
 #include "key_io.h"
 #include "main.h"
 #include "masternode.h"
+#include "masternodeman.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
-#include "masternodeman.h"
+#include "net.h"
 #include "script/standard.h"
 #include "sync.h"
 #include "util.h"
@@ -155,30 +156,19 @@ bool CMasternode::UpdateFromNewBroadcast(CMasternodeBroadcast& mnb)
 // the proof of work for that block. The further away they are the better, the furthest will win the election
 // and get paid this block
 //
-uint256 CMasternode::CalculateScore(int mod, int64_t nBlockHeight)
+arith_uint256 CMasternode::CalculateScore(const uint256& hash) const
 {
-    if (chainActive.Tip() == nullptr) return UINT256_ZERO;
-
-    uint256 hash;
-    uint256 aux = vin.prevout.hash + vin.prevout.n;
-
-    if (!GetBlockHash(hash, nBlockHeight)) {
-        LogPrint(BCLog::MASTERNODE,"CalculateScore ERROR - nHeight %d - Returned 0\n", nBlockHeight);
-        return UINT256_ZERO;
-    }
-
     CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
     ss << hash;
-    uint256 hash2 = ss.GetHash();
+    const arith_uint256& hash2 = UintToArith256(ss.GetHash());
 
     CHashWriter ss2(SER_GETHASH, PROTOCOL_VERSION);
     ss2 << hash;
+    const arith_uint256& aux = UintToArith256(vin.prevout.hash) + vin.prevout.n;
     ss2 << aux;
-    uint256 hash3 = ss2.GetHash();
+    const arith_uint256& hash3 = UintToArith256(ss2.GetHash());
 
-    uint256 r = (hash3 > hash2 ? hash3 - hash2 : hash2 - hash3);
-
-    return r;
+    return (hash3 > hash2 ? hash3 - hash2 : hash2 - hash3);
 }
 
 void CMasternode::Check(bool forceCheck)
@@ -229,72 +219,6 @@ void CMasternode::Check(bool forceCheck)
     }
 
     activeState = MASTERNODE_ENABLED; // OK
-}
-
-int64_t CMasternode::SecondsSincePayment()
-{
-    CScript pubkeyScript;
-    pubkeyScript = GetScriptForDestination(pubKeyCollateralAddress.GetID());
-
-    int64_t sec = (GetAdjustedTime() - GetLastPaid());
-    int64_t month = 60 * 60 * 24 * 30;
-    if (sec < month) return sec; //if it's less than 30 days, give seconds
-
-    CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
-    ss << vin;
-    ss << sigTime;
-    uint256 hash = ss.GetHash();
-
-    // return some deterministic value for unknown/unpaid but force it to be more than 30 days old
-    return month + hash.GetCompact(false);
-}
-
-int64_t CMasternode::GetLastPaid()
-{
-    CBlockIndex* pindexPrev = chainActive.Tip();
-    if (pindexPrev == NULL) return false;
-
-    CScript mnpayee;
-    mnpayee = GetScriptForDestination(pubKeyCollateralAddress.GetID());
-
-    CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
-    ss << vin;
-    ss << sigTime;
-    uint256 hash = ss.GetHash();
-
-    // use a deterministic offset to break a tie -- 2.5 minutes
-    int64_t nOffset = hash.GetCompact(false) % 150;
-
-    if (chainActive.Tip() == nullptr) return false;
-
-    const CBlockIndex* BlockReading = chainActive.Tip();
-
-    int nMnCount = mnodeman.CountEnabled() * 1.25;
-    int n = 0;
-    for (unsigned int i = 1; BlockReading && BlockReading->nHeight > 0; i++) {
-        if (n >= nMnCount) {
-            return 0;
-        }
-        n++;
-
-        if (masternodePayments.mapMasternodeBlocks.count(BlockReading->nHeight)) {
-            /*
-                Search for this payee, with at least 2 votes. This will aid in consensus allowing the network
-                to converge on the same payees quickly, then keep the same schedule.
-            */
-            if (masternodePayments.mapMasternodeBlocks[BlockReading->nHeight].HasPayeeWithVotes(mnpayee, 2)) {
-                return BlockReading->nTime + nOffset;
-            }
-        }
-
-        if (BlockReading->pprev == NULL) {
-            assert(BlockReading);
-            break;
-        }
-        BlockReading = BlockReading->pprev;
-    }
-
-    return 0;
 }
 
 std::string CMasternode::GetStatus()
@@ -693,7 +617,7 @@ bool CMasternodeBroadcast::CheckInputsAndAdd(int& nDoS)
 void CMasternodeBroadcast::Relay()
 {
     CInv inv(MSG_MASTERNODE_ANNOUNCE, GetHash());
-    RelayInv(inv);
+    g_connman->RelayInv(inv);
 }
 
 uint256 CMasternodeBroadcast::GetHash() const
@@ -827,5 +751,5 @@ bool CMasternodePing::CheckAndUpdate(int& nDos, bool fRequireEnabled, bool fChec
 void CMasternodePing::Relay()
 {
     CInv inv(MSG_MASTERNODE_PING, GetHash());
-    RelayInv(inv);
+    g_connman->RelayInv(inv);
 }

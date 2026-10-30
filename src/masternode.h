@@ -7,6 +7,7 @@
 #ifndef MASTERNODE_H
 #define MASTERNODE_H
 
+#include "arith_uint256.h"
 #include "key.h"
 #include "key_io.h"
 #include "main.h"
@@ -199,7 +200,7 @@ public:
         return !(a.vin == b.vin);
     }
 
-    uint256 CalculateScore(int mod = 1, int64_t nBlockHeight = 0);
+    arith_uint256 CalculateScore(const uint256& hash) const;
 
     SERIALIZE_METHODS(CMasternode, obj)
     {
@@ -222,8 +223,6 @@ public:
             obj.nScanningErrorCount,
             obj.nLastScanningErrorBlockHeight);
     }
-
-    int64_t SecondsSincePayment();
 
     bool UpdateFromNewBroadcast(CMasternodeBroadcast& mnb);
 
@@ -287,7 +286,6 @@ public:
         return strStatus;
     }
 
-    int64_t GetLastPaid();
     bool IsValidNetAddr();
 
     /// Is the input associated with collateral public key? (and there is 15000 SCH - checking if valid masternode)

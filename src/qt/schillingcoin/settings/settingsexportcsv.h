@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -24,7 +24,7 @@ public:
     ~SettingsExportCSV();
 
 private Q_SLOTS:
-    void selectFileOutput(const bool& isTxExport);
+    void selectFileOutput(const bool isTxExport);
     void exportTxes(const QString& filename);
     void exportAddrs(const QString& filename);
 

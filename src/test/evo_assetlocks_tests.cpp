@@ -1,0 +1,925 @@
+// Copyright (c) 2023-2025 The Dash Core developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#include <test/util/setup_common.h>
+
+#include <consensus/amount.h>
+#include <consensus/tx_check.h>
+#include <consensus/validation.h>
+#include <evo/assetlocktx.h>
+#include <evo/cbtx.h>
+#include <evo/chainhelper.h>
+#include <evo/creditpool.h>
+#include <evo/evodb.h>
+#include <evo/specialtx.h>
+#include <llmq/context.h>
+#include <policy/policy.h>
+#include <script/script.h>
+#include <script/signingprovider.h>
+#include <script/standard.h>
+#include <test/util/txmempool.h>
+#include <txmempool.h>
+#include <util/ranges_set.h>
+#include <validation.h>
+
+#include <boost/test/unit_test.hpp>
+
+// Helpers:
+static bool IsStandardTx(const CTransaction& tx, std::string& reason)
+{
+    return IsStandardTx(tx, MAX_OP_RETURN_RELAY, DEFAULT_PERMIT_BAREMULTISIG, CFeeRate{DUST_RELAY_TX_FEE}, reason);
+}
+
+// Create two dummy transactions, each with two outputs.  The first has 11 and 50 CENT outputs
+// paid to a TX_PUBKEY, the second 21 and 22 CENT outputs paid to a TX_PUBKEYHASH.
+static std::vector<CMutableTransaction>
+SetupDummyInputs(FillableSigningProvider& keystoreRet, CCoinsViewCache& coinsRet)
+{
+    std::vector<CMutableTransaction> dummyTransactions;
+    dummyTransactions.resize(2);
+
+    // Add some keys to the keystore:
+    std::array<CKey, 4> key;
+    {
+        bool flip = true;
+        for (auto& k : key) {
+            k.MakeNewKey(flip);
+            keystoreRet.AddKey(k);
+            flip = !flip;
+        }
+    }
+
+    // Create some dummy input transactions
+    dummyTransactions[0].vout.resize(2);
+    dummyTransactions[0].vout[0].nValue = 11*CENT;
+    dummyTransactions[0].vout[0].scriptPubKey = GetScriptForRawPubKey(key[0].GetPubKey());
+    dummyTransactions[0].vout[1].nValue = 50*CENT;
+    dummyTransactions[0].vout[1].scriptPubKey = GetScriptForRawPubKey(key[1].GetPubKey());
+    AddCoins(coinsRet, CTransaction(dummyTransactions[0]), 0);
+
+    dummyTransactions[1].vout.resize(2);
+    dummyTransactions[1].vout[0].nValue = 21*CENT;
+    dummyTransactions[1].vout[0].scriptPubKey = GetScriptForDestination(PKHash(key[2].GetPubKey()));
+    dummyTransactions[1].vout[1].nValue = 22*CENT;
+    dummyTransactions[1].vout[1].scriptPubKey = GetScriptForDestination(PKHash(key[3].GetPubKey()));
+    AddCoins(coinsRet, CTransaction(dummyTransactions[1]), 0);
+
+    return dummyTransactions;
+}
+
+static CMutableTransaction CreateAssetLockTx(FillableSigningProvider& keystore, CCoinsViewCache& coins, CKey& key)
+{
+    std::vector<CMutableTransaction> dummyTransactions = SetupDummyInputs(keystore, coins);
+
+    std::vector<CTxOut> creditOutputs(2);
+    creditOutputs[0].nValue = 17 * CENT;
+    creditOutputs[0].scriptPubKey = GetScriptForDestination(PKHash(key.GetPubKey()));
+    creditOutputs[1].nValue = 13 * CENT;
+    creditOutputs[1].scriptPubKey = GetScriptForDestination(PKHash(key.GetPubKey()));
+
+    CAssetLockPayload assetLockTx(creditOutputs, CAssetLockPayload::INITIAL_VERSION);
+
+    CMutableTransaction tx;
+    tx.nVersion = 3;
+    tx.nType = TRANSACTION_ASSET_LOCK;
+    SetTxPayload(tx, assetLockTx);
+
+    tx.vin.resize(1);
+    tx.vin[0].prevout.hash = dummyTransactions[0].GetHash();
+    tx.vin[0].prevout.n = 1;
+    tx.vin[0].scriptSig << std::vector<unsigned char>(65, 0);
+
+    tx.vout.resize(2);
+    tx.vout[0].nValue = 30 * CENT;
+    tx.vout[0].scriptPubKey = CScript() << OP_RETURN << ParseHex("");
+
+    tx.vout[1].nValue = 20 * CENT;
+    tx.vout[1].scriptPubKey = GetScriptForDestination(PKHash(key.GetPubKey()));
+
+    return tx;
+}
+
+static CMutableTransaction CreateAssetUnlockTx(FillableSigningProvider& keystore, CKey& key)
+{
+    int nVersion = 1;
+    // just a big number bigger than uint32_t
+    uint64_t index = 0x001122334455667788L;
+    // big enough to overflow int32_t
+    uint32_t fee = 2000'000'000u;
+    // just big enough to overflow uint16_t
+    uint32_t requestedHeight = 1000'000;
+    uint256 quorumHash;
+    CBLSSignature quorumSig;
+    CAssetUnlockPayload assetUnlockTx(nVersion, index, fee, requestedHeight, quorumHash, quorumSig);
+
+    CMutableTransaction tx;
+    tx.nVersion = 3;
+    tx.nType = TRANSACTION_ASSET_UNLOCK;
+    SetTxPayload(tx, assetUnlockTx);
+
+    tx.vin.resize(0);
+
+    tx.vout.resize(2);
+    tx.vout[0].nValue = 10 * CENT;
+    tx.vout[0].scriptPubKey = GetScriptForDestination(PKHash(key.GetPubKey()));
+
+    tx.vout[1].nValue = 20 * CENT;
+    tx.vout[1].scriptPubKey = GetScriptForDestination(PKHash(key.GetPubKey()));
+
+    return tx;
+}
+
+static CTransactionRef CreateCreditPoolUnlockTx(uint64_t index, CAmount amount, uint8_t version = 1, uint32_t fee = 0,
+                                                uint32_t requested_height = 0)
+{
+    CMutableTransaction tx;
+    tx.nVersion = 3;
+    tx.nType = TRANSACTION_ASSET_UNLOCK;
+    tx.vout.emplace_back(amount, CScript{});
+    SetTxPayload(tx, CAssetUnlockPayload{version, index, fee, requested_height, {}, {}});
+    return MakeTransactionRef(std::move(tx));
+}
+
+BOOST_FIXTURE_TEST_SUITE(evo_assetlocks_tests, TestChain100Setup)
+
+static void CheckAssetLockCommon(uint8_t version, bool is_v24_active)
+{
+    LOCK(cs_main);
+    FillableSigningProvider keystore;
+    CCoinsView coinsDummy;
+    CCoinsViewCache coins(&coinsDummy);
+
+    CKey key;
+    key.MakeNewKey(true);
+
+    CMutableTransaction baseTx = CreateAssetLockTx(keystore, coins, key);
+    const auto basePayload = GetTxPayload<CAssetLockPayload>(CTransaction(baseTx));
+    const std::vector<CTxOut> creditOutputs = basePayload->getCreditOutputs();
+
+    SetTxPayload(baseTx, CAssetLockPayload(creditOutputs, version));
+
+    const CTransaction tx{baseTx};
+    std::string reason;
+    BOOST_CHECK(IsStandardTx(CTransaction(tx), reason));
+
+    TxValidationState tx_state;
+    std::string strTest;
+    BOOST_CHECK_MESSAGE(CheckTransaction(CTransaction(tx), tx_state), strTest);
+    BOOST_CHECK(tx_state.IsValid());
+
+    BOOST_CHECK(CheckAssetLockTx(CTransaction(tx), tx_state, is_v24_active));
+
+    BOOST_CHECK(AreInputsStandard(CTransaction(tx), coins));
+
+    // Check version
+    {
+        BOOST_CHECK(tx.IsSpecialTxVersion());
+
+        const auto opt_payload = GetTxPayload<CAssetLockPayload>(tx);
+
+        BOOST_CHECK(opt_payload.has_value());
+        BOOST_CHECK(opt_payload->getVersion() == version);
+    }
+
+    {
+        // Wrong type "Asset Unlock TX" instead "Asset Lock TX"
+        CMutableTransaction txWrongType(tx);
+        txWrongType.nType = TRANSACTION_ASSET_UNLOCK;
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txWrongType), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-type");
+    }
+
+    {
+        CAmount inSum = 0;
+        for (const auto& vin : tx.vin) {
+            inSum += coins.AccessCoin(vin.prevout).out.nValue;
+        }
+
+        auto outSum = CTransaction(tx).GetValueOut();
+        BOOST_CHECK(inSum == outSum);
+
+        // Outputs should not be bigger than inputs
+        CMutableTransaction txBigOutput(baseTx);
+        txBigOutput.vout[0].nValue += 1;
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txBigOutput), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-creditamount");
+
+        // Smaller outputs are allown
+        CMutableTransaction txSmallOutput(baseTx);
+        txSmallOutput.vout[1].nValue -= 1;
+        BOOST_CHECK(CheckAssetLockTx(CTransaction(txSmallOutput), tx_state, is_v24_active));
+    }
+
+    {
+        // Sum of credit output greater than OP_RETURN
+        std::vector<CTxOut> wrongOutput = creditOutputs;
+        wrongOutput[0].nValue += CENT;
+
+        CMutableTransaction txGreaterCredits(baseTx);
+        SetTxPayload(txGreaterCredits, CAssetLockPayload(wrongOutput, version));
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txGreaterCredits), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-creditamount");
+
+        // Sum of credit output less than OP_RETURN
+        wrongOutput[1].nValue -= 2 * CENT;
+
+        CMutableTransaction txLessCredits(baseTx);
+        SetTxPayload(txLessCredits, CAssetLockPayload(wrongOutput, version));
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txLessCredits), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-creditamount");
+    }
+
+    {
+        // Credit output is out-of-range
+        std::vector<CTxOut> creditOutputsOutOfRange = creditOutputs;
+        creditOutputsOutOfRange[0].nValue = 0;
+
+        CMutableTransaction txInvalidOutputs(baseTx);
+        SetTxPayload(txInvalidOutputs, CAssetLockPayload(creditOutputsOutOfRange, version));
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txInvalidOutputs), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-credit-outofrange");
+
+        // one of output is out of range
+        creditOutputsOutOfRange[0].nValue = MAX_MONEY + 1;
+        SetTxPayload(txInvalidOutputs, CAssetLockPayload(creditOutputsOutOfRange, version));
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txInvalidOutputs), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-credit-outofrange");
+
+        // sum of some of output is out of range
+        creditOutputsOutOfRange[0].nValue = MAX_MONEY + 1 - creditOutputsOutOfRange[1].nValue;
+        SetTxPayload(txInvalidOutputs, CAssetLockPayload(creditOutputsOutOfRange, version));
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txInvalidOutputs), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-credit-outofrange");
+
+    }
+    {
+        // One credit output keys is not pub key
+        std::vector<CTxOut> creditOutputsNotPubkey = creditOutputs;
+        creditOutputsNotPubkey[0].scriptPubKey = CScript() << OP_1;
+
+        CMutableTransaction txNotPubkey(baseTx);
+        SetTxPayload(txNotPubkey, CAssetLockPayload(creditOutputsNotPubkey, version));
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txNotPubkey), tx_state, is_v24_active));
+        if (version >= 2) {
+            BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-script-pubkey");
+        } else {
+            BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-pubKeyHash");
+        }
+
+    }
+
+    {
+        // OP_RETURN must be only one, not more
+        CMutableTransaction txMultipleReturn(baseTx);
+        txMultipleReturn.vout[1].scriptPubKey = CScript() << OP_RETURN << ParseHex("");
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txMultipleReturn), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-multiple-return");
+
+    }
+
+    {
+        // zero/negative OP_RETURN
+        CMutableTransaction txReturnOutOfRange(baseTx);
+        txReturnOutOfRange.vout[0].nValue = 0;
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txReturnOutOfRange), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-opreturn-outofrange");
+
+        txReturnOutOfRange.vout[0].nValue = MAX_MONEY + 1;
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txReturnOutOfRange), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-opreturn-outofrange");
+    }
+
+
+    {
+        // OP_RETURN is missing
+        CMutableTransaction txNoReturn(baseTx);
+        txNoReturn.vout[0].scriptPubKey = GetScriptForDestination(PKHash(key.GetPubKey()));
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txNoReturn), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-no-return");
+    }
+
+    {
+        // OP_RETURN should not have any data
+        CMutableTransaction txReturnData(baseTx);
+        txReturnData.vout[0].scriptPubKey = CScript() << OP_RETURN << ParseHex("abcd");
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txReturnData), tx_state, is_v24_active));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-non-empty-return");
+    }
+}
+
+BOOST_FIXTURE_TEST_CASE(evo_assetlock, TestChain100Setup)
+{
+    CheckAssetLockCommon(CAssetLockPayload::INITIAL_VERSION, /*is_v24_active=*/false);
+    CheckAssetLockCommon(CAssetLockPayload::INITIAL_VERSION, /*is_v24_active=*/true);
+    CheckAssetLockCommon(CAssetLockPayload::CURRENT_VERSION, /*is_v24_active=*/true);
+}
+
+BOOST_FIXTURE_TEST_CASE(evo_assetlock_v2, TestChain100Setup)
+{
+    LOCK(cs_main);
+    FillableSigningProvider keystore;
+    CCoinsView coinsDummy;
+    CCoinsViewCache coins(&coinsDummy);
+
+    CKey key;
+    key.MakeNewKey(true);
+
+    CMutableTransaction tx = CreateAssetLockTx(keystore, coins, key);
+    TxValidationState tx_state;
+
+    const auto v1Payload = GetTxPayload<CAssetLockPayload>(CTransaction(tx));
+    const std::vector<CTxOut> creditOutputs = v1Payload->getCreditOutputs();
+
+    // Build v2 payload with same P2PKH credit outputs
+    CAssetLockPayload v2Payload(creditOutputs);
+    BOOST_CHECK(v2Payload.getVersion() == CAssetLockPayload::CURRENT_VERSION);
+    SetTxPayload(tx, v2Payload);
+
+    {
+        // v2 P2PKH: accepted with is_v24_active=true
+        BOOST_CHECK(CheckAssetLockTx(CTransaction(tx), tx_state, /*is_v24_active=*/true));
+    }
+
+    {
+        // v2 P2PKH: rejected pre-v24
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(tx), tx_state, /*is_v24_active=*/false));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-version-2");
+    }
+
+    {
+        // v2 with P2SH credit output: accepted with is_v24_active=true
+        CScript p2sh_script = GetScriptForDestination(ScriptHash(CScript() << OP_1));
+        std::vector<CTxOut> p2shOutputs(1);
+        p2shOutputs[0].nValue = 30 * CENT;
+        p2shOutputs[0].scriptPubKey = p2sh_script;
+
+        CMutableTransaction txP2SH(tx);
+        SetTxPayload(txP2SH, CAssetLockPayload(p2shOutputs));
+
+        BOOST_CHECK(CheckAssetLockTx(CTransaction(txP2SH), tx_state, /*is_v24_active=*/true));
+    }
+
+    {
+        // v1 with P2SH credit output: rejected even post-v24
+        CScript p2sh_script = GetScriptForDestination(ScriptHash(CScript() << OP_1));
+        std::vector<CTxOut> p2shOutputs(1);
+        p2shOutputs[0].nValue = 30 * CENT;
+        p2shOutputs[0].scriptPubKey = p2sh_script;
+
+        CMutableTransaction txV1P2SH(tx);
+        SetTxPayload(txV1P2SH, CAssetLockPayload(p2shOutputs, CAssetLockPayload::INITIAL_VERSION));
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txV1P2SH), tx_state, /*is_v24_active=*/true));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-pubKeyHash");
+    }
+
+    {
+        // v2 with non-P2PKH/non-P2SH credit output: rejected
+        std::vector<CTxOut> badOutputs(1);
+        badOutputs[0].nValue = 30 * CENT;
+        badOutputs[0].scriptPubKey = CScript() << OP_1;
+
+        CMutableTransaction txBad(tx);
+        SetTxPayload(txBad, CAssetLockPayload(badOutputs));
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txBad), tx_state, /*is_v24_active=*/true));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-script-pubkey");
+    }
+
+    {
+        // v1 still works post-v24
+        CMutableTransaction txV1(tx);
+        SetTxPayload(txV1, CAssetLockPayload(creditOutputs, CAssetLockPayload::INITIAL_VERSION));
+
+        BOOST_CHECK(CheckAssetLockTx(CTransaction(txV1), tx_state, /*is_v24_active=*/true));
+    }
+
+    {
+        // version 3 (future): rejected even post-v24
+        CMutableTransaction txV3(tx);
+        SetTxPayload(txV3, CAssetLockPayload(creditOutputs, /*nVersion=*/3));
+
+        BOOST_CHECK(!CheckAssetLockTx(CTransaction(txV3), tx_state, /*is_v24_active=*/true));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetlocktx-version");
+    }
+}
+
+BOOST_FIXTURE_TEST_CASE(evo_assetunlock, TestChain100Setup)
+{
+    LOCK(cs_main);
+    FillableSigningProvider keystore;
+
+    CKey key;
+    key.MakeNewKey(true);
+
+    const CTransaction tx{CreateAssetUnlockTx(keystore, key)};
+    std::string reason;
+    BOOST_CHECK(IsStandardTx(CTransaction(tx), reason));
+
+    TxValidationState tx_state;
+    std::string strTest;
+    BOOST_CHECK_MESSAGE(CheckTransaction(CTransaction(tx), tx_state), strTest);
+    BOOST_CHECK(tx_state.IsValid());
+
+    auto& blockman = Assert(m_node.chainman)->m_blockman;
+    auto& qman = *Assert(m_node.llmq_ctx)->qman;
+
+    const CBlockIndex *block_index = m_node.chainman->ActiveChain().Tip();
+    BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(tx), block_index, std::nullopt, /*is_v24_active=*/true, tx_state));
+    BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlock-quorum-hash");
+
+    {
+        // Any input should be a reason to fail CheckAssetUnlockTx()
+        CCoinsView coinsDummy;
+        CCoinsViewCache coins(&coinsDummy);
+        std::vector<CMutableTransaction> dummyTransactions = SetupDummyInputs(keystore, coins);
+
+        CMutableTransaction txNonemptyInput(tx);
+        txNonemptyInput.vin.resize(1);
+        txNonemptyInput.vin[0].prevout.hash = dummyTransactions[0].GetHash();
+        txNonemptyInput.vin[0].prevout.n = 1;
+        txNonemptyInput.vin[0].scriptSig << std::vector<unsigned char>(65, 0);
+
+        std::string reason;
+        BOOST_CHECK(IsStandardTx(CTransaction(tx), reason));
+
+        BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txNonemptyInput), block_index, std::nullopt, /*is_v24_active=*/true, tx_state));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlocktx-have-input");
+    }
+
+    {
+        const auto unlockPayload = GetTxPayload<CAssetUnlockPayload>(tx);
+        BOOST_CHECK(unlockPayload.has_value());
+        BOOST_CHECK(unlockPayload->getVersion() == 1);
+        BOOST_CHECK(unlockPayload->getRequestedHeight() == 1000'000);
+        BOOST_CHECK(unlockPayload->getFee() == 2000'000'000u);
+        BOOST_CHECK(unlockPayload->getIndex() == 0x001122334455667788L);
+
+        // Wrong type "Asset Lock TX" instead "Asset Unlock TX"
+        CMutableTransaction txWrongType(tx);
+        txWrongType.nType = TRANSACTION_ASSET_LOCK;
+        BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txWrongType), block_index, std::nullopt, /*is_v24_active=*/true, tx_state));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlocktx-type");
+
+        // Check version of tx and payload
+        BOOST_CHECK(tx.IsSpecialTxVersion());
+        for (uint8_t payload_version : {0, 1, 2, 255}) {
+            CAssetUnlockPayload unlockPayload_tmp{payload_version,
+                unlockPayload->getIndex(),
+                unlockPayload->getFee(),
+                unlockPayload->getRequestedHeight(),
+                unlockPayload->getQuorumHash(),
+                unlockPayload->getQuorumSig()};
+            CMutableTransaction txWrongVersion(tx);
+            SetTxPayload(txWrongVersion, unlockPayload_tmp);
+            if (payload_version == 0 || payload_version > CAssetUnlockPayload::CURRENT_VERSION) {
+                BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txWrongVersion), block_index, std::nullopt, /*is_v24_active=*/true, tx_state));
+                BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlocktx-version");
+            } else if (payload_version == 2) {
+                BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txWrongVersion), block_index, std::nullopt, /*is_v24_active=*/false, tx_state));
+                BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlocktx-version-2");
+                BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txWrongVersion), block_index, std::nullopt, /*is_v24_active=*/true, tx_state));
+                BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlock-quorum-hash");
+            } else {
+                // Version 1 must not hit the version-2 gate regardless of v24 state
+                BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txWrongVersion), block_index, std::nullopt, /*is_v24_active=*/false, tx_state));
+                BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlock-quorum-hash");
+                BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txWrongVersion), block_index, std::nullopt, /*is_v24_active=*/true, tx_state));
+                BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlock-quorum-hash");
+            }
+        }
+    }
+
+    {
+        // The txid of a version 2 payload is invariant across the quorum signing info - the fields
+        // Platform changes on re-sign - and nothing else; the instance hash still covers them
+        const auto unlockPayload = GetTxPayload<CAssetUnlockPayload>(tx);
+        BOOST_CHECK(unlockPayload.has_value());
+
+        CBLSSecretKey sk;
+        sk.MakeNewKey();
+        const bool legacy_scheme = bls::bls_legacy_scheme.load();
+        const CBLSSignature sig_a{sk.Sign(uint256::ONE, legacy_scheme)};
+        const CBLSSignature sig_b{sk.Sign(uint256::TWO, legacy_scheme)};
+        BOOST_REQUIRE(sig_a.IsValid() && sig_b.IsValid() && sig_a != sig_b);
+        auto make_unlock_tx = [&](uint8_t version, uint64_t index, uint32_t fee, uint32_t requested_height,
+                                  const uint256& quorum_hash, const CBLSSignature& quorum_sig = CBLSSignature{}) {
+            CMutableTransaction tx_tmp(tx);
+            SetTxPayload(tx_tmp, CAssetUnlockPayload{version, index, fee, requested_height, quorum_hash, quorum_sig});
+            return CTransaction(tx_tmp);
+        };
+
+        // Version 1 hashes the full serialization
+        const CTransaction tx_v1{make_unlock_tx(1, 0x11, 2000, 500, uint256::ONE)};
+        BOOST_CHECK(!IsAssetUnlockWithStableTxid(tx_v1));
+        BOOST_CHECK(tx_v1.GetHash() == tx_v1.GetInstanceHash());
+        BOOST_CHECK(tx_v1.GetHash() == ::SerializeHash(tx_v1));
+
+        const CTransaction tx_v2{make_unlock_tx(2, 0x11, 2000, 500, uint256::ONE)};
+        BOOST_CHECK(IsAssetUnlockWithStableTxid(tx_v2));
+        BOOST_CHECK(tx_v2.vExtraPayload.size() == ASSET_UNLOCK_PAYLOAD_SIZE);
+        BOOST_CHECK(tx_v2.GetHash() != tx_v2.GetInstanceHash());
+        BOOST_CHECK(tx_v2.GetInstanceHash() == ::SerializeHash(tx_v2));
+
+        // Re-signing changes requestedHeight and quorumHash but not the txid; the instance
+        // hash tells the two instances apart
+        const CTransaction tx_v2_resigned{make_unlock_tx(2, 0x11, 2000, 700, uint256::TWO)};
+        BOOST_CHECK(tx_v2_resigned.GetHash() == tx_v2.GetHash());
+        BOOST_CHECK(tx_v2_resigned.GetInstanceHash() != tx_v2.GetInstanceHash());
+        // ...and so does a different quorumSig on its own
+        const CTransaction tx_v2_sig_a{make_unlock_tx(2, 0x11, 2000, 500, uint256::ONE, sig_a)};
+        const CTransaction tx_v2_sig_b{make_unlock_tx(2, 0x11, 2000, 500, uint256::ONE, sig_b)};
+        BOOST_CHECK(tx_v2_sig_a.GetHash() == tx_v2.GetHash());
+        BOOST_CHECK(tx_v2_sig_b.GetHash() == tx_v2.GetHash());
+        BOOST_CHECK(tx_v2_sig_a.GetInstanceHash() != tx_v2.GetInstanceHash());
+        BOOST_CHECK(tx_v2_sig_a.GetInstanceHash() != tx_v2_sig_b.GetInstanceHash());
+        // Version 1 commits to the signature in the txid
+        BOOST_CHECK(make_unlock_tx(1, 0x11, 2000, 500, uint256::ONE, sig_a).GetHash() != tx_v1.GetHash());
+        // A different withdrawal (index or fee) has a different txid
+        BOOST_CHECK(make_unlock_tx(2, 0x12, 2000, 500, uint256::ONE).GetHash() != tx_v2.GetHash());
+        BOOST_CHECK(make_unlock_tx(2, 0x11, 3000, 500, uint256::ONE).GetHash() != tx_v2.GetHash());
+
+        // CMutableTransaction applies the same rule
+        BOOST_CHECK(CMutableTransaction(tx_v2).GetHash() == tx_v2.GetHash());
+
+        // The txid equals the full-serialization hash with the quorum signing info zeroed
+        CMutableTransaction tx_zeroed(tx_v2);
+        SetTxPayload(tx_zeroed, CAssetUnlockPayload{2, 0x11, 2000, /*requestedHeight=*/0,
+                                                    /*quorumHash=*/uint256(), CBLSSignature{}});
+        BOOST_CHECK(::SerializeHash(tx_zeroed) == tx_v2.GetHash());
+
+        // The signed message zeroes only quorumSig: it commits to the signing info even though
+        // the txid does not, and must never be computed with GetHash()
+        auto msg_hash = [](const CTransaction& t) {
+            const auto p = GetTxPayload<CAssetUnlockPayload>(t);
+            CMutableTransaction copy(t);
+            SetTxPayload(copy, CAssetUnlockPayload{p->getVersion(), p->getIndex(), p->getFee(),
+                                                   p->getRequestedHeight(), p->getQuorumHash(), CBLSSignature{}});
+            return ::SerializeHash(copy);
+        };
+        BOOST_CHECK(msg_hash(tx_v2) != msg_hash(tx_v2_resigned));
+        BOOST_CHECK(msg_hash(tx_v2) != tx_v2.GetHash());
+        BOOST_CHECK(msg_hash(tx_v2_sig_a) == msg_hash(tx_v2_sig_b));
+    }
+
+    {
+        // DIP-0027 worked examples for the version 2 txid (dip-0027/dip-0027-txid-calc.py)
+        auto dip_example_tx = [](uint64_t index) {
+            CMutableTransaction tx_dip;
+            tx_dip.nVersion = 3;
+            tx_dip.nType = TRANSACTION_ASSET_UNLOCK;
+            uint160 pubkey_hash;
+            std::fill(pubkey_hash.begin(), pubkey_hash.end(), 0x11);
+            const CScript script{GetScriptForDestination(PKHash{pubkey_hash})};
+            tx_dip.vout.emplace_back(100000000, script);
+            SetTxPayload(tx_dip, CAssetUnlockPayload{2, index, /*fee=*/70000, /*requestedHeight=*/500,
+                                                     uint256::ONE, CBLSSignature{}});
+            return CTransaction(tx_dip);
+        };
+        BOOST_CHECK_EQUAL(dip_example_tx(101).GetHash().ToString(),
+                          "3c4db73c8356407a5d7c78df5045bd280f2dc4fd644b06c4bfbdead3d5ae41cf");
+        BOOST_CHECK_EQUAL(dip_example_tx(123456789).GetHash().ToString(),
+                          "a67e1107ae6e04b813bc8e81348266f5206d1ca93d305dc4323940e18cdbaf34");
+    }
+
+    {
+        // Exactly 32 withdrawal is fine
+        CMutableTransaction txManyOutputs(tx);
+        int outputsLimit = 32;
+        txManyOutputs.vout.resize(outputsLimit);
+        for (auto& out : txManyOutputs.vout) {
+            out.nValue = CENT;
+            out.scriptPubKey = GetScriptForDestination(PKHash(key.GetPubKey()));
+        }
+
+        BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txManyOutputs), block_index, std::nullopt, /*is_v24_active=*/true, tx_state));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlock-quorum-hash");
+
+        // Basic checks for CRangesSet
+        CRangesSet indexes;
+        BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txManyOutputs), block_index, indexes, /*is_v24_active=*/true, tx_state));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlock-quorum-hash");
+        BOOST_CHECK(indexes.Add(0x001122334455667788L));
+        BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txManyOutputs), block_index, indexes, /*is_v24_active=*/true, tx_state));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlock-duplicated-index");
+
+
+        // Should not be more than 32 withdrawal in one transaction
+        txManyOutputs.vout.resize(outputsLimit + 1);
+        txManyOutputs.vout.back().nValue = CENT;
+        txManyOutputs.vout.back().scriptPubKey = GetScriptForDestination(PKHash(key.GetPubKey()));
+        BOOST_CHECK(!CheckAssetUnlockTx(blockman, qman, CTransaction(txManyOutputs), block_index, std::nullopt, /*is_v24_active=*/true, tx_state));
+        BOOST_CHECK(tx_state.GetRejectReason() == "bad-assetunlocktx-too-many-outs");
+    }
+
+}
+
+BOOST_FIXTURE_TEST_CASE(evo_assetunlock_cbtx_merkle_root, BasicTestingSetup)
+{
+    auto make_unlock = [](uint8_t version, uint64_t index, uint32_t requested_height,
+                          const CBLSSignature& quorum_sig = CBLSSignature{}) {
+        CMutableTransaction mtx;
+        mtx.nVersion = 3;
+        mtx.nType = TRANSACTION_ASSET_UNLOCK;
+        SetTxPayload(mtx, CAssetUnlockPayload{version, index, /*fee=*/2000, requested_height, uint256::ONE, quorum_sig});
+        return MakeTransactionRef(mtx);
+    };
+
+    // Only version 2 unlocks are committed to; a block without them commits to null
+    CBlock block;
+    block.vtx.push_back(make_unlock(1, 1, 500));
+    BOOST_CHECK(CalcCbTxMerkleRootAssetUnlocks(block).IsNull());
+
+    const auto unlock_a = make_unlock(2, 1, 500);
+    block.vtx.push_back(unlock_a);
+    const uint256 root_one{CalcCbTxMerkleRootAssetUnlocks(block)};
+    BOOST_CHECK(root_one == unlock_a->GetInstanceHash());
+
+    block.vtx.push_back(make_unlock(2, 2, 500));
+    const uint256 root_two{CalcCbTxMerkleRootAssetUnlocks(block)};
+    BOOST_CHECK(root_two != root_one);
+
+    // A different re-signed instance keeps the txid but changes the committed root
+    block.vtx.back() = make_unlock(2, 2, 700);
+    BOOST_CHECK(block.vtx.back()->GetHash() == make_unlock(2, 2, 500)->GetHash());
+    const uint256 root_resigned{CalcCbTxMerkleRootAssetUnlocks(block)};
+    BOOST_CHECK(root_resigned != root_two);
+
+    // So does the quorum signature alone: it is what the txid leaves out and the commitment
+    // exists to cover
+    CBLSSecretKey sk;
+    sk.MakeNewKey();
+    block.vtx.back() = make_unlock(2, 2, 700, sk.Sign(uint256::ONE, bls::bls_legacy_scheme.load()));
+    BOOST_CHECK(block.vtx.back()->GetHash() == make_unlock(2, 2, 500)->GetHash());
+    BOOST_CHECK(CalcCbTxMerkleRootAssetUnlocks(block) != root_resigned);
+}
+
+BOOST_FIXTURE_TEST_CASE(mempool_pending_asset_unlock_amount, TestChain100Setup)
+{
+    CTxMemPool& pool = *Assert(m_node.mempool);
+    TestMemPoolEntryHelper entry;
+    LOCK2(cs_main, pool.cs);
+    BOOST_CHECK_EQUAL(pool.GetPendingAssetUnlockAmount(), 0);
+
+    // The pending amount is what the credit pool charges: outputs plus fee, for any version
+    const auto unlock_v1 = CreateCreditPoolUnlockTx(1, 5 * COIN, 1, 1000, 90);
+    const auto unlock_v2 = CreateCreditPoolUnlockTx(2, 7 * COIN, 2, 2000, 90);
+    pool.addUnchecked(entry.Fee(1000).FromTx(unlock_v1));
+    BOOST_CHECK_EQUAL(pool.GetPendingAssetUnlockAmount(), 5 * COIN + 1000);
+    pool.addUnchecked(entry.Fee(2000).FromTx(unlock_v2));
+    BOOST_CHECK_EQUAL(pool.GetPendingAssetUnlockAmount(), 12 * COIN + 3000);
+    BOOST_CHECK(pool.GetAssetUnlockTxidsByIndex(1) == std::vector<uint256>{unlock_v1->GetHash()});
+    BOOST_CHECK(pool.GetAssetUnlockTxidsByIndex(2) == std::vector<uint256>{unlock_v2->GetHash()});
+    BOOST_CHECK(pool.GetAssetUnlockTxidsByIndex(3).empty());
+
+    // A re-signed instance shares the txid and amount, so a refresh leaves the total unchanged
+    const auto unlock_v2_resigned = CreateCreditPoolUnlockTx(2, 7 * COIN, 2, 2000, 95);
+    BOOST_CHECK(unlock_v2_resigned->GetHash() == unlock_v2->GetHash());
+    pool.ReplaceAssetUnlockInstance(unlock_v2_resigned);
+    BOOST_CHECK(unlock_v2_resigned->GetInstanceHash() != unlock_v2->GetInstanceHash());
+    BOOST_CHECK(pool.get(unlock_v2->GetHash())->GetInstanceHash() == unlock_v2_resigned->GetInstanceHash());
+    BOOST_CHECK_EQUAL(pool.GetPendingAssetUnlockAmount(), 12 * COIN + 3000);
+    BOOST_CHECK(pool.GetAssetUnlockTxidsByIndex(2) == std::vector<uint256>{unlock_v2->GetHash()});
+
+    // Two instances of one withdrawal signed under different versions both claim the index
+    const auto unlock_v1_dup = CreateCreditPoolUnlockTx(2, 7 * COIN, 1, 2000, 90);
+    BOOST_CHECK(unlock_v1_dup->GetHash() != unlock_v2->GetHash());
+    pool.addUnchecked(entry.Fee(2000).FromTx(unlock_v1_dup));
+    BOOST_CHECK_EQUAL(pool.GetAssetUnlockTxidsByIndex(2).size(), 2U);
+    BOOST_CHECK_EQUAL(pool.GetPendingAssetUnlockAmount(), 19 * COIN + 5000);
+
+    // Mining one instance of a withdrawal evicts every other claimant of its index
+    pool.removeAssetUnlockConflicts(*unlock_v1_dup);
+    BOOST_CHECK(!pool.exists(unlock_v2->GetHash()));
+    BOOST_CHECK(pool.exists(unlock_v1_dup->GetHash()));
+    BOOST_CHECK_EQUAL(pool.GetPendingAssetUnlockAmount(), 12 * COIN + 3000);
+
+    pool.removeRecursive(*unlock_v1, MemPoolRemovalReason::BLOCK);
+    pool.removeRecursive(*unlock_v1_dup, MemPoolRemovalReason::BLOCK);
+    BOOST_CHECK_EQUAL(pool.GetPendingAssetUnlockAmount(), 0);
+    BOOST_CHECK(pool.GetAssetUnlockTxidsByIndex(1).empty());
+    BOOST_CHECK(pool.GetAssetUnlockTxidsByIndex(2).empty());
+}
+
+BOOST_FIXTURE_TEST_CASE(mempool_single_claimant_per_withdrawal_index, TestChain100Setup)
+{
+    // Admission holds at most one instance of a withdrawal index: a staler claimant under a
+    // different txid is rejected before its quorum signature is checked, a fresher one replaces
+    // the held instance. Neither carries a valid signature; the held one is inserted directly.
+    CTxMemPool& pool = *Assert(m_node.mempool);
+    TestMemPoolEntryHelper entry;
+    const CScript standard_script{GetScriptForDestination(PKHash(coinbaseKey.GetPubKey()))};
+    const auto make_unlock = [&](uint8_t version, uint32_t requested_height) {
+        CMutableTransaction mtx{*CreateCreditPoolUnlockTx(4, 5 * COIN, version, 1000, requested_height)};
+        mtx.vout[0].scriptPubKey = standard_script;
+        return MakeTransactionRef(std::move(mtx));
+    };
+    const auto held = make_unlock(1, 90);
+    {
+        LOCK2(cs_main, pool.cs);
+        pool.addUnchecked(entry.Fee(1000).FromTx(held));
+    }
+
+    const auto stale = make_unlock(2, 90);
+    BOOST_REQUIRE(stale->GetHash() != held->GetHash());
+    const auto stale_result = WITH_LOCK(cs_main, return m_node.chainman->ProcessTransaction(stale));
+    BOOST_CHECK(stale_result.m_result_type == MempoolAcceptResult::ResultType::INVALID);
+    BOOST_CHECK_EQUAL(stale_result.m_state.GetRejectReason(), "assetunlock-stale-instance");
+
+    const auto fresher = make_unlock(2, 95);
+    const auto fresher_result = WITH_LOCK(cs_main, return m_node.chainman->ProcessTransaction(fresher));
+    BOOST_CHECK(fresher_result.m_result_type == MempoolAcceptResult::ResultType::INVALID);
+    BOOST_CHECK(fresher_result.m_state.GetRejectReason() != "assetunlock-stale-instance");
+    BOOST_CHECK(pool.exists(held->GetHash()));
+}
+
+BOOST_FIXTURE_TEST_CASE(package_asset_unlock_indexes, TestChain100Setup)
+{
+    const auto first = CreateCreditPoolUnlockTx(4, COIN, 1, 1000, 90);
+    const auto same_index = CreateCreditPoolUnlockTx(4, COIN, 2, 1000, 95);
+    const auto other_index = CreateCreditPoolUnlockTx(5, COIN, 2, 1000, 95);
+    LOCK(cs_main);
+    auto& chainstate = m_node.chainman->ActiveChainstate();
+    const auto conflicting = ProcessNewPackage(chainstate, *m_node.mempool, {first, same_index}, /*test_accept=*/true);
+    BOOST_CHECK_EQUAL(conflicting.m_state.GetRejectReason(), "assetunlock-conflicting-package");
+    const auto distinct = ProcessNewPackage(chainstate, *m_node.mempool, {first, other_index}, /*test_accept=*/true);
+    BOOST_CHECK(distinct.m_state.GetRejectReason() != "assetunlock-conflicting-package");
+}
+
+BOOST_FIXTURE_TEST_CASE(package_asset_unlock_conflict_does_not_evict_parent, TestChain100Setup)
+{
+    CTxMemPool& pool = *Assert(m_node.mempool);
+    TestMemPoolEntryHelper entry;
+    const auto held = CreateCreditPoolUnlockTx(4, COIN, 1, 1000, 90);
+    const auto fresher = CreateCreditPoolUnlockTx(4, COIN, 2, 1000, 95);
+    CMutableTransaction child;
+    child.vin.emplace_back(COutPoint(held->GetHash(), 0));
+    child.vin.emplace_back(COutPoint(fresher->GetHash(), 0));
+    child.vout.emplace_back(COIN, CScript{});
+    const auto child_ref = MakeTransactionRef(std::move(child));
+    {
+        LOCK2(cs_main, pool.cs);
+        pool.addUnchecked(entry.Fee(1000).FromTx(held));
+    }
+
+    const auto result = WITH_LOCK(cs_main, return ProcessNewPackage(
+        m_node.chainman->ActiveChainstate(), pool, {held, fresher, child_ref}, /*test_accept=*/false));
+    BOOST_CHECK(result.m_state.IsInvalid());
+    BOOST_CHECK_EQUAL(result.m_state.GetRejectReason(), "assetunlock-conflicting-package");
+    BOOST_CHECK(pool.exists(held->GetHash()));
+    BOOST_CHECK(!pool.exists(fresher->GetHash()));
+    BOOST_CHECK(!pool.exists(child_ref->GetHash()));
+
+    // Test acceptance predicts the same outcome instead of validating the child against a
+    // mempool that still holds the claimant the replacement would evict.
+    const auto test_result = WITH_LOCK(cs_main, return ProcessNewPackage(
+        m_node.chainman->ActiveChainstate(), pool, {fresher, child_ref}, /*test_accept=*/true));
+    BOOST_CHECK(test_result.m_state.IsInvalid());
+    BOOST_CHECK_EQUAL(test_result.m_state.GetRejectReason(), "assetunlock-conflicting-package");
+    BOOST_CHECK(pool.exists(held->GetHash()));
+}
+
+BOOST_FIXTURE_TEST_CASE(package_asset_unlock_preserves_indirect_dependencies, TestChain100Setup)
+{
+    CTxMemPool& pool = *Assert(m_node.mempool);
+    TestMemPoolEntryHelper entry;
+    const auto held = CreateCreditPoolUnlockTx(4, COIN, 1, 1000, 90);
+    const auto replacement = CreateCreditPoolUnlockTx(4, COIN, 2, 1000, 95);
+    CMutableTransaction parent;
+    parent.vin.emplace_back(COutPoint(held->GetHash(), 0));
+    parent.vout.emplace_back(COIN, CScript{});
+    const auto parent_ref = MakeTransactionRef(parent);
+    CMutableTransaction child;
+    child.vin.emplace_back(COutPoint(parent_ref->GetHash(), 0));
+    child.vin.emplace_back(COutPoint(replacement->GetHash(), 0));
+    child.vout.emplace_back(COIN, CScript{});
+    const auto child_ref = MakeTransactionRef(child);
+    LOCK2(cs_main, pool.cs);
+    pool.addUnchecked(entry.Fee(1000).FromTx(held));
+    for (bool parent_in_mempool : {false, true}) {
+        if (parent_in_mempool) pool.addUnchecked(entry.Fee(1000).FromTx(parent_ref));
+        const auto result = ProcessNewPackage(m_node.chainman->ActiveChainstate(), pool,
+                                              {replacement, parent_ref, child_ref}, /*test_accept=*/false);
+        BOOST_CHECK_EQUAL(result.m_state.GetRejectReason(), "assetunlock-conflicting-package");
+        BOOST_CHECK(pool.exists(held->GetHash()));
+        BOOST_CHECK_EQUAL(pool.exists(parent_ref->GetHash()), parent_in_mempool);
+        BOOST_CHECK(!pool.exists(replacement->GetHash()));
+    }
+}
+
+BOOST_FIXTURE_TEST_CASE(credit_pool_snapshot_persisted_after_transactionless_construction, TestChain100Setup)
+{
+    // Block assembly asks for the tip's credit pool outside any block-scoped EvoDB transaction,
+    // as mempool acceptance and RPCs do. At a snapshot height that constructs and caches the
+    // pool without being able to write its disk snapshot. The next block connection hits the
+    // cached pool, so it must persist the snapshot then, or the snapshot is lost and every
+    // restart reconstructs the pool from an older one.
+    constexpr int SNAPSHOT_HEIGHT{576}; // CCreditPoolManager::DISK_SNAPSHOT_PERIOD
+    const CScript coinbase_pk = GetScriptForRawPubKey(coinbaseKey.GetPubKey());
+    const auto tip = [&]() { return WITH_LOCK(cs_main, return m_node.chainman->ActiveChain().Tip()); };
+    while (tip()->nHeight < SNAPSHOT_HEIGHT) {
+        CreateAndProcessBlock({}, coinbase_pk);
+    }
+    const CBlockIndex* snapshot_index = tip();
+    BOOST_REQUIRE_EQUAL(snapshot_index->nHeight, SNAPSHOT_HEIGHT);
+    BOOST_REQUIRE(WITH_LOCK(cs_main, return DeploymentActiveAt(*snapshot_index, m_node.chainman->GetConsensus(),
+                                                               Consensus::DEPLOYMENT_V20)));
+    const auto snapshot_key = std::make_pair(std::string{"cpm_S"}, snapshot_index->GetBlockHash());
+    BOOST_CHECK(!m_node.evodb->Exists(snapshot_key));
+
+    CreateAndProcessBlock({}, coinbase_pk);
+    CCreditPool snapshot;
+    BOOST_REQUIRE(m_node.evodb->Read(snapshot_key, snapshot));
+    const CCreditPool pool = m_node.chain_helper->credit_pool_manager->GetCreditPool(snapshot_index);
+    BOOST_CHECK_EQUAL(snapshot.locked, pool.locked);
+    BOOST_CHECK_EQUAL(snapshot.currentLimit, pool.currentLimit);
+}
+
+BOOST_AUTO_TEST_CASE(credit_pool_unlock_limit_v24)
+{
+    // From v24 the limit is relative and net: 20% of the balance at the window start, never less
+    // than 2000 DASH and with no upper bound, less the drop the pool already took inside the
+    // window, never above the pool
+    const auto limit = [](const CAmount balance, const CAmount balance_window_start) {
+        return CCreditPoolManager::UnlockLimitV24(balance, balance_window_start);
+    };
+    BOOST_CHECK_EQUAL(limit(15000 * COIN, 15000 * COIN), 3000 * COIN);
+    BOOST_CHECK_EQUAL(limit(5000 * COIN, 5000 * COIN), 2000 * COIN);
+    BOOST_CHECK_EQUAL(limit(40000 * COIN, 40000 * COIN), 8000 * COIN);
+
+    // The drop already taken inside the window comes out of the allowance
+    BOOST_CHECK_EQUAL(limit(14000 * COIN, 15000 * COIN), 2000 * COIN);
+    BOOST_CHECK_EQUAL(limit(12000 * COIN + 1, 15000 * COIN), 1);
+    BOOST_CHECK_EQUAL(limit(12000 * COIN, 15000 * COIN), 0);
+    BOOST_CHECK_EQUAL(limit(11000 * COIN, 15000 * COIN), 0);
+    // The floor covers small pools entirely
+    BOOST_CHECK_EQUAL(limit(100 * COIN, 100 * COIN), 100 * COIN);
+
+    // Growth inside the window is withdrawable on top of the allowed drop: a deposit followed by
+    // its withdrawal consumes no budget
+    BOOST_CHECK_EQUAL(limit(16000 * COIN, 15000 * COIN), 4000 * COIN);
+    BOOST_CHECK_EQUAL(limit(45000 * COIN, 40000 * COIN), 13000 * COIN);
+
+    // Never more than the pool holds
+    BOOST_CHECK_EQUAL(limit(500 * COIN, 500 * COIN), 500 * COIN);
+    BOOST_CHECK_EQUAL(limit(0, 5000 * COIN), 0);
+
+    // No balance at the window start: the chain is shorter than the window or the ancestor predates
+    // the credit pool, so the whole pool is a deposit inside the window
+    BOOST_CHECK_EQUAL(limit(123 * COIN, 0), 123 * COIN);
+    BOOST_CHECK_EQUAL(limit(0, 0), 0);
+
+    // Integer truncation only ever rounds the allowance down
+    BOOST_CHECK_EQUAL(limit(10000 * COIN + 4, 10000 * COIN + 4), 2000 * COIN);
+    BOOST_CHECK_EQUAL(limit(10000 * COIN + 5, 10000 * COIN + 5), 2000 * COIN + 1);
+    BOOST_CHECK_EQUAL(limit(MAX_MONEY, MAX_MONEY), MAX_MONEY * 20 / 100);
+}
+
+BOOST_FIXTURE_TEST_CASE(credit_pool_package_atomicity, TestChain100Setup)
+{
+    LOCK(cs_main);
+    const auto unlock_seven = CreateCreditPoolUnlockTx(1, 7 * COIN);
+    const auto unlock_four = CreateCreditPoolUnlockTx(2, 4 * COIN);
+    const auto* tip = m_node.chainman->ActiveChain().Tip();
+    CCreditPoolDiff diff{CCreditPool{100 * COIN, 10 * COIN}, tip, m_node.chainman->GetConsensus(), 0};
+
+    TxValidationState package_state;
+    BOOST_CHECK(!diff.ProcessLockUnlockTransactions({unlock_seven, unlock_four}, package_state));
+    BOOST_CHECK_EQUAL(package_state.GetRejectReason(), "failed-creditpool-unlock-too-much");
+    BOOST_CHECK_EQUAL(diff.GetTotalLocked(), 100 * COIN);
+
+    TxValidationState retry_state;
+    BOOST_CHECK(diff.ProcessLockUnlockTransaction(*unlock_seven, retry_state));
+    BOOST_CHECK_EQUAL(diff.GetTotalLocked(), 93 * COIN);
+
+    // A later package's rollback must erase only its own indexes: index 1 was
+    // committed above and must survive the failed package below.
+    const auto unlock_two = CreateCreditPoolUnlockTx(3, 2 * COIN);
+    const auto unlock_dup = CreateCreditPoolUnlockTx(1, COIN);
+    TxValidationState dup_state;
+    BOOST_CHECK(!diff.ProcessLockUnlockTransactions({unlock_two, unlock_dup}, dup_state));
+    BOOST_CHECK_EQUAL(dup_state.GetRejectReason(), "failed-creditpool-unlock-duplicated-index");
+    BOOST_CHECK_EQUAL(diff.GetTotalLocked(), 93 * COIN);
+
+    // index 1 must still be known as used...
+    TxValidationState still_dup_state;
+    BOOST_CHECK(!diff.ProcessLockUnlockTransactions({unlock_dup}, still_dup_state));
+    BOOST_CHECK_EQUAL(still_dup_state.GetRejectReason(), "failed-creditpool-unlock-duplicated-index");
+
+    // ...while index 3 was rolled back and is usable again
+    TxValidationState reuse_state;
+    BOOST_CHECK(diff.ProcessLockUnlockTransactions({unlock_two}, reuse_state));
+    BOOST_CHECK_EQUAL(diff.GetTotalLocked(), 91 * COIN);
+}
+
+BOOST_AUTO_TEST_SUITE_END()

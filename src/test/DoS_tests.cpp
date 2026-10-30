@@ -11,6 +11,7 @@
 #include "keystore.h"
 #include "main.h"
 #include "net.h"
+#include "net_processing.h"
 #include "pow.h"
 #include "script/sign.h"
 #include "serialize.h"
@@ -27,8 +28,6 @@
 
 // Tests this internal-to-main.cpp method:
 extern bool AddOrphanTx(const CTransaction& tx, NodeId peer);
-extern void EraseOrphansFor(NodeId peer);
-extern unsigned int LimitOrphanTxSize(unsigned int nMaxOrphans);
 struct COrphanTx {
     CTransaction tx;
     NodeId fromPeer;
@@ -47,65 +46,74 @@ BOOST_FIXTURE_TEST_SUITE(DoS_tests, TestingSetup)
 
 BOOST_AUTO_TEST_CASE(DoS_banning)
 {
-    CNode::ClearBanned();
+    BOOST_REQUIRE(g_connman);
+    g_connman->ClearBanned();
+
     CAddress addr1(ip(0xa0b0c001));
     CNode dummyNode1(INVALID_SOCKET, addr1, "", true);
     dummyNode1.nVersion = 1;
     Misbehaving(dummyNode1.GetId(), 100); // Should get banned
     SendMessages(&dummyNode1, false);
-    BOOST_CHECK(CNode::IsBanned(addr1));
-    BOOST_CHECK(!CNode::IsBanned(ip(0xa0b0c001|0x0000ff00))); // Different IP, not banned
+    BOOST_CHECK(g_connman->IsBanned(addr1));
+    BOOST_CHECK(!g_connman->IsBanned(ip(0xa0b0c001 | 0x0000ff00))); // Different IP, not banned
 
     CAddress addr2(ip(0xa0b0c002));
     CNode dummyNode2(INVALID_SOCKET, addr2, "", true);
     dummyNode2.nVersion = 1;
     Misbehaving(dummyNode2.GetId(), 50);
     SendMessages(&dummyNode2, false);
-    BOOST_CHECK(!CNode::IsBanned(addr2)); // 2 not banned yet...
-    BOOST_CHECK(CNode::IsBanned(addr1));  // ... but 1 still should be
+    BOOST_CHECK(!g_connman->IsBanned(addr2)); // 2 not banned yet...
+    BOOST_CHECK(g_connman->IsBanned(addr1));  // ... but 1 still should be
     Misbehaving(dummyNode2.GetId(), 50);
     SendMessages(&dummyNode2, false);
-    BOOST_CHECK(CNode::IsBanned(addr2));
+    BOOST_CHECK(g_connman->IsBanned(addr2));
 }
 
 BOOST_AUTO_TEST_CASE(DoS_banscore)
 {
-    CNode::ClearBanned();
+    BOOST_REQUIRE(g_connman);
+    g_connman->ClearBanned();
+
     gArgs.ForceSetArg("-banscore", "111"); // because 11 is my favorite number
+
     CAddress addr1(ip(0xa0b0c001));
     CNode dummyNode1(INVALID_SOCKET, addr1, "", true);
     dummyNode1.nVersion = 1;
     Misbehaving(dummyNode1.GetId(), 100);
     SendMessages(&dummyNode1, false);
-    BOOST_CHECK(!CNode::IsBanned(addr1));
+    BOOST_CHECK(!g_connman->IsBanned(addr1));
     Misbehaving(dummyNode1.GetId(), 10);
     SendMessages(&dummyNode1, false);
-    BOOST_CHECK(!CNode::IsBanned(addr1));
+    BOOST_CHECK(!g_connman->IsBanned(addr1));
     Misbehaving(dummyNode1.GetId(), 1);
     SendMessages(&dummyNode1, false);
-    BOOST_CHECK(CNode::IsBanned(addr1));
+    BOOST_CHECK(g_connman->IsBanned(addr1));
+
     gArgs.ForceRemoveArg("-banscore");
 }
 
 BOOST_AUTO_TEST_CASE(DoS_bantime)
 {
-    CNode::ClearBanned();
+    BOOST_REQUIRE(g_connman);
+    g_connman->ClearBanned();
+
     int64_t nStartTime = GetTime();
     SetMockTime(nStartTime); // Overrides future calls to GetTime()
 
     CAddress addr(ip(0xa0b0c001));
     CNode dummyNode(INVALID_SOCKET, addr, "", true);
     dummyNode.nVersion = 1;
-
     Misbehaving(dummyNode.GetId(), 100);
     SendMessages(&dummyNode, false);
-    BOOST_CHECK(CNode::IsBanned(addr));
+    BOOST_CHECK(g_connman->IsBanned(addr));
 
-    SetMockTime(nStartTime+60*60);
-    BOOST_CHECK(CNode::IsBanned(addr));
+    SetMockTime(nStartTime + 60 * 60);
+    BOOST_CHECK(g_connman->IsBanned(addr));
 
-    SetMockTime(nStartTime+60*60*24+1);
-    BOOST_CHECK(!CNode::IsBanned(addr));
+    SetMockTime(nStartTime + 60 * 60 * 24 + 1);
+    BOOST_CHECK(!g_connman->IsBanned(addr));
+
+    SetMockTime(0);
 }
 
 CTransaction RandomOrphan()

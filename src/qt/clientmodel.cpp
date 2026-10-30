@@ -8,20 +8,20 @@
 #include "clientmodel.h"
 
 #include "bantablemodel.h"
-#include "guiconstants.h"
-#include "guiutil.h"
-#include "peertablemodel.h"
-
 #include "chainparams.h"
 #include "checkpoints.h"
 #include "clientversion.h"
+#include "guiconstants.h"
+#include "guiinterface.h"
+#include "guiutil.h"
 #include "main.h"
 #include "masternode-sync.h"
 #include "masternodeman.h"
 #include "net.h"
+#include "net_processing.h"
 #include "netaddress.h"
 #include "netbase.h"
-#include "guiinterface.h"
+#include "peertablemodel.h"
 #include "util.h"
 #include "util/system.h"
 
@@ -29,8 +29,8 @@
 
 #include <QDateTime>
 #include <QDebug>
-#include <QTimer>
 #include <QMetaObject>
+#include <QTimer>
 
 #include <boost/signals2/connection.hpp>
 
@@ -82,17 +82,19 @@ ClientModel::~ClientModel()
 
 int ClientModel::getNumConnections(unsigned int flags) const
 {
-    LOCK(cs_vNodes);
-    if (flags == CONNECTIONS_ALL) // Shortcut if we want total
-        return vNodes.size();
+    CConnman::NumConnections connections = CConnman::CONNECTIONS_NONE;
 
-    int nNum = 0;
-    for (CNode* pnode : vNodes) {
-        if (flags & (pnode->fInbound ? CONNECTIONS_IN : CONNECTIONS_OUT))
-            nNum++;
-    }
+    if (flags == CONNECTIONS_IN)
+        connections = CConnman::CONNECTIONS_IN;
+    else if (flags == CONNECTIONS_OUT)
+        connections = CConnman::CONNECTIONS_OUT;
+    else if (flags == CONNECTIONS_ALL)
+        connections = CConnman::CONNECTIONS_ALL;
 
-    return nNum;
+    if (g_connman)
+        return static_cast<int>(g_connman->GetNodeCount(connections));
+
+    return 0;
 }
 
 QString ClientModel::getMasternodeCountString() const
@@ -127,12 +129,12 @@ int ClientModel::getNumBlocksAtStartup()
 
 quint64 ClientModel::getTotalBytesRecv() const
 {
-    return CNode::GetTotalBytesRecv();
+    return g_connman ? g_connman->GetTotalBytesRecv() : 0;
 }
 
 quint64 ClientModel::getTotalBytesSent() const
 {
-    return CNode::GetTotalBytesSent();
+    return g_connman ? g_connman->GetTotalBytesSent() : 0;
 }
 
 QDateTime ClientModel::getLastBlockDate() const

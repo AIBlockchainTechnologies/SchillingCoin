@@ -4,15 +4,18 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "masternodeman.h"
 #include "activemasternode.h"
 #include "addrman.h"
-#include "masternode.h"
+#include "arith_uint256.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
+#include "masternode.h"
+#include "masternodeman.h"
 #include "messagesigner.h"
-#include "util.h"
 #include "netbase.h"
+#include "net_processing.h"
+#include "util.h"
+
 #include <boost/filesystem.hpp>
 
 #define MN_WINNER_MINIMUM_AGE 8000    // Age in seconds. This should be > MASTERNODE_REMOVAL_SECONDS to avoid misconfigured new nodes in the list.
@@ -489,6 +492,9 @@ CMasternode* CMasternodeMan::GetNextMasternodeInQueueForPayment(int nBlockHeight
     */
 
     int nMnCount = CountEnabled();
+    const CBlockIndex* pindex = chainActive.Tip();
+    if (pindex == nullptr) return nullptr;
+
     for (CMasternode& mn : vMasternodes) {
         mn.Check();
         if (!mn.IsEnabled()) continue;
@@ -505,7 +511,7 @@ CMasternode* CMasternodeMan::GetNextMasternodeInQueueForPayment(int nBlockHeight
         //make sure it has as many confirmations as there are masternodes
         if (mn.GetMasternodeInputAge() < nMnCount) continue;
 
-        vecMasternodeLastPaid.push_back(std::make_pair(mn.SecondsSincePayment(), mn.vin));
+        vecMasternodeLastPaid.push_back(std::make_pair(SecondsSincePayment(mn, nMnCount, pindex), mn.vin));
     }
 
     nCount = (int)vecMasternodeLastPaid.size();
@@ -522,12 +528,16 @@ CMasternode* CMasternodeMan::GetNextMasternodeInQueueForPayment(int nBlockHeight
     //  -- (chance per block * chances before IsScheduled will fire)
     int nTenthNetwork = CountEnabled() / 10;
     int nCountTenth = 0;
-    uint256 nHigh;
+    arith_uint256 nHigh = ARITH_UINT256_ZERO;
+
+    uint256 hash;
+    if (!GetBlockHash(hash, nBlockHeight - 100)) return nullptr;
+
     for (PAIRTYPE(int64_t, CTxIn) & s : vecMasternodeLastPaid) {
         CMasternode* pmn = Find(s.second);
         if (!pmn) break;
 
-        uint256 n = pmn->CalculateScore(1, nBlockHeight - 100);
+        const arith_uint256 n = pmn->CalculateScore(hash);
         if (n > nHigh) {
             nHigh = n;
             pBestMasternode = pmn;
@@ -575,14 +585,16 @@ CMasternode* CMasternodeMan::GetCurrentMasterNode(int mod, int64_t nBlockHeight,
     int64_t score = 0;
     CMasternode* winner = NULL;
 
+    uint256 hash;
+    if (!GetBlockHash(hash, nBlockHeight)) return nullptr;
+
     // scan for winner
     for (CMasternode& mn : vMasternodes) {
         mn.Check();
         if (mn.protocolVersion < minProtocol || !mn.IsEnabled()) continue;
 
         // calculate the score for each Masternode
-        uint256 n = mn.CalculateScore(mod, nBlockHeight);
-        int64_t n2 = n.GetCompact(false);
+        const int64_t n2 = mn.CalculateScore(hash).GetCompact(false);
 
         // determine the winner
         if (n2 > score) {
@@ -623,8 +635,7 @@ int CMasternodeMan::GetMasternodeRank(const CTxIn& vin, int64_t nBlockHeight, in
             mn.Check();
             if (!mn.IsEnabled()) continue;
         }
-        uint256 n = mn.CalculateScore(1, nBlockHeight);
-        int64_t n2 = n.GetCompact(false);
+        const int64_t n2 = mn.CalculateScore(hash).GetCompact(false);
 
         vecMasternodeScores.push_back(std::make_pair(n2, mn.vin));
     }
@@ -662,8 +673,7 @@ std::vector<std::pair<int, CMasternode> > CMasternodeMan::GetMasternodeRanks(int
             continue;
         }
 
-        uint256 n = mn.CalculateScore(1, nBlockHeight);
-        int64_t n2 = n.GetCompact(false);
+        const int64_t n2 = mn.CalculateScore(hash).GetCompact(false);
 
         vecMasternodeScores.push_back(std::make_pair(n2, mn));
     }
@@ -683,6 +693,9 @@ CMasternode* CMasternodeMan::GetMasternodeByRank(int nRank, int64_t nBlockHeight
 {
     std::vector<std::pair<int64_t, CTxIn> > vecMasternodeScores;
 
+    uint256 hash;
+    if (!GetBlockHash(hash, nBlockHeight)) return nullptr;
+
     // scan for winner
     for (CMasternode& mn : vMasternodes) {
         if (mn.protocolVersion < minProtocol) continue;
@@ -691,8 +704,7 @@ CMasternode* CMasternodeMan::GetMasternodeByRank(int nRank, int64_t nBlockHeight
             if (!mn.IsEnabled()) continue;
         }
 
-        uint256 n = mn.CalculateScore(1, nBlockHeight);
-        int64_t n2 = n.GetCompact(false);
+        const int64_t n2 = mn.CalculateScore(hash).GetCompact(false);
 
         vecMasternodeScores.push_back(std::make_pair(n2, mn.vin));
     }
@@ -708,23 +720,6 @@ CMasternode* CMasternodeMan::GetMasternodeByRank(int nRank, int64_t nBlockHeight
     }
 
     return nullptr;
-}
-
-void CMasternodeMan::ProcessMasternodeConnections()
-{
-    if (Params().IsRegTestNet()) return;
-
-    LOCK(cs_vNodes);
-    for (CNode* pnode : vNodes) {
-        if (pnode->fObfuScationMaster) {
-
-            // Darksend removed — skip legacy pool checks
-
-            LogPrint(BCLog::MASTERNODE,"Closing Masternode connection peer=%i \n", pnode->GetId());
-            pnode->fObfuScationMaster = false;
-            pnode->Release();
-        }
-    }
 }
 
 void CMasternodeMan::ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)
@@ -765,7 +760,8 @@ void CMasternodeMan::ProcessMessage(CNode* pfrom, std::string& strCommand, CData
         //  - this is checked later by .check() in many places and by ThreadCheckObfuScationPool()
         if (mnb.CheckInputsAndAdd(nDoS)) {
             // use this as a peer
-            addrman.Add(CAddress(mnb.addr), pfrom->addr, 2 * 60 * 60);
+            if (g_connman)
+                g_connman->AddNewAddress(CAddress(mnb.addr), pfrom->addr, 2 * 60 * 60);
             masternodeSync.AddedMasternodeList(mnb.GetHash());
         } else {
             LogPrint(BCLog::MASTERNODE,"mnb - Rejected Masternode entry %s\n", mnb.vin.prevout.hash.ToString());
@@ -884,6 +880,71 @@ void CMasternodeMan::UpdateMasternodeList(CMasternodeBroadcast mnb)
     } else {
         pmn->UpdateFromNewBroadcast(mnb);
     }
+}
+
+int64_t CMasternodeMan::SecondsSincePayment(
+    const CMasternode& mn,
+    int nMnCount,
+    const CBlockIndex* pindex) const
+{
+    const int64_t sec = GetAdjustedTime() - GetLastPaid(mn, nMnCount, pindex);
+    const int64_t month = 60 * 60 * 24 * 30;
+
+    // If it is less than 30 days, return the actual elapsed seconds.
+    if (sec < month) return sec;
+
+    CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
+    ss << mn.vin;
+    ss << mn.sigTime;
+    const arith_uint256 hash = UintToArith256(ss.GetHash());
+
+    // Return a deterministic value for an unknown or unpaid masternode,
+    // but force it to be more than 30 days old.
+    return month + hash.GetCompact(false);
+}
+
+int64_t CMasternodeMan::GetLastPaid(
+    const CMasternode& mn,
+    int nMnCount,
+    const CBlockIndex* pindex) const
+{
+    if (pindex == nullptr) return 0;
+
+    const CScript mnpayee =
+        GetScriptForDestination(mn.pubKeyCollateralAddress.GetID());
+
+    CHashWriter ss(SER_GETHASH, PROTOCOL_VERSION);
+    ss << mn.vin;
+    ss << mn.sigTime;
+    const uint256 hash = ss.GetHash();
+
+    // Use a deterministic offset to break a tie, up to 2.5 minutes.
+    const int64_t nOffset =
+        UintToArith256(hash).GetCompact(false) % 150;
+
+    const int nMaxDepth = nMnCount * 1.25;
+    const CBlockIndex* pindexScan = pindex;
+
+    for (int n = 0;
+         n < nMaxDepth && pindexScan != nullptr && pindexScan->nHeight > 0;
+         ++n) {
+        const auto it =
+            masternodePayments.mapMasternodeBlocks.find(pindexScan->nHeight);
+
+        if (it != masternodePayments.mapMasternodeBlocks.end()) {
+            /*
+             * Search for this payee with at least two votes. This helps the
+             * network converge on the same payees and retain the schedule.
+             */
+            if (it->second.HasPayeeWithVotes(mnpayee, 2)) {
+                return pindexScan->nTime + nOffset;
+            }
+        }
+
+        pindexScan = pindexScan->pprev;
+    }
+
+    return 0;
 }
 
 std::string CMasternodeMan::ToString() const

@@ -7,7 +7,7 @@
 #include "init.h"
 #include "consensus/merkle.h"
 #include "main.h"
-#include "miner.h"
+#include "node/miner.h"
 #include "pubkey.h"
 #include "uint256.h"
 #include "util.h"

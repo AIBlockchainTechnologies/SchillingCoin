@@ -116,7 +116,7 @@ UniValue getinfo(const JSONRPCRequest& request)
 #endif
     obj.push_back(Pair("blocks", (int)chainActive.Height()));
     obj.push_back(Pair("timeoffset", GetTimeOffset()));
-    obj.push_back(Pair("connections", (int)vNodes.size()));
+    obj.push_back(Pair("connections", g_connman ? (int)g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) : 0));
     obj.push_back(Pair("proxy", (proxy.IsValid() ? proxy.proxy.ToStringIPPort() : std::string())));
     obj.push_back(Pair("difficulty", (double)GetDifficulty()));
     obj.push_back(Pair("testnet", Params().NetworkID() == CBaseChainParams::TESTNET));
@@ -557,7 +557,6 @@ UniValue getstakingstatus(const JSONRPCRequest& request)
             "\nExamples:\n" +
             HelpExampleCli("getstakingstatus", "") + HelpExampleRpc("getstakingstatus", ""));
 
-
     if (!pwalletMain)
         throw JSONRPCError(RPC_IN_WARMUP, "Try again after active chain is loaded");
     {
@@ -567,7 +566,7 @@ UniValue getstakingstatus(const JSONRPCRequest& request)
         obj.push_back(Pair("staking_enabled", gArgs.GetBoolArg("-staking", true)));
         bool fColdStaking = IsColdStakingEnabled();
         obj.push_back(Pair("coldstaking_enabled", fColdStaking));
-        obj.push_back(Pair("haveconnections", !vNodes.empty()));
+        obj.push_back(Pair("haveconnections", g_connman && g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL) > 0));
         obj.push_back(Pair("mnsync", !masternodeSync.NotCompleted()));
         obj.push_back(Pair("walletunlocked", !pwalletMain->IsLocked()));
         std::vector<CStakeableOutput> vCoins;

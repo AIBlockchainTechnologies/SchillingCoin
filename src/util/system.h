@@ -17,14 +17,14 @@
 #include "config/schillingcoin-config.h"
 #endif
 
-#include "fs.h"
-#include "logging.h"
 #include "compat.h"
+#include "logging.h"
 #include "optional.h"
 #include "sync.h"
 #include "tinyformat.h"
-#include "utiltime.h"
+#include "util/fs.h"
 #include "util/threadnames.h"
+#include "utiltime.h"
 
 #include <atomic>
 #include <exception>
@@ -38,7 +38,7 @@
 #include <vector>
 
 #include <boost/signals2/signal.hpp>
-#include <boost/thread/condition_variable.hpp> // for boost::thread_interrupted
+#include <boost/thread/condition_variable.hpp>
 
 /** Signals for translation. */
 class CTranslationInterface

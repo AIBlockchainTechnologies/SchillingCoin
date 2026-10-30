@@ -12,6 +12,7 @@
 #include "net.h"
 #include "netbase.h"
 #include "netaddress.h"
+#include "net_processing.h"
 #include "optional.h"
 #include "protocol.h"
 #include "sync.h"
@@ -37,9 +38,13 @@ UniValue getconnectioncount(const JSONRPCRequest& request)
             HelpExampleCli("getconnectioncount", "") +
             HelpExampleRpc("getconnectioncount", ""));
 
-    LOCK2(cs_main, cs_vNodes);
+    if (!g_connman)
+        throw JSONRPCError(
+            RPC_CLIENT_P2P_DISABLED,
+            "Error: Peer-to-peer functionality missing or disabled");
 
-    return (int)vNodes.size();
+    return static_cast<int>(
+        g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL));
 }
 
 UniValue ping(const JSONRPCRequest& request)
@@ -54,27 +59,17 @@ UniValue ping(const JSONRPCRequest& request)
             "\nExamples:\n" +
             HelpExampleCli("ping", "") + HelpExampleRpc("ping", ""));
 
-    // Request that each node send a ping during next message processing pass
-    LOCK2(cs_main, cs_vNodes);
+    if (!g_connman)
+        throw JSONRPCError(
+            RPC_CLIENT_P2P_DISABLED,
+            "Error: Peer-to-peer functionality missing or disabled");
 
-    for (CNode* pNode : vNodes) {
-        pNode->fPingQueued = true;
-    }
+    // Request that each node send a ping during next message processing pass
+    g_connman->ForEachNode([](CNode* pnode) {
+        pnode->fPingQueued = true;
+    });
 
     return NullUniValue;
-}
-
-static void CopyNodeStats(std::vector<CNodeStats>& vstats)
-{
-    vstats.clear();
-
-    LOCK(cs_vNodes);
-    vstats.reserve(vNodes.size());
-    for (CNode* pnode : vNodes) {
-        CNodeStats stats;
-        pnode->copyStats(stats);
-        vstats.push_back(stats);
-    }
 }
 
 UniValue getpeerinfo(const JSONRPCRequest& request)
@@ -117,10 +112,15 @@ UniValue getpeerinfo(const JSONRPCRequest& request)
             "\nExamples:\n" +
             HelpExampleCli("getpeerinfo", "") + HelpExampleRpc("getpeerinfo", ""));
 
+    if (!g_connman)
+        throw JSONRPCError(
+            RPC_CLIENT_P2P_DISABLED,
+            "Error: Peer-to-peer functionality missing or disabled");
+
     LOCK(cs_main);
 
     std::vector<CNodeStats> vstats;
-    CopyNodeStats(vstats);
+    g_connman->GetNodeStats(vstats);
 
     UniValue ret(UniValue::VARR);
 
@@ -230,11 +230,12 @@ UniValue disconnectnode(const JSONRPCRequest& request)
             + HelpExampleRpc("disconnectnode", "\"192.168.0.6:8333\"")
         );
 
-    CNode* pNode = FindNode(request.params[0].get_str());
-    if (pNode == nullptr)
-        throw JSONRPCError(RPC_CLIENT_NODE_NOT_CONNECTED, "Node not found in connected nodes");
-
-    pNode->CloseSocketDisconnect();
+    if (!g_connman ||
+        !g_connman->DisconnectNode(request.params[0].get_str())) {
+        throw JSONRPCError(
+            RPC_CLIENT_NODE_NOT_CONNECTED,
+            "Node not found in connected nodes");
+    }
 
     return NullUniValue;
 }
@@ -318,7 +319,11 @@ UniValue getaddednodeinfo(const JSONRPCRequest& request)
         }
     }
 
-    LOCK(cs_vNodes);
+    if (!g_connman)
+        throw JSONRPCError(
+            RPC_CLIENT_P2P_DISABLED,
+            "Error: Peer-to-peer functionality missing or disabled");
+
     for (std::list<std::pair<std::string, std::vector<CService> > >::iterator it = laddedAddreses.begin();
          it != laddedAddreses.end(); it++) {
         UniValue obj(UniValue::VOBJ);
@@ -327,19 +332,22 @@ UniValue getaddednodeinfo(const JSONRPCRequest& request)
         UniValue addresses(UniValue::VARR);
         bool fConnected = false;
         for (CService& addrNode : it->second) {
-            bool fFound = false;
             UniValue node(UniValue::VOBJ);
             node.push_back(Pair("address", addrNode.ToString()));
-            for (CNode* pnode : vNodes)
-                if (pnode->addr == addrNode) {
-                    fFound = true;
+
+            const bool fFound = g_connman->ForNode(
+                addrNode,
+                [&](CNode* pnode) {
                     fConnected = true;
-                    node.push_back(Pair("connected",
+                    node.push_back(Pair(
+                        "connected",
                         pnode->fInbound ? "inbound" : "outbound"));
-                    break;
-                }
+                    return true;
+                });
+
             if (!fFound)
                 node.push_back(Pair("connected", "false"));
+
             addresses.push_back(node);
         }
 
@@ -370,8 +378,8 @@ UniValue getnettotals(const JSONRPCRequest& request)
             HelpExampleCli("getnettotals", "") + HelpExampleRpc("getnettotals", ""));
 
     UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("totalbytesrecv", CNode::GetTotalBytesRecv()));
-    obj.push_back(Pair("totalbytessent", CNode::GetTotalBytesSent()));
+    obj.push_back(Pair("totalbytesrecv", g_connman ? g_connman->GetTotalBytesRecv() : 0));
+    obj.push_back(Pair("totalbytessent", g_connman ? g_connman->GetTotalBytesSent() : 0));
     obj.push_back(Pair("timemillis", GetTimeMillis()));
     return obj;
 }
@@ -440,9 +448,9 @@ UniValue getnetworkinfo(const JSONRPCRequest& request)
     obj.push_back(Pair("version", CLIENT_VERSION));
     obj.push_back(Pair("subversion",    strSubVersion));
     obj.push_back(Pair("protocolversion", PROTOCOL_VERSION));
-    obj.push_back(Pair("localservices", strprintf("%016x", nLocalServices)));
+    obj.push_back(Pair("localservices", strprintf("%016x", g_connman ? g_connman->GetLocalServices() : NODE_NONE)));
     obj.push_back(Pair("timeoffset", GetTimeOffset()));
-    obj.push_back(Pair("connections", (int)vNodes.size()));
+    obj.push_back(Pair("connections", g_connman ? static_cast<int>(g_connman->GetNodeCount(CConnman::CONNECTIONS_ALL)) : 0));
     obj.push_back(Pair("networks", GetNetworksInfo()));
     obj.push_back(Pair("relayfee", ValueFromAmount(::minRelayTxFee.GetFeePerK())));
     UniValue localAddresses(UniValue::VARR);
@@ -499,9 +507,12 @@ UniValue setban(const JSONRPCRequest& request)
         throw JSONRPCError(RPC_CLIENT_NODE_ALREADY_ADDED,
                            "Error: Invalid IP/Subnet");
 
+    if (!g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
     if (strCommand == "add")
     {
-        if (isSubnet ? CNode::IsBanned(subNet) : CNode::IsBanned(netAddr))
+        if (isSubnet ? g_connman->IsBanned(subNet) : g_connman->IsBanned(netAddr))
             throw JSONRPCError(RPC_CLIENT_NODE_ALREADY_ADDED,
                                "Error: IP/Subnet already banned");
 
@@ -514,22 +525,15 @@ UniValue setban(const JSONRPCRequest& request)
             absolute = request.params[3].get_bool();
 
         isSubnet ?
-            CNode::Ban(subNet, BanReasonManuallyAdded, banTime, absolute) :
-            CNode::Ban(netAddr, BanReasonManuallyAdded, banTime, absolute);
-
-        while (CNode* bannedNode =
-            (isSubnet ? FindNode(subNet) : FindNode(netAddr)))
-            bannedNode->CloseSocketDisconnect();
+            g_connman->Ban(subNet, BanReasonManuallyAdded, banTime, absolute) :
+            g_connman->Ban(netAddr, BanReasonManuallyAdded, banTime, absolute);
     }
     else if (strCommand == "remove")
     {
-        if (!(isSubnet ? CNode::Unban(subNet) : CNode::Unban(netAddr)))
+        if (!(isSubnet ? g_connman->Unban(subNet) : g_connman->Unban(netAddr)))
             throw JSONRPCError(RPC_MISC_ERROR,
                                "Error: Unban failed");
     }
-
-    DumpBanlist();
-    uiInterface.BannedListChanged();
 
     return NullUniValue;
 }
@@ -556,8 +560,11 @@ UniValue listbanned(const JSONRPCRequest& request)
             + HelpExampleCli("listbanned", "")
             + HelpExampleRpc("listbanned", ""));
 
+    if (!g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
     banmap_t banMap;
-    CNode::GetBanned(banMap);
+    g_connman->GetBanned(banMap);
 
     UniValue bannedAddresses(UniValue::VARR);
     for (banmap_t::iterator it = banMap.begin(); it != banMap.end(); it++)
@@ -586,9 +593,10 @@ UniValue clearbanned(const JSONRPCRequest& request)
             + HelpExampleCli("clearbanned", "")
             + HelpExampleRpc("clearbanned", ""));
 
-    CNode::ClearBanned();
-    DumpBanlist(); //store banlist to disk
-    uiInterface.BannedListChanged();
+    if (!g_connman)
+        throw JSONRPCError(RPC_CLIENT_P2P_DISABLED, "Error: Peer-to-peer functionality missing or disabled");
+
+    g_connman->ClearBanned();
 
     return NullUniValue;
 }

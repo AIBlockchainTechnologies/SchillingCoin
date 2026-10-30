@@ -9,18 +9,17 @@
 /**
  * Logging infrastructure and runtime logging-category management.
  */
-#ifndef BITCOIN_LOGGING_H
-#define BITCOIN_LOGGING_H
+#ifndef SCHILLINGCOIN_LOGGING_H
+#define SCHILLINGCOIN_LOGGING_H
 
-#include "fs.h"
 #include "tinyformat.h"
+#include "util/fs.h"
 
 #include <atomic>
 #include <cstdint>
 #include <list>
 #include <mutex>
 #include <vector>
-
 
 static const bool DEFAULT_LOGTIMEMICROS = false;
 static const bool DEFAULT_LOGIPS        = false;
@@ -163,4 +162,4 @@ template<typename... Args> std::string FormatStringFromLogArgs(const char *fmt, 
     }                                                                               \
 } while(0)
 
-#endif // BITCOIN_LOGGING_H
+#endif // SCHILLINGCOIN_LOGGING_H

@@ -3,14 +3,14 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_DBWRAPPER_H
-#define BITCOIN_DBWRAPPER_H
+#ifndef SCHILLINGCOIN_DBWRAPPER_H
+#define SCHILLINGCOIN_DBWRAPPER_H
 
 #include "clientversion.h"
-#include "fs.h"
 #include "serialize.h"
 #include "streams.h"
 #include "util.h"
+#include "util/fs.h"
 #include "util/system.h"
 #include "version.h"
 
@@ -337,4 +337,4 @@ public:
     }
 };
 
-#endif // BITCOIN_DBWRAPPER_H
+#endif // SCHILLINGCOIN_DBWRAPPER_H

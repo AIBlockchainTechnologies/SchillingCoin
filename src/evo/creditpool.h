@@ -1,0 +1,194 @@
+// Copyright (c) 2023-2025 The Dash Core developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#ifndef BITCOIN_EVO_CREDITPOOL_H
+#define BITCOIN_EVO_CREDITPOOL_H
+
+#include <consensus/amount.h>
+#include <primitives/transaction.h>
+#include <saltedhasher.h>
+#include <serialize.h>
+#include <sync.h>
+#include <threadsafety.h>
+#include <tinyformat.h>
+#include <unordered_lru_cache.h>
+#include <util/ranges_set.h>
+
+#include <gsl/pointers.h>
+
+#include <algorithm>
+#include <limits>
+#include <optional>
+#include <unordered_set>
+#include <vector>
+
+class BlockValidationState;
+class CBlock;
+class CBlockIndex;
+class ChainstateManager;
+class CEvoDB;
+class TxValidationState;
+namespace Consensus {
+struct Params;
+} // namespace Consensus
+namespace llmq {
+class CQuorumManager;
+} // namespace llmq
+
+struct CCreditPool {
+    CAmount locked{0};
+
+    // needs for logic of limits of unlocks
+    CAmount currentLimit{0};
+    CAmount latelyUnlocked{0};
+    CRangesSet indexes{};
+
+    std::string ToString() const;
+
+    SERIALIZE_METHODS(CCreditPool, obj)
+    {
+        READWRITE(
+            obj.locked,
+            obj.currentLimit,
+            obj.latelyUnlocked,
+            obj.indexes
+        );
+    }
+};
+
+/**
+ * The class CCreditPoolDiff has 2 purposes:
+ *  - it helps to determine which transaction can be included in new mined block
+ *  within current limits for Asset Unlock transactions and filter duplicated indexes
+ *  - to validate Asset Unlock transaction in mined block. The standalone checks of tx
+ *  such as CheckSpecialTx is not able to do so because at that moment there is no full
+ *  information about Credit Pool limits.
+ *
+ * CCreditPoolDiff temporary stores new values `lockedAmount` and `indexes` while
+ * limits should stay same and depends only on the previous block.
+ */
+class CCreditPoolDiff {
+public:
+    const CCreditPool pool;
+private:
+    std::unordered_set<uint64_t> newIndexes;
+
+    CAmount sessionLocked{0};
+    CAmount sessionUnlocked{0};
+    CAmount platformReward{0};
+
+public:
+    explicit CCreditPoolDiff(CCreditPool starter, const CBlockIndex *pindexPrev,
+                             const Consensus::Params& consensusParams,
+                             const CAmount blockSubsidy);
+
+    /**
+     * This function should be called for each Asset Lock/Unlock tx
+     * to change amount of credit pool
+     * @param inserted_index if non-null, receives the unlock index recorded for this tx (if any)
+     * @return true if transaction can be included in this block
+     */
+    bool ProcessLockUnlockTransaction(const CTransaction& tx, TxValidationState& state,
+                                      std::optional<uint64_t>* inserted_index = nullptr);
+
+    /**
+     * Process a package of Asset Lock/Unlock transactions atomically.
+     * @return true if all transactions can be included in this block
+     */
+    bool ProcessLockUnlockTransactions(const std::vector<CTransactionRef>& txs, TxValidationState& state);
+
+    /**
+     * this function returns total amount of credits for the next block
+     */
+    CAmount GetTotalLocked() const {
+        return pool.locked + sessionLocked - sessionUnlocked + platformReward;
+    }
+
+    std::string ToString() const {
+        return strprintf("CCreditPoolDiff(sessionLocked=%lld, sessionUnlocked=%lld, platforomReward=%lld, newIndexes=%lld, pool=%s)", sessionLocked, sessionUnlocked, platformReward, newIndexes.size(), pool.ToString());
+    }
+
+private:
+    bool Lock(const CTransaction& tx, TxValidationState& state);
+    bool Unlock(const CTransaction& tx, TxValidationState& state, std::optional<uint64_t>* inserted_index = nullptr);
+};
+
+class CCreditPoolManager
+{
+private:
+    static constexpr size_t CreditPoolCacheSize = 1000;
+    Mutex cache_mutex;
+    Uint256LruHashMap<CCreditPool> creditPoolCache GUARDED_BY(cache_mutex){CreditPoolCacheSize};
+
+    CEvoDB& evoDb;
+    const ChainstateManager& m_chainman;
+
+    static constexpr int DISK_SNAPSHOT_PERIOD = 576; // once per day
+
+public:
+    static constexpr CAmount LimitAmountLow = 100 * COIN;
+    static constexpr CAmount LimitAmountHigh = 1000 * COIN;
+    static constexpr CAmount LimitAmountV22 = 2000 * COIN;
+    /** From v24 the limit is a net rule on the credit pool balance: unlocks may not leave it below
+     *  its balance CreditPoolPeriodBlocks earlier minus an allowed drop of MaxUnlockDropPercentV24
+     *  of that earlier balance, never less than MinUnlockDropV24 and with no upper bound. Deposits
+     *  and Platform rewards inside the window raise the balance and are withdrawable again. The
+     *  drop is per window whatever the window length, so regtest's 100-block window drains
+     *  proportionally faster than mainnet's 576. */
+    static constexpr int MaxUnlockDropPercentV24 = 20;
+    static constexpr CAmount MinUnlockDropV24 = 2000 * COIN;
+    static_assert(MAX_MONEY <= std::numeric_limits<CAmount>::max() / MaxUnlockDropPercentV24,
+                  "balance * MaxUnlockDropPercentV24 must not overflow for any CbTx balance");
+
+    /** The total amount of asset unlocks the v24 rule admits in the block after one whose credit
+     *  pool balance is `balance`, given the balance `balance_window_start` CreditPoolPeriodBlocks
+     *  earlier. When that block predates the credit pool (or the chain is shorter than the window)
+     *  the window-start balance is 0: the whole pool then entered inside the window and is
+     *  withdrawable, which is the net rule taken literally. */
+    static constexpr CAmount UnlockLimitV24(const CAmount balance, const CAmount balance_window_start)
+    {
+        // Consensus: integer arithmetic only. A CbTx balance is bounded by the total supply, so
+        // the product stays inside int64 (static_assert above), and truncation only ever makes
+        // the limit stricter.
+        const CAmount allowed_drop = std::max(balance_window_start * MaxUnlockDropPercentV24 / 100, MinUnlockDropV24);
+        // The pool may not end the next block below balance_window_start - allowed_drop; what it
+        // gained since the window start is withdrawable on top of the allowed drop. Written with
+        // min/max rather than clamp so it is total for every input.
+        return std::min(std::max(CAmount{0}, allowed_drop - (balance_window_start - balance)), balance);
+    }
+
+    /** The credit pool balance after `block_index` as its CbTx records it, 0 when the block has
+     *  no credit pool; the read the v24 rule makes for its window start. Throws if the block
+     *  cannot be read. */
+    static CAmount GetBalanceAt(gsl::not_null<const CBlockIndex*> block_index, const Consensus::Params& consensusParams);
+
+    CCreditPoolManager() = delete;
+    CCreditPoolManager(const CCreditPoolManager&) = delete;
+    CCreditPoolManager& operator=(const CCreditPoolManager&) = delete;
+    explicit CCreditPoolManager(CEvoDB& _evoDb, const ChainstateManager& chainman);
+    ~CCreditPoolManager();
+
+    /**
+      * @return CCreditPool with data or with empty depends on activation V19 at that block
+      * In case if block is invalid the function GetCreditPool throws an exception
+      * it can happen if there limits of withdrawal (unlock) exceed
+      */
+    CCreditPool GetCreditPool(const CBlockIndex* block) EXCLUSIVE_LOCKS_REQUIRED(!cache_mutex);
+
+private:
+    std::optional<CCreditPool> GetFromCache(const CBlockIndex& block_index) EXCLUSIVE_LOCKS_REQUIRED(!cache_mutex);
+    void AddToCache(const uint256& block_hash, int height, const CCreditPool& pool) EXCLUSIVE_LOCKS_REQUIRED(!cache_mutex);
+    /** Write the disk snapshot of a snapshot-height pool when a block-scoped EvoDB transaction
+     *  is open on this thread; a no-op otherwise. */
+    void MaybeWriteSnapshot(const uint256& block_hash, int height, const CCreditPool& pool);
+
+    CCreditPool ConstructCreditPool(const gsl::not_null<const CBlockIndex*> block_index, CCreditPool prev)
+        EXCLUSIVE_LOCKS_REQUIRED(!cache_mutex);
+};
+
+std::optional<CCreditPoolDiff> GetCreditPoolDiffForBlock(CCreditPoolManager& cpoolman,
+                                                         const CBlock& block, const CBlockIndex* pindexPrev, const Consensus::Params& consensusParams,
+                                                         const CAmount blockSubsidy, BlockValidationState& state);
+
+#endif // BITCOIN_EVO_CREDITPOOL_H

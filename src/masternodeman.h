@@ -138,8 +138,6 @@ public:
     int GetMasternodeRank(const CTxIn& vin, int64_t nBlockHeight, int minProtocol = 0, bool fOnlyActive = true);
     CMasternode* GetMasternodeByRank(int nRank, int64_t nBlockHeight, int minProtocol = 0, bool fOnlyActive = true);
 
-    void ProcessMasternodeConnections();
-
     void ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
 
     /// Return the number of (unique) Masternodes
@@ -156,6 +154,18 @@ public:
 
     /// Update masternode list and maps using provided CMasternodeBroadcast
     void UpdateMasternodeList(CMasternodeBroadcast mnb);
+
+    /// Get the time a masternode was last paid.
+    int64_t GetLastPaid(
+        const CMasternode& mn,
+        int nMnCount,
+        const CBlockIndex* pindex) const;
+
+    /// Get the number of seconds since a masternode was last paid.
+    int64_t SecondsSincePayment(
+        const CMasternode& mn,
+        int nMnCount,
+        const CBlockIndex* pindex) const;
 };
 
 void ThreadCheckMasternodes();

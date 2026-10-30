@@ -9,40 +9,34 @@
 #include "config/schillingcoin-config.h"
 #endif
 
-#include "qt/schillingcoin/schillingcoingui.h"
-
 #include "clientmodel.h"
+#include "forgeman.h"
 #include "guiconstants.h"
+#include "guiinterface.h"
 #include "guiutil.h"
+#include "init.h"
 #include "intro.h"
+#include "main.h"
+#include "masternodeconfig.h"
 #include "net.h"
 #include "networkstyle.h"
 #include "optionsmodel.h"
+#include "qt/schillingcoin/schillingcoingui.h"
 #include "qt/schillingcoin/splash.h"
 #include "qt/schillingcoin/welcomecontentwidget.h"
+#include "qt/startoptionsmain.h"
+#include "rpc/server.h"
+#include "util.h"
+#include "util/fs.h"
 #include "util/system.h"
 #include "utilitydialog.h"
 #include "winshutdownmonitor.h"
 
 #ifdef ENABLE_WALLET
 #include "paymentserver.h"
-#include "walletmodel.h"
-#include "wallet/walletutil.h"
-#endif
-#include "masternodeconfig.h"
-#include "forgeman.h"
-
-#include "qt/startoptionsmain.h"
-
-#include "init.h"
-#include "main.h"
-#include "fs.h"
-#include "rpc/server.h"
-#include "guiinterface.h"
-#include "util.h"
-
-#ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
+#include "wallet/walletutil.h"
+#include "walletmodel.h"
 #endif
 
 #include <stdint.h>
@@ -60,10 +54,12 @@
 #include <QThread>
 #include <QTimer>
 #include <QTranslator>
+
 #include <vector>
 
 #if defined(QT_STATICPLUGIN)
 #include <QtPlugin>
+
 #if defined(QT_QPA_PLATFORM_XCB)
 Q_IMPORT_PLUGIN(QXcbIntegrationPlugin);
 #elif defined(QT_QPA_PLATFORM_WINDOWS)
@@ -71,6 +67,7 @@ Q_IMPORT_PLUGIN(QWindowsIntegrationPlugin);
 #elif defined(QT_QPA_PLATFORM_COCOA)
 Q_IMPORT_PLUGIN(QCocoaIntegrationPlugin);
 #endif
+
 Q_IMPORT_PLUGIN(QSvgPlugin);
 Q_IMPORT_PLUGIN(QSvgIconPlugin);
 #endif

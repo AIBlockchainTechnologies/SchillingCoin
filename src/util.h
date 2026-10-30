@@ -19,9 +19,9 @@
 
 #include "logging.h"
 #include "compat.h"
-#include "fs.h"
 #include "tinyformat.h"
 #include "utiltime.h"
+#include "util/fs.h"
 #include "util/threadnames.h"
 
 #include <atomic>

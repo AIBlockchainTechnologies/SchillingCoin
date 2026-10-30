@@ -6,8 +6,8 @@
 #ifndef SCHILLINGCOIN_WALLET_WALLETUTIL_H
 #define SCHILLINGCOIN_WALLET_WALLETUTIL_H
 
-#include "fs.h"
 #include "operationresult.h"
+#include "util/fs.h"
 
 //! Get the path of the wallet directory.
 fs::path GetWalletDir();

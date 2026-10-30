@@ -3,19 +3,18 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "qt/schillingcoin/masternodewizarddialog.h"
-#include "qt/schillingcoin/forms/ui_masternodewizarddialog.h"
-
 #include "activemasternode.h"
-#include "fs.h"
 #include "optionsmodel.h"
-#include "qt/schillingcoin/mnmodel.h"
+#include "qt/schillingcoin/forms/ui_masternodewizarddialog.h"
 #include "qt/schillingcoin/guitransactionsutils.h"
+#include "qt/schillingcoin/masternodewizarddialog.h"
+#include "qt/schillingcoin/mnmodel.h"
 #include "qt/schillingcoin/qtutils.h"
+#include "util/fs.h"
 
 #include <QFile>
-#include <QIntValidator>
 #include <QHostAddress>
+#include <QIntValidator>
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 

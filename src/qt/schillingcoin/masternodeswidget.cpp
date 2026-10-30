@@ -2,31 +2,31 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "qt/schillingcoin/masternodeswidget.h"
-#include "qt/schillingcoin/forms/ui_masternodeswidget.h"
-#include "qt/schillingcoin/qtutils.h"
-#include "qt/schillingcoin/mnrow.h"
-#include "qt/schillingcoin/mninfodialog.h"
-
-#include "qt/schillingcoin/masternodewizarddialog.h"
-
 #include "activemasternode.h"
+#include "askpassphrasedialog.h"
 #include "clientmodel.h"
 #include "guiutil.h"
 #include "init.h"
-#include "fs.h"
 #include "masternode-sync.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
+#include "qt/schillingcoin/forms/ui_masternodeswidget.h"
+#include "qt/schillingcoin/masternodeswidget.h"
+#include "qt/schillingcoin/masternodewizarddialog.h"
+#include "qt/schillingcoin/mninfodialog.h"
+#include "qt/schillingcoin/mnrow.h"
+#include "qt/schillingcoin/optionbutton.h"
+#include "qt/schillingcoin/qtutils.h"
 #include "sync.h"
+#include "util.h"
+#include "util/fs.h"
 #include "wallet/wallet.h"
 #include "walletmodel.h"
-#include "askpassphrasedialog.h"
-#include "util.h"
-#include "qt/schillingcoin/optionbutton.h"
+
 #include <boost/filesystem.hpp>
-#include <iostream>
+
 #include <fstream>
+#include <iostream>
 
 #define DECORATION_SIZE 65
 #define NUM_ITEMS 3

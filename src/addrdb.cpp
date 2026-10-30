@@ -7,16 +7,15 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "addrdb.h"
-
 #include "addrman.h"
 #include "chainparams.h"
 #include "clientversion.h"
-#include "fs.h"
 #include "hash.h"
 #include "random.h"
 #include "streams.h"
 #include "tinyformat.h"
 #include "util.h"
+#include "util/fs.h"
 #include "util/system.h"
 
 CBanDB::CBanDB()

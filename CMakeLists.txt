@@ -290,8 +290,8 @@ set(SERVER_SOURCES
         ./src/init.cpp
         ./src/main.cpp
         ./src/merkleblock.cpp
-        ./src/miner.cpp
         ./src/net.cpp
+        ./src/node/miner.cpp
         ./src/noui.cpp
         ./src/policy/fees.cpp
         ./src/policy/policy.cpp
@@ -310,6 +310,7 @@ set(SERVER_SOURCES
         ./src/torcontrol.cpp
         ./src/txdb.cpp
         ./src/txmempool.cpp
+        ./src/validation.cpp
         ./src/validationinterface.cpp
         ./src/zschchain.cpp
         )
@@ -338,10 +339,6 @@ endif()
 set(WALLET_SOURCES
         ./src/activemasternode.cpp
         ./src/bip38.cpp
-        ./src/obfuscation.cpp
-        ./src/obfuscation-relay.cpp
-        ./src/wallet/bdb.cpp
-        ./src/wallet/db.cpp
         ./src/addressbook.cpp
         ./src/crypter.cpp
         ./src/masternode.cpp
@@ -351,8 +348,6 @@ set(WALLET_SOURCES
         ./src/masternodeman.cpp
         ./src/messagesigner.cpp
         ./src/zsch/mintpool.cpp
-        ./src/wallet/hdchain.cpp
-        ./src/wallet/fees.cpp
         ./src/wallet/rpcdump.cpp
         ./src/zsch/deterministicmint.cpp
         ./src/zsch/zerocoin.cpp
@@ -360,6 +355,10 @@ set(WALLET_SOURCES
         ./src/wallet/rpcwallet.cpp
         ./src/kernel.cpp
         ./src/legacy/stakemodifier.cpp
+        ./src/wallet/bdb.cpp
+        ./src/wallet/db.cpp
+        ./src/wallet/hdchain.cpp
+        ./src/wallet/fees.cpp
         ./src/wallet/wallet.cpp
         ./src/wallet/wallet_ismine.cpp
         ./src/wallet/walletdb.cpp
@@ -379,6 +378,7 @@ set(BITCOIN_CRYPTO_SOURCES
         ./src/crypto/aes.cpp
         ./src/crypto/sha1.cpp
         ./src/crypto/sha256.cpp
+        ./src/crypto/sha3.cpp
         ./src/crypto/sha512.cpp
         ./src/crypto/chacha20.h
         ./src/crypto/chacha20.cpp
@@ -488,6 +488,7 @@ set(COMMON_SOURCES
         ./src/keystore.cpp
         ./src/netaddress.cpp
         ./src/netbase.cpp
+        ./src/netgroup.cpp
         ./src/policy/feerate.cpp
         ./src/pubkey.cpp
         ./src/primitives/block.cpp
@@ -523,18 +524,18 @@ set(UTIL_SOURCES
         ./src/compat/glibcxx_sanity.cpp
         ./src/chainparamsbase.cpp
         ./src/clientversion.cpp
-        ./src/fs.cpp
         ./src/logging.cpp
         ./src/random.cpp
         ./src/rpc/protocol.cpp
+        ./src/support/cleanse.cpp
         ./src/sync.cpp
         ./src/threadinterrupt.cpp
-        ./src/util/threadnames.cpp
         ./src/util.cpp
-        ./src/utilstrencodings.cpp
         ./src/utilmoneystr.cpp
+        ./src/utilstrencodings.cpp
         ./src/utiltime.cpp
-        ./src/support/cleanse.cpp
+        ./src/util/fs.cpp
+        ./src/util/threadnames.cpp
         )
 add_library(UTIL_A STATIC ${BitcoinHeaders} ${UTIL_SOURCES})
 target_include_directories(UTIL_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src

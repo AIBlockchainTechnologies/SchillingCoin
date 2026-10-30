@@ -6,7 +6,6 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "fs.h"
 #include "key_io.h"
 #include "protocol.h"
 #include "reverse_iterate.h"
@@ -15,6 +14,7 @@
 #include "txdb.h"
 #include "uint256.h"
 #include "util.h"
+#include "util/fs.h"
 #include "util/string.h"
 #include "util/system.h"
 #include "utiltime.h"

@@ -21,7 +21,6 @@
 #include "compat/sanity.h"
 #include "consensus/amount.h"
 #include "forgeman.h"
-#include "fs.h"
 #include "guiinterface.h"
 #include "guiinterfaceutil.h"
 #include "httpserver.h"
@@ -33,9 +32,10 @@
 #include "masternodeconfig.h"
 #include "masternodeman.h"
 #include "messagesigner.h"
-#include "miner.h"
 #include "net.h"
 #include "netbase.h"
+#include "net_processing.h"
+#include "node/miner.h"
 #include "policy/feerate.h"
 #include "policy/policy.h"
 #include "rpc/server.h"
@@ -45,9 +45,11 @@
 #include "torcontrol.h"
 #include "txdb.h"
 #include "util.h"
+#include "utilmoneystr.h"
+#include "util/asmap.h"
+#include "util/fs.h"
 #include "util/system.h"
 #include "util/threadnames.h"
-#include "utilmoneystr.h"
 #include "validationinterface.h"
 
 #ifdef ENABLE_WALLET
@@ -255,6 +257,8 @@ static boost::scoped_ptr<ECCVerifyHandle> globalVerifyHandle;
 
 static boost::thread_group threadGroup;
 static CScheduler scheduler;
+static std::unique_ptr<PeerLogicValidation> peerLogicValidation;
+
 void Interrupt()
 {
     InterruptHTTPServer();
@@ -289,7 +293,8 @@ void PrepareShutdown()
         pwalletMain->Flush(false);
     GenerateBitcoins(false, nullptr, 0);
 #endif
-    StopNode();
+    if (g_connman)
+        g_connman->Stop();
     DumpMasternodes();
     DumpMasternodePayments();
     UnregisterNodeSignals(GetNodeSignals());
@@ -338,6 +343,11 @@ void PrepareShutdown()
         pzmqNotificationInterface = NULL;
     }
 #endif
+
+    if (peerLogicValidation) {
+        UnregisterValidationInterface(peerLogicValidation.get());
+        peerLogicValidation.reset();
+    }
 
 #ifndef WIN32
     RemovePidFile();
@@ -412,7 +422,7 @@ bool static Bind(const CService& addr, unsigned int flags)
     if (!(flags & BF_EXPLICIT) && IsLimited(addr))
         return false;
     std::string strError;
-    if (!BindListenPort(addr, strError, (flags & BF_WHITELIST) != 0)) {
+    if (!g_connman->BindListenPort(addr, strError, (flags & BF_WHITELIST) != 0)) {
         if (flags & BF_REPORT_ERROR)
             return InitError(strError);
         return false;
@@ -983,7 +993,18 @@ void InitLogging()
  */
 bool AppInit2(const std::vector<std::string>& words)
 {
-    // ********************************************************* Step 1: setup
+    if (!g_connman)
+        g_connman.reset(new CConnman(
+            GetRand(std::numeric_limits<uint64_t>::max()),
+            GetRand(std::numeric_limits<uint64_t>::max())));
+
+    if (!peerLogicValidation) {
+        peerLogicValidation =
+            std::make_unique<PeerLogicValidation>(g_connman.get());
+        RegisterValidationInterface(peerLogicValidation.get());
+    }
+
+    // ****************************************************************************************** Step 1: setup
     if (!AppInitBasicSetup())
         return false;
 
@@ -1225,7 +1246,7 @@ bool AppInit2(const std::vector<std::string>& words)
             CSubNet subnet(net);
             if (!subnet.IsValid())
                 return InitError(strprintf(_("Invalid netmask specified in -whitelist: '%s'"), net));
-            CNode::AddWhitelistedRange(subnet);
+            g_connman->AddWhitelistedRange(subnet);
         }
     }
 
@@ -1653,7 +1674,25 @@ bool AppInit2(const std::vector<std::string>& words)
     if (gArgs.GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION))
         StartTorControl();
 
-    StartNode(threadGroup, scheduler);
+    CConnman::Options connOptions;
+    connOptions.nLocalServices = static_cast<ServiceFlags>(nLocalServices);
+    connOptions.nMaxConnections = nMaxConnections;
+    connOptions.nMaxOutbound = std::min(16, nMaxConnections);
+    connOptions.nBestHeight = chainActive.Height();
+    connOptions.uiInterface = &uiInterface;
+    connOptions.nSendBufferMaxSize =
+        1000 * gArgs.GetArg("-maxsendbuffer", 1000);
+    connOptions.nReceiveFloodSize =
+        1000 * gArgs.GetArg("-maxreceivebuffer", 5000);
+
+    std::string strNodeError;
+    if (!g_connman->Start(
+            threadGroup,
+            scheduler,
+            strNodeError,
+            connOptions)) {
+        return InitError(strNodeError);
+    }
 
 #ifdef ENABLE_WALLET
     // Generate coins in the background

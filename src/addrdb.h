@@ -9,9 +9,9 @@
 #ifndef SCHILLINGCOIN_ADDRDB_H
 #define SCHILLINGCOIN_ADDRDB_H
 
-#include "fs.h"
 #include "serialize.h"
 #include "streams.h"
+#include "util/fs.h"
 
 #include <string>
 #include <map>

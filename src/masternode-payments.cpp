@@ -11,6 +11,8 @@
 #include "masternode-payments.h"
 #include "masternode-sync.h"
 #include "masternodeman.h"
+#include "net.h"
+#include "net_processing.h"
 #include "sync.h"
 #include "util.h"
 #include "util/system.h"
@@ -203,7 +205,7 @@ bool CMasternodePaymentWinner::IsValid(CNode* pnode, std::string& strError)
 void CMasternodePaymentWinner::Relay()
 {
     CInv inv(MSG_MASTERNODE_WINNER, GetHash());
-    RelayInv(inv);
+    g_connman->RelayInv(inv);
 }
 
 void DumpMasternodePayments()

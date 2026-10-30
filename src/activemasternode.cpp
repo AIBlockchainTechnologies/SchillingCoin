@@ -9,9 +9,10 @@
 #include "masternode.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
-#include "messagesigner.h"
-#include "protocol.h"
 #include "masternode-sync.h"
+#include "messagesigner.h"
+#include "net.h"
+#include "protocol.h"
 #include "util.h"
 
 CActiveMasternode activeMasternode;
@@ -84,13 +85,17 @@ void CActiveMasternode::ManageStatus()
         LogPrintf("CActiveMasternode::ManageStatus() - Checking inbound connection to '%s'\n",
                   service.ToString());
 
-        CNode* pnode = ConnectNode((CAddress)service, nullptr, false, true);
-        if (!pnode) {
+        if (!g_connman ||
+            !g_connman->OpenNetworkConnection(
+                CAddress(service),
+                true,
+                nullptr,
+                nullptr,
+                false)) {
             notCapableReason = "Could not connect to " + service.ToString();
             LogPrintf("CActiveMasternode::ManageStatus() - not capable: %s\n", notCapableReason);
             return;
         }
-        pnode->Release();
 
         // Choose coins to use
         CPubKey pubKeyCollateralAddress;
@@ -262,7 +267,8 @@ bool CActiveMasternode::CreateBroadcast(std::string strService, std::string strK
     if(!CMasternodeBroadcast::CheckDefaultPort(strService, errorMessage, "CActiveMasternode::CreateBroadcast()"))
         return false;
 
-    addrman.Add(CAddress(service), CNetAddr("127.0.0.1"), 2 * 60 * 60);
+    if (g_connman)
+        g_connman->AddNewAddress(CAddress(service), CNetAddr("127.0.0.1"), 2 * 60 * 60);
 
     return CreateBroadcast(vin, CService(strService), keyCollateralAddress, pubKeyCollateralAddress, keyMasternode, pubKeyMasternode, errorMessage, mnb);
 }

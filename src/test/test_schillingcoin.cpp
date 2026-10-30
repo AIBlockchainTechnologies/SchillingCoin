@@ -8,12 +8,14 @@
 
 #include "test_schillingcoin.h"
 
+#include "guiinterface.h"
 #include "main.h"
+#include "net_processing.h"
 #include "random.h"
 #include "script/sigcache.h"
 #include "txdb.h"
-#include "guiinterface.h"
 #include "util.h"
+
 #ifdef ENABLE_WALLET
 #include "wallet/db.h"
 #include "wallet/wallet.h"
@@ -61,6 +63,9 @@ TestingSetup::TestingSetup(CBaseChainParams::Network network) : BasicTestingSetu
         pathTemp = GetTempPath() / strprintf("test_schillingcoin_%lu_%i", (unsigned long)GetTime(), (int)(InsecureRandRange(100000)));
         boost::filesystem::create_directories(pathTemp);
         gArgs.ForceSetArg("-datadir", pathTemp.string());
+
+        g_connman = std::make_unique<CConnman>(0x1337, 0x1337);
+
         pblocktree = new CBlockTreeDB(1 << 20, true);
         pcoinsdbview = new CCoinsViewDB(1 << 23, true);
         pcoinsTip = new CCoinsViewCache(pcoinsdbview);
@@ -90,6 +95,9 @@ TestingSetup::~TestingSetup()
         UnregisterNodeSignals(GetNodeSignals());
         threadGroup.interrupt_all();
         threadGroup.join_all();
+
+        g_connman.reset();
+
 #ifdef ENABLE_WALLET
         UnregisterValidationInterface(pwalletMain);
         delete pwalletMain;

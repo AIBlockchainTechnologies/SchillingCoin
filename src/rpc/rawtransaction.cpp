@@ -1088,7 +1088,7 @@ UniValue sendrawtransaction(const JSONRPCRequest& request)
             "transaction already in block chain");
     }
 
-    RelayTransaction(tx);
+    g_connman->RelayTransaction(tx);
 
     return hashTx.GetHex();
 }

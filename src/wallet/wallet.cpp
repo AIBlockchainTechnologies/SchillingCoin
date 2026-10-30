@@ -9,6 +9,7 @@
 #include "guiinterfaceutil.h"
 #include "masternode-payments.h"
 #include "masternode.h"
+#include "net.h"
 #include "optional.h"
 #include "policy/policy.h"
 #include "script/sign.h"
@@ -2248,7 +2249,7 @@ void CWalletTx::RelayWalletTransaction(std::string strCommand)
             uint256 hash = GetHash();
             LogPrintf("Relaying wtx %s\n", hash.ToString());
 
-            RelayTransaction((CTransaction)*this);
+            g_connman->RelayTransaction((CTransaction)*this);
         }
     }
 }

@@ -1,0 +1,273 @@
+// Copyright (c) 2023-2025 The Dash Core developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#include <evo/assetlocktx.h>
+#include <evo/specialtx.h>
+
+#include <llmq/commitment.h>
+#include <llmq/quorumsman.h>
+#include <llmq/signhash.h>
+
+#include <chainparams.h>
+#include <consensus/params.h>
+#include <consensus/validation.h>
+#include <deploymentstatus.h>
+#include <logging.h>
+#include <node/blockstorage.h>
+#include <tinyformat.h>
+#include <util/ranges_set.h>
+
+#include <algorithm>
+
+using node::BlockManager;
+
+
+/**
+ * Asset Lock Transaction
+ */
+bool CheckAssetLockTx(const CTransaction& tx, TxValidationState& state, bool is_v24_active)
+{
+    if (tx.nType != TRANSACTION_ASSET_LOCK) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-type");
+    }
+
+    CAmount returnAmount{0};
+    for (const CTxOut& txout : tx.vout) {
+        const CScript& script = txout.scriptPubKey;
+        if (script.empty() || script[0] != OP_RETURN) continue;
+
+        if (script.size() != 2 || script[1] != 0) return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-non-empty-return");
+
+        if (txout.nValue == 0 || !MoneyRange(txout.nValue)) return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-opreturn-outofrange");
+
+        // Should be only one OP_RETURN
+        if (returnAmount > 0) return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-multiple-return");
+        returnAmount = txout.nValue;
+    }
+
+    if (returnAmount == 0) return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-no-return");
+
+    const auto opt_assetLockTx = GetTxPayload<CAssetLockPayload>(tx);
+    if (!opt_assetLockTx.has_value()) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-payload");
+    }
+
+    if (opt_assetLockTx->getVersion() == 0 || opt_assetLockTx->getVersion() > CAssetLockPayload::CURRENT_VERSION) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-version");
+    }
+    if (!is_v24_active && opt_assetLockTx->getVersion() > CAssetLockPayload::INITIAL_VERSION) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-version-2");
+    }
+
+    if (opt_assetLockTx->getCreditOutputs().empty()) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-emptycreditoutputs");
+    }
+
+    CAmount creditOutputsAmount = 0;
+    for (const CTxOut& out : opt_assetLockTx->getCreditOutputs()) {
+        if (out.nValue == 0 || !MoneyRange(out.nValue) || !MoneyRange(creditOutputsAmount + out.nValue)) {
+            return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-credit-outofrange");
+        }
+
+        creditOutputsAmount += out.nValue;
+        if (opt_assetLockTx->getVersion() >= 2) {
+            if (!out.scriptPubKey.IsPayToPublicKeyHash() && !out.scriptPubKey.IsPayToScriptHash()) {
+                return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-script-pubkey");
+            }
+        } else {
+            if (!out.scriptPubKey.IsPayToPublicKeyHash()) {
+                return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-pubKeyHash");
+            }
+        }
+    }
+    if (creditOutputsAmount != returnAmount) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetlocktx-creditamount");
+    }
+
+    return true;
+}
+
+std::string CAssetLockPayload::ToString() const
+{
+    std::string outputs{"["};
+    for (const CTxOut& tx: creditOutputs) {
+        outputs.append(tx.ToString());
+        outputs.append(",");
+    }
+    outputs.back() = ']';
+    return strprintf("CAssetLockPayload(nVersion=%d,creditOutputs=%s)", nVersion, outputs.c_str());
+}
+
+/**
+ * Asset Unlock Transaction (withdrawals)
+ */
+
+template <typename ScanQuorums, typename GetQuorum>
+static bool VerifyAssetUnlockSig(const CAssetUnlockPayload& payload, ScanQuorums&& scan_quorums,
+                                 GetQuorum&& get_quorum, const uint256& msgHash,
+                                 gsl::not_null<const CBlockIndex*> pindexTip, TxValidationState& state)
+{
+    // That quourm hash must be active at `requestHeight`,
+    // and at the quorumHash must be active in either the current or previous quorum cycle
+    // and the sig must validate against that specific quorumHash.
+
+
+    Consensus::LLMQType llmqType = Params().GetConsensus().llmqTypePlatform;
+
+    const auto& llmq_params_opt = Params().GetLLMQ(llmqType);
+    assert(llmq_params_opt.has_value());
+
+    // We check all active quorums + 1 the latest inactive
+    const int quorums_to_scan = llmq_params_opt->signingActiveQuorumCount + 1;
+    const auto quorums = scan_quorums(llmqType, pindexTip, quorums_to_scan);
+
+    // The quorum recency and height window checks depend on the validating node's tip: the same
+    // transaction is valid a block earlier or later, so an honest peer at another height relays
+    // it. They fail as TX_BAD_SPECIAL so that relaying such a transaction is not punished.
+    if (bool isActive = std::any_of(quorums.begin(), quorums.end(), [&](const auto &q) { return q->qc->quorumHash == payload.getQuorumHash(); }); !isActive) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlock-too-old-quorum");
+    }
+
+    if (static_cast<uint32_t>(pindexTip->nHeight) < payload.getRequestedHeight() || pindexTip->nHeight >= payload.getHeightToExpiry()) {
+        LogPrint(BCLog::CREDITPOOL, "Asset unlock tx %d with requested height %d could not be accepted on height: %d\n",
+                payload.getIndex(), payload.getRequestedHeight(), pindexTip->nHeight);
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlock-too-late");
+    }
+
+    const auto quorum = get_quorum(llmqType, payload.getQuorumHash());
+    // quorum must be valid at this point. Let's check and throw error just in case
+    if (!quorum) {
+        LogPrintf("%s: ERROR! No quorum for credit pool found for hash=%s\n", __func__, payload.getQuorumHash().ToString());
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-assetunlock-quorum-internal-error");
+    }
+
+    const uint256 requestId = ::SerializeHash(std::make_pair(ASSET_UNLOCK_REQUESTID_PREFIX, payload.getIndex()));
+
+    if (const llmq::SignHash signHash(llmqType, quorum->qc->quorumHash, requestId, msgHash);
+        payload.getQuorumSig().VerifyInsecure(quorum->qc->quorumPublicKey, signHash.Get())) {
+        return true;
+    }
+
+    return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-assetunlock-not-verified");
+}
+
+bool CAssetUnlockPayload::VerifySig(const llmq::CQuorumManager& qman, const uint256& msgHash,
+                                    gsl::not_null<const CBlockIndex*> pindexTip, TxValidationState& state) const
+{
+    return VerifyAssetUnlockSig(*this, [&](Consensus::LLMQType llmq_type, const CBlockIndex* pindex, size_t count) {
+        return qman.ScanQuorums(llmq_type, pindex, count);
+    }, [&](Consensus::LLMQType llmq_type, const uint256& quorum_hash) {
+        return qman.GetQuorum(llmq_type, quorum_hash);
+    }, msgHash, pindexTip, state);
+}
+
+bool CAssetUnlockPayload::VerifySig(const llmq::CQuorumManager& qman, const CChain& chain, const uint256& msgHash,
+                                    gsl::not_null<const CBlockIndex*> pindexTip, TxValidationState& state) const
+{
+    AssertLockHeld(::cs_main);
+    return VerifyAssetUnlockSig(*this, [&](Consensus::LLMQType llmq_type, const CBlockIndex* pindex, size_t count) NO_THREAD_SAFETY_ANALYSIS {
+        return qman.ScanQuorums(llmq_type, pindex, count, chain);
+    }, [&](Consensus::LLMQType llmq_type, const uint256& quorum_hash) NO_THREAD_SAFETY_ANALYSIS {
+        return qman.GetQuorum(llmq_type, quorum_hash, chain);
+    }, msgHash, pindexTip, state);
+}
+
+template <typename VerifySig>
+static bool CheckAssetUnlockTxImpl(const BlockManager& blockman, VerifySig&& verify_sig, const CTransaction& tx,
+                                   gsl::not_null<const CBlockIndex*> pindexPrev,
+                                   const std::optional<CRangesSet>& indexes, bool is_v24_active,
+                                   TxValidationState& state)
+{
+    // Some checks depends from blockchain status also, such as `known indexes` and `withdrawal limits`
+    // They are omitted here and done by CCreditPool
+    if (tx.nType != TRANSACTION_ASSET_UNLOCK) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlocktx-type");
+    }
+
+    if (!tx.vin.empty()) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlocktx-have-input");
+    }
+
+    if (tx.vout.size() > CAssetUnlockPayload::MAXIMUM_WITHDRAWALS) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlocktx-too-many-outs");
+    }
+
+    // A withdrawal paying the shared-collateral template is rejected by the generic template
+    // creation rule (CheckSharedCollateralTemplateOutputs), which is gated on v24. It is
+    // deliberately NOT re-checked here: this function has no v24 activation status available, and
+    // an unconditional rejection would diverge from pre-activation consensus and split the chain.
+
+    const auto opt_assetUnlockTx = GetTxPayload<CAssetUnlockPayload>(tx);
+    if (!opt_assetUnlockTx) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlocktx-payload");
+    }
+    auto& assetUnlockTx = *opt_assetUnlockTx;
+
+    if (assetUnlockTx.getVersion() == 0 || assetUnlockTx.getVersion() > CAssetUnlockPayload::CURRENT_VERSION) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlocktx-version");
+    }
+    if (!is_v24_active && assetUnlockTx.getVersion() > CAssetUnlockPayload::INITIAL_VERSION) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlocktx-version-2");
+    }
+
+    if (indexes != std::nullopt && indexes->Contains(assetUnlockTx.getIndex())) {
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-assetunlock-duplicated-index");
+    }
+
+    if (LOCK(::cs_main); blockman.LookupBlockIndex(assetUnlockTx.getQuorumHash()) == nullptr) {
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-assetunlock-quorum-hash");
+    }
+
+    // Copy transaction except `quorumSig` field to calculate hash
+    CMutableTransaction tx_copy(tx);
+    const CAssetUnlockPayload payload_copy{assetUnlockTx.getVersion(), assetUnlockTx.getIndex(), assetUnlockTx.getFee(), assetUnlockTx.getRequestedHeight(), assetUnlockTx.getQuorumHash(), CBLSSignature{}};
+    SetTxPayload(tx_copy, payload_copy);
+
+    // The signed message must commit to requestedHeight and quorumHash even though the version 2
+    // txid excludes them, so hash the full serialization rather than using GetHash().
+    uint256 msgHash = ::SerializeHash(tx_copy);
+
+    return verify_sig(assetUnlockTx, msgHash, pindexPrev, state);
+}
+
+bool CheckAssetUnlockTx(const BlockManager& blockman, const llmq::CQuorumManager& qman, const CTransaction& tx,
+                        gsl::not_null<const CBlockIndex*> pindexPrev, const std::optional<CRangesSet>& indexes,
+                        bool is_v24_active, TxValidationState& state)
+{
+    return CheckAssetUnlockTxImpl(blockman, [&](const CAssetUnlockPayload& payload, const uint256& msg_hash,
+                                                const CBlockIndex* pindex, TxValidationState& tx_state) {
+        return payload.VerifySig(qman, msg_hash, pindex, tx_state);
+    }, tx, pindexPrev, indexes, is_v24_active, state);
+}
+
+bool CheckAssetUnlockTx(const BlockManager& blockman, const llmq::CQuorumManager& qman, const CChain& chain,
+                        const CTransaction& tx, gsl::not_null<const CBlockIndex*> pindexPrev,
+                        const std::optional<CRangesSet>& indexes, bool is_v24_active, TxValidationState& state)
+{
+    AssertLockHeld(::cs_main);
+    return CheckAssetUnlockTxImpl(blockman, [&](const CAssetUnlockPayload& payload, const uint256& msg_hash,
+                                                const CBlockIndex* pindex, TxValidationState& tx_state) NO_THREAD_SAFETY_ANALYSIS {
+        return payload.VerifySig(qman, chain, msg_hash, pindex, tx_state);
+    }, tx, pindexPrev, indexes, is_v24_active, state);
+}
+
+bool GetAssetUnlockFee(const CTransaction& tx, CAmount& txfee, TxValidationState& state)
+{
+    const auto opt_assetUnlockTx = GetTxPayload<CAssetUnlockPayload>(tx);
+    if (!opt_assetUnlockTx) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-assetunlocktx-payload");
+    }
+    const CAmount txfee_aux = opt_assetUnlockTx->getFee();
+    if (txfee_aux == 0 || !MoneyRange(txfee_aux)) {
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-assetunlock-fee-outofrange");
+    }
+    txfee = txfee_aux;
+    return true;
+}
+
+std::string CAssetUnlockPayload::ToString() const
+{
+    return strprintf("CAssetUnlockPayload(nVersion=%d,index=%d,fee=%d.%08d,requestedHeight=%d,quorumHash=%d,quorumSig=%s",
+            nVersion, index, fee / COIN, fee % COIN, requestedHeight, quorumHash.GetHex(), quorumSig.ToString().c_str());
+}

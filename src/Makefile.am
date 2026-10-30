@@ -121,7 +121,6 @@ BITCOIN_CORE_H = \
   dbwrapper.h \
   evo/specialtx.h \
   forgeman.h \
-  fs.h \
   hash.h \
   httprpc.h \
   httpserver.h \
@@ -142,11 +141,12 @@ BITCOIN_CORE_H = \
   masternodeconfig.h \
   merkleblock.h \
   messagesigner.h \
-  miner.h \
   mruset.h \
   net.h \
   netaddress.h\
   netbase.h \
+  netgroup.h \
+  node/miner.h \
   noui.h \
   optional.h \
   operationresult.h \
@@ -174,6 +174,7 @@ BITCOIN_CORE_H = \
   script/sign.h \
   script/standard.h \
   serialize.h \
+  span.h \
   stakeinput.h \
   streams.h \
   stubs/legacy_zerocoin_consensus.h \
@@ -195,12 +196,15 @@ BITCOIN_CORE_H = \
   utilmoneystr.h \
   utilstrencodings.h \
   utiltime.h \
+  util/asmap.h \
   util/fees.h \
+  util/fs.h \
   util/macros.h \
   util/memory.h \
   util/string.h \
   util/system.h \
   util/threadnames.h \
+  validation.h \
   validationinterface.h \
   version.h \
   wallet/bdb.h \
@@ -245,8 +249,8 @@ libbitcoin_server_a_SOURCES = \
   init.cpp \
   main.cpp \
   merkleblock.cpp \
-  miner.cpp \
   net.cpp \
+  node/miner.cpp \
   noui.cpp \
   policy/fees.cpp \
   policy/policy.cpp \
@@ -264,6 +268,7 @@ libbitcoin_server_a_SOURCES = \
   torcontrol.cpp \
   txdb.cpp \
   txmempool.cpp \
+  validation.cpp \
   validationinterface.cpp \
   $(BITCOIN_CORE_H)
 
@@ -317,6 +322,7 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/aes.cpp \
   crypto/aes.h \
   crypto/sha1.cpp \
+  crypto/sha3.cpp \
   crypto/sha256.cpp \
   crypto/sha512.cpp \
   crypto/chacha20.cpp \
@@ -413,6 +419,7 @@ libbitcoin_common_a_SOURCES = \
   keystore.cpp \
   netaddress.cpp\
   netbase.cpp \
+  netgroup.cpp \
   policy/feerate.cpp \
   primitives/block.cpp \
   primitives/transaction.cpp \
@@ -440,7 +447,6 @@ libbitcoin_util_a_SOURCES = \
   compat/glibc_sanity.cpp \
   compat/glibcxx_sanity.cpp \
   compat/strnlen.cpp \
-  fs.cpp \
   logging.cpp \
   random.cpp \
   rpc/protocol.cpp \
@@ -449,13 +455,15 @@ libbitcoin_util_a_SOURCES = \
   threadinterrupt.cpp \
   uint256.cpp \
   util.cpp \
-  util/fees.cpp \
-  util/string.cpp \
-  util/system.cpp \
-  util/threadnames.cpp \
   utilmoneystr.cpp \
   utilstrencodings.cpp \
   utiltime.cpp \
+  util/asmap.cpp \
+  util/fees.cpp \
+  util/fs.cpp \
+  util/string.cpp \
+  util/system.cpp \
+  util/threadnames.cpp \
   $(BITCOIN_CORE_H)
 
 if GLIBC_BACK_COMPAT
@@ -544,7 +552,7 @@ include_HEADERS = script/bitcoinconsensus.h
 libbitcoinconsensus_la_SOURCES = \
   allocators.cpp \
   arith_uint256.cpp \
-  blob_uint256.cpp
+  blob_uint256.cpp \
   primitives/transaction.cpp \
   crypto/hmac_sha512.cpp \
   crypto/scrypt.cpp \

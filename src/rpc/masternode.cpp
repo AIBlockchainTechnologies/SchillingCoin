@@ -5,6 +5,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "activemasternode.h"
+#include "arith_uint256.h"
 #include "db.h"
 #include "init.h"
 #include "key_io.h"
@@ -14,6 +15,7 @@
 #include "masternodeman.h"
 #include "masternode-sync.h"
 #include "netbase.h"
+#include "net_processing.h"
 #include "rpc/server.h"
 #include "script/standard.h"
 #include "utilmoneystr.h"
@@ -82,13 +84,15 @@ UniValue listmasternodes(const JSONRPCRequest& request)
 
     UniValue ret(UniValue::VARR);
     int nHeight;
+    const CBlockIndex* pindex;
     {
         LOCK(cs_main);
-        CBlockIndex* pindex = chainActive.Tip();
+        pindex = chainActive.Tip();
         if (!pindex) return ret;
         nHeight = pindex->nHeight;
     }
 
+    const int nMnCount = mnodeman.CountEnabled();
     std::vector<std::pair<int, CMasternode> > vMasternodeRanks = mnodeman.GetMasternodeRanks(nHeight);
 
     for (PAIRTYPE(int, CMasternode) & s : vMasternodeRanks) {
@@ -125,7 +129,7 @@ UniValue listmasternodes(const JSONRPCRequest& request)
             obj.push_back(Pair("version", mn->protocolVersion));
             obj.push_back(Pair("lastseen", (int64_t)mn->lastPing.sigTime));
             obj.push_back(Pair("activetime", (int64_t)(mn->lastPing.sigTime - mn->sigTime)));
-            obj.push_back(Pair("lastpaid", (int64_t)mn->GetLastPaid()));
+            obj.push_back(Pair("lastpaid", mnodeman.GetLastPaid(*mn, nMnCount, pindex)));
             ret.push_back(obj);
         }
     }
@@ -150,13 +154,17 @@ UniValue masternodeconnect(const JSONRPCRequest& request)
 
     CService addr = CService(strAddress);
 
-    CNode* pnode = ConnectNode((CAddress)addr, NULL, false, true);
-    if (pnode) {
-        pnode->Release();
+    if (g_connman &&
+        g_connman->OpenNetworkConnection(
+            CAddress(addr),
+            true,
+            nullptr,
+            nullptr,
+            false)) {
         return NullUniValue;
-    } else {
-        throw std::runtime_error("error connecting\n");
     }
+
+    throw std::runtime_error("error connecting\n");
 }
 
 UniValue getmasternodecount(const JSONRPCRequest& request)
@@ -728,15 +736,22 @@ UniValue getmasternodescores(const JSONRPCRequest& request)
 
     std::vector<CMasternode> vMasternodes = mnodeman.GetFullMasternodeVector();
     for (int nHeight = chainActive.Tip()->nHeight - nLast; nHeight < chainActive.Tip()->nHeight + 20; nHeight++) {
-        uint256 nHigh;
+        uint256 hash;
+        if (!GetBlockHash(hash, nHeight - 100)) {
+            continue;
+        }
+
+        arith_uint256 nHigh = ARITH_UINT256_ZERO;
         CMasternode* pBestMasternode = NULL;
+
         for (CMasternode& mn : vMasternodes) {
-            uint256 n = mn.CalculateScore(1, nHeight - 100);
+            const arith_uint256 n = mn.CalculateScore(hash);
             if (n > nHigh) {
                 nHigh = n;
                 pBestMasternode = &mn;
             }
         }
+
         if (pBestMasternode)
             obj.push_back(Pair(strprintf("%d", nHeight), pBestMasternode->vin.prevout.hash.ToString().c_str()));
     }

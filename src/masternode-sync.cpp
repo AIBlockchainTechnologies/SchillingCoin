@@ -11,6 +11,7 @@
 #include "masternode-payments.h"
 #include "masternode.h"
 #include "masternodeman.h"
+#include "net.h"
 #include "util.h"
 #include "util/system.h"
 #include "addrman.h"
@@ -186,13 +187,13 @@ void CMasternodeSync::ProcessMessage(CNode* pfrom, std::string& strCommand, CDat
 
 void CMasternodeSync::ClearFulfilledRequest()
 {
-    TRY_LOCK(cs_vNodes, lockRecv);
-    if (!lockRecv) return;
+    if (!g_connman)
+        return;
 
-    for (CNode* pnode : vNodes) {
+    g_connman->ForEachNode([](CNode* pnode) {
         pnode->ClearFulfilledRequest("mnsync");
         pnode->ClearFulfilledRequest("mnwsync");
-    }
+    });
 }
 
 void CMasternodeSync::Process()
@@ -255,13 +256,12 @@ void CMasternodeSync::Process()
         }
     }
 
-    TRY_LOCK(cs_vNodes, lockRecv);
-    if (!lockRecv) return;
+    if (!g_connman)
+        return;
 
-    for (CNode* pnode : vNodes) {
-        if (!SyncWithNode(pnode, isRegTestNet))
-            return;
-    }
+    g_connman->ForEachNodeContinueIf([&](CNode* pnode) {
+        return SyncWithNode(pnode, isRegTestNet);
+    });
 }
 
 bool CMasternodeSync::SyncWithNode(CNode* pnode, bool isRegTestNet)

@@ -5,11 +5,11 @@
 
 #include "wallet/test/pos_test_fixture.h"
 
-#include "blockassembler.h"
 #include "blocksignature.h"
 #include "chainparams.h"
 #include "kernel.h"
 #include "main.h"
+#include "node/miner.h"
 #include "wallet/wallet.h"
 
 #include <boost/test/unit_test.hpp>

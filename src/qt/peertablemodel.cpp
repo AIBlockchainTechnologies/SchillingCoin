@@ -52,25 +52,23 @@ public:
     /** Index of rows by node ID */
     std::map<NodeId, int> mapNodeRows;
 
-    /** Pull a full list of peers from vNodes into our cache */
+    /** Pull a full list of peers into our cache */
     void refreshPeers()
     {
         {
-            TRY_LOCK(cs_vNodes, lockNodes);
-            if (!lockNodes) {
-                // skip the refresh if we can't immediately get the lock
-                return;
-            }
             cachedNodeStats.clear();
+            std::vector<CNodeStats> vstats;
+            if (g_connman)
+                g_connman->GetNodeStats(vstats);
 
-            cachedNodeStats.reserve(vNodes.size());
-            for (CNode* pnode : vNodes) {
+            cachedNodeStats.reserve(vstats.size());
+            for (const CNodeStats& nodestats : vstats) {
                 CNodeCombinedStats stats;
                 stats.nodeStateStats.nMisbehavior = 0;
                 stats.nodeStateStats.nSyncHeight = -1;
                 stats.nodeStateStats.nCommonHeight = -1;
                 stats.fNodeStateStatsAvailable = false;
-                pnode->copyStats(stats.nodeStats);
+                stats.nodeStats = nodestats;
                 cachedNodeStats.push_back(stats);
             }
         }
