@@ -226,11 +226,20 @@ public:
     //! (memory only) Sequential id assigned to distinguish order in which blocks are received.
     uint32_t nSequenceId{0};
 
-    //! zerocoin specific fields
+    //! zerocoin specific fields retained for historical block-index compatibility
     std::map<libzerocoin::CoinDenomination, int64_t> mapZerocoinSupply;
 
-    CBlockIndex() { ClearMapZcSupply(); }
-    CBlockIndex(const CBlock& block);
+    explicit CBlockIndex(const CBlockHeader& block)
+        : nVersion{block.nVersion},
+          hashMerkleRoot{block.hashMerkleRoot},
+          nTime{block.nTime},
+          nBits{block.nBits},
+          nNonce{block.nNonce},
+          nAccumulatorCheckpoint{block.nVersion == 4 ? block.nAccumulatorCheckpoint : uint256{}}
+    {
+    }
+
+    CBlockIndex() = default;
     void ClearMapZcSupply();
 
     std::string ToString() const;

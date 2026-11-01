@@ -180,13 +180,13 @@ bool CMasternodePaymentWinner::IsValid(CNode* pnode, std::string& strError)
         return false;
     }
 
-    if (pmn->protocolVersion < ActiveProtocol()) {
-        strError = strprintf("Masternode protocol too old %d - req %d", pmn->protocolVersion, ActiveProtocol());
+    if (pmn->protocolVersion < MIN_PEER_PROTO_VERSION) {
+        strError = strprintf("Masternode protocol too old %d - req %d", pmn->protocolVersion, MIN_PEER_PROTO_VERSION);
         LogPrint(BCLog::MNPAYMENTS,"CMasternodePaymentWinner::IsValid - %s\n", strError);
         return false;
     }
 
-    int n = mnodeman.GetMasternodeRank(vinMasternode, nBlockHeight - 100, ActiveProtocol());
+    int n = mnodeman.GetMasternodeRank(vinMasternode, nBlockHeight - 100, MIN_PEER_PROTO_VERSION);
 
     if (n > MNPAYMENTS_SIGNATURES_TOTAL) {
         //It's common to have masternodes mistakenly think they are in the top 10
@@ -371,7 +371,7 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txNew, int64_t nFe
 
 int CMasternodePayments::GetMinMasternodePaymentsProto()
 {
-    return ActiveProtocol();
+    return MIN_PEER_PROTO_VERSION;
 }
 
 void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)
@@ -403,7 +403,8 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
         CMasternodePaymentWinner winner;
         vRecv >> winner;
 
-        if (pfrom->nVersion < ActiveProtocol()) return;
+        if (pfrom->nVersion < MIN_PEER_PROTO_VERSION) return;
+
 
         int nHeight;
         {
@@ -704,7 +705,7 @@ bool CMasternodePayments::ProcessBlock(int nBlockHeight)
 
     int n = mnodeman.GetMasternodeRank(activeMasternode.vin,
                                        nBlockHeight - 100,
-                                       ActiveProtocol());
+                                       MIN_PEER_PROTO_VERSION);
 
     if (n == -1) {
         LogPrint(BCLog::MNPAYMENTS,

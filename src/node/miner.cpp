@@ -94,13 +94,13 @@ public:
     }
 };
 
-void UpdateTime(CBlockHeader* pblock, const CBlockIndex* pindexPrev)
+void UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
     pblock->nTime = std::max(pindexPrev->GetMedianTimePast() + 1, GetAdjustedTime());
 
     // Updating time can change work required on testnet:
-    if (Params().GetConsensus().fPowAllowMinDifficultyBlocks)
-        pblock->nBits = GetNextWorkRequired(pindexPrev, pblock);
+    if (consensusParams.fPowAllowMinDifficultyBlocks)
+        pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensusParams);
 }
 
 CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, bool fProofOfStake)
@@ -143,7 +143,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, 
     pblocktemplate->vTxFees.push_back(-1);   // updated at end
     pblocktemplate->vTxSigOps.push_back(-1); // updated at end
 
-    if (fProofOfStake && !SolveProofOfStake(pblock, pindexPrev, pwallet)) {
+    if (fProofOfStake && !SolveProofOfStake(pblock, pindexPrev, pwallet, consensus)) {
         return nullptr;
     }
 
@@ -425,8 +425,8 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, 
         // Fill in header
         pblock->hashPrevBlock = pindexPrev->GetBlockHash();
         if (!fProofOfStake)
-            UpdateTime(pblock, pindexPrev);
-        pblock->nBits = GetNextWorkRequired(pindexPrev, pblock);
+            UpdateTime(pblock, consensus, pindexPrev);
+        pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensus);
         pblock->nNonce = 0;
 
         if (pblock->nVersion == 4) // Accumulators only exist on version 4 blocks
@@ -565,8 +565,9 @@ void BitcoinMiner(CWallet* pwallet, bool fProofOfStake)
     LogPrintf("SchillingCoinMiner started\n");
     SetThreadPriority(THREAD_PRIORITY_LOWEST);
     util::ThreadRename("schillingcoin-miner");
-    const int64_t nSpacingMillis = Params().GetConsensus().nTargetSpacing * 1000;
-    const int last_pow_block = Params().GetConsensus().height_last_PoW;
+    const Consensus::Params& consensus = Params().GetConsensus();
+    const int64_t nSpacingMillis = consensus.nTargetSpacing * 1000;
+    const int last_pow_block = consensus.height_last_PoW;
 
     // Each thread has its own key and counter
     CReserveKey reservekey(pwallet);
@@ -703,8 +704,8 @@ void BitcoinMiner(CWallet* pwallet, bool fProofOfStake)
                 ) break;
 
             // Update nTime every few seconds
-            UpdateTime(pblock, pindexPrev);
-            if (Params().GetConsensus().fPowAllowMinDifficultyBlocks) {
+            UpdateTime(pblock, consensus, pindexPrev);
+            if (consensus.fPowAllowMinDifficultyBlocks) {
                 // Changing pblock->nTime can change work required on testnet:
                 hashTarget.SetCompact(pblock->nBits);
             }

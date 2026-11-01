@@ -6,21 +6,19 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "pow.h"
+#include <pow.h>
 
-#include "chain.h"
-#include "chainparams.h"
-#include "main.h"
-#include "primitives/block.h"
-#include "uint256.h"
-#include "util.h"
-#include "util/system.h"
+#include <arith_uint256.h>
+#include <chain.h>
+#include <primitives/block.h>
+#include <uint256.h>
 
 #include <math.h>
 
-unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pblock)
+unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pblock,
+                                 const Consensus::Params& params)
 {
-    if (Params().IsRegTestNet())
+    if (params.fPowNoRetargeting)
         return pindexLast->nBits;
 
     /* current difficulty formula, SchillingCoin - DarkGravity v3, written by Evan Duffield - evan@dashpay.io */
@@ -33,14 +31,13 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     int64_t CountBlocks = 0;
     arith_uint256 PastDifficultyAverage;
     arith_uint256 PastDifficultyAveragePrev;
-    const Consensus::Params& consensus = Params().GetConsensus();
 
     if (BlockLastSolved == NULL || BlockLastSolved->nHeight == 0 || BlockLastSolved->nHeight < PastBlocksMin) {
-        return UintToArith256(consensus.powLimit).GetCompact();
+        return UintToArith256(params.powLimit).GetCompact();
     }
 
-    if (pindexLast->nHeight >= Params().GetConsensus().height_last_PoW) {
-        const bool fTimeV2 = consensus.IsTimeProtocolV2(pindexLast->nHeight + 1);
+    if (pindexLast->nHeight >= params.height_last_PoW) {
+        const bool fTimeV2 = params.IsTimeProtocolV2(pindexLast->nHeight + 1);
         const arith_uint256 bnTargetLimit = UintToArith256(~UINT256_ZERO >> 24);
         const int64_t& nTargetTimespan = 60 * 40;
 
@@ -49,18 +46,18 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
             nActualSpacing = pindexLast->GetBlockTime() - pindexLast->pprev->GetBlockTime();
         if (nActualSpacing < 0)
             nActualSpacing = 1;
-        if (fTimeV2 && nActualSpacing > consensus.nTargetSpacing * 10)
-            nActualSpacing = consensus.nTargetSpacing * 10;
+        if (fTimeV2 && nActualSpacing > params.nTargetSpacing * 10)
+            nActualSpacing = params.nTargetSpacing * 10;
 
         arith_uint256 bnNew;
         bnNew.SetCompact(pindexLast->nBits);
 
-        if (fTimeV2 && !consensus.IsTimeProtocolV2(pindexLast->nHeight))
+        if (fTimeV2 && !params.IsTimeProtocolV2(pindexLast->nHeight))
             bnNew <<= 4;
 
-        int64_t nInterval = nTargetTimespan / consensus.nTargetSpacing;
-        bnNew *= ((nInterval - 1) * consensus.nTargetSpacing + nActualSpacing + nActualSpacing);
-        bnNew /= ((nInterval + 1) * consensus.nTargetSpacing);
+        int64_t nInterval = nTargetTimespan / params.nTargetSpacing;
+        bnNew *= ((nInterval - 1) * params.nTargetSpacing + nActualSpacing + nActualSpacing);
+        bnNew /= ((nInterval + 1) * params.nTargetSpacing);
 
         if (bnNew <= 0 || bnNew > bnTargetLimit)
             bnNew = bnTargetLimit;
@@ -101,7 +98,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
 
     arith_uint256 bnNew(PastDifficultyAverage);
 
-    int64_t _nTargetTimespan = CountBlocks * consensus.nTargetSpacing;
+    int64_t _nTargetTimespan = CountBlocks * params.nTargetSpacing;
 
     if (nActualTimespan < _nTargetTimespan / 3)
         nActualTimespan = _nTargetTimespan / 3;
@@ -111,7 +108,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     bnNew *= nActualTimespan;
     bnNew /= _nTargetTimespan;
 
-    const arith_uint256 bnPowLimit = UintToArith256(consensus.powLimit);
+    const arith_uint256 bnPowLimit = UintToArith256(params.powLimit);
 
     if (bnNew > bnPowLimit) {
         bnNew = bnPowLimit;
@@ -120,25 +117,25 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     return bnNew.GetCompact();
 }
 
-bool CheckProofOfWork(uint256 hash, unsigned int nBits)
+bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params)
 {
+    if (params.fPowNoRetargeting)
+        return true;
+
     bool fNegative;
     bool fOverflow;
     arith_uint256 bnTarget;
-
-    if (Params().IsRegTestNet())
-        return true;
 
     bnTarget.SetCompact(nBits, &fNegative, &fOverflow);
 
     // Check range
     if (fNegative || bnTarget.IsNull() || fOverflow ||
-        bnTarget > UintToArith256(Params().GetConsensus().powLimit))
-        return error("CheckProofOfWork() : nBits below minimum work");
+        bnTarget > UintToArith256(params.powLimit))
+        return false;
 
     // Check proof of work matches claimed amount
     if (UintToArith256(hash) > bnTarget)
-        return error("CheckProofOfWork() : hash doesn't match nBits");
+        return false;
 
     return true;
 }

@@ -19,6 +19,8 @@
 #include <string>
 #include <utility>
 
+class ArgsManager;
+
 /**
  * Backend-independent database batch interface.
  *
@@ -341,8 +343,14 @@ enum class DatabaseStatus {
 struct DatabaseOptions {
     bool require_existing{false};
     bool require_create{false};
-    bool verify{true};
+
+    // Specialized options. Not every option is supported by every backend.
+    bool verify{true};              //!< Check data integrity on load.
+    bool use_shared_memory{false};  //!< Let other processes access the database.
+    int64_t max_log_mb{100};        //!< Max log size to allow before consolidating.
 };
+
+void ReadDatabaseArgs(const ArgsManager& args, DatabaseOptions& options);
 
 std::unique_ptr<WalletDatabase> MakeDatabase(
     const fs::path& path,

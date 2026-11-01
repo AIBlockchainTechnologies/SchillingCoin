@@ -38,7 +38,7 @@ CBlock TestPoSChainSetup::CreateAndProcessBlock()
     unsigned int extraNonce = 0;
     IncrementExtraNonce(&block, pindexPrev, extraNonce);
 
-    while (!CheckProofOfWork(block.GetHash(), block.nBits)) {
+    while (!CheckProofOfWork(block.GetHash(), block.nBits, Params().GetConsensus())) {
         ++block.nNonce;
         if (block.nNonce == 0) {
             ++block.nTime;

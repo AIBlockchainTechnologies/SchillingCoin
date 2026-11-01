@@ -64,20 +64,6 @@ const CBlockIndex* CChain::FindFork(const CBlockIndex* pindex) const
     return pindex;
 }
 
-CBlockIndex::CBlockIndex(const CBlock& block):
-        nVersion{block.nVersion},
-        hashMerkleRoot{block.hashMerkleRoot},
-        nTime{block.nTime},
-        nBits{block.nBits},
-        nNonce{block.nNonce}
-{
-    ClearMapZcSupply();
-    if (block.nVersion == 4)
-        nAccumulatorCheckpoint = block.nAccumulatorCheckpoint;
-    if (block.IsProofOfStake())
-        SetProofOfStake();
-}
-
 void CBlockIndex::ClearMapZcSupply()
 {
     // Zerocoin removed — supply tracking disabled

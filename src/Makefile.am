@@ -33,6 +33,7 @@ BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
 
 LIBBITCOIN_SERVER = libbitcoin_server.a
 LIBBITCOIN_COMMON = libbitcoin_common.a
+LIBBITCOIN_CONSENSUS = libbitcoin_consensus.a
 LIBBITCOIN_CLI = libbitcoin_cli.a
 LIBBITCOIN_UTIL = libbitcoin_util.a
 LIBBITCOIN_CRYPTO = crypto/libbitcoin_crypto.a
@@ -59,6 +60,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_COMMON) \
+  $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_BIGNUM) \
   $(LIBBITCOIN_SERVER) \
   $(LIBBITCOIN_CLI) \
@@ -66,6 +68,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_ZMQ)
 
 lib_LTLIBRARIES = $(LIBBITCOINCONSENSUS)
+noinst_LTLIBRARIES =
 
 bin_PROGRAMS =
 noinst_PROGRAMS =
@@ -99,32 +102,62 @@ BITCOIN_CORE_H = \
   chain.h \
   chainparams.h \
   chainparamsbase.h \
+  cachemap.h \
+  cachemultimap.h \
   chainparamsseeds.h \
   checkpoints.h \
   checkqueue.h \
   clientversion.h \
+  coinjoin/options.h \
   coins.h \
+  common/bloom.h \
+  common/run_command.h \
   compat.h \
   compat/byteswap.h \
+  compat/compat.h \
   compat/endian.h \
   compat/sanity.h \
   compressor.h \
   consensus/amount.h \
   consensus/consensus.h \
   consensus/merkle.h \
-  consensus/validation.h \
-  consensus/tx_verify.h \
   consensus/params.h \
+  consensus/tx_check.h \
+  consensus/tx_verify.h \
+  consensus/validation.h \
+  context.h \
   core_io.h \
+  core_memusage.h \
   cuckoocache.h \
   crypter.h \
   dbwrapper.h \
   evo/specialtx.h \
+  external_signer.h \
   forgeman.h \
+  governance/common.h \
+  governance/governance.h \
+  governance/object.h \
+  governance/vote.h \
+  governance/votedb.h \
   hash.h \
   httprpc.h \
   httpserver.h \
   init.h \
+  interfaces/chain.h \
+  interfaces/coinjoin.h \
+  interfaces/echo.h \
+  interfaces/handler.h \
+  interfaces/node.h \
+  interfaces/providertx.h \
+  interfaces/wallet.h \
+  kernel/blockmanager_opts.h \
+  kernel/chainstatemanager_opts.h \
+  kernel/checks.h \
+  kernel/coinstats.h \
+  kernel/context.h \
+  kernel/cs_main.h \
+  kernel/disconnected_transactions.h \
+  kernel/mempool_persist.h \
   kernel.h \
   key.h \
   key_io.h \
@@ -132,7 +165,9 @@ BITCOIN_CORE_H = \
   legacy/stakemodifier.h \
   limitedmap.h \
   logging.h \
+  logging/timer.h \
   main.h \
+  mapport.h \
   memusage.h \
   masternode.h \
   masternode-payments.h \
@@ -146,25 +181,36 @@ BITCOIN_CORE_H = \
   netaddress.h\
   netbase.h \
   netgroup.h \
+  node/blockstorage.h \
+  node/chainstate.h \
+  node/chainstatemanager_args.h \
+  node/coin.h \
+  node/context.h \
   node/miner.h \
+  node/transaction.h \
+  node/utxo_snapshot.h \
   noui.h \
   optional.h \
   operationresult.h \
   policy/feerate.h \
   policy/fees.h \
+  policy/packages.h \
   policy/policy.h \
   pow.h \
   prevector.h \
   primitives/block.h \
   primitives/transaction.h \
   protocol.h \
+  psbt.h \
   pubkey.h \
   random.h \
   reverselock.h \
   reverse_iterate.h \
   rpc/client.h \
   rpc/protocol.h \
+  rpc/request.h \
   rpc/server.h \
+  rpc/server_util.h \
   scheduler.h \
   script/script_error.h \
   script/interpreter.h \
@@ -172,14 +218,17 @@ BITCOIN_CORE_H = \
   script/script.h \
   script/sigcache.h \
   script/sign.h \
+  script/signingprovider.h \
   script/standard.h \
   serialize.h \
   span.h \
   stakeinput.h \
   streams.h \
   stubs/legacy_zerocoin_consensus.h \
+  support/allocators/secure.h \
   support/allocators/zeroafterfree.h \
   support/cleanse.h \
+  support/lockedpool.h \
   sync.h \
   threadinterrupt.h \
   threadsafety.h \
@@ -197,20 +246,27 @@ BITCOIN_CORE_H = \
   utilstrencodings.h \
   utiltime.h \
   util/asmap.h \
+  util/fastrange.h \
   util/fees.h \
   util/fs.h \
   util/macros.h \
   util/memory.h \
+  util/overflow.h \
+  util/settings.h \
   util/string.h \
+  util/subprocess.hpp \
   util/system.h \
   util/threadnames.h \
+  util/types.h \
   validation.h \
   validationinterface.h \
   version.h \
+  warnings.h \
   wallet/bdb.h \
   wallet/bip39.h \
   wallet/bip39_english.h \
   wallet/coincontrol.h \
+  wallet/context.h \
   wallet/db.h \
   wallet/hdchain.h \
   wallet/fees.h \
@@ -244,15 +300,34 @@ libbitcoin_server_a_SOURCES = \
   checkpoints.cpp \
   consensus/tx_verify.cpp \
   dbwrapper.cpp \
+  governance/governance.cpp \
+  governance/object.cpp \
+  governance/vote.cpp \
+  governance/votedb.cpp \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
+  kernel/checks.cpp \
+  kernel/coinstats.cpp \
+  kernel/context.cpp \
+  kernel/cs_main.cpp \
+  kernel/mempool_persist.cpp \
   main.cpp \
+  mapport.cpp \
   merkleblock.cpp \
   net.cpp \
+  node/blockstorage.cpp \
+  node/chainstate.cpp \
+  node/chainstatemanager_args.cpp \
+  node/coin.cpp \
+  node/context.cpp \
+  node/interfaces.cpp \
   node/miner.cpp \
+  node/transaction.cpp \
+  node/utxo_snapshot.cpp \
   noui.cpp \
   policy/fees.cpp \
+  policy/packages.cpp \
   policy/policy.cpp \
   pow.cpp \
   rest.cpp \
@@ -263,6 +338,7 @@ libbitcoin_server_a_SOURCES = \
   rpc/net.cpp \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
+  rpc/server_util.cpp \
   script/sigcache.cpp \
   timedata.cpp \
   torcontrol.cpp \
@@ -301,6 +377,7 @@ libbitcoin_wallet_a_SOURCES = \
   kernel.cpp \
   wallet/bdb.cpp \
   wallet/coincontrol.cpp \
+  wallet/context.cpp \
   wallet/db.cpp \
   wallet/fees.cpp \
   wallet/init.cpp \
@@ -330,6 +407,8 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/hmac_sha256.cpp \
   crypto/rfc6979_hmac_sha256.cpp \
   crypto/hmac_sha512.cpp \
+  crypto/muhash.cpp \
+  crypto/muhash.h \
   crypto/scrypt.cpp \
   crypto/ripemd160.cpp \
   crypto/sph_md_helper.c \
@@ -407,11 +486,16 @@ libbitcoin_common_a_SOURCES = \
   bip38.cpp \
   chainparams.cpp \
   coins.cpp \
+  common/bloom.cpp \
+  common/interfaces.cpp \
+  common/run_command.cpp \
   compressor.cpp \
   consensus/merkle.cpp \
   core_read.cpp \
   core_write.cpp \
   evo/specialtx.cpp \
+  external_signer.cpp \
+  governance/common.cpp \
   hash.cpp \
   wallet/hdchain.cpp \
   key.cpp \
@@ -424,13 +508,17 @@ libbitcoin_common_a_SOURCES = \
   primitives/block.cpp \
   primitives/transaction.cpp \
   protocol.cpp \
+  psbt.cpp \
   pubkey.cpp \
+  rpc/request.cpp \
   scheduler.cpp \
   script/interpreter.cpp \
   script/script.cpp \
   script/sign.cpp \
+  script/signingprovider.cpp \
   script/standard.cpp \
   script/script_error.cpp \
+  warnings.cpp \
   $(BITCOIN_CORE_H)
 
 # util: shared between all executables.
@@ -444,6 +532,7 @@ libbitcoin_util_a_SOURCES = \
   blob_uint256.cpp \
   chainparamsbase.cpp \
   clientversion.cpp \
+  coinjoin/options.cpp \
   compat/glibc_sanity.cpp \
   compat/glibcxx_sanity.cpp \
   compat/strnlen.cpp \
@@ -451,6 +540,7 @@ libbitcoin_util_a_SOURCES = \
   random.cpp \
   rpc/protocol.cpp \
   support/cleanse.cpp \
+  support/lockedpool.cpp \
   sync.cpp \
   threadinterrupt.cpp \
   uint256.cpp \
@@ -461,6 +551,7 @@ libbitcoin_util_a_SOURCES = \
   util/asmap.cpp \
   util/fees.cpp \
   util/fs.cpp \
+  util/settings.cpp \
   util/string.cpp \
   util/system.cpp \
   util/threadnames.cpp \
@@ -470,6 +561,49 @@ if GLIBC_BACK_COMPAT
 libbitcoin_util_a_SOURCES += compat/glibc_compat.cpp
 AM_LDFLAGS += $(COMPAT_LDFLAGS)
 endif
+
+#
+# consensus #
+libbitcoin_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(BOOST_CPPFLAGS)
+libbitcoin_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libbitcoin_consensus_a_SOURCES = \
+  arith_uint256.cpp \
+  arith_uint256.h \
+  consensus/amount.h \
+  consensus/merkle.cpp \
+  consensus/merkle.h \
+  consensus/params.h \
+  consensus/tx_check.cpp \
+  consensus/tx_check.h \
+  consensus/validation.h \
+  hash.cpp \
+  hash.h \
+  prevector.h \
+  primitives/block.cpp \
+  primitives/block.h \
+  primitives/transaction.cpp \
+  primitives/transaction.h \
+  pubkey.cpp \
+  pubkey.h \
+  script/bitcoinconsensus.cpp \
+  script/interpreter.cpp \
+  script/interpreter.h \
+  script/script.cpp \
+  script/script.h \
+  script/script_error.cpp \
+  script/script_error.h \
+  serialize.h \
+  span.h \
+  streams.h \
+  tinyformat.h \
+  uint256.cpp \
+  uint256.h \
+  util/strencodings.cpp \
+  util/strencodings.h \
+  util/string.cpp \
+  util/string.h \
+  version.h
+#
 
 # cli: shared between schillingcoin-cli and schillingcoin-qt
 libbitcoin_cli_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
@@ -498,6 +632,7 @@ schillingcoind_LDADD = \
   $(LIBBITCOIN_BIGNUM) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_ZMQ) \
+  $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBLEVELDB) \
   $(LIBLEVELDB_SSE42) \
@@ -540,6 +675,7 @@ schillingcoin_tx_LDADD = \
   $(LIBBITCOIN_COMMON) \
   $(LIBBITCOIN_BIGNUM) \
   $(LIBBITCOIN_UTIL) \
+  $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBSECP256K1)
 
@@ -653,3 +789,5 @@ endif
 if ENABLE_QT_TESTS
 include Makefile.qttest.include
 endif
+
+include Makefile.univalue.include

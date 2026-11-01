@@ -46,8 +46,6 @@
 
 #include <chainlock/chainlock.h>
 #include <chainlock/handler.h>
-#include <coinjoin/coinjoin.h>
-#include <coinjoin/walletman.h>
 #include <evo/deterministicmns.h>
 #include <evo/mnauth.h>
 #include <evo/smldiff.h>
@@ -395,14 +393,6 @@ struct Peer {
      *  messages, indicating a preference to receive ADDRv2 instead of ADDR ones. */
     std::atomic_bool m_wants_addrv2{false};
 
-    enum class WantsDSQ {
-        NONE, // Peer doesn't want DSQs
-        INV, // Peer will be notified of DSQs over Inventory System (see: DSQ_INV_VERSION)
-        ALL, // Peer will be notified of all DSQs, by simply sending them the DSQ
-    };
-
-    std::atomic<WantsDSQ> m_wants_dsq{WantsDSQ::NONE};
-
     /** Whether this peer has already sent us a getaddr message. */
     bool m_getaddr_recvd GUARDED_BY(NetEventsInterface::g_msgproc_mutex){false};
     /** Whether this peer has already requested sporks. */
@@ -561,15 +551,13 @@ struct CNodeState {
 
 class PeerManagerImpl final : public PeerManager
 {
-public:
     PeerManagerImpl(CConnman& connman, AddrMan& addrman, BanMan* banman,
-                    CDSTXManager& dstxman, ChainstateManager& chainman, CTxMemPool& pool,
+                    ChainstateManager& chainman, CTxMemPool& pool,
                     CMasternodeMetaMan& mn_metaman, CMasternodeSync& mn_sync,
                     CSporkManager& sporkman, const chainlock::Chainlocks& chainlocks,
                     chainlock::ChainlockHandler& clhandler,
                     CActiveMasternodeManager* nodeman,
                     CDeterministicMNManager& dmnman,
-                    CJWalletManager* cj_walletman,
                     llmq::CInstantSendManager& isman,
                     LLMQContext& llmq_ctx, bool ignore_incoming_txs);
 
@@ -614,7 +602,6 @@ public:
     void RelayInv(const CInv& inv, const int minProtoVersion) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void RelayTransaction(const uint256& txid) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void RelayRecoveredSig(const llmq::CRecoveredSig& sig, bool proactive_relay) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
-    void RelayDSQ(const CCoinJoinQueue& queue) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void SetBestHeight(int height) override { m_best_height = height; };
     void UnitTestMisbehaving(NodeId peer_id, int howmuch) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex) { Misbehaving(*Assert(GetPeerRef(peer_id)), howmuch, ""); };
     void ProcessMessage(CNode& pfrom, const std::string& msg_type, CDataStream& vRecv,
@@ -647,7 +634,6 @@ public:
     void PeerRelayInv(const CInv& inv) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void PeerRelayInvFiltered(const CInv& inv, const CTransaction& relatedTx) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void PeerRelayInvFiltered(const CInv& inv, const uint256& relatedTxHash) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
-    void PeerRelayDSQ(const CCoinJoinQueue& queue) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void PeerRelayTransaction(const uint256& txid) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void PeerRelayRecoveredSig(const llmq::CRecoveredSig& sig, bool proactive_relay) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void PeerAskPeersForTransaction(const uint256& txid) override
@@ -677,8 +663,7 @@ private:
     void AddObjectAnnouncement(const CNode& node, const CInv& inv, std::chrono::microseconds current_time)
         EXCLUSIVE_LOCKS_REQUIRED(!m_object_request_mutex, ::cs_main);
 
-    /** Delete all announcements of a transaction across all peers, under the inv types it may
-     *  have been announced with (MSG_TX and MSG_DSTX). */
+    /** Delete all MSG_TX announcements of a transaction across all peers. */
     void ForgetTx(const uint256& txid) EXCLUSIVE_LOCKS_REQUIRED(!m_object_request_mutex, ::cs_main);
 
     /** As above, additionally forgetting the MSG_ASSET_UNLOCK announcement (by instance hash)
@@ -825,13 +810,11 @@ private:
     AddrMan& m_addrman;
     /** Pointer to this node's banman. May be nullptr - check existence before dereferencing. */
     BanMan* const m_banman;
-    CDSTXManager& m_dstxman;
     ChainstateManager& m_chainman;
     CTxMemPool& m_mempool;
     std::unique_ptr<TxReconciliationTracker> m_txreconciliation;
     CActiveMasternodeManager* const m_nodeman; //!< null if non-masternode mode; non-null implies masternode mode
     CDeterministicMNManager& m_dmnman;
-    CJWalletManager* const m_cj_walletman; //!< null in masternode mode and in wallet-disabled builds
     llmq::CInstantSendManager& m_isman;
     LLMQContext& m_llmq_ctx;
     CMasternodeMetaMan& m_mn_metaman;
@@ -1242,14 +1225,14 @@ static void PushInv(Peer& peer, const CInv& inv)
     // otherwise at risk of leaking to a spy, if the spy is able to
     // distinguish transactions received during the handshake from the rest
     // in the announcement.
-    if ((inv.type == MSG_TX || inv.type == MSG_DSTX) && inv_relay->m_next_inv_send_time == 0s) return;
+    if (inv.type == MSG_TX && inv_relay->m_next_inv_send_time == 0s) return;
 
     if (inv_relay->m_tx_inventory_known_filter.contains(inv.hash)) {
         LogPrint(BCLog::NET, "%s -- skipping known inv: %s peer=%d\n", __func__, inv.ToString(), peer.m_id);
         return;
     }
     LogPrint(BCLog::NET, "%s -- adding new inv: %s peer=%d\n", __func__, inv.ToString(), peer.m_id);
-    if (inv.type == MSG_TX || inv.type == MSG_DSTX) {
+    if (inv.type == MSG_TX) {
         inv_relay->m_tx_inventory_to_send.insert(inv.hash);
         return;
     }
@@ -1616,7 +1599,7 @@ bool IsGetDataOnlyObject(int invType)
     // which lets the handlers drop it before doing any work on the sender's behalf.
     //
     // Not every inv-driven type belongs here. QSIGREC (proactive relay to peers that sent
-    // QSENDRECSIGS), MSG_DSQ (SENDDSQUEUE), ISDLOCK (pushed alongside MERKLEBLOCK for BIP37 clients),
+    // QSENDRECSIGS), ISDLOCK (pushed alongside MERKLEBLOCK for BIP37 clients),
     // SPORK (bulk push in reply to GETSPORKS) and PLATFORMBAN (injected by a Dash Platform node)
     // all have a legitimate unsolicited-push path.
     switch (invType) {
@@ -1648,10 +1631,9 @@ void PeerManagerImpl::AddObjectAnnouncement(const CNode& node, const CInv& inv, 
     // Decide the TxRequestTracker parameters for this announcement:
     // - "preferred": if fPreferredDownload is set (= outbound, or PF_NOBAN permission)
     // - "reqtime": current time plus delays for:
-    //   - NONPREF_PEER_TX_DELAY for MSG_TX announcements from non-preferred connections. Other
-    //     object types -- including MSG_DSTX (used for the orphan-parent fetch, which wants the
-    //     CoinJoin metadata) and the Dash-specific consensus types -- are never delayed, and
-    //     neither is anything in masternode mode. This matches the pre-txrequest Dash behavior.
+    //   - NONPREF_PEER_TX_DELAY for MSG_TX announcements from non-preferred connections.
+    //     Dash-specific consensus object types are never delayed, and neither is anything
+    //     in masternode mode.
     //   - OVERLOADED_PEER_OBJECT_DELAY for announcements from peers which have at least
     //     MAX_PEER_OBJECT_REQUEST_IN_FLIGHT requests in flight.
     const bool preferred = state->fPreferredDownload;
@@ -1668,7 +1650,6 @@ void PeerManagerImpl::ForgetTx(const uint256& txid)
     AssertLockHeld(cs_main);
     LOCK(m_object_request_mutex);
     m_object_request.ForgetTxHash(CInv(MSG_TX, txid));
-    m_object_request.ForgetTxHash(CInv(MSG_DSTX, txid));
 }
 
 void PeerManagerImpl::ForgetTx(const CTransaction& tx)
@@ -1676,7 +1657,6 @@ void PeerManagerImpl::ForgetTx(const CTransaction& tx)
     AssertLockHeld(cs_main);
     LOCK(m_object_request_mutex);
     m_object_request.ForgetTxHash(CInv(MSG_TX, tx.GetHash()));
-    m_object_request.ForgetTxHash(CInv(MSG_DSTX, tx.GetHash()));
     if (IsAssetUnlockWithStableTxid(tx)) {
         m_object_request.ForgetTxHash(CInv(MSG_ASSET_UNLOCK, tx.GetInstanceHash()));
     }
@@ -2089,41 +2069,37 @@ std::optional<std::string> PeerManagerImpl::FetchBlock(NodeId peer_id, const CBl
 }
 
 std::unique_ptr<PeerManager> PeerManager::make(CConnman& connman, AddrMan& addrman,
-                                               BanMan* banman, CDSTXManager& dstxman, ChainstateManager& chainman,
+                                               BanMan* banman, ChainstateManager& chainman,
                                                CTxMemPool& pool, CMasternodeMetaMan& mn_metaman,
                                                CMasternodeSync& mn_sync,
                                                CSporkManager& sporkman, const chainlock::Chainlocks& chainlocks,
                                                chainlock::ChainlockHandler& clhandler,
                                                CActiveMasternodeManager* nodeman,
                                                CDeterministicMNManager& dmnman,
-                                               CJWalletManager* cj_walletman,
                                                llmq::CInstantSendManager& isman,
                                                LLMQContext& llmq_ctx, bool ignore_incoming_txs)
 {
-    return std::make_unique<PeerManagerImpl>(connman, addrman, banman, dstxman, chainman, pool, mn_metaman, mn_sync, sporkman, chainlocks, clhandler, nodeman, dmnman, cj_walletman, isman, llmq_ctx, ignore_incoming_txs);
+    return std::make_unique<PeerManagerImpl>(connman, addrman, banman, chainman, pool, mn_metaman, mn_sync, sporkman, chainlocks, clhandler, nodeman, dmnman, isman, llmq_ctx, ignore_incoming_txs);
 }
 
 PeerManagerImpl::PeerManagerImpl(CConnman& connman, AddrMan& addrman, BanMan* banman,
-                                 CDSTXManager& dstxman, ChainstateManager& chainman, CTxMemPool& pool,
+                                 ChainstateManager& chainman, CTxMemPool& pool,
                                  CMasternodeMetaMan& mn_metaman, CMasternodeSync& mn_sync,
                                  CSporkManager& sporkman,
                                  const chainlock::Chainlocks& chainlocks,
                                  chainlock::ChainlockHandler& clhandler,
                                  CActiveMasternodeManager* nodeman,
                                  CDeterministicMNManager& dmnman,
-                                 CJWalletManager* cj_walletman,
                                  llmq::CInstantSendManager& isman,
                                  LLMQContext& llmq_ctx, bool ignore_incoming_txs)
     : m_chainparams(chainman.GetParams()),
       m_connman(connman),
       m_addrman(addrman),
       m_banman(banman),
-      m_dstxman(dstxman),
       m_chainman(chainman),
       m_mempool(pool),
       m_nodeman(nodeman),
       m_dmnman(dmnman),
-      m_cj_walletman(cj_walletman),
       m_isman(isman),
       m_llmq_ctx(llmq_ctx),
       m_mn_metaman(mn_metaman),
@@ -2353,7 +2329,6 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
     switch (inv.type)
     {
     case MSG_TX:
-    case MSG_DSTX:
     case MSG_ASSET_UNLOCK:
         {
             if (m_chainman.ActiveChain().Tip()->GetBlockHash() != hashRecentRejectsChainTip)
@@ -2391,19 +2366,10 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
             // and re-request the locked transaction (which did not make it into the mempool
             // previously due to txn-mempool-conflict rule). This means that we must ignore
             // m_recent_rejects filter for such locked txes here.
-            // We also ignore m_recent_rejects filter for DSTX-es because a malicious peer  might
-            // relay a valid DSTX as a regular TX first which would skip all the specific checks
-            // but would cause such tx to be rejected by ATMP due to 0 fee. Ignoring it here
-            // should let DSTX to be propagated by honest peer later. Note, that a malicious
-            // masternode would not be able to exploit this to spam the network with specially
-            // crafted invalid DSTX-es and potentially cause high load cheaply, because
-            // corresponding checks in ProcessMessage won't let it to send DSTX-es too often.
-            bool fIgnoreRecentRejects = inv.IsMsgDstx() ||
-                                        m_isman.IsWaitingForTx(inv.hash) ||
+            bool fIgnoreRecentRejects = m_isman.IsWaitingForTx(inv.hash) ||
                                         m_isman.IsLocked(inv.hash);
 
             return (!fIgnoreRecentRejects && m_recent_rejects.contains(inv.hash)) ||
-                   (inv.IsMsgDstx() && static_cast<bool>(m_dstxman.GetDSTX(inv.hash))) ||
                    m_mempool.exists(inv.hash) ||
                    (g_txindex != nullptr && g_txindex->HasTx(inv.hash));
         }
@@ -2447,8 +2413,6 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
     case MSG_QUORUM_COMPLAINT:
     case MSG_QUORUM_JUSTIFICATION:
     case MSG_QUORUM_PREMATURE_COMMITMENT:
-    case MSG_DSQ:
-        if (m_cj_walletman && m_cj_walletman->hasQueue(inv.hash)) return true;
         for (const auto& handler : m_handlers) {
             if (handler->AlreadyHave(inv)) return true;
         }
@@ -2552,34 +2516,6 @@ void PeerManagerImpl::RelayInv(const CInv& inv)
     }
 }
 
-void PeerManagerImpl::RelayDSQ(const CCoinJoinQueue& queue)
-{
-    CInv inv{MSG_DSQ, queue.GetHash()};
-    std::vector<NodeId> nodes_send_all;
-    {
-        READ_LOCK(m_peer_mutex);
-        for (const auto& [nodeid, peer] : m_peer_map) {
-            switch (peer->m_wants_dsq) {
-            case Peer::WantsDSQ::NONE:
-                break;
-            case Peer::WantsDSQ::INV:
-                PushInv(*peer, inv);
-                break;
-            case Peer::WantsDSQ::ALL:
-                nodes_send_all.push_back(nodeid);
-                break;
-            }
-        }
-    }
-    for (auto nodeId : nodes_send_all) {
-        m_connman.ForNode(nodeId, [&](CNode* pnode) -> bool {
-            CNetMsgMaker msgMaker(pnode->GetCommonVersion());
-            m_connman.PushMessage(pnode, msgMaker.Make(NetMsgType::DSQUEUE, queue));
-            return true;
-        });
-    }
-}
-
 void PeerManagerImpl::RelayInvFiltered(const CInv& inv, const CTransaction& relatedTx)
 {
     // TODO: Migrate to iteration through m_peer_map
@@ -2649,7 +2585,7 @@ void PeerManagerImpl::RelayTransaction(const uint256& txid)
 
 void PeerManagerImpl::_RelayTransaction(const uint256& txid)
 {
-    const CInv inv{m_dstxman.GetDSTX(txid) ? MSG_DSTX : MSG_TX, txid};
+    const CInv inv{MSG_TX, txid};
     READ_LOCK(m_peer_mutex);
     for(auto& it : m_peer_map) {
         Peer& peer = *it.second;
@@ -2976,15 +2912,7 @@ void PeerManagerImpl::ProcessGetData(CNode& pfrom, Peer& peer, const std::atomic
         if (inv.IsGenTxMsg()) {
             CTransactionRef tx = FindTxForGetData(&pfrom, inv.hash, mempool_req, now);
             if (tx) {
-                CCoinJoinBroadcastTx dstx;
-                if (inv.IsMsgDstx()) {
-                    dstx = m_dstxman.GetDSTX(inv.hash);
-                }
-                if (dstx) {
-                    m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::DSTX, dstx));
-                } else {
-                    m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::TX, *tx));
-                }
+                m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::TX, *tx));
                 m_mempool.RemoveUnbroadcastTx(tx->GetHash());
                 push = true;
 
@@ -3050,13 +2978,6 @@ void PeerManagerImpl::ProcessGetData(CNode& pfrom, Peer& peer, const std::atomic
             instantsend::InstantSendLock o;
             if (m_isman.GetInstantSendLockByHash(inv.hash, o)) {
                 m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::ISDLOCK, o));
-                push = true;
-            }
-        }
-        if (!push && inv.type == MSG_DSQ) {
-            auto opt_dsq = m_cj_walletman ? m_cj_walletman->getQueueFromHash(inv.hash) : std::nullopt;
-            if (opt_dsq.has_value()) {
-                m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::DSQUEUE, *opt_dsq));
                 push = true;
             }
         }
@@ -3595,27 +3516,6 @@ void PeerManagerImpl::ProcessGetCFCheckPt(CNode& node, Peer& peer, CDataStream& 
     m_connman.PushMessage(&node, std::move(msg));
 }
 
-// Misbehavior penalty to apply to the relaying peer; NONE means no penalty.
-enum class DSTXValidationScore : int {
-    NONE = 0,
-    UNKNOWN_MASTERNODE = 1,
-    PREMATURE = 1, // deliberately shares UNKNOWN_MASTERNODE's weight: both are tip-skew tolerances
-    INVALID = 10,
-};
-
-//! Whether a DSTX may be announced as MSG_DSTX to a peer at the given negotiated protocol
-//! version. Post-V24 promotion/demotion DSTXes are unbalanced and thus structurally invalid to
-//! peers below COINJOIN_REBALANCE_VERSION - they would drop the transaction and penalize us for
-//! relaying it. Pre-COINJOIN_REBALANCE_VERSION peers also enforce a smaller structural size
-//! cap (GetMaxPoolInputOutputCount), so a balanced-but-oversized final transaction is likewise
-//! invalid to them. Callers announce such transactions as plain MSG_TX instead.
-static bool CanAnnounceDstxTo(const CCoinJoinBroadcastTx& dstx, int peer_version)
-{
-    return (dstx.tx->vin.size() == dstx.tx->vout.size() &&
-            dstx.tx->vin.size() <= CoinJoin::GetMaxPoolInputOutputCount()) ||
-           peer_version >= COINJOIN_REBALANCE_VERSION;
-}
-
 //! The inventory type and hash to announce a mempool transaction with to a peer at the given
 //! negotiated protocol version. Version 2 asset unlocks are announced by instance hash (MSG_ASSET_UNLOCK)
 //! so a re-signed instance of a withdrawal the peer already has (sharing its txid) is still announced;
@@ -3626,92 +3526,6 @@ static std::pair<int, uint256> GetTxAnnouncement(const CTransaction& tx, int pee
         return {MSG_ASSET_UNLOCK, tx.GetInstanceHash()};
     }
     return {MSG_TX, tx.GetHash()};
-}
-
-// do_return signals the caller to stop further processing of the DSTX.
-struct DSTXValidationResult {
-    DSTXValidationScore score;
-    bool do_return;
-};
-
-static DSTXValidationResult ValidateDSTX(CDeterministicMNManager& dmnman, CDSTXManager& dstxman, ChainstateManager& chainman,
-                                         CMasternodeMetaMan& mn_metaman, CTxMemPool& mempool, CCoinJoinBroadcastTx& dstx, uint256 hashTx)
-{
-    assert(mn_metaman.IsValid());
-
-    if (dstxman.GetDSTX(hashTx)) {
-        LogPrint(BCLog::COINJOIN, "DSTX -- Already have %s, skipping...\n", hashTx.ToString());
-        return {DSTXValidationScore::NONE, true}; // not an error
-    }
-
-    const CBlockIndex* pindex{nullptr};
-    CDeterministicMNCPtr dmn{nullptr};
-    {
-        LOCK(cs_main);
-        pindex = chainman.ActiveChain().Tip();
-    }
-
-    bool fPossiblyValidPostV24{false};
-    if (!dstx.IsValidStructure(pindex, chainman, &fPossiblyValidPostV24)) {
-        LogPrint(BCLog::COINJOIN, "DSTX -- Invalid DSTX structure: %s\n", hashTx.ToString());
-        // A tx that is structurally valid under post-V24 rules may come from a masternode whose
-        // tip is one block ahead of ours at the activation boundary. Like the 24-block-deep
-        // masternode scan below, tolerate that much skew: drop it with only a small penalty so
-        // honest relayers are unaffected while a peer flooding us still gets discouraged
-        // eventually. Beyond one block we treat it as malformed and take the full penalty; a
-        // node that far behind at activation has bigger problems than mixing.
-        if (fPossiblyValidPostV24 && CoinJoin::IsPromotionDemotionActive(chainman, /*fNextBlock=*/true)) {
-            return {DSTXValidationScore::PREMATURE, true};
-        }
-        return {DSTXValidationScore::INVALID, true};
-    }
-    // It could be that a MN is no longer in the list but its DSTX is not yet mined.
-    // Try to find a MN up to 24 blocks deep to make sure such dstx-es are relayed and processed correctly.
-    if (dstx.masternodeOutpoint.IsNull()) {
-        for (int i = 0; i < 24 && pindex; ++i) {
-            dmn = dmnman.GetListForBlock(pindex).GetMN(dstx.m_protxHash);
-            if (dmn) {
-                dstx.masternodeOutpoint = dmn->collateralOutpoint;
-                break;
-            }
-            pindex = pindex->pprev;
-        }
-    } else {
-        for (int i = 0; i < 24 && pindex; ++i) {
-            dmn = dmnman.GetListForBlock(pindex).GetMNByCollateral(dstx.masternodeOutpoint);
-            if (dmn) {
-                dstx.m_protxHash = dmn->proTxHash;
-                break;
-            }
-            pindex = pindex->pprev;
-        }
-    }
-
-    if (!dmn) {
-        LogPrint(BCLog::COINJOIN, "DSTX -- Can't find masternode %s to verify %s\n", dstx.masternodeOutpoint.ToStringShort(), hashTx.ToString());
-        // We can't verify the signature here, so apply only a small penalty.
-        // The MN may have been removed very recently, but a peer flooding us with
-        // unverifiable DSTX-es should still eventually be discouraged.
-        return {DSTXValidationScore::UNKNOWN_MASTERNODE, true};
-    }
-
-    if (!mn_metaman.IsValidForMixingTxes(dmn->proTxHash)) {
-        LogPrint(BCLog::COINJOIN, "DSTX -- Masternode %s is sending too many transactions %s\n", dstx.masternodeOutpoint.ToStringShort(), hashTx.ToString());
-        return {DSTXValidationScore::NONE, true};
-        // TODO: Not an error? Could it be that someone is relaying old DSTXes
-        // we have no idea about (e.g we were offline)? How to handle them?
-    }
-
-    if (!dstx.CheckSignature(dmn->pdmnState->pubKeyOperator.Get())) {
-        LogPrint(BCLog::COINJOIN, "DSTX -- CheckSignature() failed for %s\n", hashTx.ToString());
-        return {DSTXValidationScore::INVALID, true};
-    }
-
-    LogPrint(BCLog::COINJOIN, "DSTX -- Got Masternode transaction %s\n", hashTx.ToString());
-    mempool.PrioritiseTransaction(hashTx, 0.1*COIN);
-    mn_metaman.DisallowMixing(dmn->proTxHash);
-
-    return {DSTXValidationScore::NONE, false};
 }
 
 void PeerManagerImpl::ProcessBlock(CNode& node, const std::shared_ptr<const CBlock>& block, bool force_processing)
@@ -4222,8 +4036,6 @@ void PeerManagerImpl::ProcessMessage(
         }
 
         if (!RejectIncomingTxs(pfrom)) {
-            // Tell our peer that he should send us CoinJoin queue messages
-            m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::SENDDSQUEUE, true));
             // Tell our peer that he should send us intra-quorum messages
             const auto tip_mn_list = m_dmnman.GetListAtChainTip();
             if (m_llmq_ctx.qman->IsWatching() && m_connman.IsMasternodeQuorumNode(&pfrom, tip_mn_list)) {
@@ -4481,21 +4293,6 @@ void PeerManagerImpl::ProcessMessage(
         }
         return;
     }
-
-    if (msg_type == NetMsgType::SENDDSQUEUE)
-    {
-        bool b;
-        vRecv >> b;
-        if (!b) {
-            peer->m_wants_dsq = Peer::WantsDSQ::NONE;
-        } else if (pfrom.GetCommonVersion() < DSQ_INV_VERSION) {
-            peer->m_wants_dsq = Peer::WantsDSQ::ALL;
-        } else {
-            peer->m_wants_dsq = Peer::WantsDSQ::INV;
-        }
-        return;
-    }
-
 
     if (msg_type == NetMsgType::QSENDRECSIGS) {
         bool b;
@@ -4858,25 +4655,16 @@ void PeerManagerImpl::ProcessMessage(
         return;
     }
 
-    if (msg_type == NetMsgType::TX || msg_type == NetMsgType::DSTX) {
+    if (msg_type == NetMsgType::TX) {
         // Stop processing the transaction early if we are still in IBD since we don't
         // have enough information to validate it yet. Sending unsolicited transactions
         // is not considered a protocol violation, so don't punish the peer.
         if (m_chainman.ActiveChainstate().IsInitialBlockDownload()) return;
 
         CTransactionRef ptx;
-        CCoinJoinBroadcastTx dstx;
-        const bool is_dstx{msg_type == NetMsgType::DSTX};
-        int nInvType = MSG_TX;
+        vRecv >> ptx;
 
-        // Read data and assign inv type
-        if (is_dstx) {
-            vRecv >> dstx;
-            ptx = dstx.tx;
-            nInvType = MSG_DSTX;
-        } else {
-            vRecv >> ptx;
-        }
+        int nInvType = MSG_TX;
         const CTransaction& tx = *ptx;
 
         const uint256& txid = ptx->GetHash();
@@ -4897,26 +4685,10 @@ void PeerManagerImpl::ProcessMessage(
         CInv inv(nInvType, relay_hash);
         {
             LOCK(cs_main);
-            // A MSG_TX request may be answered with a DSTX message and vice versa (a getdata for
-            // either type serves the underlying transaction), so complete whichever announcement
-            // type the request was tracked under.
             LOCK(m_object_request_mutex);
             m_object_request.ReceivedResponse(pfrom.GetId(), CInv(MSG_TX, txid));
-            m_object_request.ReceivedResponse(pfrom.GetId(), CInv(MSG_DSTX, txid));
             if (is_stable_unlock) {
                 m_object_request.ReceivedResponse(pfrom.GetId(), CInv(MSG_ASSET_UNLOCK, relay_hash));
-            }
-        }
-
-        // Process custom logic, no matter if tx will be accepted to mempool later or not
-        if (is_dstx) {
-            uint256 hashTx = tx.GetHash();
-            const auto result = ValidateDSTX(m_dmnman, m_dstxman, m_chainman, m_mn_metaman, m_mempool, dstx, hashTx);
-            if (result.do_return) {
-                if (result.score != DSTXValidationScore::NONE) {
-                    Misbehaving(*peer, static_cast<int>(result.score), "invalid dstx");
-                }
-                return;
             }
         }
 
@@ -4942,13 +4714,6 @@ void PeerManagerImpl::ProcessMessage(
         const TxValidationState& state = result.m_state;
 
         if (result.m_result_type == MempoolAcceptResult::ResultType::VALID) {
-            // Process custom txes, this changes AlreadyHave to "true"
-            if (is_dstx) {
-                LogPrint(BCLog::COINJOIN, "DSTX -- Masternode transaction accepted, txid=%s, peer=%d\n",
-                         tx.GetHash().ToString(), pfrom.GetId());
-                m_dstxman.AddDSTX(dstx);
-            }
-
             ForgetTx(tx);
             _RelayTransaction(tx.GetHash());
             m_orphanage.AddChildrenToWorkSet(tx);
@@ -4984,12 +4749,7 @@ void PeerManagerImpl::ProcessMessage(
                 const auto current_time{GetTime<std::chrono::microseconds>()};
 
                 for (const uint256& parent_txid : unique_parents) {
-                    // We don't know if the parent was a regular or a mixing tx, so ask for it as
-                    // MSG_DSTX: a getdata for MSG_DSTX is answered with the DSTX wrapper when the
-                    // peer has one and with a plain TX otherwise, while a MSG_TX getdata would
-                    // lose the metadata of a zero-fee DSTX. Announcing both types would get the
-                    // parent fetched twice, as the tracker keys announcements on the full inv.
-                    CInv _inv(MSG_DSTX, parent_txid);
+                    CInv _inv(MSG_TX, parent_txid);
                     AddKnownInv(*peer, _inv.hash);
                     if (!AlreadyHave(_inv)) AddObjectAnnouncement(pfrom, _inv, current_time);
                 }
@@ -5777,9 +5537,6 @@ void PeerManagerImpl::ProcessMessage(
     if (found)
     {
         // probably one the extensions
-        if (m_cj_walletman) {
-            PostProcessMessage(m_cj_walletman->processMessage(pfrom, m_chainman.ActiveChainstate(), m_connman, m_mempool, msg_type, vRecv), pfrom.GetId());
-        }
         PostProcessMessage(CMNAuth::ProcessMessage(pfrom, peer->m_their_services, m_connman, m_mn_metaman, m_nodeman, m_mn_sync, m_dmnman.GetListAtChainTip(), msg_type, vRecv), pfrom.GetId());
         PostProcessMessage(m_llmq_ctx.quorum_block_processor->ProcessMessage(
                                pfrom, msg_type, vRecv,
@@ -6628,13 +6385,6 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                     if (tx_relay->m_bloom_filter && !tx_relay->m_bloom_filter->IsRelevantAndUpdate(*txinfo.tx)) continue;
 
                     auto [nInvType, announce_hash] = GetTxAnnouncement(*txinfo.tx, pto->GetCommonVersion());
-                    // A DSTX this peer would reject as malformed is announced as a plain
-                    // transaction instead of being dropped: the peer still gets the transaction
-                    // (ProcessGetData serves a NetMsgType::TX for it), just without the mixing
-                    // metadata it cannot parse, so it is not left waiting for block inclusion.
-                    if (const auto dstx = m_dstxman.GetDSTX(hash); dstx && CanAnnounceDstxTo(dstx, pto->GetCommonVersion())) {
-                        nInvType = MSG_DSTX;
-                    }
                     tx_relay->m_tx_inventory_known_filter.insert(announce_hash);
                     queueAndMaybePushInv(CInv(nInvType, announce_hash));
 
@@ -6696,12 +6446,6 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                         continue;
                     }
                     if (tx_relay->m_bloom_filter && !tx_relay->m_bloom_filter->IsRelevantAndUpdate(*txinfo.tx)) continue;
-                    // See the mempool-request path above: a DSTX this peer would reject as
-                    // malformed is downgraded to a plain transaction announcement rather than
-                    // withheld, so pre-rebalance peers still receive it.
-                    if (const auto dstx = m_dstxman.GetDSTX(hash); dstx && CanAnnounceDstxTo(dstx, pto->GetCommonVersion())) {
-                        nInvType = MSG_DSTX;
-                    }
                     // Send
                     State(pto->GetId())->m_recently_announced_invs.insert(announce_hash);
                     nRelayedTransactions++;

@@ -272,8 +272,10 @@ bool CBlockTreeDB::ReadInt(const std::string& name, int& nValue)
     return Read(std::make_pair('I', name), nValue);
 }
 
-bool CBlockTreeDB::LoadBlockIndexGuts()
+bool CBlockTreeDB::LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex)
 {
+    AssertLockHeld(::cs_main);
+
     boost::scoped_ptr<CDBIterator> pcursor(NewIterator());
 
     pcursor->Seek(std::make_pair('b', UINT256_ZERO));
@@ -291,8 +293,8 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                     return error("%s : failed to read block index value", __func__);
 
                 // Construct block index object
-                CBlockIndex* pindexNew = InsertBlockIndex(diskindex.GetBlockHash());
-                pindexNew->pprev = InsertBlockIndex(diskindex.hashPrev);
+                CBlockIndex* pindexNew = insertBlockIndex(diskindex.GetBlockHash());
+                pindexNew->pprev = insertBlockIndex(diskindex.hashPrev);
                 pindexNew->nHeight = diskindex.nHeight;
                 pindexNew->nFile = diskindex.nFile;
                 pindexNew->nDataPos = diskindex.nDataPos;
@@ -316,8 +318,8 @@ bool CBlockTreeDB::LoadBlockIndexGuts()
                 pindexNew->nFlags = diskindex.nFlags;
                 pindexNew->vStakeModifier = diskindex.vStakeModifier;
 
-                if (pindexNew->nHeight <= Params().GetConsensus().height_last_PoW) {
-                    if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits))
+                if (pindexNew->nHeight <= consensusParams.height_last_PoW) {
+                    if (!CheckProofOfWork(pindexNew->GetBlockHash(), pindexNew->nBits, consensusParams))
                         return error("LoadBlockIndex() : CheckProofOfWork failed: %s", pindexNew->ToString());
                 }
 

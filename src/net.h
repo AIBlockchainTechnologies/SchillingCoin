@@ -87,6 +87,7 @@ typedef int NodeId;
 class CClientUIInterface;
 class CNodeStats;
 class CTransaction;
+class NetEventsInterface;
 
 class CConnman
 {
@@ -105,6 +106,7 @@ public:
         int nMaxOutbound = 0;
         int nBestHeight = 0;
         CClientUIInterface* uiInterface = nullptr;
+        NetEventsInterface* m_msgproc = nullptr;
         unsigned int nSendBufferMaxSize = 0;
         unsigned int nReceiveFloodSize = 0;
     };
@@ -118,6 +120,7 @@ public:
         std::string& strNodeError,
         const Options& options);
 
+    void Interrupt();
     void Stop();
 
     bool BindListenPort(
@@ -283,6 +286,7 @@ private:
     void ThreadMessageHandler();
     void ThreadSocketHandler();
     void SocketSendData(CNode* pnode);
+    void WakeMessageHandler();
 
     CNode* FindNode(const CNetAddr& ip);
     CNode* FindNode(const CSubNet& subnet);
@@ -335,7 +339,17 @@ private:
     mutable RecursiveMutex cs_vNodes;
 
     std::atomic<NodeId> nLastNodeId;
-    boost::condition_variable messageHandlerCondition;
+
+    /** Message processor implemented by PeerManager. */
+    NetEventsInterface* m_msgproc;
+
+    /** Flag for waking the message processor. */
+    bool fMsgProcWake;
+
+    std::condition_variable condMsgProc;
+    Mutex mutexMsgProc;
+    std::atomic<bool> flagInterruptMsgProc{false};
+
     CThreadInterrupt interruptNet;
 
     ServiceFlags nLocalServices;
@@ -515,6 +529,7 @@ public:
     int64_t nLastRecv;
     int64_t nTimeConnected;
     int64_t nTimeOffset;
+    std::atomic<bool> fFirstMessageIsMNAUTH{false};
     CAddress addr;
     std::string addrName;
     CService addrLocal;
@@ -531,6 +546,21 @@ public:
     bool fNetworkNode;
     bool fSuccessfullyConnected;
     bool fDisconnect;
+
+    // If 'true' this node is a masternode connection.
+    std::atomic<bool> m_masternode_connection{false};
+
+    /**
+     * If 'true' this node is a masternode probe connection.
+     */
+    std::atomic<bool> m_masternode_probe_connection{false};
+
+    // If 'true', we identified it as an intra-quorum relay connection.
+    std::atomic<bool> m_masternode_iqr_connection{false};
+
+    std::atomic_bool fPauseRecv{false};
+    std::atomic_bool fPauseSend{false};
+
     // We use fRelayTxes for two purposes -
     // a) it allows us to not relay tx invs before receiving the peer's version message
     // b) the peer may tell us in their version message that we should not relay tx invs
@@ -575,6 +605,10 @@ public:
     // Whether a ping is requested.
     bool fPingQueued;
 
+    // If true, we will send this peer all quorum related messages,
+    // even if the peer is not a member of our quorums.
+    std::atomic<bool> qwatch{false};
+
     CNode(
         NodeId idIn,
         ServiceFlags nLocalServicesIn,
@@ -597,6 +631,13 @@ private:
     int nMyStartingHeight;
     int nSendVersion;
 
+    // Challenge sent in VERSION to be answered with MNAUTH (only happens between MNs)
+    mutable Mutex cs_mnauth;
+    uint256 sentMNAuthChallenge GUARDED_BY(cs_mnauth);
+    uint256 receivedMNAuthChallenge GUARDED_BY(cs_mnauth);
+    uint256 verifiedProRegTxHash GUARDED_BY(cs_mnauth);
+    uint256 verifiedPubKeyHash GUARDED_BY(cs_mnauth);
+
 public:
     NodeId GetId() const
     {
@@ -618,6 +659,59 @@ public:
         return nMyStartingHeight;
     }
 
+    bool CanRelay() const
+    {
+        return !m_masternode_connection || m_masternode_iqr_connection;
+    }
+
+    uint256 GetSentMNAuthChallenge() const EXCLUSIVE_LOCKS_REQUIRED(!cs_mnauth)
+    {
+        LOCK(cs_mnauth);
+        return sentMNAuthChallenge;
+    }
+
+    uint256 GetReceivedMNAuthChallenge() const EXCLUSIVE_LOCKS_REQUIRED(!cs_mnauth)
+    {
+        LOCK(cs_mnauth);
+        return receivedMNAuthChallenge;
+    }
+
+    uint256 GetVerifiedProRegTxHash() const EXCLUSIVE_LOCKS_REQUIRED(!cs_mnauth)
+    {
+        LOCK(cs_mnauth);
+        return verifiedProRegTxHash;
+    }
+
+    uint256 GetVerifiedPubKeyHash() const EXCLUSIVE_LOCKS_REQUIRED(!cs_mnauth)
+    {
+        LOCK(cs_mnauth);
+        return verifiedPubKeyHash;
+    }
+
+    void SetSentMNAuthChallenge(const uint256& newSentMNAuthChallenge) EXCLUSIVE_LOCKS_REQUIRED(!cs_mnauth)
+    {
+        LOCK(cs_mnauth);
+        sentMNAuthChallenge = newSentMNAuthChallenge;
+    }
+
+    void SetReceivedMNAuthChallenge(const uint256& newReceivedMNAuthChallenge) EXCLUSIVE_LOCKS_REQUIRED(!cs_mnauth)
+    {
+        LOCK(cs_mnauth);
+        receivedMNAuthChallenge = newReceivedMNAuthChallenge;
+    }
+
+    void SetVerifiedProRegTxHash(const uint256& newVerifiedProRegTxHash) EXCLUSIVE_LOCKS_REQUIRED(!cs_mnauth)
+    {
+        LOCK(cs_mnauth);
+        verifiedProRegTxHash = newVerifiedProRegTxHash;
+    }
+
+    void SetVerifiedPubKeyHash(const uint256& newVerifiedPubKeyHash) EXCLUSIVE_LOCKS_REQUIRED(!cs_mnauth)
+    {
+        LOCK(cs_mnauth);
+        verifiedPubKeyHash = newVerifiedPubKeyHash;
+    }
+
     int GetRefCount()
     {
         LOCK(cs_nRefCount);
@@ -635,7 +729,7 @@ public:
     }
 
     // requires LOCK(cs_vRecvMsg)
-    bool ReceiveMsgBytes(const char* pch, unsigned int nBytes);
+    bool ReceiveMsgBytes(const char* pch, unsigned int nBytes, bool& complete);
 
     // requires LOCK(cs_vRecvMsg)
     void SetRecvVersion(int nVersionIn)
@@ -717,9 +811,6 @@ public:
 
     // TODO: Document the precondition of this function.  Is cs_vSend locked?
     void EndMessage() UNLOCK_FUNCTION(cs_vSend);
-
-    void PushVersion();
-
 
     void PushMessage(const char* pszCommand)
     {
@@ -921,6 +1012,42 @@ public:
     bool DisconnectOldProtocol(int nVersionRequired, std::string strLastCommand = "");
 
     void copyStats(CNodeStats& stats);
+};
+
+/**
+ * Interface for message handling
+ */
+class NetEventsInterface
+{
+public:
+    /** Mutex for anything that is only accessed via the msg processing thread */
+    static Mutex g_msgproc_mutex;
+
+    /** Initialize a peer (setup state, queue any initial messages) */
+    virtual void InitializeNode(CNode& node, ServiceFlags our_services) = 0;
+
+    /** Handle removal of a peer (clear state) */
+    virtual void FinalizeNode(const CNode& node) = 0;
+
+    /**
+     * Process protocol messages received from a given node.
+     *
+     * @param[in] pnode      The node which we have received messages from.
+     * @param[in] interrupt  Interrupt condition for processing threads.
+     * @return               True if there is more work to be done.
+     */
+    virtual bool ProcessMessages(CNode* pnode, std::atomic<bool>& interrupt) EXCLUSIVE_LOCKS_REQUIRED(g_msgproc_mutex) = 0;
+
+    /**
+     * Send queued protocol messages to a given node.
+     *
+     * @param[in] pnode  The node which we are sending messages to.
+     * @return           True if there is more work to be done.
+     */
+    virtual bool SendMessages(CNode* pnode) EXCLUSIVE_LOCKS_REQUIRED(g_msgproc_mutex) = 0;
+
+protected:
+    ~NetEventsInterface() = default;
 };
 
 class CExplicitNetCleanup

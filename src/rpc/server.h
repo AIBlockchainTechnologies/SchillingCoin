@@ -10,6 +10,7 @@
 
 #include "consensus/amount.h"
 #include "rpc/protocol.h"
+#include "rpc/request.h"
 #include "uint256.h"
 
 #include <list>
@@ -33,26 +34,6 @@ namespace RPCServer
 
 class CBlockIndex;
 class CNetAddr;
-
-class JSONRPCRequest
-{
-public:
-    UniValue id;
-    std::string strMethod;
-    UniValue params;
-    bool fHelp;
-    std::string URI;
-    std::string authUser;
-
-    JSONRPCRequest()
-    {
-        id = NullUniValue;
-        params = NullUniValue;
-        fHelp = false;
-    }
-
-    void parse(const UniValue& valRequest);
-};
 
 /** Query whether RPC is running */
 bool IsRPCRunning();

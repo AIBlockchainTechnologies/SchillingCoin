@@ -23,8 +23,6 @@
 #include <active/context.h>
 #include <chainlock/chainlock.h>
 #include <chainlock/handler.h>
-#include <coinjoin/coinjoin.h>
-#include <coinjoin/walletman.h>
 #include <dsnotificationinterface.h>
 #include <evo/chainhelper.h>
 #include <evo/creditpool.h>
@@ -33,7 +31,6 @@
 #include <evo/mnhftx.h>
 #include <governance/governance.h>
 #include <instantsend/instantsend.h>
-#include <interfaces/coinjoin.h>
 #include <llmq/context.h>
 #include <llmq/observer.h>
 #include <masternode/meta.h>

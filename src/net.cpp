@@ -95,6 +95,8 @@ CNodeSignals& GetNodeSignals() { return g_signals; }
 
 std::unique_ptr<CConnman> g_connman;
 
+Mutex NetEventsInterface::g_msgproc_mutex;
+
 CConnman::CConnman(uint64_t nSeed0In, uint64_t nSeed1In)
     : nTotalBytesRecv(0),
       nTotalBytesSent(0),
@@ -103,6 +105,8 @@ CConnman::CConnman(uint64_t nSeed0In, uint64_t nSeed1In)
       setBannedIsDirty(false),
       fAddressesInitialized(false),
       nLastNodeId(0),
+      m_msgproc(nullptr),
+      fMsgProcWake(false),
       nLocalServices(NODE_NONE),
       semOutbound(nullptr),
       nMaxConnections(0),
@@ -127,7 +131,7 @@ CSipHasher CConnman::GetDeterministicRandomizer(uint64_t id) const
 void CConnman::DeleteNode(CNode* node)
 {
     assert(node);
-    GetNodeSignals().FinalizeNode(node->GetId());
+    m_msgproc->FinalizeNode(*node);
     delete node;
 }
 
@@ -679,28 +683,11 @@ bool CNode::DisconnectOldProtocol(int nVersionRequired, std::string strLastComma
     fDisconnect = false;
     if (nVersion < nVersionRequired) {
         LogPrintf("%s : peer=%d using obsolete version %i; disconnecting\n", __func__, id, nVersion);
-        PushMessage("reject", strLastCommand, REJECT_OBSOLETE, strprintf("Version must be %d or greater", ActiveProtocol()));
+        PushMessage("reject", strLastCommand, REJECT_OBSOLETE, strprintf("Version must be %d or greater", MIN_PEER_PROTO_VERSION));
         fDisconnect = true;
     }
 
     return fDisconnect;
-}
-
-void CNode::PushVersion()
-{
-    int nBestHeight = GetNodeSignals().GetHeight().get_value_or(0);
-
-    /// when NTP implemented, change to just nTime = GetAdjustedTime()
-    int64_t nTime = (fInbound ? GetAdjustedTime() : GetTime());
-    CAddress addrYou = (addr.IsRoutable() && !IsProxy(addr) ? addr : CAddress(CService("0.0.0.0", 0)));
-    CAddress addrMe = GetLocalAddress(&addr);
-    GetRandBytes((unsigned char*)&nLocalHostNonce, sizeof(nLocalHostNonce));
-    if (fLogIPs)
-        LogPrint(BCLog::NET, "send version message: version %d, blocks=%d, us=%s, them=%s, peer=%d\n", PROTOCOL_VERSION, nBestHeight, addrMe.ToString(), addrYou.ToString(), id);
-    else
-        LogPrint(BCLog::NET, "send version message: version %d, blocks=%d, us=%s, peer=%d\n", PROTOCOL_VERSION, nBestHeight, addrMe.ToString(), id);
-    PushMessage("version", PROTOCOL_VERSION, nLocalServices, nTime, addrYou, addrMe,
-        nLocalHostNonce, strSubVersion, nBestHeight, true);
 }
 
 void CConnman::ClearBanned()
@@ -885,8 +872,10 @@ void CNode::copyStats(CNodeStats& stats)
 #undef X
 
 // requires LOCK(cs_vRecvMsg)
-bool CNode::ReceiveMsgBytes(const char* pch, unsigned int nBytes)
+bool CNode::ReceiveMsgBytes(const char* pch, unsigned int nBytes, bool& complete)
 {
+    complete = false;
+
     while (nBytes > 0) {
         // get current incomplete message, or create a new one
         if (vRecvMsg.empty() ||
@@ -915,7 +904,7 @@ bool CNode::ReceiveMsgBytes(const char* pch, unsigned int nBytes)
 
         if (msg.complete()) {
             msg.nTime = GetTimeMicros();
-            messageHandlerCondition.notify_one();
+            complete = true;
         }
     }
 
@@ -1234,7 +1223,7 @@ void CConnman::ThreadSocketHandler()
                     pnode->AddRef();
                     pnode->fWhitelisted = whitelisted;
 
-                    GetNodeSignals().InitializeNode(pnode->GetId(), pnode);
+                    m_msgproc->InitializeNode(*pnode, nLocalServices);
 
                     {
                         LOCK(cs_vNodes);
@@ -1277,11 +1266,15 @@ void CConnman::ThreadSocketHandler()
                         char pchBuf[0x10000];
                         int nBytes = recv(pnode->hSocket, pchBuf, sizeof(pchBuf), MSG_DONTWAIT);
                         if (nBytes > 0) {
-                            if (!pnode->ReceiveMsgBytes(pchBuf, nBytes))
+                            bool notify = false;
+                            if (!pnode->ReceiveMsgBytes(pchBuf, nBytes, notify))
                                 pnode->CloseSocketDisconnect();
                             pnode->nLastRecv = GetTime();
                             pnode->nRecvBytes += nBytes;
                             RecordBytesRecv(nBytes);
+                            if (notify) {
+                                WakeMessageHandler();
+                            }
                         } else if (nBytes == 0) {
                             // socket closed gracefully
                             if (!pnode->fDisconnect)
@@ -1740,7 +1733,7 @@ bool CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
     if (fOneShot)
         pnode->fOneShot = true;
 
-    GetNodeSignals().InitializeNode(pnode->GetId(), pnode);
+    m_msgproc->InitializeNode(*pnode, nLocalServices);
 
     {
         LOCK(cs_vNodes);
@@ -1750,13 +1743,24 @@ bool CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
     return true;
 }
 
+void CConnman::WakeMessageHandler()
+{
+    {
+        LOCK(mutexMsgProc);
+        fMsgProcWake = true;
+    }
+    condMsgProc.notify_one();
+}
+
 void CConnman::ThreadMessageHandler()
 {
-    boost::mutex condition_mutex;
-    boost::unique_lock<boost::mutex> lock(condition_mutex);
+    LOCK(NetEventsInterface::g_msgproc_mutex);
 
     SetThreadPriority(THREAD_PRIORITY_BELOW_NORMAL);
-    while (!interruptNet) {
+
+    while (!flagInterruptMsgProc) {
+        bool fMoreWork = false;
+
         std::vector<CNode*> vNodesCopy;
         {
             LOCK(cs_vNodes);
@@ -1766,69 +1770,44 @@ void CConnman::ThreadMessageHandler()
             }
         }
 
-        // Poll the connected nodes for messages
-        CNode* pnodeTrickle = NULL;
-        if (!vNodesCopy.empty())
-            pnodeTrickle = vNodesCopy[GetRand(vNodesCopy.size())];
-
-        bool fSleep = true;
-        bool interrupted = false;
-
         for (CNode* pnode : vNodesCopy) {
-            if (interruptNet) {
-                interrupted = true;
-                break;
-            }
-
             if (pnode->fDisconnect)
                 continue;
 
-            // Receive messages
-            {
-                TRY_LOCK(pnode->cs_vRecvMsg, lockRecv);
-                if (lockRecv) {
-                    if (!GetNodeSignals().ProcessMessages(pnode))
-                        pnode->CloseSocketDisconnect();
+            const bool fMoreNodeWork =
+                m_msgproc->ProcessMessages(pnode, flagInterruptMsgProc);
 
-                    if (pnode->nSendSize < SendBufferSize()) {
-                        if (!pnode->vRecvGetData.empty() || (!pnode->vRecvMsg.empty() && pnode->vRecvMsg[0].complete())) {
-                            fSleep = false;
-                        }
-                    }
-                }
-            }
+            fMoreWork |= (fMoreNodeWork && !pnode->fPauseSend);
 
-            if (interruptNet) {
-                interrupted = true;
+            if (flagInterruptMsgProc)
                 break;
-            }
 
-            // Send messages
-            {
-                TRY_LOCK(pnode->cs_vSend, lockSend);
-                if (lockSend)
-                    GetNodeSignals().SendMessages(
-                        pnode,
-                        pnode == pnodeTrickle || pnode->fWhitelisted);
-            }
+            m_msgproc->SendMessages(pnode);
 
-            if (interruptNet) {
-                interrupted = true;
+            if (flagInterruptMsgProc)
                 break;
-            }
         }
 
         {
             LOCK(cs_vNodes);
-            for (CNode* pnode : vNodesCopy)
+            for (CNode* pnode : vNodesCopy) {
                 pnode->Release();
+            }
         }
 
-        if (interrupted)
+        if (flagInterruptMsgProc)
             return;
 
-        if (fSleep)
-            messageHandlerCondition.timed_wait(lock, boost::posix_time::microsec_clock::universal_time() + boost::posix_time::milliseconds(100));
+        WAIT_LOCK(mutexMsgProc, lock);
+        if (!fMoreWork) {
+            condMsgProc.wait_until(
+                lock,
+                std::chrono::steady_clock::now() + std::chrono::milliseconds(100),
+                [this]() EXCLUSIVE_LOCKS_REQUIRED(mutexMsgProc) {
+                    return fMsgProcWake;
+                });
+        }
+        fMsgProcWake = false;
     }
 }
 
@@ -1973,10 +1952,15 @@ bool CConnman::Start(boost::thread_group& threadGroup, CScheduler& scheduler, st
     nMaxOutbound = std::min(options.nMaxOutbound, options.nMaxConnections);
     nBestHeight.store(options.nBestHeight, std::memory_order_release);
     clientInterface = options.uiInterface;
+    m_msgproc = options.m_msgproc;
     nSendBufferMaxSize = options.nSendBufferMaxSize;
     nReceiveFloodSize = options.nReceiveFloodSize;
 
+    assert(m_msgproc);
+
     interruptNet.reset();
+    flagInterruptMsgProc = false;
+    fMsgProcWake = false;
 
     clientInterface->InitMessage(_("Loading addresses..."));
     // Load addresses from peers.dat
@@ -2056,19 +2040,29 @@ bool CConnman::Start(boost::thread_group& threadGroup, CScheduler& scheduler, st
     return true;
 }
 
-void CConnman::Stop()
+void CConnman::Interrupt()
 {
-    LogPrintf("CConnman::Stop()\n");
+    {
+        LOCK(mutexMsgProc);
+        flagInterruptMsgProc = true;
+    }
+    condMsgProc.notify_all();
 
     interruptNet();
-    messageHandlerCondition.notify_all();
-
-    MapPort(false);
 
     if (semOutbound) {
         for (int i = 0; i < nMaxOutbound; ++i)
             semOutbound->post();
     }
+}
+
+void CConnman::Stop()
+{
+    LogPrintf("CConnman::Stop()\n");
+
+    Interrupt();
+
+    MapPort(false);
 
     if (fAddressesInitialized) {
         DumpData();
@@ -2166,7 +2160,7 @@ void CConnman::RelayInv(CInv& inv)
             continue;
         }
 
-        if (pnode->nVersion >= ActiveProtocol())
+        if (pnode->nVersion >= MIN_PEER_PROTO_VERSION)
             pnode->PushInventory(inv);
     }
 }
@@ -2263,10 +2257,6 @@ CNode::CNode(NodeId idIn, ServiceFlags nLocalServicesIn, int nMyStartingHeightIn
         LogPrint(BCLog::NET, "Added connection to %s peer=%d\n", addrName, id);
     else
         LogPrint(BCLog::NET, "Added connection peer=%d\n", id);
-
-    // Be shy and don't send version until we hear
-    if (hSocket != INVALID_SOCKET && !fInbound)
-        PushVersion();
 
 }
 

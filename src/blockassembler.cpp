@@ -26,7 +26,8 @@
 bool SolveProofOfStake(
     CBlock* pblock,
     const CBlockIndex* pindexPrev,
-    CWallet* pwallet)
+    CWallet* pwallet,
+    const Consensus::Params& consensusParams)
 {
     assert(pblock);
     assert(pindexPrev);
@@ -34,9 +35,10 @@ bool SolveProofOfStake(
 
     boost::this_thread::interruption_point();
 
-    pblock->nBits = GetNextWorkRequired(pindexPrev, pblock);
+    pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensusParams);
 
     std::vector<CStakeableOutput> availableCoins;
+
     if (!pwallet->StakeableCoins(&availableCoins)) {
         LogPrint(
             BCLog::STAKING,

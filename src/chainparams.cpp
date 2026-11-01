@@ -219,6 +219,7 @@ public:
 		assert(genesis.hashMerkleRoot == uint256S("0xfc3a25fe5baa1bbeb8594a751a6c78e36553262793f0017897582766fb93c2e3"));
 
         consensus.fPowAllowMinDifficultyBlocks = false;
+        consensus.fPowNoRetargeting = false;
         consensus.powLimit   = ~UINT256_ZERO >> 20;   // SchillingCoin starting difficulty is 1 / 2^12
         consensus.posLimitV1 = ~UINT256_ZERO >> 24;
         consensus.posLimitV2 = ~UINT256_ZERO >> 20;
@@ -320,6 +321,7 @@ public:
         //assert(consensus.hashGenesisBlock == uint256("0000024c78d7d2fb56363f7777bab06de80307ac751b02e843ca7ae62d2310d2"));
 
         consensus.fPowAllowMinDifficultyBlocks = true;
+        consensus.fPowNoRetargeting = false;
         consensus.powLimit   = ~UINT256_ZERO >> 20; // SchillingCoin starting difficulty is 1 / 2^12.
         consensus.posLimitV1 = ~UINT256_ZERO >> 24;
         consensus.posLimitV2 = ~UINT256_ZERO >> 20;
@@ -429,6 +431,7 @@ public:
         // assert(genesis.hashMerkleRoot == uint256("0x1b2ef6e2f28be914103a277377ae7729dcd125dfeb8bf97bd5964ba72b6dc39b"));
 
         consensus.fPowAllowMinDifficultyBlocks = true;
+        consensus.fPowNoRetargeting = true;
         consensus.powLimit   = ~UINT256_ZERO >> 20; // SchillingCoin starting difficulty is 1 / 2^12.
         consensus.posLimitV1 = ~UINT256_ZERO >> 24;
         consensus.posLimitV2 = ~UINT256_ZERO >> 20;

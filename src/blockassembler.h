@@ -12,10 +12,15 @@ class CBlock;
 class CBlockIndex;
 class CWallet;
 
+namespace Consensus {
+struct Params;
+}
+
 /** Construct the coinstake transaction for a proof-of-stake block. */
 bool SolveProofOfStake(
     CBlock* pblock,
     const CBlockIndex* pindexPrev,
-    CWallet* pwallet);
+    CWallet* pwallet,
+    const Consensus::Params& consensusParams);
 
 #endif // SCHILLINGCOIN_BLOCKASSEMBLER_H

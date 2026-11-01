@@ -291,9 +291,11 @@ set(SERVER_SOURCES
         ./src/main.cpp
         ./src/merkleblock.cpp
         ./src/net.cpp
+        ./src/node/context.cpp
         ./src/node/miner.cpp
         ./src/noui.cpp
         ./src/policy/fees.cpp
+        ./src/policy/packages.cpp
         ./src/policy/policy.cpp
         ./src/pow.cpp
         ./src/rest.cpp

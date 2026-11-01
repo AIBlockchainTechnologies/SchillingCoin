@@ -20,6 +20,7 @@ class CBlockIndex;
 class CReserveKey;
 class CScript;
 class CWallet;
+class Chainstate;
 
 struct CBlockTemplate {
     CBlock block;
@@ -29,6 +30,7 @@ struct CBlockTemplate {
 
 /** Generate a new block template without valid proof of work. */
 CBlockTemplate* CreateNewBlock(
+    Chainstate& chainstate,
     const CScript& scriptPubKeyIn,
     CWallet* pwallet,
     bool fProofOfStake);
@@ -42,6 +44,7 @@ void IncrementExtraNonce(
 /** Update block time and testnet difficulty when required. */
 void UpdateTime(
     CBlockHeader* block,
+    const Consensus::Params& consensusParams,
     const CBlockIndex* pindexPrev);
 
 #ifdef ENABLE_WALLET
@@ -54,6 +57,7 @@ void GenerateBitcoins(
 
 /** Generate a new block using a wallet reserve key. */
 CBlockTemplate* CreateNewBlockWithKey(
+    Chainstate& chainstate,
     CReserveKey& reservekey,
     CWallet* pwallet);
 

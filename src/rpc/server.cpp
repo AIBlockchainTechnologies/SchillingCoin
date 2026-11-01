@@ -215,7 +215,7 @@ std::string CRPCTable::help(std::string strCommand) const
 
         try {
             JSONRPCRequest request;
-            request.fHelp = true;
+            request.mode = JSONRPCRequest::GET_HELP;
             rpcfn_type pfn = pcmd->actor;
             if (setDone.insert(pfn).second)
                 (*pfn)(request);
@@ -246,7 +246,7 @@ std::string CRPCTable::help(std::string strCommand) const
 
 UniValue help(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() > 1)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() > 1)
         throw std::runtime_error(
             "help ( \"command\" )\n"
             "\nList all commands, or get help for a specified command.\n"
@@ -265,7 +265,7 @@ UniValue help(const JSONRPCRequest& request)
 UniValue stop(const JSONRPCRequest& request)
 {
     // Accept the deprecated and ignored 'detach' boolean argument
-    if (request.fHelp || request.params.size() > 1)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() > 1)
         throw std::runtime_error(
             "stop\n"
             "\nStop SchillingCoin server.");

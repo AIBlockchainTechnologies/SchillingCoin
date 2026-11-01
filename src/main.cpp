@@ -4750,10 +4750,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             SeenLocal(addrMe);
         }
 
-        // Be shy and don't send version until we hear
-        if (pfrom->fInbound)
-            pfrom->PushVersion();
-
         pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
 
         // Potentially mark this peer as a preferred download peer.

@@ -11,6 +11,7 @@
 #include "dbwrapper.h"
 #include "main.h"
 
+#include <functional>
 #include <map>
 #include <string>
 #include <utility>
@@ -123,7 +124,9 @@ public:
     bool ReadFlag(const std::string& name, bool& fValue);
     bool WriteInt(const std::string& name, int nValue);
     bool ReadInt(const std::string& name, int& nValue);
-    bool LoadBlockIndexGuts();
+    bool LoadBlockIndexGuts(const Consensus::Params& consensusParams,
+                            std::function<CBlockIndex*(const uint256&)> insertBlockIndex)
+        EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 };
 
 #endif // SCHILLINGCOIN_TXDB_H

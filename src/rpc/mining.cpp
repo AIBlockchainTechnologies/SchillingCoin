@@ -17,7 +17,9 @@
 #include "node/miner.h"
 #include "pow.h"
 #include "rpc/server.h"
+#include "rpc/server_util.h"
 #include "util.h"
+#include "validation.h"
 #include "validationinterface.h"
 
 #ifdef ENABLE_WALLET
@@ -76,7 +78,7 @@ UniValue GetNetworkHashPS(int lookup, int height)
 
 UniValue getnetworkhashps(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() > 2)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() > 2)
         throw std::runtime_error(
             "getnetworkhashps ( blocks height )\n"
             "\nReturns the estimated network hashes per second based on the last n blocks.\n"
@@ -103,7 +105,7 @@ UniValue getnetworkhashps(const JSONRPCRequest& request)
 #ifdef ENABLE_WALLET
 UniValue getgenerate(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 0)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() != 0)
         throw std::runtime_error(
             "getgenerate\n"
             "\nReturn if the server is set to generate coins or not. The default is false.\n"
@@ -112,6 +114,7 @@ UniValue getgenerate(const JSONRPCRequest& request)
 
             "\nResult\n"
             "true|false      (boolean) If the server is set to generate coins or not\n"
+
 
             "\nExamples:\n" +
             HelpExampleCli("getgenerate", "") +
@@ -123,7 +126,7 @@ UniValue getgenerate(const JSONRPCRequest& request)
 
 UniValue generate(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() < 1 || request.params.size() > 1)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() < 1 || request.params.size() > 1)
         throw std::runtime_error(
             "generate numblocks\n"
             "\nMine blocks immediately (before the RPC call returns)\n"
@@ -143,13 +146,15 @@ UniValue generate(const JSONRPCRequest& request)
     if (!Params().IsRegTestNet())
         throw JSONRPCError(RPC_METHOD_NOT_FOUND, "This method can only be used on regtest");
 
+    ChainstateManager& chainman = EnsureAnyChainman(request.context);
+
     const int nGenerate = request.params[0].get_int();
     int nHeightEnd = 0;
     int nHeight = 0;
 
     {   // Don't keep cs_main locked
         LOCK(cs_main);
-        nHeight = chainActive.Height();
+        nHeight = chainman.ActiveChain().Height();
         nHeightEnd = nHeight + nGenerate;
     }
 
@@ -174,18 +179,18 @@ UniValue generate(const JSONRPCRequest& request)
         if(!fPoS) {
             {
                 LOCK(cs_main);
-                IncrementExtraNonce(pblock, chainActive.Tip(), nExtraNonce);
+                IncrementExtraNonce(pblock, chainman.ActiveChain().Tip(), nExtraNonce);
             }
             while (pblock->nNonce < std::numeric_limits<uint32_t>::max() &&
-                    !CheckProofOfWork(pblock->GetHash(), pblock->nBits)) {
+                    !CheckProofOfWork(pblock->GetHash(), pblock->nBits, chainman.GetConsensus())) {
                 ++pblock->nNonce;
             }
             if (ShutdownRequested()) break;
             if (pblock->nNonce == std::numeric_limits<uint32_t>::max()) continue;
         }
 
-        CValidationState state;
-        if (!ProcessNewBlock(state, pblock))
+        const std::shared_ptr<const CBlock> shared_pblock = std::make_shared<const CBlock>(*pblock);
+        if (!chainman.ProcessNewBlock(shared_pblock, /*force_processing=*/true, nullptr))
             throw JSONRPCError(RPC_INTERNAL_ERROR, "ProcessNewBlock, block not accepted");
 
         ++nHeight;
@@ -204,7 +209,7 @@ UniValue generate(const JSONRPCRequest& request)
 
 UniValue setgenerate(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() < 1 || request.params.size() > 2)
         throw std::runtime_error(
             "setgenerate generate ( genproclimit )\n"
             "\nSet 'generate' true or false to turn generation on or off.\n"
@@ -251,7 +256,7 @@ UniValue setgenerate(const JSONRPCRequest& request)
 
 UniValue gethashespersec(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 0)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() != 0)
         throw std::runtime_error(
             "gethashespersec\n"
             "\nReturns a recent hashes per second performance measurement while generating.\n"
@@ -273,7 +278,7 @@ UniValue gethashespersec(const JSONRPCRequest& request)
 
 UniValue getmininginfo(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 0)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() != 0)
         throw std::runtime_error(
             "getmininginfo\n"
             "\nReturns a json object containing mining-related information."
@@ -320,7 +325,7 @@ UniValue getmininginfo(const JSONRPCRequest& request)
 // NOTE: Unlike wallet RPC (which use BTC values), mining RPCs follow GBT (BIP 22) in using satoshi amounts
 UniValue prioritisetransaction(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 3)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() != 3)
         throw std::runtime_error(
             "prioritisetransaction <txid> <priority delta> <fee delta>\n"
             "Accepts the transaction into mined blocks at a higher (or lower) priority\n"
@@ -369,7 +374,7 @@ static UniValue BIP22ValidationResult(const CValidationState& state)
 
 UniValue getblocktemplate(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() > 1)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() > 1)
         throw std::runtime_error(
             "getblocktemplate ( \"jsonrequestobject\" )\n"
             "\nIf the request parameters include a 'mode' key, that is used to explicitly select between the default 'template' request or a 'proposal'.\n"
@@ -658,7 +663,7 @@ protected:
 
 UniValue submitblock(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() < 1 || request.params.size() > 2)
         throw std::runtime_error(
             "submitblock \"hexdata\" ( \"jsonparametersobject\" )\n"
             "\nAttempts to submit new block to network.\n"
@@ -721,7 +726,7 @@ UniValue submitblock(const JSONRPCRequest& request)
 
 UniValue estimatefee(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() != 1)
+    if (request.mode == JSONRPCRequest::GET_HELP || request.params.size() != 1)
         throw std::runtime_error(
             "estimatefee nblocks\n"
             "\nEstimates the approximate fee per kilobyte\n"

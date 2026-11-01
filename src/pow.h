@@ -6,8 +6,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_POW_H
-#define BITCOIN_POW_H
+#ifndef SCHILLINGCOIN_POW_H
+#define SCHILLINGCOIN_POW_H
+
+#include <consensus/params.h>
 
 #include <stdint.h>
 
@@ -24,10 +26,12 @@ enum DiffMode {
     DIFF_DGW = 3,     // Retarget using Dark Gravity Wave v3
 };
 
-unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pblock);
+unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHeader* pblock,
+                                 const Consensus::Params& params);
 
 /** Check whether a block hash satisfies the proof-of-work requirement specified by nBits */
-bool CheckProofOfWork(uint256 hash, unsigned int nBits);
+bool CheckProofOfWork(uint256 hash, unsigned int nBits, const Consensus::Params& params);
+
 uint256 GetBlockProof(const CBlockIndex& block);
 
-#endif // BITCOIN_POW_H
+#endif // SCHILLINGCOIN_POW_H

@@ -15,6 +15,7 @@
 #include "netbase.h"
 #include "net_processing.h"
 #include "util.h"
+#include "version.h"
 
 #include <boost/filesystem.hpp>
 
@@ -356,7 +357,7 @@ void CMasternodeMan::Clear()
 int CMasternodeMan::stable_size ()
 {
     int nStable_size = 0;
-    int nMinProtocol = ActiveProtocol();
+    int nMinProtocol = MIN_PEER_PROTO_VERSION;
     const int64_t nMasternode_Min_Age = MN_WINNER_MINIMUM_AGE;
     const int64_t nNow = GetAdjustedTime();
 

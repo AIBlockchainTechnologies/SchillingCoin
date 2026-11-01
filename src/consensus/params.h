@@ -26,6 +26,7 @@ namespace Consensus {
 struct Params {
     uint256 hashGenesisBlock;
     bool fPowAllowMinDifficultyBlocks;
+    bool fPowNoRetargeting;
     uint256 powLimit;
     uint256 posLimitV1;
     uint256 posLimitV2;

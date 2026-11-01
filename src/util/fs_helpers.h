@@ -1,0 +1,81 @@
+// Copyright (c) 2009-2010 Satoshi Nakamoto
+// Copyright (c) 2009-2023 The Bitcoin Core developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#ifndef BITCOIN_UTIL_FS_HELPERS_H
+#define BITCOIN_UTIL_FS_HELPERS_H
+
+#include <util/fs.h>
+
+#include <cstdint>
+#include <cstdio>
+#include <iosfwd>
+#include <limits>
+
+/**
+ * Ensure file contents are fully committed to disk, using a platform-specific
+ * feature analogous to fsync().
+ */
+bool FileCommit(FILE* file);
+
+/**
+ * Sync directory contents. This is required on some environments to ensure that
+ * newly created files are committed to disk.
+ */
+void DirectoryCommit(const fs::path& dirname);
+
+/**
+ * fs::rename() followed by a synced parent directory, so the rename is durable
+ * before the caller takes any dependent step. Crash-recovery state machines
+ * (e.g. the assumeutxo snapshot lifecycle) rely on every rename being committed
+ * this way; use this instead of a bare fs::rename() there.
+ *
+ * Throws fs::filesystem_error if the rename fails, and also if the directory
+ * sync fails -- unlike DirectoryCommit(), a sync failure is reported rather
+ * than ignored, so callers never treat a non-durable transition as complete.
+ * A filesystem that does not support directory syncing is not a failure.
+ */
+void RenameDurably(const fs::path& src, const fs::path& dest);
+
+/** fs::remove_all() followed by a synced parent directory; the durable
+ *  counterpart for deletions, with the same throw contract as RenameDurably(). */
+void RemoveAllDurably(const fs::path& path);
+
+bool TruncateFile(FILE* file, unsigned int length);
+int RaiseFileDescriptorLimit(int nMinFD);
+void AllocateFileRange(FILE* file, unsigned int offset, unsigned int length);
+
+/**
+ * Rename src to dest.
+ * @return true if the rename was successful.
+ */
+[[nodiscard]] bool RenameOver(fs::path src, fs::path dest);
+
+bool LockDirectory(const fs::path& directory, const fs::path& lockfile_name, bool probe_only = false);
+void UnlockDirectory(const fs::path& directory, const fs::path& lockfile_name);
+bool DirIsWritable(const fs::path& directory);
+bool CheckDiskSpace(const fs::path& dir, uint64_t additional_bytes = 0);
+
+/** Get the size of a file by scanning it.
+ *
+ * @param[in] path The file path
+ * @param[in] max Stop seeking beyond this limit
+ * @return The file size or max
+ */
+std::streampos GetFileSize(const char* path, std::streamsize max = std::numeric_limits<std::streamsize>::max());
+
+/** Release all directory locks. This is used for unit testing only, at runtime
+ * the global destructor will take care of the locks.
+ */
+/** Dash: We also use this to release locks earlier when restarting the client */
+void ReleaseDirectoryLocks();
+
+bool TryCreateDirectories(const fs::path& p);
+fs::path GetDefaultDataDir();
+
+#ifdef WIN32
+fs::path GetSpecialFolderPath(int nFolder, bool fCreate = true);
+#endif
+
+#endif // BITCOIN_UTIL_FS_HELPERS_H
