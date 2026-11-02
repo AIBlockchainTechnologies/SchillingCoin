@@ -531,12 +531,12 @@ set(UTIL_SOURCES
         ./src/rpc/protocol.cpp
         ./src/support/cleanse.cpp
         ./src/sync.cpp
-        ./src/threadinterrupt.cpp
         ./src/util.cpp
         ./src/utilmoneystr.cpp
         ./src/utilstrencodings.cpp
         ./src/utiltime.cpp
         ./src/util/fs.cpp
+        ./src/util/threadinterrupt.cpp
         ./src/util/threadnames.cpp
         )
 add_library(UTIL_A STATIC ${BitcoinHeaders} ${UTIL_SOURCES})

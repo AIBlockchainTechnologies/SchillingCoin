@@ -41,8 +41,8 @@ public:
     SERIALIZE_METHODS(CMessageHeader, obj)
     {
         READWRITE(
-            FLATDATA(obj.pchMessageStart),
-            FLATDATA(obj.pchCommand),
+            obj.pchMessageStart,
+            obj.pchCommand,
             obj.nMessageSize,
             obj.nChecksum);
     }

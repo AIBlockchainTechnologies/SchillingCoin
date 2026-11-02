@@ -9,101 +9,127 @@
 #ifndef SCHILLINGCOIN_UINT256_H
 #define SCHILLINGCOIN_UINT256_H
 
-#include "arith_uint256.h"
+#include <crypto/common.h>
+#include <span.h>
 
-#include <assert.h>
+#include <algorithm>
+#include <array>
+#include <cassert>
 #include <cstring>
-#include <stdexcept>
 #include <stdint.h>
 #include <string>
-#include <vector>
 
-//
-// This is a migration file class, as soon as we move every
-// uint256 field used, invalidly, as a number to the proper arith_uint256, this will be replaced
-// with the blob_uint256 file.
-//
-
-/** 160-bit unsigned big integer. */
-class uint160 : public base_uint<160>
+/** Template base class for fixed-sized opaque blobs. */
+template<unsigned int BITS>
+class base_blob
 {
+protected:
+    static constexpr int WIDTH = BITS / 8;
+    static_assert(BITS % 8 == 0, "base_blob currently only supports whole bytes.");
+    std::array<uint8_t, WIDTH> m_data;
+    static_assert(WIDTH == sizeof(m_data), "Sanity check");
+
 public:
-    uint160() {}
-    uint160(const base_uint<160>& b) : base_uint<160>(b) {}
-    uint160(uint64_t b) : base_uint<160>(b) {}
-    explicit uint160(const std::string& str) : base_uint<160>(str) {}
-    explicit uint160(const std::vector<unsigned char>& vch) : base_uint<160>(vch) {}
-};
+    /* construct 0 value by default */
+    constexpr base_blob() : m_data() {}
 
-/** 256-bit unsigned big integer. */
-class uint256 : public base_uint<256>
-{
-public:
-    uint256() {}
-    uint256(const base_uint<256>& b) : base_uint<256>(b) {}
-    uint256(uint64_t b) : base_uint<256>(b) {}
-    explicit uint256(const std::string& str) : base_uint<256>(str) {}
-    explicit uint256(const std::vector<unsigned char>& vch) : base_uint<256>(vch) {}
+    /* constructor for constants between 1 and 255 */
+    constexpr explicit base_blob(uint8_t v) : m_data{v} {}
 
-    /**
-     * The "compact" format is a representation of a whole
-     * number N using an unsigned 32bit number similar to a
-     * floating point format.
-     * The most significant 8 bits are the unsigned exponent of base 256.
-     * This exponent can be thought of as "number of bytes of N".
-     * The lower 23 bits are the mantissa.
-     * Bit number 24 (0x800000) represents the sign of N.
-     * N = (-1^sign) * mantissa * 256^(exponent-3)
-     * 
-     * Satoshi's original implementation used BN_bn2mpi() and BN_mpi2bn().
-     * MPI uses the most significant bit of the first byte as sign.
-     * Thus 0x1234560000 is compact (0x05123456)
-     * and  0xc0de000000 is compact (0x0600c0de)
-     * 
-     * Bitcoin only uses this "compact" format for encoding difficulty
-     * targets, which are unsigned 256bit quantities.  Thus, all the
-     * complexities of the sign bit and using base 256 are probably an
-     * implementation accident.
-     */
-    uint256& SetCompact(uint32_t nCompact, bool* pfNegative = NULL, bool* pfOverflow = NULL);
-    uint32_t GetCompact(bool fNegative = false) const;
-
-    uint64_t GetHash(const uint256& salt) const;
-};
-
-/** 512-bit unsigned big integer. */
-class uint512 : public base_uint<512>
-{
-public:
-    uint512() {}
-    uint512(const base_uint<512>& b) : base_uint<512>(b) {}
-    uint512(uint64_t b) : base_uint<512>(b) {}
-    explicit uint512(const std::string& str) : base_uint<512>(str) {}
-    explicit uint512(const std::vector<unsigned char>& vch) : base_uint<512>(vch) {}
-
-    uint256 trim256() const
+    constexpr explicit base_blob(Span<const unsigned char> vch)
     {
-        uint256 ret;
-        for (unsigned int i = 0; i < uint256::WIDTH; i++) {
-            ret.pn[i] = pn[i];
-        }
-        return ret;
+        assert(vch.size() == WIDTH);
+        std::copy(vch.begin(), vch.end(), m_data.begin());
     }
+
+    constexpr bool IsNull() const
+    {
+        return std::all_of(m_data.begin(), m_data.end(), [](uint8_t val) {
+            return val == 0;
+        });
+    }
+
+    constexpr void SetNull()
+    {
+        std::fill(m_data.begin(), m_data.end(), 0);
+    }
+
+    constexpr int Compare(const base_blob& other) const { return std::memcmp(m_data.data(), other.m_data.data(), WIDTH); }
+
+    friend constexpr bool operator==(const base_blob& a, const base_blob& b) { return a.Compare(b) == 0; }
+    friend constexpr bool operator!=(const base_blob& a, const base_blob& b) { return a.Compare(b) != 0; }
+    friend constexpr bool operator<(const base_blob& a, const base_blob& b) { return a.Compare(b) < 0; }
+
+    std::string GetHex() const;
+    void SetHex(const char* psz);
+    void SetHex(const std::string& str);
+    std::string ToString() const;
+
+    constexpr const unsigned char* data() const { return m_data.data(); }
+    constexpr unsigned char* data() { return m_data.data(); }
+    constexpr unsigned char* begin() { return m_data.data(); }
+    constexpr unsigned char* end() { return m_data.data() + WIDTH; }
+    constexpr const unsigned char* begin() const { return m_data.data(); }
+    constexpr const unsigned char* end() const { return m_data.data() + WIDTH; }
+
+    static constexpr unsigned int size() { return WIDTH; }
+
+    constexpr uint64_t GetUint64(int pos) const { return ReadLE64(m_data.data() + pos * 8); }
+
+    template<typename Stream>
+    void Serialize(Stream& s) const
+    {
+        s.write(MakeByteSpan(m_data));
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s)
+    {
+        s.read(MakeWritableByteSpan(m_data));
+    }
+};
+
+/** 160-bit opaque blob.
+ * @note This type is called uint160 historical reasons only. It is an opaque
+ * blob of 160 bits and has no integer operations.
+ */
+class uint160 : public base_blob<160> {
+public:
+    constexpr uint160() = default;
+    constexpr explicit uint160(Span<const unsigned char> vch) : base_blob<160>(vch) {}
+};
+
+/** 256-bit opaque blob.
+ * @note This type is called uint256 for historical reasons only. It is an opaque
+ * blob of 256 bits and has no integer operations. Use arith_uint256 if those are required.
+ */
+class uint256 : public base_blob<256> {
+public:
+    constexpr uint256() = default;
+    constexpr explicit uint256(uint8_t v) : base_blob<256>(v) {}
+    constexpr explicit uint256(Span<const unsigned char> vch) : base_blob<256>(vch) {}
+
+    uint64_t GetCheapHash() const { return ReadLE64(begin()); }
+
+    static const uint256 ZERO;
+    static const uint256 ONE;
+    static const uint256 TWO;
 };
 
 /* uint256 from const char *.
  * This is a separate function because the constructor uint256(const char*) can result
- * in dangerously catching UINT256_ZERO.
+ * in dangerously catching uint256(0).
  */
-inline uint256 uint256S(const char* str)
+inline uint256 uint256S(const char *str)
 {
     uint256 rv;
     rv.SetHex(str);
     return rv;
 }
+
 /* uint256 from std::string.
  * This is a separate function because the constructor uint256(const std::string &str) can result
- * in dangerously catching UINT256_ZERO via std::string(const char*).
+ * in dangerously catching uint256(0) via std::string(const char*).
  */
 inline uint256 uint256S(const std::string& str)
 {
@@ -112,6 +138,36 @@ inline uint256 uint256S(const std::string& str)
     return rv;
 }
 
+/** 512-bit unsigned big integer. */
+class uint512 : public base_blob<512> {
+public:
+    constexpr uint512() = default;
+    constexpr uint512(const base_blob<512>& b) : base_blob<512>(b) {}
+    constexpr explicit uint512(Span<unsigned char> vch) : base_blob<512>(vch) {}
+
+    uint256 trim256() const
+    {
+        uint256 result;
+        memcpy((void*)&result, (void*)m_data.data(), 32);
+        return result;
+    }
+};
+
+/* uint512 from const char *.
+ * This is a separate function because the constructor uint512(const char*) can result
+ * in dangerously catching uint512(0).
+ */
+inline uint512 uint512S(const char* str)
+{
+    uint512 rv;
+    rv.SetHex(str);
+    return rv;
+}
+
+/* uint512 from std::string.
+ * This is a separate function because the constructor uint512(const std::string &str) can result
+ * in dangerously catching uint512(0) via std::string(const char*).
+ */
 inline uint512 uint512S(const std::string& str)
 {
     uint512 rv;
@@ -119,13 +175,8 @@ inline uint512 uint512S(const std::string& str)
     return rv;
 }
 
-uint256 ArithToUint256(const arith_uint256 &);
-arith_uint256 UintToArith256(const uint256 &);
-uint512 ArithToUint512(const arith_uint512 &);
-arith_uint512 UintToArith512(const uint512 &);
-
 /** constant uint256 instances */
 const uint256 UINT256_ZERO = uint256();
-const uint256 UINT256_ONE = uint256("0000000000000000000000000000000000000000000000000000000000000001");
+const uint256 UINT256_ONE = uint256S("0000000000000000000000000000000000000000000000000000000000000001");
 
 #endif // SCHILLINGCOIN_UINT256_H

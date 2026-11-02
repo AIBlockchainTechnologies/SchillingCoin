@@ -87,6 +87,7 @@ BITCOIN_CORE_H = \
   base58.h \
   blob_uint256.h \
   bip38.h \
+  bip324.h \
   bloom.h \
   blockassembler.h \
   blocksignature.h \
@@ -221,13 +222,13 @@ BITCOIN_CORE_H = \
   support/cleanse.h \
   support/lockedpool.h \
   sync.h \
-  threadinterrupt.h \
   threadsafety.h \
   timedata.h \
   tinyformat.h \
   torcontrol.h \
   txdb.h \
   txmempool.h \
+  util/threadinterrupt.h \
   guiinterface.h \
   guiinterfaceutil.h \
   uint256.h \
@@ -244,6 +245,7 @@ BITCOIN_CORE_H = \
   util/memory.h \
   util/overflow.h \
   util/settings.h \
+  util/sock.h \
   util/string.h \
   util/subprocess.hpp \
   util/system.h \
@@ -284,6 +286,7 @@ libbitcoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_server_a_SOURCES = \
   addrdb.cpp \
   addrman.cpp \
+  bip324.cpp \
   bloom.cpp \
   blockassembler.cpp \
   blocksignature.cpp \
@@ -395,11 +398,17 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sha512.cpp \
   crypto/chacha20.cpp \
   crypto/chacha20.h \
+  crypto/chacha20poly1305.cpp \
+  crypto/chacha20poly1305.h \
+  crypto/hkdf_sha256_32.cpp \
+  crypto/hkdf_sha256_32.h \
   crypto/hmac_sha256.cpp \
   crypto/rfc6979_hmac_sha256.cpp \
   crypto/hmac_sha512.cpp \
   crypto/muhash.cpp \
   crypto/muhash.h \
+  crypto/poly1305.cpp \
+  crypto/poly1305.h \
   crypto/scrypt.cpp \
   crypto/ripemd160.cpp \
   crypto/sph_md_helper.c \
@@ -534,7 +543,6 @@ libbitcoin_util_a_SOURCES = \
   support/lockedpool.cpp \
   streams.cpp \
   sync.cpp \
-  threadinterrupt.cpp \
   uint256.cpp \
   util.cpp \
   utilmoneystr.cpp \
@@ -542,8 +550,10 @@ libbitcoin_util_a_SOURCES = \
   utiltime.cpp \
   util/asmap.cpp \
   util/fees.cpp \
+  util/threadinterrupt.cpp \
   util/fs.cpp \
   util/settings.cpp \
+  util/sock.cpp \
   util/string.cpp \
   util/system.cpp \
   util/threadnames.cpp \

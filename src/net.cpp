@@ -22,7 +22,7 @@
 #include "optional.h"
 #include "primitives/transaction.h"
 #include "scheduler.h"
-#include "threadinterrupt.h"
+#include <util/threadinterrupt.h>
 
 #ifdef WIN32
 #include <string.h>
@@ -961,10 +961,10 @@ int CNetMessage::readData(const char* pch, unsigned int nBytes)
 // requires LOCK(cs_vSend)
 void CConnman::SocketSendData(CNode* pnode)
 {
-    std::deque<CSerializeData>::iterator it = pnode->vSendMsg.begin();
+    auto it = pnode->vSendMsg.begin();
 
     while (it != pnode->vSendMsg.end()) {
-        const CSerializeData& data = *it;
+        const auto& data = *it;
         assert(data.size() > pnode->nSendOffset);
         int nBytes = send(pnode->hSocket, &data[pnode->nSendOffset], data.size() - pnode->nSendOffset, MSG_NOSIGNAL | MSG_DONTWAIT);
         if (nBytes > 0) {
@@ -2346,9 +2346,10 @@ void CNode::EndMessage() UNLOCK_FUNCTION(cs_vSend)
 
     LogPrint(BCLog::NET, "(%d bytes) peer=%d\n", nSize, id);
 
-    std::deque<CSerializeData>::iterator it = vSendMsg.insert(vSendMsg.end(), CSerializeData());
-    ssSend.GetAndClear(*it);
-    nSendSize += (*it).size();
+    std::vector<unsigned char> data(ssSend.begin(), ssSend.end());
+    ssSend.clear();
+    auto it = vSendMsg.insert(vSendMsg.end(), std::move(data));
+    nSendSize += it->size();
 
     // If write queue empty, attempt "optimistic write"
     if (it == vSendMsg.begin())

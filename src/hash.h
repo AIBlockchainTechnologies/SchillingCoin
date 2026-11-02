@@ -378,6 +378,9 @@ unsigned int MurmurHash3(unsigned int nHashSeed, const std::vector<unsigned char
 
 void BIP32Hash(const ChainCode chainCode, unsigned int nChild, unsigned char header, const unsigned char data[32], unsigned char output[64]);
 
+/** DIP-14 child key derivation HMAC: like BIP32Hash but with a 256-bit child index. */
+void DIP14Hash(const ChainCode& chainCode, const unsigned char nChild[32], unsigned char header, const unsigned char data[32], unsigned char output[64]);
+
 //int HMAC_SHA512_Init(HMAC_SHA512_CTX *pctx, const void *pkey, size_t len);
 //int HMAC_SHA512_Update(HMAC_SHA512_CTX *pctx, const void *pdata, size_t len);
 //int HMAC_SHA512_Final(unsigned char *pmd, HMAC_SHA512_CTX *pctx);

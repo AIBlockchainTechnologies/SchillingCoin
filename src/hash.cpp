@@ -82,6 +82,11 @@ void BIP32Hash(const ChainCode chainCode, unsigned int nChild, unsigned char hea
     CHMAC_SHA512(chainCode.begin(), chainCode.size()).Write(&header, 1).Write(data, 32).Write(num, 4).Finalize(output);
 }
 
+void DIP14Hash(const ChainCode& chainCode, const unsigned char nChild[32], unsigned char header, const unsigned char data[32], unsigned char output[64])
+{
+    CHMAC_SHA512(chainCode.begin(), chainCode.size()).Write(&header, 1).Write(data, 32).Write(nChild, 32).Finalize(output);
+}
+
 void scrypt_hash(const char* pass, unsigned int pLen, const char* salt, unsigned int sLen, char* output, unsigned int N, unsigned int r, unsigned int p, unsigned int dkLen)
 {
     scrypt(pass, pLen, salt, sLen, output, N, r, p, dkLen);

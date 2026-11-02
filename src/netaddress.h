@@ -86,7 +86,7 @@ public:
 
     SERIALIZE_METHODS(CNetAddr, obj)
     {
-        READWRITE(FLATDATA(obj.ip));
+        READWRITE(obj.ip);
     }
 
     friend class CSubNet;
@@ -117,8 +117,8 @@ public:
     {
         READWRITE(
             obj.network,
-            FLATDATA(obj.netmask),
-            FLATDATA(obj.valid));
+            obj.netmask,
+            obj.valid);
     }
 };
 
@@ -159,7 +159,7 @@ public:
 
     SERIALIZE_METHODS(CService, obj)
     {
-        READWRITE(FLATDATA(obj.ip));
+        READWRITE(obj.ip);
 
         unsigned short portN = htons(obj.port);
 

@@ -12,6 +12,8 @@
 #include "serialize.h"
 #include "uint256.h"
 
+#include <array>
+#include <cstring>
 #include <stdexcept>
 #include <vector>
 
@@ -202,12 +204,43 @@ public:
 
     //! Derive BIP32 child pubkey.
     bool Derive(CPubKey& pubkeyChild, ChainCode &ccChild, unsigned int nChild, const ChainCode& cc) const;
+    //! Derive DIP-14 (non-hardened) child pubkey with a 256-bit index.
+    bool Derive256(CPubKey& pubkeyChild, ChainCode& ccChild, Span<const unsigned char> nChild, const ChainCode& cc) const;
 
     std::vector<unsigned char> Raw() const
     {
         return std::vector<unsigned char>(vch, vch + size());
     }
 
+};
+
+/** An ElligatorSwift-encoded public key. */
+struct EllSwiftPubKey
+{
+private:
+    static constexpr size_t SIZE = 64;
+    std::array<std::byte, SIZE> m_pubkey;
+
+public:
+    EllSwiftPubKey() noexcept = default;
+    EllSwiftPubKey(Span<const std::byte> ellswift) noexcept;
+
+    CPubKey Decode() const;
+
+    const std::byte* data() const { return m_pubkey.data(); }
+    static constexpr size_t size() { return SIZE; }
+    auto begin() const { return m_pubkey.cbegin(); }
+    auto end() const { return m_pubkey.cend(); }
+
+    friend bool operator==(const EllSwiftPubKey& a, const EllSwiftPubKey& b)
+    {
+        return a.m_pubkey == b.m_pubkey;
+    }
+
+    friend bool operator!=(const EllSwiftPubKey& a, const EllSwiftPubKey& b)
+    {
+        return a.m_pubkey != b.m_pubkey;
+    }
 };
 
 struct CExtPubKey {
@@ -258,17 +291,6 @@ struct CExtPubKey {
             len);
         Decode(code);
     }
-};
-
-/** Users of this module must hold an ECCVerifyHandle. The constructor and
- *  destructor of these are not allowed to run in parallel, though. */
-class ECCVerifyHandle
-{
-    static int refcount;
-
-public:
-    ECCVerifyHandle();
-    ~ECCVerifyHandle();
 };
 
 #endif // SCHILLINGCOIN_PUBKEY_H

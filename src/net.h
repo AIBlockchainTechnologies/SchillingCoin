@@ -19,9 +19,9 @@
 #include "random.h"
 #include "streams.h"
 #include "sync.h"
-#include "threadinterrupt.h"
 #include "uint256.h"
 #include "utilstrencodings.h"
+#include <util/threadinterrupt.h>
 
 #include <atomic>
 #include <deque>
@@ -62,12 +62,6 @@ static const unsigned int MAX_PROTOCOL_MESSAGE_LENGTH = 2 * 1024 * 1024;
 static const unsigned int MAX_SUBVERSION_LENGTH = 256;
 /** -listen default */
 static const bool DEFAULT_LISTEN = true;
-/** -upnp default */
-#ifdef USE_UPNP
-static const bool DEFAULT_UPNP = USE_UPNP;
-#else
-static const bool DEFAULT_UPNP = false;
-#endif
 /** The maximum number of entries in mapAskFor */
 static const size_t MAPASKFOR_MAX_SZ = MAX_INV_SZ;
 /** The maximum number of peer connections to maintain. */
@@ -516,7 +510,7 @@ public:
     size_t nSendSize;   // total size of all vSendMsg entries
     size_t nSendOffset; // offset inside the first vSendMsg already sent
     uint64_t nSendBytes;
-    std::deque<CSerializeData> vSendMsg;
+    std::deque<std::vector<unsigned char>> vSendMsg;
     RecursiveMutex cs_vSend;
 
     std::deque<CInv> vRecvGetData;
