@@ -5,13 +5,14 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "init.h"
+
 #include "consensus/merkle.h"
-#include "main.h"
 #include "node/miner.h"
 #include "pubkey.h"
 #include "uint256.h"
 #include "util.h"
 #include "util/system.h"
+#include "validation.h"
 
 #include "test/test_schillingcoin.h"
 

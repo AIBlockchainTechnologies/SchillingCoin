@@ -12,9 +12,9 @@
 
 #include "consensus/amount.h"
 #include "chainparams.h"
-#include "main.h"
 #include "txdb.h"
 #include "stubs/legacy_zerocoin_consensus.h"
+#include "validation.h"
 
 #include <boost/test/unit_test.hpp>
 #include <iostream>

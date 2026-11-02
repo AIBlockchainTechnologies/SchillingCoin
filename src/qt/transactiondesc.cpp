@@ -12,12 +12,12 @@
 #include "transactionrecord.h"
 
 #include "db.h"
+#include "guiinterface.h"
 #include "key_io.h"
-#include "main.h"
 #include "script/script.h"
 #include "timedata.h"
-#include "guiinterface.h"
 #include "util.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 #include <stdint.h>

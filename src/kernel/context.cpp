@@ -1,4 +1,5 @@
 // Copyright (c) 2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -6,7 +7,6 @@
 
 #include <bls/bls.h>
 #include <crypto/sha256.h>
-#include <crypto/x11/dispatch.h>
 #include <key.h>
 #include <logging.h>
 #include <pubkey.h>
@@ -14,12 +14,10 @@
 
 #include <string>
 
-
 namespace kernel {
 
 Context::Context()
 {
-    SapphireAutoDetect();
     std::string sha256_algo = SHA256AutoDetect();
     LogPrintf("Using the '%s' SHA256 implementation\n", sha256_algo);
     RandomInit();

@@ -6,10 +6,10 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "guiinterfaceutil.h"
-#include "main.h"
 #include "net.h"
 #include "util/system.h"
 #include "utilmoneystr.h"
+#include "validation.h"
 #include "wallet/init.h"
 #include "wallet/wallet.h"
 #include "wallet/walletutil.h"

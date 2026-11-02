@@ -2,15 +2,15 @@
 // Copyright (c) 2013-2014 The NovaCoin Developers
 // Copyright (c) 2014-2018 The BlackCoin Developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_KERNEL_H
-#define SchillingCoin_KERNEL_H
+#ifndef SCHILLINGCOIN_KERNEL_H
+#define SCHILLINGCOIN_KERNEL_H
 
-#include "main.h"
 #include "stakeinput.h"
+#include "validation.h"
 
 class CStakeKernel {
 public:
@@ -76,4 +76,4 @@ bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockI
  */
 bool GetStakeKernelHash(uint256& hashRet, const CBlock& block, const CBlockIndex* pindexPrev = nullptr);
 
-#endif // SchillingCoin_KERNEL_H
+#endif // SCHILLINGCOIN_KERNEL_H

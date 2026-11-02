@@ -5,9 +5,9 @@
 
 #include "chainparams.h"
 #include "crypto/common.h"
-#include "main.h"
 #include "util.h"
 #include "util/string.h"
+#include "validation.h"
 #include "zmqpublishnotifier.h"
 
 static std::multimap<std::string, CZMQAbstractPublishNotifier*> mapPublishNotifiers;

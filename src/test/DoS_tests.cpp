@@ -9,7 +9,6 @@
 //
 
 #include "keystore.h"
-#include "main.h"
 #include "net.h"
 #include "net_processing.h"
 #include "pow.h"
@@ -17,6 +16,7 @@
 #include "serialize.h"
 #include "util.h"
 #include "util/system.h"
+#include "validation.h"
 
 #include "test/test_schillingcoin.h"
 

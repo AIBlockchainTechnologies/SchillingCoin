@@ -6,8 +6,8 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "primitives/transaction.h"
-#include "main.h"
 #include "test_schillingcoin.h"
+#include "validation.h"
 
 #include <boost/test/unit_test.hpp>
 

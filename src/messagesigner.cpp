@@ -5,12 +5,12 @@
 
 #include "hash.h"
 #include "key_io.h"
-#include "main.h"
 #include "messagesigner.h"
 #include "masternodeman.h"
 #include "tinyformat.h"
 #include "util/system.h"
 #include "utilstrencodings.h"
+#include "validation.h"
 
 bool CMessageSigner::GetKeysFromSecret(const std::string& strSecret, CKey& keyRet, CPubKey& pubkeyRet)
 {

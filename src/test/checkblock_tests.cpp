@@ -9,9 +9,9 @@
 
 
 #include "clientversion.h"
-#include "main.h"
 #include "utiltime.h"
 #include "test/test_schillingcoin.h"
+#include "validation.h"
 
 #include <cstdio>
 

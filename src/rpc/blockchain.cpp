@@ -12,7 +12,6 @@
 #include "init.h"
 #include "kernel.h"
 #include "key_io.h"
-#include "main.h"
 #include "policy/feerate.h"
 #include "rpc/server.h"
 #include "sync.h"
@@ -20,6 +19,7 @@
 #include "util.h"
 #include "util/system.h"
 #include "utilmoneystr.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 #include <boost/thread/thread.hpp>

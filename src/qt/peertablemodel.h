@@ -7,9 +7,9 @@
 #ifndef SCHILLINGCOIN_QT_PEERTABLEMODEL_H
 #define SCHILLINGCOIN_QT_PEERTABLEMODEL_H
 
-#include "main.h"
 #include "net.h"
 #include "net_processing.h"
+#include "validation.h"
 
 #include <QAbstractTableModel>
 #include <QStringList>

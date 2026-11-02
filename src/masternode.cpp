@@ -8,7 +8,6 @@
 #include "addrman.h"
 #include "init.h"
 #include "key_io.h"
-#include "main.h"
 #include "masternode.h"
 #include "masternodeman.h"
 #include "masternode-payments.h"
@@ -17,6 +16,7 @@
 #include "script/standard.h"
 #include "sync.h"
 #include "util.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 // keep track of the scanning errors I've seen

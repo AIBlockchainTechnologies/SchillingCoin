@@ -10,12 +10,12 @@
 #include "core_io.h"
 #include "key.h"
 #include "keystore.h"
-#include "main.h"
 #include "script/script.h"
 #include "script/script_error.h"
 #include "script/sign.h"
 #include "util.h"
 #include "test_schillingcoin.h"
+#include "validation.h"
 
 #if defined(HAVE_CONSENSUS_LIB)
 #include "script/bitcoinconsensus.h"

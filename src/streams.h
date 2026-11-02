@@ -1,11 +1,10 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SCHILLINGCOIN_STREAMS_H
-#define SCHILLINGCOIN_STREAMS_H
+#ifndef BITCOIN_STREAMS_H
+#define BITCOIN_STREAMS_H
 
 #include <serialize.h>
 #include <span.h>
@@ -766,4 +765,4 @@ public:
     }
 };
 
-#endif // SCHILLINGCOIN_STREAMS_H
+#endif // BITCOIN_STREAMS_H

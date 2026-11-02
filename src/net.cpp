@@ -18,11 +18,11 @@
 #include "net_processing.h"
 #include "netbase.h"
 #include "node/miner.h"
-#include "main.h"
 #include "optional.h"
 #include "primitives/transaction.h"
 #include "scheduler.h"
 #include <util/threadinterrupt.h>
+#include "validation.h"
 
 #ifdef WIN32
 #include <string.h>

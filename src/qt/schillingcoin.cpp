@@ -16,7 +16,6 @@
 #include "guiutil.h"
 #include "init.h"
 #include "intro.h"
-#include "main.h"
 #include "masternodeconfig.h"
 #include "net.h"
 #include "networkstyle.h"
@@ -30,6 +29,7 @@
 #include "util/fs.h"
 #include "util/system.h"
 #include "utilitydialog.h"
+#include "validation.h"
 #include "winshutdownmonitor.h"
 
 #ifdef ENABLE_WALLET

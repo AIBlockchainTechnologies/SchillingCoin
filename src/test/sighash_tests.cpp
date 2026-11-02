@@ -7,14 +7,14 @@
 #include "data/sighash.json.h"
 
 #include "consensus/tx_verify.h"
-#include "main.h"
 #include "serialize.h"
 #include "script/script.h"
 #include "script/interpreter.h"
 #include "util.h"
 #include "util/system.h"
-#include "version.h"
 #include "test_schillingcoin.h"
+#include "validation.h"
+#include "version.h"
 
 #include <iostream>
 

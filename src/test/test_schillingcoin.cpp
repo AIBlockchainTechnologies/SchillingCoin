@@ -9,12 +9,12 @@
 #include "test_schillingcoin.h"
 
 #include "guiinterface.h"
-#include "main.h"
 #include "net_processing.h"
 #include "random.h"
 #include "script/sigcache.h"
 #include "txdb.h"
 #include "util.h"
+#include "validation.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/db.h"

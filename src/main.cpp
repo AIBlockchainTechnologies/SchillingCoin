@@ -9,8 +9,6 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "main.h"
-
 #include "addrman.h"
 #include "blocksignature.h"
 #include "chainparams.h"
@@ -39,6 +37,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "utilmoneystr.h"
+#include "validation.h"
 #include "validationinterface.h"
 #include "wallet/wallet.h"
 

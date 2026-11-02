@@ -17,9 +17,9 @@
 #include "clientmodel.h"
 #include "qt/schillingcoin/qtutils.h"
 
-#include "main.h" // for MAX_SCRIPTCHECK_THREADS
 #include "netbase.h"
-#include "txdb.h" // for -dbcache defaults
+#include "txdb.h"
+#include "validation.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h" // for CWallet::minTxFee

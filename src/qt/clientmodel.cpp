@@ -5,16 +5,14 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "clientmodel.h"
-
 #include "bantablemodel.h"
 #include "chainparams.h"
 #include "checkpoints.h"
+#include "clientmodel.h"
 #include "clientversion.h"
 #include "guiconstants.h"
 #include "guiinterface.h"
 #include "guiutil.h"
-#include "main.h"
 #include "masternode-sync.h"
 #include "masternodeman.h"
 #include "net.h"
@@ -24,6 +22,7 @@
 #include "peertablemodel.h"
 #include "util.h"
 #include "util/system.h"
+#include "validation.h"
 
 #include <stdint.h>
 

@@ -5,15 +5,14 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "txmempool.h"
-
 #include "clientversion.h"
-#include "main.h"
 #include "policy/fees.h"
 #include "streams.h"
+#include "txmempool.h"
 #include "util.h"
 #include "utilmoneystr.h"
 #include "util/system.h"
+#include "validation.h"
 #include "version.h"
 
 CTxMemPoolEntry::CTxMemPoolEntry() : nFee(0), nTxSize(0), nModSize(0), nTime(0), dPriority(0.0)

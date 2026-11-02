@@ -5,12 +5,11 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "txdb.h"
-
-#include "main.h"
 #include "pow.h"
+#include "txdb.h"
 #include "uint256.h"
 #include "util/system.h"
+#include "validation.h"
 
 #include <stdint.h>
 

@@ -7,11 +7,11 @@
 #include "consensus/tx_verify.h"
 #include "key.h"
 #include "keystore.h"
-#include "main.h"
 #include "script/script.h"
 #include "script/script_error.h"
 #include "script/sign.h"
 #include "test_schillingcoin.h"
+#include "validation.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/wallet_ismine.h"
@@ -20,7 +20,6 @@
 #include <vector>
 
 #include <boost/test/unit_test.hpp>
-
 
 // Helpers:
 static std::vector<unsigned char>

@@ -13,13 +13,13 @@
 #include "consensus/amount.h"
 #include "guiutil.h"
 #include "init.h"
-#include "main.h"
 #include "net.h"
 #include "netbase.h"
 #include "optionsmodel.h"
 #include "txdb.h"
 #include "util.h"
 #include "util/system.h"
+#include "validation.h"
 
 #ifdef ENABLE_WALLET
 #include "masternodeconfig.h"

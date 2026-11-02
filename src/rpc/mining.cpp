@@ -12,7 +12,6 @@
 #include "core_io.h"
 #include "init.h"
 #include "key_io.h"
-#include "main.h"
 #include "net.h"
 #include "node/miner.h"
 #include "pow.h"

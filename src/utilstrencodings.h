@@ -1,17 +1,18 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 /**
  * Utilities for converting data from/to strings.
  */
-#ifndef BITCOIN_UTILSTRENCODINGS_H
-#define BITCOIN_UTILSTRENCODINGS_H
+#ifndef SCHILLINGCOIN_UTILSTRENCODINGS_H
+#define SCHILLINGCOIN_UTILSTRENCODINGS_H
 
-#include "allocators.h"
+#include <support/allocators/secure.h>
+
 #include <stdint.h>
 #include <string>
 #include <vector>
@@ -153,4 +154,4 @@ bool TimingResistantEqual(const T& a, const T& b)
 // Join words with separator
 std::string join(const std::vector<std::string>& words, const std::string &separator = ", ", const std::string &concluder = "");
 
-#endif // BITCOIN_UTILSTRENCODINGS_H
+#endif // SCHILLINGCOIN_UTILSTRENCODINGS_H

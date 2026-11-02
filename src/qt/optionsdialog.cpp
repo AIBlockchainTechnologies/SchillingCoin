@@ -13,12 +13,11 @@
 
 #include "bitcoinunits.h"
 #include "guiutil.h"
-#include "optionsmodel.h"
-
-#include "main.h"
 #include "netaddress.h"
-#include "netbase.h" // <-- REQUIRED for LookupNumeric, proxyType, GetProxy
+#include "netbase.h"
+#include "optionsmodel.h"
 #include "txdb.h"
+#include "validation.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"

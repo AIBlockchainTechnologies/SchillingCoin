@@ -10,20 +10,21 @@
 
 #include "bantablemodel.h"
 #include "clientmodel.h"
-#include "walletmodel.h"
 #include "guiutil.h"
 #include "peertablemodel.h"
+#include "walletmodel.h"
 
 #include "chainparams.h"
-#include "main.h"
-#include "netbase.h" //
+#include "netbase.h"
 #include "rpc/client.h"
 #include "rpc/server.h"
 #include "util/system.h"
+#include "validation.h"
 
+#include "askpassphrasedialog.h"
 #include "init.h"
 #include <startoptionsmain.h>
-#include "askpassphrasedialog.h"
+
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif
@@ -39,10 +40,10 @@
 #include <QMenu>
 #include <QScrollBar>
 #include <QSignalMapper>
+#include <QStringList>
 #include <QThread>
 #include <QTime>
 #include <QTimer>
-#include <QStringList>
 
 const int CONSOLE_HISTORY = 50;
 const QSize ICON_SIZE(24, 24);

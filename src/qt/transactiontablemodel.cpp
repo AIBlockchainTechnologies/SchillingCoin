@@ -15,23 +15,22 @@
 #include "transactionrecord.h"
 #include "walletmodel.h"
 
-#include "main.h"
 #include "sync.h"
 #include "uint256.h"
 #include "util.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 #include <algorithm>
+#include <vector>
 
 #include <QColor>
 #include <QDateTime>
 #include <QDebug>
-#include <QIcon>
-#include <QtConcurrent/QtConcurrent>
 #include <QFuture>
+#include <QIcon>
 #include <QThreadPool>
-
-#include <vector>
+#include <QtConcurrent/QtConcurrent>
 
 #define SINGLE_THREAD_MAX_TXES_SIZE 4000
 #define MAX_AMOUNT_LOADED_RECORDS 20000

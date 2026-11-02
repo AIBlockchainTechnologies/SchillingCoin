@@ -5,12 +5,12 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "coins.h"
-#include "main.h"
 #include "script/standard.h"
 #include "test/test_schillingcoin.h"
 #include "uint256.h"
 #include "undo.h"
 #include "utilstrencodings.h"
+#include "validation.h"
 
 #include <map>
 #include <set>

@@ -9,7 +9,6 @@
 #include "db.h"
 #include "init.h"
 #include "key_io.h"
-#include "main.h"
 #include "masternode-payments.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
@@ -19,6 +18,7 @@
 #include "rpc/server.h"
 #include "script/standard.h"
 #include "utilmoneystr.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 #include <univalue.h>

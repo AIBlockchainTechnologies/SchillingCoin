@@ -11,12 +11,12 @@
 #include "guiinterface.h"
 #include "init.h"
 #include "key_io.h"
-#include "main.h"
 #include "random.h"
 #include "sync.h"
 #include "util.h"
 #include "util/system.h"
 #include "utilstrencodings.h"
+#include "validation.h"
 
 #include <boost/algorithm/string/case_conv.hpp> // for to_upper()
 #include <boost/bind/bind.hpp>

@@ -855,38 +855,74 @@ if test "x$use_thread_local" = xyes || { test "x$use_thread_local" = xauto && te
   LDFLAGS="$TEMP_LDFLAGS"
 fi
 
+AC_CHECK_HEADERS([sys/select.h sys/prctl.h vm/vm_param.h sys/vmmeter.h sys/resources.h])
+
+AC_CHECK_DECLS([getifaddrs, freeifaddrs],[CHECK_SOCKET],,
+    [#include <sys/types.h>
+    #include <ifaddrs.h>]
+)
+
 # Check for different ways of gathering OS randomness
-AC_MSG_CHECKING(for Linux getrandom syscall)
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <unistd.h>
-  #include <sys/syscall.h>
-  #include <linux/random.h>]],
- [[ syscall(SYS_getrandom, nullptr, 32, 0); ]])],
- [ AC_MSG_RESULT(yes); AC_DEFINE(HAVE_SYS_GETRANDOM, 1,[Define this symbol if the Linux getrandom system call is available]) ],
- [ AC_MSG_RESULT(no)]
+AC_MSG_CHECKING([for Linux getrandom function])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+  #include <sys/random.h>]],
+ [[ getrandom(nullptr, 32, 0); ]])],
+ [ AC_MSG_RESULT([yes]); AC_DEFINE([HAVE_GETRANDOM], [1], [Define this symbol if the Linux getrandom function call is available]) ],
+ [ AC_MSG_RESULT([no])]
 )
 
-AC_MSG_CHECKING(for getentropy)
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <unistd.h>]],
- [[ getentropy(nullptr, 32) ]])],
- [ AC_MSG_RESULT(yes); AC_DEFINE(HAVE_GETENTROPY, 1,[Define this symbol if the BSD getentropy system call is available]) ],
- [ AC_MSG_RESULT(no)]
-)
-
-AC_MSG_CHECKING(for getentropy via random.h)
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <unistd.h>
+AC_MSG_CHECKING([for getentropy via sys/random.h])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
  #include <sys/random.h>]],
  [[ getentropy(nullptr, 32) ]])],
- [ AC_MSG_RESULT(yes); AC_DEFINE(HAVE_GETENTROPY_RAND, 1,[Define this symbol if the BSD getentropy system call is available with sys/random.h]) ],
- [ AC_MSG_RESULT(no)]
+ [ AC_MSG_RESULT([yes]); AC_DEFINE([HAVE_GETENTROPY_RAND], [1], [Define this symbol if the BSD getentropy system call is available with sys/random.h]) ],
+ [ AC_MSG_RESULT([no])]
 )
 
-AC_MSG_CHECKING(for sysctl KERN_ARND)
+AC_MSG_CHECKING([for sysctl])
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <sys/types.h>
   #include <sys/sysctl.h>]],
- [[ static const int name[2] = {CTL_KERN, KERN_ARND};
+ [[ #ifdef __linux__
+    #error "Don't use sysctl on Linux, it's deprecated even when it works"
+    #endif
+    sysctl(nullptr, 2, nullptr, nullptr, nullptr, 0); ]])],
+ [ AC_MSG_RESULT([yes]); AC_DEFINE([HAVE_SYSCTL], [1], [Define this symbol if the BSD sysctl() is available]) ],
+ [ AC_MSG_RESULT([no])]
+)
+
+AC_MSG_CHECKING([for sysctl KERN_ARND])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <sys/types.h>
+  #include <sys/sysctl.h>]],
+ [[ #ifdef __linux__
+    #error "Don't use sysctl on Linux, it's deprecated even when it works"
+    #endif
+    static int name[2] = {CTL_KERN, KERN_ARND};
     sysctl(name, 2, nullptr, nullptr, nullptr, 0); ]])],
- [ AC_MSG_RESULT(yes); AC_DEFINE(HAVE_SYSCTL_ARND, 1,[Define this symbol if the BSD sysctl(KERN_ARND) is available]) ],
- [ AC_MSG_RESULT(no)]
+ [ AC_MSG_RESULT([yes]); AC_DEFINE([HAVE_SYSCTL_ARND], [1], [Define this symbol if the BSD sysctl(KERN_ARND) is available]) ],
+ [ AC_MSG_RESULT([no])]
+)
+
+AC_MSG_CHECKING([for strong getauxval support in the system headers])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+    #include <sys/auxv.h>
+  ]], [[
+    getauxval(AT_HWCAP);
+  ]])],
+ [ AC_MSG_RESULT([yes]); HAVE_STRONG_GETAUXVAL=1; AC_DEFINE([HAVE_STRONG_GETAUXVAL], [1], [Define this symbol to build code that uses getauxval]) ],
+ [ AC_MSG_RESULT([no]); HAVE_STRONG_GETAUXVAL=0 ]
+)
+
+# Check for UNIX sockets
+AC_MSG_CHECKING(for sockaddr_un)
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+    #include <sys/socket.h>
+    #include <sys/un.h>
+  ]], [[
+    struct sockaddr_un addr;
+    addr.sun_family = AF_UNIX;
+  ]])],
+ [ AC_MSG_RESULT([yes]); AC_DEFINE([HAVE_SOCKADDR_UN], [1], [Define this symbol if platform supports unix domain sockets]) ],
+ [ AC_MSG_RESULT([no]); ]
 )
 
 # Check for reduced exports

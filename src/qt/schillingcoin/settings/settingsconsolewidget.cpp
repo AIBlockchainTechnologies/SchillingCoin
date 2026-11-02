@@ -12,10 +12,10 @@
 #include "guiutil.h"
 
 #include "chainparams.h"
-#include "main.h"
 #include "rpc/client.h"
 #include "rpc/server.h"
 #include "util.h"
+#include "validation.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
 #endif // ENABLE_WALLET

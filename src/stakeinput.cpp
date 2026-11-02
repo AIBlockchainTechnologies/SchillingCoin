@@ -3,11 +3,10 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "stakeinput.h"
-
 #include "chain.h"
-#include "main.h"
+#include "stakeinput.h"
 #include "txdb.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 bool CSchStake::InitFromTxIn(const CTxIn& txin)

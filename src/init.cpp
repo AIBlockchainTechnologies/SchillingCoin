@@ -26,7 +26,6 @@
 #include "httpserver.h"
 #include "httprpc.h"
 #include "key.h"
-#include "main.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
 #include "masternodeconfig.h"
@@ -50,6 +49,7 @@
 #include "util/fs.h"
 #include "util/system.h"
 #include "util/threadnames.h"
+#include "validation.h"
 #include "validationinterface.h"
 
 #ifdef ENABLE_WALLET

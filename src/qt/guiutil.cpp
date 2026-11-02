@@ -10,7 +10,6 @@
 #include "guiutil.h"
 #include "init.h"
 #include "key_io.h"
-#include "main.h"
 #include "policy/policy.h"
 #include "primitives/transaction.h"
 #include "protocol.h"
@@ -19,6 +18,7 @@
 #include "script/standard.h"
 #include "util.h"
 #include "util/system.h"
+#include "validation.h"
 #include "walletmodel.h"
 
 #ifdef WIN32

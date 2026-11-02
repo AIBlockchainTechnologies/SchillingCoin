@@ -6,13 +6,13 @@
 
 #include "key.h"
 #include "keystore.h"
-#include "main.h"
 #include "script/script.h"
 #include "script/script_error.h"
 #include "script/interpreter.h"
 #include "script/sign.h"
 #include "test_schillingcoin.h"
 #include "uint256.h"
+#include "validation.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/wallet_ismine.h"

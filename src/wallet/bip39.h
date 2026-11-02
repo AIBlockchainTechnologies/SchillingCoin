@@ -22,10 +22,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef SchillingCoin_BIP39_H
-#define SchillingCoin_BIP39_H
+#ifndef SCHILLINGCOIN_BIP39_H
+#define SCHILLINGCOIN_BIP39_H
 
-#include "allocators.h"
+#include <support/allocators/secure.h>
 
 class CMnemonic
 {
@@ -38,5 +38,4 @@ public:
     // passphrase must be at most 256 characters or code may crash
     static void ToSeed(SecureString mnemonic, SecureString passphrase, SecureVector& seedRet);
 };
-
 #endif

@@ -9,7 +9,6 @@
 #include "clientversion.h"
 #include "init.h"
 #include "key_io.h"
-#include "main.h"
 #include "masternode-sync.h"
 #include "net.h"
 #include "netaddress.h"
@@ -18,6 +17,7 @@
 #include "timedata.h"
 #include "util.h"
 #include "util/system.h"
+#include "validation.h"
 
 #ifdef ENABLE_WALLET
 #include "forgeman.h"

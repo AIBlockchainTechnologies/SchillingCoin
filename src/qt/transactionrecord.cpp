@@ -6,9 +6,9 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "key_io.h"
-#include "main.h"
 #include "timedata.h"
 #include "transactionrecord.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 #include <algorithm>

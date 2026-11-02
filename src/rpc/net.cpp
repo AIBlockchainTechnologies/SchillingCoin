@@ -8,7 +8,6 @@
 #include "rpc/server.h"
 
 #include "clientversion.h"
-#include "main.h"
 #include "net.h"
 #include "netbase.h"
 #include "netaddress.h"
@@ -20,6 +19,7 @@
 #include "guiinterface.h"
 #include "util.h"
 #include "util/system.h"
+#include "validation.h"
 #include "version.h"
 
 #include <univalue.h>

@@ -8,8 +8,8 @@
 #define MASTERNODE_PAYMENTS_H
 
 #include "key.h"
-#include "main.h"
 #include "masternode.h"
+#include "validation.h"
 
 extern RecursiveMutex cs_vecPayments;
 extern RecursiveMutex cs_mapMasternodeBlocks;

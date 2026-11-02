@@ -4,10 +4,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "main.h"
+#include "test/test_schillingcoin.h"
 #include "util.h"
 #include "util/system.h"
-#include "test/test_schillingcoin.h"
+#include "validation.h"
 
 #include <vector>
 

@@ -8,11 +8,11 @@
 #include "arith_uint256.h"
 #include "chainparams.h"
 #include "consensus/merkle.h"
-#include "main.h"
 #include "node/miner.h"
 #include "pow.h"
 #include "script/standard.h"
 #include "util.h"
+#include "validation.h"
 #include "validationinterface.h"
 #include "wallet/wallet.h"
 

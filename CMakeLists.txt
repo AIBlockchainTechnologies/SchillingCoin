@@ -288,7 +288,6 @@ set(SERVER_SOURCES
         ./src/httprpc.cpp
         ./src/httpserver.cpp
         ./src/init.cpp
-        ./src/main.cpp
         ./src/merkleblock.cpp
         ./src/net.cpp
         ./src/node/context.cpp

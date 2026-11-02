@@ -117,7 +117,6 @@ HEADERS += src/activemasternode.h \
            src/key.h \
            src/keystore.h \
            src/limitedmap.h \
-           src/main.h \
            src/masternode-payments.h \
            src/masternode-sync.h \
            src/masternode.h \
@@ -381,7 +380,6 @@ SOURCES += src/activemasternode.cpp \
            src/keepass.cpp \
            src/key.cpp \
            src/keystore.cpp \
-           src/main.cpp \
            src/masternode-payments.cpp \
            src/masternode-sync.cpp \
            src/masternode.cpp \

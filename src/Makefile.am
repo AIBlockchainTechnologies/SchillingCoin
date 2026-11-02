@@ -107,6 +107,7 @@ BITCOIN_CORE_H = \
   compat.h \
   compat/byteswap.h \
   compat/compat.h \
+  compat/cpuid.h \
   compat/endian.h \
   compat/sanity.h \
   compressor.h \
@@ -134,6 +135,7 @@ BITCOIN_CORE_H = \
   hash.h \
   httprpc.h \
   httpserver.h \
+  i2p.h \
   init.h \
   interfaces/chain.h \
   interfaces/coinjoin.h \
@@ -196,6 +198,7 @@ BITCOIN_CORE_H = \
   psbt.h \
   pubkey.h \
   random.h \
+  randomenv.h \
   reverselock.h \
   reverse_iterate.h \
   rpc/client.h \
@@ -238,12 +241,14 @@ BITCOIN_CORE_H = \
   utilstrencodings.h \
   utiltime.h \
   util/asmap.h \
+  util/edge.h \
   util/fastrange.h \
   util/fees.h \
   util/fs.h \
   util/macros.h \
   util/memory.h \
   util/overflow.h \
+  util/readwritefile.h \
   util/settings.h \
   util/sock.h \
   util/string.h \
@@ -251,6 +256,7 @@ BITCOIN_CORE_H = \
   util/system.h \
   util/threadnames.h \
   util/types.h \
+  util/wpipe.h \
   validation.h \
   validationinterface.h \
   version.h \
@@ -300,13 +306,13 @@ libbitcoin_server_a_SOURCES = \
   governance/votedb.cpp \
   httprpc.cpp \
   httpserver.cpp \
+  i2p.cpp \
   init.cpp \
   kernel/checks.cpp \
   kernel/coinstats.cpp \
   kernel/context.cpp \
   kernel/cs_main.cpp \
   kernel/mempool_persist.cpp \
-  main.cpp \
   mapport.cpp \
   merkleblock.cpp \
   net.cpp \
@@ -538,6 +544,7 @@ libbitcoin_util_a_SOURCES = \
   compat/strnlen.cpp \
   logging.cpp \
   random.cpp \
+  randomenv.cpp \
   rpc/protocol.cpp \
   support/cleanse.cpp \
   support/lockedpool.cpp \
@@ -549,14 +556,17 @@ libbitcoin_util_a_SOURCES = \
   utilstrencodings.cpp \
   utiltime.cpp \
   util/asmap.cpp \
+  util/edge.cpp \
   util/fees.cpp \
   util/threadinterrupt.cpp \
   util/fs.cpp \
+  util/readwritefile.cpp \
   util/settings.cpp \
   util/sock.cpp \
   util/string.cpp \
   util/system.cpp \
   util/threadnames.cpp \
+  util/wpipe.cpp \
   $(BITCOIN_CORE_H)
 
 if GLIBC_BACK_COMPAT

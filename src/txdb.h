@@ -9,7 +9,7 @@
 #define SCHILLINGCOIN_TXDB_H
 
 #include "dbwrapper.h"
-#include "main.h"
+#include "validation.h"
 
 #include <functional>
 #include <map>

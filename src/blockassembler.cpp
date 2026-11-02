@@ -11,11 +11,11 @@
 
 #include "blockassembler.h"
 
-#include "main.h"
 #include "pow.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
 #include "util.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 #include <cassert>

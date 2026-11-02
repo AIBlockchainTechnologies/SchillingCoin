@@ -7,7 +7,6 @@
 
 #include "bip38.h"
 #include "key_io.h"
-#include "main.h"
 #include "rpc/server.h"
 #include "script/script.h"
 #include "script/standard.h"
@@ -16,6 +15,7 @@
 #include "util/string.h"
 #include "utilstrencodings.h"
 #include "utiltime.h"
+#include "validation.h"
 #include "wallet/wallet.h"
 
 #include <init.h>

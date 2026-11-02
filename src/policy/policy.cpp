@@ -4,13 +4,12 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "policy/policy.h"
-
 #include "coins.h"
 #include "consensus/tx_verify.h"
-#include "main.h"
+#include "policy/policy.h"
 #include "protocol.h"
 #include "util/system.h"
+#include "validation.h"
 
 #include <vector>
 

@@ -10,7 +10,6 @@
 #include "init.h"
 #include "keystore.h"
 #include "key_io.h"
-#include "main.h"
 #include "net.h"
 #include "policy/policy.h"
 #include "primitives/transaction.h"
@@ -21,6 +20,7 @@
 #include "script/standard.h"
 #include "uint256.h"
 #include "utilmoneystr.h"
+#include "validation.h"
 
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"

@@ -10,13 +10,13 @@
 #include "arith_uint256.h"
 #include "key.h"
 #include "key_io.h"
-#include "main.h"
 #include "messagesigner.h"
 #include "net.h"
 #include "sync.h"
 #include "timedata.h"
 #include "util.h"
 #include "util/system.h"
+#include "validation.h"
 
 #define MASTERNODE_MIN_CONFIRMATIONS 15
 #define MASTERNODE_MIN_MNP_SECONDS (10 * 60)
