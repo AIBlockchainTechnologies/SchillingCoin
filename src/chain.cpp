@@ -7,7 +7,6 @@
 
 #include "chain.h"
 
-
 /**
  * CChain implementation
  */
@@ -173,9 +172,25 @@ void CBlockIndex::SetStakeModifier(const uint64_t nStakeModifier, bool fGenerate
     const size_t modSize = sizeof(nStakeModifier);
     vStakeModifier.resize(modSize);
     std::memcpy(vStakeModifier.data(), &nStakeModifier, modSize);
-    if (fGeneratedStakeModifier)
+    if (fGeneratedStakeModifier) {
         nFlags |= BLOCK_STAKE_MODIFIER;
+    }
+}
 
+// Generates and sets a new V1 stake modifier
+void CBlockIndex::SetNewStakeModifier()
+{
+    if (!SetStakeEntropyBit(GetStakeEntropyBit())) {
+        LogPrintf("%s: SetStakeEntropyBit() failed\n", __func__);
+    }
+
+    uint64_t nStakeModifier{0};
+    bool fGeneratedStakeModifier{false};
+    if (!ComputeNextStakeModifier(pprev, nStakeModifier, fGeneratedStakeModifier)) {
+        LogPrintf("%s: ComputeNextStakeModifier() failed\n", __func__);
+    }
+
+    SetStakeModifier(nStakeModifier, fGeneratedStakeModifier);
 }
 
 // Sets V2 stake modifier

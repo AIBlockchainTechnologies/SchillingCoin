@@ -8,19 +8,19 @@
 //
 //  PURPOSE
 //  -------
-//  This header provides a *minimal*, consensus‑aware Zerocoin stub for SCH.
+//  This header provides a *minimal*, consensus-aware Zerocoin stub for SCH.
 //  It exists for one reason:
 //
-//      ► Keep historical v4 Zerocoin blocks and headers parseable and valid,
+//      // Keep historical v4 Zerocoin blocks and headers parseable and valid,
 //        without providing any live Zerocoin cryptography or privacy features.
 //
 //  WHAT IS PRESERVED
 //  -----------------
-//  - The *wire format* and enum values that are consensus‑critical:
-//      • libzerocoin::SpendType
-//      • libzerocoin::CoinDenomination
-//      • libzerocoin::zerocoinDenomList
-//      • helpers used by serialize.h and CBlockIndex
+//  - The *wire format* and enum values that are consensus-critical:
+//      // libzerocoin::SpendType
+//      // libzerocoin::CoinDenomination
+//      // libzerocoin::zerocoinDenomList
+//      // helpers used by serialize.h and CBlockIndex
 //  - Enough structure for Consensus::Params::Zerocoin_Params(...) to compile.
 //
 //  WHAT IS REMOVED
@@ -39,10 +39,10 @@
 //
 //  IMPORTANT
 //  ---------
-//  - Do NOT extend this stub to re‑enable Zerocoin privacy.
-//  - Do NOT change enum values or ordering; they are consensus‑critical.
-//  - This file is intentionally small and boring—its job is to keep old
-//    blocks valid while SCH moves forward as a non‑privacy pure UTXO coin.
+//  - Do NOT extend this stub to re-enable Zerocoin privacy.
+//  - Do NOT change enum values or ordering; they are consensus-critical.
+//  - This file is intentionally small and boring-its job is to keep old
+//    blocks valid while SCH moves forward as a non-privacy pure UTXO coin.
 // ============================================================================
 
 #ifndef SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
@@ -54,19 +54,20 @@
 namespace libzerocoin {
 
     //
-    // SpendType (consensus‑critical)
+    // SpendType (consensus-critical)
     //
-    // These values are serialized on‑chain and used in legacy Zerocoin
+    // These values are serialized on-chain and used in legacy Zerocoin
     // transactions. Changing them would break consensus with existing blocks.
     //
-    enum class SpendType : uint8_t {
-        SPEND      = 0,   // Regular Zerocoin spend
-        STAKE      = 1,   // Zerocoin stake spend
-        MN_REWARD  = 2    // Masternode reward spend
+    enum SpendType : uint8_t {
+        SPEND = 0,
+        STAKE = 1,
+        MN_COLLATERAL = 2,
+        SIGN_MESSAGE = 3
     };
 
     //
-    // CoinDenomination (consensus‑critical)
+    // CoinDenomination (consensus-critical)
     //
     // These denominations correspond to the historical Zerocoin amounts
     // used by SCH. They are referenced by CBlockIndex, txdb, and supply
@@ -177,7 +178,7 @@ namespace libzerocoin {
 
         // Templated constructor: accepts any legacy parameter type but
         // intentionally ignores it. This allows existing code that passes
-        // strings or structs to compile without re‑introducing Zerocoin.
+        // strings or structs to compile without re-introducing Zerocoin.
         template <typename T>
         explicit ZerocoinParams(const T&) {}
     };

@@ -6,7 +6,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include <config/bitcoin-config.h>
+#include <config/schillingcoin-config.h>
 #endif
 
 #include <validation.h>
@@ -4268,8 +4268,19 @@ void ChainstateManager::ReceivedBlockTransactions(const CBlock& block, CBlockInd
 {
     AssertLockHeld(cs_main);
 
-    if (block.IsProofOfStake()) {
+    const bool is_proof_of_stake{block.IsProofOfStake()};
+    if (is_proof_of_stake) {
         pindexNew->SetProofOfStake();
+    }
+
+    const Consensus::Params& consensus{m_options.chainparams.GetConsensus()};
+    if (!consensus.IsStakeModifierV2(pindexNew->nHeight)) {
+        pindexNew->SetNewStakeModifier();
+    } else if (is_proof_of_stake) {
+        assert(block.vtx.size() > 1);
+        assert(block.vtx[1]);
+        assert(!block.vtx[1]->vin.empty());
+        pindexNew->SetNewStakeModifier(block.vtx[1]->vin[0].prevout.hash);
     }
 
     pindexNew->nTx = block.vtx.size();

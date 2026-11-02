@@ -58,37 +58,6 @@ uint32_t uint256::GetCompact(bool fNegative) const
     return nCompact;
 }
 
-uint256 ArithToUint256(const arith_uint256 &a)
-{
-    uint256 b;
-    for(int x=0; x<a.WIDTH; ++x)
-        WriteLE32(b.begin() + x*4, a.pn[x]);
-    return b;
-}
-arith_uint256 UintToArith256(const uint256 &a)
-{
-    arith_uint256 b;
-    for(int x=0; x<b.WIDTH; ++x)
-        b.pn[x] = ReadLE32(a.begin() + x*4);
-    return b;
-}
-
-uint512 ArithToUint512(const arith_uint512 &a)
-{
-    uint512 b;
-    for(int x=0; x<a.WIDTH; ++x)
-        WriteLE32(b.begin() + x*4, a.pn[x]);
-    return b;
-}
-
-arith_uint512 UintToArith512(const uint512 &a)
-{
-    arith_uint512 b;
-    for(int x=0; x<b.WIDTH; ++x)
-        b.pn[x] = ReadLE32(a.begin() + x*4);
-    return b;
-}
-
 static void inline HashMix(uint32_t& a, uint32_t& b, uint32_t& c)
 {
     // Taken from lookup3, by Bob Jenkins.

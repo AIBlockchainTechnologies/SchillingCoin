@@ -1,9 +1,10 @@
 // Copyright (c) 2020-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #if defined(HAVE_CONFIG_H)
-#include <config/bitcoin-config.h>
+#include <config/schillingcoin-config.h>
 #endif
 
 #include <tinyformat.h>

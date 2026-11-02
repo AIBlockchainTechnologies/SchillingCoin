@@ -9,6 +9,7 @@
 #ifndef SCHILLINGCOIN_HASH_H
 #define SCHILLINGCOIN_HASH_H
 
+#include "arith_uint256.h"
 #include "crypto/ripemd160.h"
 #include "crypto/sha256.h"
 #include "prevector.h"
@@ -307,10 +308,9 @@ public:
         return nVersion;
     }
 
-    CHashWriter& write(const char* pch, size_t size)
+    void write(Span<const std::byte> src)
     {
-        ctx.Write((const unsigned char*)pch, size);
-        return *this;
+        ctx.Write(UCharCast(src.data()), src.size());
     }
 
     // invalidates the object
@@ -331,41 +331,37 @@ public:
 };
 
 /** Reads data from an underlying stream, while hashing the read data. */
-template <typename Source>
+template<typename Source>
 class CHashVerifier : public CHashWriter
 {
 private:
     Source* source;
 
 public:
-    explicit CHashVerifier(Source* sourceIn)
-        : CHashWriter(sourceIn->GetType(), sourceIn->GetVersion()), source(sourceIn)
-    {
-    }
+    explicit CHashVerifier(Source* source_) : CHashWriter(source_->GetType(), source_->GetVersion()), source(source_) {}
 
-    void read(char* pch, size_t nSize)
+    void read(Span<std::byte> dst)
     {
-        source->read(pch, nSize);
-        this->write(pch, nSize);
+        source->read(dst);
+        this->write(dst);
     }
 
     void ignore(size_t nSize)
     {
-        char data[1024];
+        std::byte data[1024];
 
         while (nSize > 0) {
-            const size_t now = std::min<size_t>(nSize, sizeof(data));
-            read(data, now);
+            size_t now = std::min<size_t>(nSize, 1024);
+            read({data, now});
             nSize -= now;
         }
     }
 
-    template <typename T>
+    template<typename T>
     CHashVerifier<Source>& operator>>(T&& obj)
     {
-        // Unserialize from this stream
         ::Unserialize(*this, obj);
-        return *this;
+        return (*this);
     }
 };
 
@@ -399,10 +395,10 @@ inline uint256 HashQuark(const T1 pbegin, const T1 pend)
     sph_skein512_context ctx_skein;
     static unsigned char pblank[1];
 
-    uint512 mask = 8;
-    uint512 zero = 0;
+    arith_uint512 mask(8);
+    arith_uint512 zero(0);
 
-    uint512 hash[9];
+    arith_uint512 hash[9];
 
     sph_blake512_init(&ctx_blake);
     // ZBLAKE;
@@ -499,7 +495,7 @@ inline uint256 XEVAN(const T1 pbegin, const T1 pend)
     //strhash = "";
 #endif
     int worknumber =128;
-    uint512 hash[34];
+    arith_uint512 hash[34];
 
     sph_blake512_init(&ctx_blake);
     sph_blake512 (&ctx_blake, (pbegin == pend ? pblank : static_cast<const void*>(&pbegin[0])), (pend - pbegin) * sizeof(pbegin[0]));

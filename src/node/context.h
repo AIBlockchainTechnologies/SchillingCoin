@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NODE_CONTEXT_H
-#define BITCOIN_NODE_CONTEXT_H
+#ifndef SCHILLINGCOIN_NODE_CONTEXT_H
+#define SCHILLINGCOIN_NODE_CONTEXT_H
 
 #include <kernel/context.h>
 
@@ -121,4 +122,4 @@ struct NodeContext {
 };
 } // namespace node
 
-#endif // BITCOIN_NODE_CONTEXT_H
+#endif // SCHILLINGCOIN_NODE_CONTEXT_H

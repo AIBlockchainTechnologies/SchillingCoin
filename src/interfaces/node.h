@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INTERFACES_NODE_H
-#define BITCOIN_INTERFACES_NODE_H
+#ifndef SCHILLINGCOIN_INTERFACES_NODE_H
+#define SCHILLINGCOIN_INTERFACES_NODE_H
 
 #include <consensus/amount.h>          // For CAmount
 #include <net.h>                       // For NodeId
@@ -585,4 +586,4 @@ struct BlockTip {
 };
 } // namespace interfaces
 
-#endif // BITCOIN_INTERFACES_NODE_H
+#endif // SCHILLINGCOIN_INTERFACES_NODE_H
