@@ -4,13 +4,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "activemasternode.h"
 #include "addrman.h"
 #include "chainparams.h"
 #include "key_io.h"
 #include "masternode-payments.h"
-#include "masternode-sync.h"
-#include "masternodeman.h"
 #include "net.h"
 #include "net_processing.h"
 #include "sync.h"

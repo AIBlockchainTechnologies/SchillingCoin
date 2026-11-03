@@ -13,8 +13,6 @@
 #include "guiconstants.h"
 #include "guiinterface.h"
 #include "guiutil.h"
-#include "masternode-sync.h"
-#include "masternodeman.h"
 #include "net.h"
 #include "net_processing.h"
 #include "netaddress.h"

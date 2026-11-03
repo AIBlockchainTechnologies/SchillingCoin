@@ -338,15 +338,11 @@ if(ZMQ_FOUND)
 endif()
 
 set(WALLET_SOURCES
-        ./src/activemasternode.cpp
         ./src/bip38.cpp
         ./src/addressbook.cpp
         ./src/crypter.cpp
         ./src/masternode.cpp
         ./src/masternode-payments.cpp
-        ./src/masternode-sync.cpp
-        ./src/masternodeconfig.cpp
-        ./src/masternodeman.cpp
         ./src/messagesigner.cpp
         ./src/zsch/mintpool.cpp
         ./src/wallet/rpcdump.cpp

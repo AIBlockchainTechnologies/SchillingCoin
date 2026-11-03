@@ -9,7 +9,6 @@
 #include "clientversion.h"
 #include "init.h"
 #include "key_io.h"
-#include "masternode-sync.h"
 #include "net.h"
 #include "netaddress.h"
 #include "netbase.h"

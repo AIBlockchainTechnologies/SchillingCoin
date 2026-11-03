@@ -8,7 +8,6 @@
 
 #include "guiinterfaceutil.h"
 #include "masternode-payments.h"
-#include "masternode.h"
 #include "net.h"
 #include "optional.h"
 #include "policy/policy.h"

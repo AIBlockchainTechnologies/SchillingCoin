@@ -4,10 +4,7 @@
 
 #include "qt/schillingcoin/mnmodel.h"
 
-#include "activemasternode.h"
-#include "masternode-sync.h"
-#include "masternodeman.h"
-#include "net.h"        // for validateMasternodeIP
+#include "net.h"
 #include "sync.h"
 #include "uint256.h"
 #include "wallet/wallet.h"

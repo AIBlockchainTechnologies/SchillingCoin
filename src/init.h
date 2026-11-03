@@ -1,54 +1,79 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin developers
-// Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
+// Copyright (c) 2009-2022 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef BITCOIN_INIT_H
 #define BITCOIN_INIT_H
 
+#include <context.h>
+
+#include <atomic>
+#include <memory>
 #include <string>
-#include <vector>
 
-class CScheduler;
-class CWallet;
+//! Default value for -daemon option
+static constexpr bool DEFAULT_DAEMON = false;
+//! Default value for -daemonwait option
+static constexpr bool DEFAULT_DAEMONWAIT = false;
 
-namespace boost
-{
-class thread_group;
-} // namespace boost
+class ArgsManager;
+namespace interfaces {
+struct BlockAndHeaderTipInfo;
+} // namespace interfaces
+namespace kernel {
+struct Context;
+}
+namespace node {
+struct NodeContext;
+} // namespace node
 
-extern CWallet* pwalletMain;
-
-void StartShutdown();
-bool ShutdownRequested();
 /** Interrupt threads */
-void Interrupt();
-void Shutdown();
-void PrepareShutdown();
+void Interrupt(node::NodeContext& node);
+void Shutdown(node::NodeContext& node);
 //!Initialize the logging infrastructure
-void InitLogging();
+void InitLogging(const ArgsManager& args);
 //!Parameter interaction: change current parameters depending on various rules
-void InitParameterInteraction();
+void InitParameterInteraction(ArgsManager& args);
 
-bool AppInit2(const std::vector<std::string>& words);
-
-/** Initialize Schilling Coin: Basic context setup.
+/** Initialize Dash Core: Basic context setup.
  *  @note This can be done before daemonization. Do not call Shutdown() if this function fails.
  *  @pre Parameters should be parsed and config file should be read.
  */
-bool AppInitBasicSetup();
+bool AppInitBasicSetup(const ArgsManager& args, std::atomic<int>& exit_status);
+/**
+ * Initialization: parameter interaction.
+ * @note This can be done before daemonization. Do not call Shutdown() if this function fails.
+ * @pre Parameters should be parsed and config file should be read, AppInitBasicSetup should have been called.
+ */
+bool AppInitParameterInteraction(const ArgsManager& args);
+/**
+ * Initialization sanity checks.
+ * @note This can be done before daemonization. Do not call Shutdown() if this function fails.
+ * @pre Parameters should be parsed and config file should be read, AppInitParameterInteraction should have been called.
+ */
+bool AppInitSanityChecks(const kernel::Context& kernel);
+/**
+ * Lock Dash Core data directory.
+ * @note This should only be done after daemonization. Do not call Shutdown() if this function fails.
+ * @pre Parameters should be parsed and config file should be read, AppInitSanityChecks should have been called.
+ */
+bool AppInitLockDataDirectory();
+/**
+ * Initialize node and wallet interface pointers. Has no prerequisites or side effects besides allocating memory.
+ */
+bool AppInitInterfaces(node::NodeContext& node);
+/**
+ * Dash Core main initialization.
+ * @note This should only be done after daemonization. Call Shutdown() if this function fails.
+ * @pre Parameters should be parsed and config file should be read, AppInitLockDataDirectory should have been called.
+ */
+bool AppInitMain(node::NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info = nullptr);
+void PrepareShutdown(node::NodeContext& node);
 
-/** The help message mode determines what help message to show */
-enum HelpMessageMode {
-    HMM_BITCOIND,
-    HMM_BITCOIN_QT
-};
-
-/** Help for options shared between UI and daemon (for -help) */
-std::string HelpMessage(HelpMessageMode mode);
-/** Returns licensing information (for -version) */
-std::string LicenseInfo();
+/**
+ * Register all arguments with the ArgsManager
+ */
+void SetupServerArgs(ArgsManager& argsman);
 
 #endif // BITCOIN_INIT_H

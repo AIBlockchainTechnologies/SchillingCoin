@@ -2,14 +2,10 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "activemasternode.h"
 #include "askpassphrasedialog.h"
 #include "clientmodel.h"
 #include "guiutil.h"
 #include "init.h"
-#include "masternode-sync.h"
-#include "masternodeconfig.h"
-#include "masternodeman.h"
 #include "qt/schillingcoin/forms/ui_masternodeswidget.h"
 #include "qt/schillingcoin/masternodeswidget.h"
 #include "qt/schillingcoin/masternodewizarddialog.h"

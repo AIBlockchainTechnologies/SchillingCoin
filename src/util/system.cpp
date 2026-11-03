@@ -87,8 +87,6 @@ std::atomic<bool> fMasterNode{false};
 
 ArgsManager gArgs;
 
-CTranslationInterface translationInterface;
-
 /**
  * Interpret a string argument as a boolean.
  *

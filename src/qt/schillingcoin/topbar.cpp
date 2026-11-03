@@ -11,7 +11,6 @@
 #include "checkpoints.h"
 #include "clientmodel.h"
 #include "guiinterface.h"
-#include "masternode-sync.h"
 #include "optionsmodel.h"
 #include "qt/guiconstants.h"
 #include "qt/guiutil.h"

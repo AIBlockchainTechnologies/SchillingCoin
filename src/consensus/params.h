@@ -10,6 +10,7 @@
 #include "consensus/amount.h"
 #include "optional.h"
 #include "uint256.h"
+#include <llmq/params.h>
 
 #include <map>
 #include <string>

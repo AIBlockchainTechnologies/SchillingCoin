@@ -56,8 +56,7 @@ INCLUDEPATH += . \
                src/secp256k1/src/java
 
 # Input
-HEADERS += src/activemasternode.h \
-           src/addrman.h \
+HEADERS += src/addrman.h \
            src/alert.h \
            src/allocators.h \
            src/arith_uint256.h \
@@ -118,10 +117,6 @@ HEADERS += src/activemasternode.h \
            src/keystore.h \
            src/limitedmap.h \
            src/masternode-payments.h \
-           src/masternode-sync.h \
-           src/masternode.h \
-           src/masternodeconfig.h \
-           src/masternodeman.h \
            src/merkleblock.h \
            src/mruset.h \
            src/net.h \
@@ -348,8 +343,7 @@ FORMS += src/qt/forms/addressbookpage.ui \
          src/qt/forms/sendcoinsentry.ui \
          src/qt/forms/signverifymessagedialog.ui \
          src/qt/forms/transactiondescdialog.ui
-SOURCES += src/activemasternode.cpp \
-           src/addrman.cpp \
+SOURCES += src/addrman.cpp \
            src/alert.cpp \
            src/allocators.cpp \
            src/arith_uint256.cpp \
@@ -381,10 +375,6 @@ SOURCES += src/activemasternode.cpp \
            src/key.cpp \
            src/keystore.cpp \
            src/masternode-payments.cpp \
-           src/masternode-sync.cpp \
-           src/masternode.cpp \
-           src/masternodeconfig.cpp \
-           src/masternodeman.cpp \
            src/merkleblock.cpp \
            src/net.cpp \
            src/netaddress.cpp \

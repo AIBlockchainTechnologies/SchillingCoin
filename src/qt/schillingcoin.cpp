@@ -16,7 +16,6 @@
 #include "guiutil.h"
 #include "init.h"
 #include "intro.h"
-#include "masternodeconfig.h"
 #include "net.h"
 #include "networkstyle.h"
 #include "optionsmodel.h"

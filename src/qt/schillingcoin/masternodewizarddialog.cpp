@@ -3,7 +3,6 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "activemasternode.h"
 #include "optionsmodel.h"
 #include "qt/schillingcoin/forms/ui_masternodewizarddialog.h"
 #include "qt/schillingcoin/guitransactionsutils.h"

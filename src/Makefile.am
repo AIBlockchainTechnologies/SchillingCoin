@@ -21,8 +21,10 @@ BITCOIN_INCLUDES = -I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFL
 
 BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
 BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
+BITCOIN_INCLUDES += -isystem$(srcdir)/dashbls/include -isystem$(srcdir)/dashbls/depends/relic/include -isystem$(srcdir)/dashbls/depends/minialloc/include
+BITCOIN_INCLUDES += -isystem$(srcdir)/immer
 
-LIBBITCOIN_SERVER = libbitcoin_server.a
+LIBBITCOIN_NODE = libbitcoin_node.a
 LIBBITCOIN_COMMON = libbitcoin_common.a
 LIBBITCOIN_CONSENSUS = libbitcoin_consensus.a
 LIBBITCOIN_CLI = libbitcoin_cli.a
@@ -30,6 +32,7 @@ LIBBITCOIN_UTIL = libbitcoin_util.a
 LIBBITCOIN_CRYPTO = crypto/libbitcoin_crypto.a
 LIBBITCOIN_BIGNUM = libbignum.a
 LIBBITCOINQT = qt/libbitcoinqt.a
+LIBDASHBLS = dashbls/libdashbls.la
 LIBSECP256K1 = secp256k1/libsecp256k1.la
 
 if ENABLE_ZMQ
@@ -42,6 +45,9 @@ if ENABLE_WALLET
 LIBBITCOIN_WALLET = libbitcoin_wallet.a
 endif
 
+$(LIBDASHBLS):
+	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C $(@D)
+
 $(LIBSECP256K1): $(wildcard secp256k1/src/*.h) $(wildcard secp256k1/src/*.c) $(wildcard secp256k1/include/*)
 	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C $(@D) $(@F)
 
@@ -53,7 +59,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_COMMON) \
   $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_BIGNUM) \
-  $(LIBBITCOIN_SERVER) \
+  $(LIBBITCOIN_NODE) \
   $(LIBBITCOIN_CLI) \
   $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_ZMQ)
@@ -77,7 +83,6 @@ endif
 .PHONY: FORCE check-symbols check-security
 # schillingcoin core #
 BITCOIN_CORE_H = \
-  activemasternode.h \
   addressbook.h \
   addrdb.h \
   addrman.h \
@@ -102,8 +107,10 @@ BITCOIN_CORE_H = \
   clientversion.h \
   coinjoin/options.h \
   coins.h \
+  common/args.h \
   common/bloom.h \
   common/run_command.h \
+  common/settings.h \
   compat.h \
   compat/byteswap.h \
   compat/compat.h \
@@ -158,16 +165,13 @@ BITCOIN_CORE_H = \
   keystore.h \
   legacy/stakemodifier.h \
   limitedmap.h \
+  logging/categories.h \
   logging.h \
   logging/timer.h \
   main.h \
   mapport.h \
   memusage.h \
-  masternode.h \
   masternode-payments.h \
-  masternode-sync.h \
-  masternodeman.h \
-  masternodeconfig.h \
   merkleblock.h \
   messagesigner.h \
   mruset.h \
@@ -251,10 +255,12 @@ BITCOIN_CORE_H = \
   util/readwritefile.h \
   util/settings.h \
   util/sock.h \
+  util/stdmutex.h \
   util/string.h \
   util/subprocess.hpp \
   util/system.h \
   util/threadnames.h \
+  util/chaintype.h \
   util/types.h \
   util/wpipe.h \
   validation.h \
@@ -286,49 +292,125 @@ obj/build.h: FORCE
 	  "$(abs_top_srcdir)"
 libbitcoin_util_a-clientversion.$(OBJEXT): obj/build.h
 
-# server: shared between schillingcoind and schillingcoin-qt
-libbitcoin_server_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
-libbitcoin_server_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_server_a_SOURCES = \
+# node: shared between schillingcoind and schillingcoin-qt
+libbitcoin_node_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
+libbitcoin_node_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libbitcoin_node_a_SOURCES = \
+  active/context.cpp \
+  active/dkgsession.cpp \
+  active/dkgsessionhandler.cpp \
+  active/masternode.cpp \
   addrdb.cpp \
   addrman.cpp \
+  banman.cpp \
+  batchedlogger.cpp \
   bip324.cpp \
-  bloom.cpp \
   blockassembler.cpp \
+  blockencodings.cpp \
+  blockfilter.cpp \
   blocksignature.cpp \
   chain.cpp \
+  chainlock/chainlock.cpp \
+  chainlock/clsig.cpp \
+  chainlock/handler.cpp \
+  chainlock/signing.cpp \
   checkpoints.cpp \
   consensus/tx_verify.cpp \
   dbwrapper.cpp \
-  governance/governance.cpp \
-  governance/object.cpp \
-  governance/vote.cpp \
-  governance/votedb.cpp \
+  deploymentstatus.cpp \
+  dsnotificationinterface.cpp \
+  evo/cbtx.cpp \
+  evo/chainhelper.cpp \
+  evo/deterministicmns.cpp \
+  evo/dmnstate.cpp \
+  evo/evodb.cpp \
+  evo/mnauth.cpp \
+  evo/mnhftx.cpp \
+  evo/providertx.cpp \
+  evo/providertx_service.cpp \
+  evo/simplifiedmns.cpp \
+  evo/smldiff.cpp \
+  evo/snapshot.cpp \
+  evo/specialtx.cpp \
+  evo/specialtx_filter.cpp \
+  evo/specialtxman.cpp \
+  flatfile.cpp \
+  gsl/assert.cpp \
   httprpc.cpp \
   httpserver.cpp \
   i2p.cpp \
+  index/addressindex.cpp \
+  index/addressindex_util.cpp \
+  index/base.cpp \
+  index/blockfilterindex.cpp \
+  index/coinstatsindex.cpp \
+  index/spentindex.cpp \
+  index/timestampindex.cpp \
+  index/txindex.cpp \
   init.cpp \
+  instantsend/db.cpp \
+  instantsend/instantsend.cpp \
+  instantsend/lock.cpp \
+  instantsend/net_instantsend.cpp \
+  instantsend/signing.cpp \
+  kernel/chain.cpp \
   kernel/checks.cpp \
   kernel/coinstats.cpp \
   kernel/context.cpp \
   kernel/cs_main.cpp \
   kernel/mempool_persist.cpp \
+  llmq/blockprocessor.cpp \
+  llmq/commitment.cpp \
+  llmq/context.cpp \
+  llmq/debug.cpp \
+  llmq/dkgsession.cpp \
+  llmq/dkgsessionhandler.cpp \
+  llmq/dkgsessionmgr.cpp \
+  llmq/ehf_signals.cpp \
+  llmq/net_dkg.cpp \
+  llmq/net_quorum.cpp \
+  llmq/net_signing.cpp \
+  llmq/observer.cpp \
+  llmq/options.cpp \
+  llmq/quorumproofs.cpp \
+  llmq/quorums.cpp \
+  llmq/quorumsman.cpp \
+  llmq/signhash.cpp \
+  llmq/signing.cpp \
+  llmq/signing_shares.cpp \
+  llmq/snapshot.cpp \
+  llmq/utils.cpp \
   mapport.cpp \
-  merkleblock.cpp \
+  masternode/meta.cpp \
+  masternode/payments.cpp \
+  masternode/sync.cpp \
   net.cpp \
+  net_processing.cpp \
+  netfulfilledman.cpp \
+  netgroup.cpp \
   node/blockstorage.cpp \
+  node/caches.cpp \
   node/chainstate.cpp \
   node/chainstatemanager_args.cpp \
   node/coin.cpp \
+  node/connection_types.cpp \
   node/context.cpp \
+  node/eviction.cpp \
+  node/interface_ui.cpp \
   node/interfaces.cpp \
+  node/mempool_args.cpp \
+  node/mempool_persist_args.cpp \
   node/miner.cpp \
   node/transaction.cpp \
+  node/txreconciliation.cpp \
   node/utxo_snapshot.cpp \
+  node/validation_cache_args.cpp \
   noui.cpp \
   policy/fees.cpp \
+  policy/fees_args.cpp \
   policy/packages.cpp \
   policy/policy.cpp \
+  policy/settings.cpp \
   pow.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
@@ -340,12 +422,18 @@ libbitcoin_server_a_SOURCES = \
   rpc/server.cpp \
   rpc/server_util.cpp \
   script/sigcache.cpp \
+  shutdown.cpp \
+  stats/client.cpp \
+  stats/rawsender.cpp \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \
   txmempool.cpp \
+  txorphanage.cpp \
+  txrequest.cpp \
   validation.cpp \
   validationinterface.cpp \
+  versionbits.cpp \
   $(BITCOIN_CORE_H)
 
 if ENABLE_ZMQ
@@ -362,16 +450,11 @@ endif
 libbitcoin_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_wallet_a_SOURCES = \
-  activemasternode.cpp \
   bip38.cpp \
   addressbook.cpp \
-  crypter.cpp \
-  masternode.cpp \
+  wallet/crypter.cpp \
   masternode-payments.cpp \
-  masternode-sync.cpp \
-  masternodeconfig.cpp \
   forgeman.cpp \
-  masternodeman.cpp \
   messagesigner.cpp \
   legacy/stakemodifier.cpp \
   kernel.cpp \
@@ -402,10 +485,14 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sha3.cpp \
   crypto/sha256.cpp \
   crypto/sha512.cpp \
+  crypto/siphash.cpp \
+  crypto/siphash.h \
   crypto/chacha20.cpp \
   crypto/chacha20.h \
   crypto/chacha20poly1305.cpp \
   crypto/chacha20poly1305.h \
+  crypto/hex_base.cpp \
+  crypto/hex_base.h \
   crypto/hkdf_sha256_32.cpp \
   crypto/hkdf_sha256_32.h \
   crypto/hmac_sha256.cpp \
@@ -482,7 +569,7 @@ if USE_NUM_OPENSSL
   libbignum_a_SOURCES += bignum/bignum_openssl.cpp
 endif
 
-# common: shared between schillingcoind, and schillingcoin-qt and non-server tools
+# common: shared between schillingcoind, schillingcoin-qt and non-server tools
 libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_common_a_SOURCES = \
@@ -492,32 +579,47 @@ libbitcoin_common_a_SOURCES = \
   bip38.cpp \
   chainparams.cpp \
   coins.cpp \
+  common/args.cpp \
   common/bloom.cpp \
   common/interfaces.cpp \
   common/run_command.cpp \
+  common/settings.cpp \
+  common/url.cpp \
   compressor.cpp \
   consensus/merkle.cpp \
   core_read.cpp \
   core_write.cpp \
+  evo/core_write.cpp \
+  evo/netinfo.cpp \
+  evo/providertx_util.cpp \
   evo/specialtx.cpp \
   external_signer.cpp \
-  governance/common.cpp \
   hash.cpp \
   wallet/hdchain.cpp \
+  kernel/chainparams.cpp \
   key.cpp \
   key_io.cpp \
   keystore.cpp \
-  netaddress.cpp\
+  llmq/core_write.cpp \
+  merkleblock.cpp \
+  net_permissions.cpp \
+  net_types.cpp \
+  netaddress.cpp \
   netbase.cpp \
   netgroup.cpp \
+  outputtype.cpp \
   policy/feerate.cpp \
   primitives/block.cpp \
   primitives/transaction.cpp \
   protocol.cpp \
   psbt.cpp \
   pubkey.cpp \
+  rpc/rawtransaction_util.cpp \
   rpc/request.cpp \
+  rpc/util.cpp \
+  saltedhasher.cpp \
   scheduler.cpp \
+  script/descriptor.cpp \
   script/interpreter.cpp \
   script/script.cpp \
   script/sign.cpp \
@@ -536,9 +638,10 @@ libbitcoin_util_a_SOURCES = \
   allocators.cpp \
   arith_uint256.cpp \
   blob_uint256.cpp \
+  bls/bls_ies.cpp \
+  bls/bls_worker.cpp \
   chainparamsbase.cpp \
   clientversion.cpp \
-  coinjoin/options.cpp \
   compat/glibc_sanity.cpp \
   compat/glibcxx_sanity.cpp \
   compat/strnlen.cpp \
@@ -556,16 +659,32 @@ libbitcoin_util_a_SOURCES = \
   utilstrencodings.cpp \
   utiltime.cpp \
   util/asmap.cpp \
+  util/bip32.cpp \
+  util/bytevectorhash.cpp \
+  util/chaintype.cpp \
+  util/check.cpp \
   util/edge.cpp \
+  util/error.cpp \
   util/fees.cpp \
-  util/threadinterrupt.cpp \
   util/fs.cpp \
+  util/fs_helpers.cpp \
+  util/getuniquepath.cpp \
+  util/hasher.cpp \
+  util/message.cpp \
+  util/moneystr.cpp \
+  util/ranges_set.cpp \
   util/readwritefile.cpp \
   util/settings.cpp \
   util/sock.cpp \
+  util/spanparsing.cpp \
   util/string.cpp \
+  util/syserror.cpp \
   util/system.cpp \
+  util/thread.cpp \
+  util/threadinterrupt.cpp \
   util/threadnames.cpp \
+  util/time.cpp \
+  util/tokenpipe.cpp \
   util/wpipe.cpp \
   $(BITCOIN_CORE_H)
 
@@ -581,6 +700,8 @@ libbitcoin_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_consensus_a_SOURCES = \
   arith_uint256.cpp \
   arith_uint256.h \
+  bls/bls.cpp \
+  bls/bls.h \
   consensus/amount.h \
   consensus/merkle.cpp \
   consensus/merkle.h \
@@ -637,7 +758,7 @@ if TARGET_WINDOWS
 schillingcoind_SOURCES += schillingcoind-res.rc
 endif
 schillingcoind_LDADD = \
-  $(LIBBITCOIN_SERVER) \
+  $(LIBBITCOIN_NODE) \
   $(LIBBITCOIN_WALLET) \
   $(LIBBITCOIN_COMMON) \
   $(LIBUNIVALUE) \
@@ -646,6 +767,7 @@ schillingcoind_LDADD = \
   $(LIBBITCOIN_ZMQ) \
   $(LIBBITCOIN_CONSENSUS) \
   $(LIBBITCOIN_CRYPTO) \
+  $(LIBDASHBLS) \
   $(LIBLEVELDB) \
   $(LIBLEVELDB_SSE42) \
   $(LIBMEMENV) \

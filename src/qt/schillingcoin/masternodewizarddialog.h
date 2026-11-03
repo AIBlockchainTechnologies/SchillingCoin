@@ -1,5 +1,5 @@
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,7 +9,6 @@
 #include <QDialog>
 #include "walletmodel.h"
 #include "qt/schillingcoin/snackbar.h"
-#include "masternodeconfig.h"
 #include "qt/schillingcoin/pwidget.h"
 
 class WalletModel;

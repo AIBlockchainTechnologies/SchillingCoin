@@ -17,7 +17,6 @@
 #include "consensus/tx_verify.h"
 #include "hash.h"
 #include "masternode-payments.h"
-#include "masternode-sync.h"
 #include "net.h"
 #include "node/miner.h"
 #include "policy/feerate.h"

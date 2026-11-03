@@ -40,35 +40,13 @@
 #include <boost/signals2/signal.hpp>
 #include <boost/thread/condition_variable.hpp>
 
-/** Signals for translation. */
-class CTranslationInterface
-{
-public:
-    /** Translate a message to the native language of the user. */
-    boost::signals2::signal<std::string (const char* psz)> Translate;
-};
-
 extern const char * const SCHILLINGCOIN_CONF_FILENAME;
 extern const char * const SCHILLINGCOIN_MASTERNODE_CONF_FILENAME;
 extern const char * const SCHILLINGCOIN_FORGE_CONF_FILENAME;
 extern const char * const DEFAULT_DEBUGLOGFILE;
 
-//SCHILLINGCOIN only features
-
+// SCHILLINGCOIN-only features
 extern std::atomic<bool> fMasterNode;
-
-extern CTranslationInterface translationInterface;
-
-/**
- * Translation function: Call Translate signal on UI interface, which returns a Optional result.
- * If no translation slot is registered, nothing is returned, and simply return the input.
- */
-inline std::string _(const char* psz)
-{
-    // todo: this Optional is needed for now. Will get removed moving forward
-    Optional<std::string> rv = translationInterface.Translate(psz);
-    return rv ? (*rv) : psz;
-}
 
 void SetupEnvironment();
 bool SetupNetworking();

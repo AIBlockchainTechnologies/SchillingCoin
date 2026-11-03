@@ -22,7 +22,6 @@
 #include "validation.h"
 
 #ifdef ENABLE_WALLET
-#include "masternodeconfig.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 #endif

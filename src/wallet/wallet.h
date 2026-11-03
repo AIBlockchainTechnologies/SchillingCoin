@@ -1139,12 +1139,12 @@ public:
 
             if (!(mapValue.empty() && obj._ssExtra.empty())) {
                 CDataStream ss(s.GetType(), s.GetVersion());
-                ss.insert(ss.begin(), '\0');
+                const std::byte separator{0};
+                ss.write(Span{&separator, 1});
                 ss << mapValue;
-                ss.insert(
-                    ss.end(),
-                    obj._ssExtra.begin(),
-                    obj._ssExtra.end());
+                if (!obj._ssExtra.empty()) {
+                    ss.write(MakeByteSpan(obj._ssExtra));
+                }
                 strComment.append(ss.str());
             }
         );
@@ -1157,16 +1157,16 @@ public:
             mapValue.clear();
 
             if (std::string::npos != nSepPos) {
-                CDataStream ss(
-                    std::vector<char>(
-                        strComment.begin() + nSepPos + 1,
-                        strComment.end()),
-                    s.GetType(),
-                    s.GetVersion());
+                const Span<const uint8_t> metadata(
+                    reinterpret_cast<const uint8_t*>(strComment.data() + nSepPos + 1),
+                    strComment.size() - nSepPos - 1);
+
+                CDataStream ss(metadata, s.GetType(), s.GetVersion());
 
                 ss >> mapValue;
-                obj._ssExtra =
-                    std::vector<char>(ss.begin(), ss.end());
+                obj._ssExtra.assign(
+                    reinterpret_cast<const char*>(ss.data()),
+                    reinterpret_cast<const char*>(ss.data() + ss.size()));
             }
 
             ReadOrderPos(obj.nOrderPos, mapValue);

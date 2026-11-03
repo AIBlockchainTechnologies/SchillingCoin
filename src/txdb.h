@@ -96,7 +96,7 @@ private:
     }
 
     boost::scoped_ptr<CDBIterator> pcursor;
-    std::pair<char, COutPoint> keyTmp;
+    std::pair<uint8_t, COutPoint> keyTmp;
 
     friend class CCoinsViewDB;
 };

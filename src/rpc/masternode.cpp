@@ -4,15 +4,11 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "activemasternode.h"
 #include "arith_uint256.h"
 #include "db.h"
 #include "init.h"
 #include "key_io.h"
 #include "masternode-payments.h"
-#include "masternodeconfig.h"
-#include "masternodeman.h"
-#include "masternode-sync.h"
 #include "netbase.h"
 #include "net_processing.h"
 #include "rpc/server.h"

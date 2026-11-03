@@ -6,7 +6,6 @@
 #include "hash.h"
 #include "key_io.h"
 #include "messagesigner.h"
-#include "masternodeman.h"
 #include "tinyformat.h"
 #include "util/system.h"
 #include "utilstrencodings.h"
