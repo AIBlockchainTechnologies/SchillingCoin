@@ -9,11 +9,11 @@ qt_darwin_packages=qt
 qt_mingw32_packages=qt
 
 wallet_packages=bdb
-
 zmq_packages=zeromq
-
 upnp_packages=miniupnpc
-
+usb_packages=libusb hidapi protobuf
+usb_linux_packages=eudev
+usb_native_packages=native_protobuf
 darwin_native_packages = native_biplist native_ds_store native_mac_alias
 
 ifneq ($(build_os),darwin)

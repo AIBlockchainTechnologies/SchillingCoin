@@ -10,6 +10,7 @@
 #include "consensus/merkle.h"
 #include "random.h"
 #include "util.h"
+#include "util/log.h"
 #include "utilstrencodings.h"
 #include "util/system.h"
 
@@ -39,7 +40,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
     txNew.vout[0].scriptPubKey = genesisOutputScript;
 
     CBlock genesis;
-    genesis.vtx.push_back(txNew);
+    genesis.vtx.push_back(MakeTransactionRef(std::move(txNew)));
     genesis.hashPrevBlock.SetNull();
     genesis.nVersion = nVersion;
     genesis.nTime    = nTime;
@@ -66,10 +67,32 @@ static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
 
+void CChainParams::AddLLMQ(Consensus::LLMQType llmqType)
+{
+    assert(!GetLLMQ(llmqType).has_value());
+    for (const auto& llmq_param : Consensus::available_llmqs) {
+        if (llmq_param.type == llmqType) {
+            consensus.llmqs.push_back(llmq_param);
+            return;
+        }
+    }
+    LogError("CChainParams::%s: unknown LLMQ type %d\n", __func__, static_cast<uint8_t>(llmqType));
+    assert(false);
+}
+
+std::optional<Consensus::LLMQParams> CChainParams::GetLLMQ(Consensus::LLMQType llmqType) const
+{
+    for (const auto& llmq_param : consensus.llmqs) {
+        if (llmq_param.type == llmqType) {
+            return std::make_optional(llmq_param);
+        }
+    }
+    return std::nullopt;
+}
+
 /**
  * Main Schilling Coin (SCH) Network
  */
-
 //! Convert the pnSeeds6 array into usable address objects.
 static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data, unsigned int count)
 {

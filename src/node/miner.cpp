@@ -9,97 +9,259 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "arith_uint256.h"
-#include "blockassembler.h"
-#include "blocksignature.h"
-#include "consensus/amount.h"
-#include "consensus/merkle.h"
-#include "consensus/tx_verify.h"
-#include "hash.h"
-#include "masternode-payments.h"
-#include "net.h"
-#include "node/miner.h"
-#include "policy/feerate.h"
-#include "policy/policy.h"
-#include "pow.h"
-#include "primitives/block.h"
-#include "primitives/transaction.h"
-#include "timedata.h"
-#include "util.h"
-#include "util/system.h"
-#include "utilmoneystr.h"
-#include "validation.h"
-#include "validationinterface.h"
-#include "wallet/db.h"
-#include "wallet/wallet.h"
-#include "wallet/walletdb.h"
+#include <node/miner.h>
+
+#include <arith_uint256.h>
+#include <blocksignature.h>
+#include <chain.h>
+#include <chainparams.h>
+#include <consensus/amount.h>
+#include <consensus/consensus.h>
+#include <consensus/merkle.h>
+#include <consensus/tx_verify.h>
+#include <consensus/validation.h>
+#include <deploymentstatus.h>
+#include <hash.h>
+#include <masternode-payments.h>
+#include <net.h>
+#include <node/context.h>
+#include <policy/feerate.h>
+#include <policy/policy.h>
+#include <pow.h>
+#include <primitives/block.h>
+#include <primitives/transaction.h>
+#include <timedata.h>
+#include <util.h>
+#include <util/moneystr.h>
+#include <util/system.h>
+#include <validation.h>
+#include <validationinterface.h>
+
+#include <chainlock/chainlock.h>
+#include <chainlock/handler.h>
+#include <evo/cbtx.h>
+#include <evo/chainhelper.h>
+#include <evo/deterministicmns.h>
+#include <evo/mnhftx.h>
+#include <evo/simplifiedmns.h>
+#include <evo/specialtx.h>
+#include <evo/specialtxman.h>
+#include <llmq/blockprocessor.h>
+#include <llmq/context.h>
+#include <llmq/options.h>
+#include <llmq/snapshot.h>
+
+#ifdef ENABLE_WALLET
+#include <wallet/db.h>
+#include <wallet/wallet.h>
+#include <wallet/walletdb.h>
+#endif
+
+#include <algorithm>
+#include <cassert>
+#include <chrono>
+#include <memory>
+#include <optional>
+#include <set>
+#include <utility>
+#include <vector>
 
 #include <boost/thread.hpp>
-#include <boost/tuple/tuple.hpp>
 
 // Global wallet pointer from init.cpp
 extern CWallet* pwalletMain;
 
-//////////////////////////////////////////////////////////////////////////////
-//
-// SchillingCoinMiner
-//
+namespace node {
 
-//
-// Unconfirmed transactions in the memory pool often depend on other
-// transactions in the memory pool. When we select transactions from the
-// pool, we select by highest priority or fee rate, so we might consider
-// transactions that depend on transactions that aren't yet in the block.
-// The COrphan class keeps track of these 'temporary orphans' while
-// CreateBlock is figuring out which transactions to include.
-//
-class COrphan
+int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
 {
-public:
-    const CTransaction* ptx;
-    std::set<uint256> setDependsOn;
-    CFeeRate feeRate;
-    double dPriority;
+    const int64_t nOldTime{pblock->nTime};
+    const int64_t nNewTime{std::max<int64_t>(
+        pindexPrev->GetMedianTimePast() + 1,
+        TicksSinceEpoch<std::chrono::seconds>(NodeClock::now()))};
 
-    COrphan(const CTransaction* ptxIn) : ptx(ptxIn), feeRate(0), dPriority(0)
-    {
+    if (nOldTime < nNewTime) {
+        pblock->nTime = nNewTime;
     }
-};
 
-uint64_t nLastBlockTx = 0;
-uint64_t nLastBlockSize = 0;
+    if (consensusParams.fPowAllowMinDifficultyBlocks) {
+        pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensusParams);
+    }
 
-// We want to sort transactions by priority and fee rate, so:
-typedef boost::tuple<double, CFeeRate, const CTransaction*> TxPriority;
+    return nNewTime - nOldTime;
+}
 
-class TxPriorityCompare
+static BlockAssembler::Options ClampOptions(BlockAssembler::Options options)
 {
-    bool byFee;
+    options.nBlockMaxSize =
+        std::clamp<size_t>(options.nBlockMaxSize, 1000, DEFAULT_BLOCK_MAX_SIZE);
+    return options;
+}
 
-public:
-    TxPriorityCompare(bool _byFee) : byFee(_byFee) {}
+BlockAssembler::BlockAssembler(
+    Chainstate& chainstate,
+    const NodeContext& node,
+    const CTxMemPool* mempool,
+    const Options& options) :
+    m_chain_helper(chainstate.ChainHelper()),
+    m_chainstate{chainstate},
+    m_evoDb(*Assert(node.evodb)),
+    m_chainlocks(*Assert(node.chainlocks)),
+    m_clhandler(*Assert(node.clhandler)),
+    chainparams(chainstate.m_chainman.GetParams()),
+    m_mempool{mempool},
+    m_quorum_block_processor(*Assert(Assert(node.llmq_ctx)->quorum_block_processor)),
+    m_options{ClampOptions(options)}
+{
+}
 
-    bool operator()(const TxPriority& a, const TxPriority& b)
-    {
-        if (byFee) {
-            if (a.get<1>() == b.get<1>())
-                return a.get<0>() < b.get<0>();
-            return a.get<1>() < b.get<1>();
-        } else {
-            if (a.get<0>() == b.get<0>())
-                return a.get<1>() < b.get<1>();
-            return a.get<0>() < b.get<0>();
+void ApplyArgsManOptions(const ArgsManager& args, BlockAssembler::Options& options)
+{
+    options.nBlockMaxSize = args.GetIntArg("-blockmaxsize", options.nBlockMaxSize);
+
+    if (const auto blockmintxfee{args.GetArg("-blockmintxfee")}) {
+        if (const auto parsed{ParseMoney(*blockmintxfee)}) {
+            options.blockMinFeeRate = CFeeRate{*parsed};
         }
     }
-};
+}
 
-void UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParams, const CBlockIndex* pindexPrev)
+static BlockAssembler::Options ConfiguredOptions()
 {
-    pblock->nTime = std::max(pindexPrev->GetMedianTimePast() + 1, GetAdjustedTime());
+    BlockAssembler::Options options;
+    ApplyArgsManOptions(gArgs, options);
+    return options;
+}
 
-    // Updating time can change work required on testnet:
-    if (consensusParams.fPowAllowMinDifficultyBlocks)
-        pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensusParams);
+BlockAssembler::BlockAssembler(
+    Chainstate& chainstate,
+    const NodeContext& node,
+    const CTxMemPool* mempool) :
+    BlockAssembler(chainstate, node, mempool, ConfiguredOptions())
+{
+}
+
+void BlockAssembler::resetBlock()
+{
+    inBlock.clear();
+
+    // Reserve space for coinbase/coinstake and block overhead.
+    nBlockSize = 1000;
+    nBlockSigOps = 100;
+
+    nBlockTx = 0;
+    nFees = 0;
+}
+
+static bool SolveProofOfStake(
+    CBlock* pblock,
+    const CBlockIndex* pindexPrev,
+    CWallet* pwallet,
+    const Consensus::Params& consensusParams)
+{
+    assert(pblock);
+    assert(pindexPrev);
+    assert(pwallet);
+
+    boost::this_thread::interruption_point();
+
+    pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensusParams);
+
+    std::vector<CStakeableOutput> availableCoins;
+    if (!pwallet->StakeableCoins(&availableCoins)) {
+        LogPrint(
+            BCLog::STAKING,
+            "%s : no stakeable coins available\n",
+            __func__);
+        return false;
+    }
+
+    CMutableTransaction txCoinStake;
+    int64_t nTxNewTime = 0;
+
+    if (!pwallet->CreateCoinStake(
+            pindexPrev,
+            pblock->nBits,
+            txCoinStake,
+            nTxNewTime,
+            &availableCoins,
+            true)) {
+        LogPrint(
+            BCLog::STAKING,
+            "%s : stake not found\n",
+            __func__);
+        return false;
+    }
+
+    if (!pwallet->SignCoinStake(txCoinStake)) {
+        LogPrintf(
+            "%s : failed to sign coinstake\n",
+            __func__);
+        return false;
+    }
+
+    pblock->nTime = nTxNewTime;
+    pblock->vtx[0].vout[0].SetEmpty();
+    pblock->vtx.push_back(CTransaction(txCoinStake));
+
+    return true;
+}
+
+static bool CalcCbTxBestChainlock(
+    const chainlock::Chainlocks& chainlocks,
+    const CBlockIndex* pindexPrev,
+    uint32_t& bestCLHeightDiff,
+    CBLSSignature& bestCLSignature)
+{
+    auto best_clsig = chainlocks.GetBestChainLock();
+
+    if (best_clsig.getHeight() <
+        Params().GetConsensus().DeploymentHeight(Consensus::DEPLOYMENT_V19)) {
+        best_clsig = chainlock::ChainLockSig{};
+    }
+
+    if (best_clsig.getHeight() == pindexPrev->nHeight) {
+        bestCLHeightDiff = 0;
+        bestCLSignature = best_clsig.getSig();
+        return true;
+    }
+
+    auto prevBlockCoinbaseChainlock = GetNonNullCoinbaseChainlock(pindexPrev);
+
+    if (prevBlockCoinbaseChainlock.has_value()) {
+        if (best_clsig.IsNull()) {
+            bestCLHeightDiff = prevBlockCoinbaseChainlock->second + 1;
+            bestCLSignature = prevBlockCoinbaseChainlock->first;
+            return true;
+        }
+
+        const int curCLHeight = best_clsig.getHeight();
+        const int prevCLHeight =
+            pindexPrev->nHeight -
+            static_cast<int>(prevBlockCoinbaseChainlock->second) - 1;
+
+        if (curCLHeight < prevCLHeight) {
+            bestCLHeightDiff = prevBlockCoinbaseChainlock->second + 1;
+            bestCLSignature = prevBlockCoinbaseChainlock->first;
+        } else {
+            bestCLHeightDiff =
+                pindexPrev->nHeight - best_clsig.getHeight();
+            bestCLSignature = best_clsig.getSig();
+        }
+
+        return true;
+    }
+
+    if (best_clsig.IsNull()) {
+        bestCLHeightDiff = 0;
+        bestCLSignature.Reset();
+        return false;
+    }
+
+    bestCLHeightDiff =
+        pindexPrev->nHeight - best_clsig.getHeight();
+    bestCLSignature = best_clsig.getSig();
+    return true;
 }
 
 CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, bool fProofOfStake)
@@ -404,7 +566,12 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, 
             if (txNew.vout.size() > 1) {
                 pblock->payee = txNew.vout[1].scriptPubKey;
             } else {
-                CAmount blockValue = nFees + GetBlockValue(pindexPrev->nHeight);
+                const CAmount blockSubsidy = GetBlockSubsidyInner(
+                    pindexPrev->nBits,
+                    pindexPrev->nHeight,
+                    consensus,
+                    false);
+                const CAmount blockValue = nFees + blockSubsidy;
                 txNew.vout[0].nValue = blockValue;
                 txNew.vin[0].scriptSig = CScript() << nHeight << OP_0;
             }

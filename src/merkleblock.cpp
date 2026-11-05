@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
 // Copyright (c) 2015-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,9 +9,8 @@
 
 #include "consensus/consensus.h"
 #include "hash.h"
-#include "primitives/block.h" // for MAX_BLOCK_SIZE
+#include "primitives/block.h"
 #include "utilstrencodings.h"
-
 
 CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter& filter)
 {
@@ -24,12 +23,13 @@ CMerkleBlock::CMerkleBlock(const CBlock& block, CBloomFilter& filter)
     vHashes.reserve(block.vtx.size());
 
     for (unsigned int i = 0; i < block.vtx.size(); i++) {
-        const uint256& hash = block.vtx[i].GetHash();
-        if (filter.IsRelevantAndUpdate(block.vtx[i])) {
+        const uint256& hash = block.vtx[i]->GetHash();
+        if (filter.IsRelevantAndUpdate(*block.vtx[i])) {
             vMatch.push_back(true);
             vMatchedTxn.push_back(std::make_pair(i, hash));
-        } else
+        } else {
             vMatch.push_back(false);
+        }
         vHashes.push_back(hash);
     }
 

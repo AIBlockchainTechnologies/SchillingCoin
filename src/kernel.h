@@ -12,33 +12,39 @@
 #include "stakeinput.h"
 #include "validation.h"
 
-class CStakeKernel {
+#include <optional>
+
+class CCoinsViewCache;
+
+class CStakeKernel
+{
 public:
     /**
-     * CStakeKernel Constructor
+     * Construct a complete SCH stake kernel for the candidate parent branch.
      *
-     * @param[in]   pindexPrev      index of the parent of the kernel block
-     * @param[in]   stakeInput      input for the coinstake of the kernel block
-     * @param[in]   nBits           target difficulty bits of the kernel block
-     * @param[in]   nTimeTx         time of the kernel block
+     * Returns std::nullopt when the historical or current stake modifier,
+     * stake origin, or another required kernel component cannot be resolved.
      */
-    CStakeKernel(const CBlockIndex* const pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int nTimeTx);
+    static std::optional<CStakeKernel> Create(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int nTimeTx);
 
-    // Return stake kernel hash
+    // Return stake kernel hash.
     uint256 GetHash() const;
 
-    // Check that the kernel hash meets the target required
+    // Check that the kernel hash meets the target required.
     bool CheckKernelHash(bool fSkipLog = false) const;
 
 private:
-    // kernel message hashed
+    CStakeKernel() = default;
+
+    // Kernel message hashed.
     CDataStream stakeModifier{CDataStream(SER_GETHASH, 0)};
     int nTimeBlockFrom{0};
     CDataStream stakeUniqueness{CDataStream(SER_GETHASH, 0)};
     int nTime{0};
-    // hash target
-    unsigned int nBits{0};     // difficulty for the target
-    CAmount stakeValue{0};     // target multiplier
+
+    // Hash target.
+    unsigned int nBits{0};
+    CAmount stakeValue{0};
 };
 
 /* PoS Validation */
@@ -63,7 +69,7 @@ bool Stake(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int 
  *                              (if nullptr, it will be searched in mapBlockIndex)
  * @return      bool            true if the block has a valid proof of stake
  */
-bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockIndex* pindexPrev = nullptr);
+bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockIndex* pindexPrev, const CCoinsViewCache& view);
 
 /*
  * GetStakeKernelHash   Return stake kernel of a block

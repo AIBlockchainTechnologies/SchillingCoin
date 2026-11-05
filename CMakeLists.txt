@@ -280,7 +280,6 @@ set(SERVER_SOURCES
         ./src/addrdb.cpp
         ./src/addrman.cpp
         ./src/bloom.cpp
-        ./src/blockassembler.cpp
         ./src/blocksignature.cpp
         ./src/chain.cpp
         ./src/checkpoints.cpp
@@ -299,12 +298,15 @@ set(SERVER_SOURCES
         ./src/pow.cpp
         ./src/rest.cpp
         ./src/rpc/blockchain.cpp
+        ./src/rpc/fees.cpp
         ./src/rpc/masternode.cpp
+        ./src/rpc/mempool.cpp
         ./src/rpc/mining.cpp
         ./src/rpc/misc.cpp
         ./src/rpc/net.cpp
         ./src/rpc/rawtransaction.cpp
         ./src/rpc/server.cpp
+        ./src/rpc/txoutproof.cpp
         ./src/script/sigcache.cpp
         ./src/sporkdb.cpp
         ./src/timedata.cpp

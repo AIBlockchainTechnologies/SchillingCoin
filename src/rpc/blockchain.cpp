@@ -49,30 +49,9 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, UniValue& out, bool fInclud
 
 double GetDifficulty(const CBlockIndex* blockindex)
 {
-    // Floating point number that is a multiple of the minimum difficulty,
-    // minimum difficulty = 1.0.
-    if (blockindex == NULL) {
-        if (chainActive.Tip() == nullptr)
-            return 1.0;
-        else
-            blockindex = chainActive.Tip();
-    }
+    CHECK_NONFATAL(blockindex);
 
-    int nShift = (blockindex->nBits >> 24) & 0xff;
-
-    double dDiff =
-        (double)0x0000ffff / (double)(blockindex->nBits & 0x00ffffff);
-
-    while (nShift < 29) {
-        dDiff *= 256.0;
-        nShift++;
-    }
-    while (nShift > 29) {
-        dDiff /= 256.0;
-        nShift--;
-    }
-
-    return dDiff;
+    return ConvertBitsToDouble(blockindex->nBits);
 }
 
 UniValue blockheaderToJSON(const CBlockIndex* blockindex)
@@ -118,13 +97,14 @@ UniValue blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool tx
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
     result.push_back(Pair("acc_checkpoint", block.nAccumulatorCheckpoint.GetHex()));
     UniValue txs(UniValue::VARR);
-    for (const CTransaction& tx : block.vtx) {
+    for (const CTransactionRef& tx : block.vtx) {
         if (txDetails) {
             UniValue objTx(UniValue::VOBJ);
-            TxToJSON(tx, UINT256_ZERO, objTx);
+            TxToJSON(*tx, UINT256_ZERO, objTx);
             txs.push_back(objTx);
-        } else
-            txs.push_back(tx.GetHash().GetHex());
+        } else {
+            txs.push_back(tx->GetHash().GetHex());
+        }
     }
     result.push_back(Pair("tx", txs));
     result.push_back(Pair("time", block.GetBlockTime()));
@@ -390,8 +370,9 @@ UniValue getdifficulty(const JSONRPCRequest& request)
             "\nExamples:\n" +
             HelpExampleCli("getdifficulty", "") + HelpExampleRpc("getdifficulty", ""));
 
+    ChainstateManager& chainman = EnsureAnyChainman(request.context);
     LOCK(cs_main);
-    return GetDifficulty();
+    return GetDifficulty(chainman.ActiveChain().Tip());
 }
 
 UniValue mempoolToJSON(bool fVerbose = false)
@@ -566,7 +547,7 @@ UniValue getblock(const JSONRPCRequest& request)
             HelpExampleCli("getblock", "\"00000000000fd08c2fb661d2fcb0d49abb3a91e5f27082ce64feed3b4dede2e2\" 2") +
             HelpExampleRpc("getblock", "\"00000000000fd08c2fb661d2fcb0d49abb3a91e5f27082ce64feed3b4dede2e2\", 2"));
 
-    LOCK(cs_main);
+    ChainstateManager& chainman = EnsureAnyChainman(request.context);
 
     const uint256 hash = ParseHashV(request.params[0], "blockhash");
 
@@ -585,16 +566,18 @@ UniValue getblock(const JSONRPCRequest& request)
     if (verbosity < 0 || verbosity > 2)
         throw JSONRPCError(RPC_INVALID_PARAMETER, "Verbosity must be 0, 1, or 2");
 
-    BlockMap::const_iterator it = mapBlockIndex.find(hash);
+    const CBlockIndex* pblockindex;
+    {
+        LOCK(cs_main);
+        pblockindex = chainman.m_blockman.LookupBlockIndex(hash);
+    }
 
-    if (it == mapBlockIndex.end() || it->second == nullptr)
+    if (!pblockindex)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
-
-    CBlockIndex* pblockindex = it->second;
 
     CBlock block;
 
-    if (!ReadBlockFromDisk(block, pblockindex))
+    if (!node::ReadBlockFromDisk(block, pblockindex, chainman.GetConsensus()))
         throw JSONRPCError(RPC_INTERNAL_ERROR, "Can't read block from disk");
 
     if (verbosity == 0) {
@@ -989,7 +972,7 @@ UniValue getblockchaininfo(const JSONRPCRequest& request)
     obj.push_back(Pair("blocks", (int)chainActive.Height()));
     obj.push_back(Pair("headers", pindexBestHeader ? pindexBestHeader->nHeight : -1));
     obj.push_back(Pair("bestblockhash", chainActive.Tip()->GetBlockHash().GetHex()));
-    obj.push_back(Pair("difficulty", (double)GetDifficulty()));
+    obj.push_back(Pair("difficulty", (double)GetDifficulty(chainActive.Tip())));
     obj.push_back(Pair("verificationprogress", Checkpoints::GuessVerificationProgress(chainActive.Tip())));
     obj.push_back(Pair("chainwork", chainActive.Tip()->nChainWork.GetHex()));
     CBlockIndex* tip = chainActive.Tip();

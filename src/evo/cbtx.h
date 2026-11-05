@@ -1,9 +1,10 @@
 // Copyright (c) 2017-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_CBTX_H
-#define BITCOIN_EVO_CBTX_H
+#ifndef SCHILLINGCOIN_EVO_CBTX_H
+#define SCHILLINGCOIN_EVO_CBTX_H
 
 #include <bls/bls.h>
 
@@ -33,23 +34,18 @@ public:
         INVALID = 0,
         MERKLE_ROOT_MNLIST = 1,
         MERKLE_ROOT_QUORUMS = 2,
-        CLSIG_AND_BALANCE = 3,
-        MERKLE_ROOT_ASSETUNLOCKS = 4,
+        CLSIG = 3,
         UNKNOWN,
     };
 
     static constexpr auto SPECIALTX_TYPE = TRANSACTION_COINBASE;
+
     Version nVersion{Version::MERKLE_ROOT_QUORUMS};
     int32_t nHeight{0};
     uint256 merkleRootMNList;
     uint256 merkleRootQuorums;
     uint32_t bestCLHeightDiff{0};
     CBLSSignature bestCLSignature;
-    CAmount creditPoolBalance{0};
-    /** Merkle root over the instance hashes of the block's version 2+ asset unlock transactions
-     *  (block order; null when there are none). Their txids exclude the quorum signing info, so
-     *  the block's merkle root does not commit to it; this root restores that commitment. */
-    uint256 merkleRootAssetUnlocks;
 
     SERIALIZE_METHODS(CCbTx, obj)
     {
@@ -57,16 +53,11 @@ public:
 
         if (obj.nVersion >= Version::MERKLE_ROOT_QUORUMS) {
             READWRITE(obj.merkleRootQuorums);
-            if (obj.nVersion >= Version::CLSIG_AND_BALANCE) {
-                READWRITE(COMPACTSIZE(obj.bestCLHeightDiff));
-                READWRITE(obj.bestCLSignature);
-                READWRITE(obj.creditPoolBalance);
-                if (obj.nVersion >= Version::MERKLE_ROOT_ASSETUNLOCKS) {
-                    READWRITE(obj.merkleRootAssetUnlocks);
-                }
-            }
         }
-
+        if (obj.nVersion >= Version::CLSIG) {
+            READWRITE(COMPACTSIZE(obj.bestCLHeightDiff));
+            READWRITE(obj.bestCLSignature);
+        }
     }
 
     [[nodiscard]] static RPCResult GetJsonHelp(const std::string& key, bool optional);
@@ -81,9 +72,7 @@ bool CheckCbTx(const CCbTx& cbTx, const CBlockIndex* pindexPrev, bool is_v24_act
 bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPrev,
                                const llmq::CQuorumBlockProcessor& quorum_block_processor, uint256& merkleRootRet,
                                BlockValidationState& state);
-uint256 CalcCbTxMerkleRootAssetUnlocks(const CBlock& block);
-
 std::optional<std::pair<CBLSSignature, uint32_t>> GetNonNullCoinbaseChainlock(const CBlockIndex* pindex);
 std::optional<std::pair<CBLSSignature, uint32_t>> GetNonNullCoinbaseChainlock(const CBlock& block, int32_t height);
 
-#endif // BITCOIN_EVO_CBTX_H
+#endif // SCHILLINGCOIN_EVO_CBTX_H

@@ -6,8 +6,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CHAINPARAMS_H
-#define BITCOIN_CHAINPARAMS_H
+#ifndef SCHILLINGCOIN_CHAINPARAMS_H
+#define SCHILLINGCOIN_CHAINPARAMS_H
 
 #include "chainparamsbase.h"
 #include "checkpoints.h"
@@ -16,6 +16,7 @@
 #include "protocol.h"
 #include "uint256.h"
 
+#include <optional>
 #include <vector>
 
 typedef unsigned char MessageStartChars[MESSAGE_START_SIZE];
@@ -55,6 +56,7 @@ public:
     };
 
     const Consensus::Params& GetConsensus() const { return consensus; }
+    [[nodiscard]] std::optional<Consensus::LLMQParams> GetLLMQ(Consensus::LLMQType llmqType) const;
     const MessageStartChars& MessageStart() const { return pchMessageStart; }
     int GetDefaultPort() const { return nDefaultPort; }
 
@@ -80,6 +82,8 @@ public:
 
 protected:
     CChainParams() {}
+
+    void AddLLMQ(Consensus::LLMQType llmqType);
 
     CBaseChainParams::Network networkID;
     std::string strNetworkID;
@@ -111,4 +115,4 @@ void SelectParams(CBaseChainParams::Network network);
  */
 bool SelectParamsFromCommandLine();
 
-#endif // BITCOIN_CHAINPARAMS_H
+#endif // SCHILLINGCOIN_CHAINPARAMS_H

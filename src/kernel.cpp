@@ -7,6 +7,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "arith_uint256.h"
+#include "coins.h"
 #include "db.h"
 #include "kernel.h"
 #include "legacy/stakemodifier.h"
@@ -17,28 +18,37 @@
 #include "utilmoneystr.h"
 #include "util/system.h"
 
-/**
- * CStakeKernel Constructor
- *
- * @param[in]   pindexPrev      index of the parent of the kernel block
- * @param[in]   stakeInput      input for the coinstake of the kernel block
- * @param[in]   nBits           target difficulty bits of the kernel block
- * @param[in]   nTimeTx         time of the kernel block
- */
-CStakeKernel::CStakeKernel(const CBlockIndex* const pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int nTimeTx): stakeUniqueness(stakeInput->GetUniqueness()), nTime(nTimeTx), nBits(nBits), stakeValue(stakeInput->GetValue())
+std::optional<CStakeKernel> CStakeKernel::Create(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int nTimeTx)
 {
-    if (!Params().GetConsensus().IsStakeModifierV2(pindexPrev->nHeight + 1)) { // Modifier v1
-        uint64_t nStakeModifier = 0;
-        if (!GetOldStakeModifier(stakeInput, nStakeModifier))
-            LogPrintf("%s : ERROR: Failed to get kernel stake modifier\n", __func__);
-        stakeModifier << nStakeModifier;
-    } else { // Modifier v2
-        stakeModifier << pindexPrev->GetStakeModifierV2();
+    if (!pindexPrev || !stakeInput) {
+        return std::nullopt;
     }
 
-    const CBlockIndex* pindexFrom = stakeInput->GetIndexFrom();
-    assert(pindexFrom);
-    nTimeBlockFrom = pindexFrom->nTime;
+    const CBlockIndex* pindexFrom{stakeInput->GetIndexFrom()};
+    if (!pindexFrom) {
+        return std::nullopt;
+    }
+
+    CStakeKernel kernel;
+    kernel.nTimeBlockFrom = pindexFrom->nTime;
+    kernel.stakeUniqueness = stakeInput->GetUniqueness();
+    kernel.nTime = nTimeTx;
+    kernel.nBits = nBits;
+    kernel.stakeValue = stakeInput->GetValue();
+
+    if (!Params().GetConsensus().IsStakeModifierV2(pindexPrev->nHeight + 1)) {
+        uint64_t nStakeModifier{0};
+
+        if (!GetOldStakeModifier(stakeInput, pindexPrev, nStakeModifier)) {
+            return std::nullopt;
+        }
+
+        kernel.stakeModifier << nStakeModifier;
+    } else {
+        kernel.stakeModifier << pindexPrev->GetStakeModifierV2();
+    }
+
+    return kernel;
 }
 
 // Return stake kernel hash
@@ -80,31 +90,56 @@ bool CStakeKernel::CheckKernelHash(bool fSkipLog) const
  * PoS Validation
  ***********************************/
 
-// helper function for CheckProofOfStake and GetStakeKernelHash
-bool LoadStakeInput(const CBlock& block, const CBlockIndex* pindexPrev, std::unique_ptr<CStakeInput>& stake)
+static bool LoadStakeInput(const CBlock& block, const CBlockIndex* pindexPrev, const CCoinsViewCache& view, std::unique_ptr<CStakeInput>& stake)
 {
-    // If previous index is not provided, look for it in the blockmap
-    if (!pindexPrev) {
-        BlockMap::iterator mi = mapBlockIndex.find(block.hashPrevBlock);
-        if (mi != mapBlockIndex.end() && (*mi).second)
-            pindexPrev = (*mi).second;
-        else
-            return error("%s : couldn't find previous block", __func__);
-    } else {
-        // check that this is the actual parent block
-        if (block.hashPrevBlock != pindexPrev->GetBlockHash())
-            return error("%s : previous block mismatch", __func__);
-    }
+    if (!pindexPrev)
+        return error("%s: candidate parent index is null", __func__);
 
-    // Check that this is a PoS block
+    if (block.hashPrevBlock != pindexPrev->GetBlockHash())
+        return error("%s: previous block mismatch", __func__);
+
     if (!block.IsProofOfStake())
-        return error("called on non PoS block");
+        return error("%s: called on non-PoS block", __func__);
 
-    // Construct the stakeinput object
-    const CTxIn& txin = block.vtx[1].vin[0];
-    stake = std::unique_ptr<CStakeInput>(new CSchStake());
+    if (block.vtx.size() < 2 || !block.vtx[1]->IsCoinStake())
+        return error("%s: malformed proof-of-stake block", __func__);
 
-    return stake->InitFromTxIn(txin);
+    if (block.vtx[1]->vin.empty())
+        return error("%s: coinstake has no inputs", __func__);
+
+    const COutPoint& prevout{block.vtx[1]->vin[0].prevout};
+
+    Coin coin;
+    if (!view.GetCoin(prevout, coin) || coin.IsSpent())
+        return error(
+            "%s: staking prevout %s:%u is unavailable",
+            __func__,
+            prevout.hash.ToString(),
+            prevout.n);
+
+    if (coin.nHeight > static_cast<uint32_t>(pindexPrev->nHeight))
+        return error(
+            "%s: staking prevout height %u exceeds candidate parent height %d",
+            __func__,
+            coin.nHeight,
+            pindexPrev->nHeight);
+
+    const CBlockIndex* pindexFrom{
+        pindexPrev->GetAncestor(static_cast<int>(coin.nHeight))};
+
+    if (!pindexFrom || pindexFrom->nHeight != static_cast<int>(coin.nHeight))
+        return error(
+            "%s: unable to resolve stake origin at height %u on candidate branch",
+            __func__,
+            coin.nHeight);
+
+    auto schStake{std::make_unique<CSchStake>()};
+
+    if (!schStake->SetPrevout(coin.out, prevout, pindexFrom))
+        return error("%s: failed to initialize SCH stake input", __func__);
+
+    stake = std::move(schStake);
+    return true;
 }
 
 /*
@@ -137,8 +172,17 @@ bool Stake(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int 
         if (!stakeInput->ContextCheck(nHeightTx, nTimeTx))
             return false;
 
-        CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTimeTx);
-        return stakeKernel.CheckKernelHash(true);
+        const auto stakeKernel{
+            CStakeKernel::Create(
+                pindexPrev,
+                stakeInput,
+                nBits,
+                nTimeTx)};
+
+        if (!stakeKernel)
+            return false;
+
+        return stakeKernel->CheckKernelHash(true);
     }
 
     nTimeTx = pindexPrev->nTime;
@@ -156,8 +200,14 @@ bool Stake(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int 
         if (!stakeInput->ContextCheck(nHeightTx, nTryTime))
             continue;
 
-        CStakeKernel stakeKernel(pindexPrev, stakeInput, nBits, nTryTime);
-        if (!stakeKernel.CheckKernelHash(true))
+        const auto stakeKernel{
+            CStakeKernel::Create(
+                pindexPrev,
+                stakeInput,
+                nBits,
+                nTryTime)};
+
+        if (!stakeKernel || !stakeKernel->CheckKernelHash(true))
             continue;
 
         nTimeTx = nTryTime;
@@ -167,30 +217,30 @@ bool Stake(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int 
     return false;
 }
 
-bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockIndex* pindexPrev)
+bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockIndex* pindexPrev, const CCoinsViewCache& view)
 {
-    // Initialize stake input
+    // Initialize the stake input against the candidate branch UTXO view.
     std::unique_ptr<CStakeInput> stakeInput;
-    if (!LoadStakeInput(block, pindexPrev, stakeInput)) {
+    if (!LoadStakeInput(block, pindexPrev, view, stakeInput)) {
         strError = "stake input initialization failed";
         return false;
     }
 
-    // Stake input contextual checks
+    // Stake input contextual checks.
     if (!stakeInput->ContextCheck(pindexPrev->nHeight + 1, block.nTime)) {
         strError = "stake input failing contextual checks";
         return false;
     }
 
-    // Verify signature
+    // Verify the coinstake input signature.
     CTxOut stakePrevout;
     if (!stakeInput->GetTxOutFrom(stakePrevout)) {
         strError = "unable to get stake prevout for coinstake";
         return false;
     }
 
-    const CTransaction& tx = block.vtx[1];
-    const CTxIn& txin = tx.vin[0];
+    const CTransactionRef& tx = block.vtx[1];
+    const CTxIn& txin = tx->vin[0];
 
     ScriptError serror;
     if (!VerifyScript(
@@ -198,7 +248,7 @@ bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockI
             stakePrevout.scriptPubKey,
             STANDARD_SCRIPT_VERIFY_FLAGS,
             TransactionSignatureChecker(
-                &tx,
+                tx.get(),
                 0,
                 stakePrevout.nValue),
             SIGVERSION_BASE,
@@ -209,19 +259,24 @@ bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockI
         return false;
     }
 
-    // Verify Proof Of Stake
-    CStakeKernel stakeKernel(
-        pindexPrev,
-        stakeInput.get(),
-        block.nBits,
-        block.nTime);
+    // Verify Proof Of Stake.
+    const auto stakeKernel{
+        CStakeKernel::Create(
+            pindexPrev,
+            stakeInput.get(),
+            block.nBits,
+            block.nTime)};
 
-    if (!stakeKernel.CheckKernelHash()) {
+    if (!stakeKernel) {
+        strError = "stake kernel initialization failed";
+        return false;
+    }
+
+    if (!stakeKernel->CheckKernelHash()) {
         strError = "kernel hash check fails";
         return false;
     }
 
-    // All good
     return true;
 }
 
@@ -236,12 +291,21 @@ bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockI
  */
 bool GetStakeKernelHash(uint256& hashRet, const CBlock& block, const CBlockIndex* pindexPrev)
 {
-    // Initialize stake input
+    // Initialize stake input.
     std::unique_ptr<CStakeInput> stakeInput;
     if (!LoadStakeInput(block, pindexPrev, stakeInput))
         return error("%s : stake input initialization failed", __func__);
 
-    CStakeKernel stakeKernel(pindexPrev, stakeInput.get(), block.nBits, block.nTime);
-    hashRet = stakeKernel.GetHash();
+    const auto stakeKernel{
+        CStakeKernel::Create(
+            pindexPrev,
+            stakeInput.get(),
+            block.nBits,
+            block.nTime)};
+
+    if (!stakeKernel)
+        return error("%s : stake kernel initialization failed", __func__);
+
+    hashRet = stakeKernel->GetHash();
     return true;
 }

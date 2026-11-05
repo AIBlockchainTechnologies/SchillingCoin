@@ -107,6 +107,12 @@ AC_ARG_ENABLE([wallet],
   [enable_wallet=$enableval],
   [enable_wallet=yes])
 
+AC_ARG_ENABLE([usbdevice],
+  [AS_HELP_STRING([--enable-usbdevice],
+  [enable usbdevice (disabled by default)])],
+  [enable_usbdevice=$enableval],
+  [enable_usbdevice=no])
+
 AC_ARG_WITH([miniupnpc],
   [AS_HELP_STRING([--with-miniupnpc],
   [enable UPNP (default is yes if libminiupnpc is found)])],
@@ -1152,6 +1158,25 @@ fi
 
 fi
 
+case $host in
+  *linux*)
+    LIBHIDAPINAME=hidapi-libusb
+    HIDAPILIBS=-l$LIBHIDAPINAME
+    ;;
+  *mingw*)
+    LIBHIDAPINAME=hidapi
+    HIDAPILIBS="-l$LIBHIDAPINAME -lsetupapi"
+    ;;
+  *)
+    LIBHIDAPINAME=hidapi
+    HIDAPILIBS=-l$LIBHIDAPINAME
+    ;;
+esac
+
+if test x$enable_usbdevice = xyes && test x$use_pkgconfig != xyes; then
+  AC_MSG_ERROR([USBDevice requires pkg-config support])
+fi
+
 if test x$use_pkgconfig = xyes; then
   : dnl
   m4_ifdef(
@@ -1179,6 +1204,31 @@ if test x$use_pkgconfig = xyes; then
            use_zmq=no])
       else
           AC_DEFINE_UNQUOTED([ENABLE_ZMQ],[0],[Define to 1 to enable ZMQ functions])
+      fi
+
+      if test "x$enable_usbdevice" = "xyes"; then
+        PKG_CHECK_MODULES([PROTOBUF], [protobuf],
+          [have_protobuf=yes],
+          [AC_MSG_WARN([protobuf not found, disabling usbdevice])
+           enable_usbdevice=no])
+
+        if test "x$enable_usbdevice" = "xyes"; then
+          PKG_CHECK_MODULES([USB], [libusb-1.0 >= 1.0.9],
+            [AC_DEFINE([ENABLE_USBDEVICE],[1],[Define to 1 to enable USBDEVICE functions])],
+            [AC_DEFINE([ENABLE_USBDEVICE],[0],[Define to 1 to enable USBDEVICE functions])
+             AC_MSG_WARN([libusb-1.0 version 1.0.9 or greater not found, disabling usbdevice])
+             enable_usbdevice=no])
+        fi
+
+        if test "x$enable_usbdevice" = "xyes"; then
+          PKG_CHECK_MODULES([HIDAPI],[$LIBHIDAPINAME >= 0],
+            [AC_DEFINE([ENABLE_USBDEVICE],[1],[Define to 1 to enable USBDEVICE functions])],
+            [AC_DEFINE([ENABLE_USBDEVICE],[0],[Define to 1 to enable USBDEVICE functions])
+             AC_MSG_WARN([$LIBHIDAPINAME not found, disabling usbdevice])
+             enable_usbdevice=no])
+        fi
+      else
+        AC_DEFINE_UNQUOTED([ENABLE_USBDEVICE],[0],[Define to 1 to enable USBDEVICE functions])
       fi
     ]
   )
@@ -1225,6 +1275,13 @@ else
   if test x$use_qtcharts != xno; then
     BITCOIN_QT_CHECK([AC_CHECK_LIB([Qt5Charts], [main],[CHARTS_LIBS=-lQt5Charts], [have_qtcharts=no])])
     BITCOIN_QT_CHECK([AC_CHECK_HEADER([QtCharts/qchartview.h],, have_qtcharts=no)])
+  fi
+fi
+
+if test "x$enable_usbdevice" = "xyes"; then
+  AC_PATH_PROGS([PROTOC],[protoc])
+  if test -z "$PROTOC"; then
+    AC_MSG_ERROR([protoc is required when usbdevice is enabled])
   fi
 fi
 
@@ -1344,7 +1401,22 @@ AC_MSG_CHECKING([if wallet should be enabled])
 if test x$enable_wallet != xno; then
   AC_MSG_RESULT(yes)
   AC_DEFINE_UNQUOTED([ENABLE_WALLET],[1],[Define to 1 to enable wallet functions])
+  enable_wallet=yes
+else
+  AC_MSG_RESULT(no)
+fi
 
+if test "$enable_usbdevice" = "yes"; then
+  if test "$enable_wallet" != "yes"; then
+    AC_MSG_ERROR("enable_usbdevice must be used with enable_wallet.")
+  fi
+fi
+
+dnl enable usbdevice
+AC_MSG_CHECKING([if usbdevice should be enabled])
+if test "$enable_usbdevice" != "no"; then
+  AC_MSG_RESULT(yes)
+  AC_DEFINE_UNQUOTED([ENABLE_USBDEVICE],[1],[Define to 1 to enable usbdevice functions])
 else
   AC_MSG_RESULT(no)
 fi
@@ -1459,6 +1531,7 @@ AM_CONDITIONAL([TARGET_DARWIN], [test x$TARGET_OS = xdarwin])
 AM_CONDITIONAL([BUILD_DARWIN], [test x$BUILD_OS = xdarwin])
 AM_CONDITIONAL([TARGET_WINDOWS], [test x$TARGET_OS = xwindows])
 AM_CONDITIONAL([ENABLE_WALLET],[test x$enable_wallet = xyes])
+AM_CONDITIONAL([ENABLE_USBDEVICE],[test "$enable_usbdevice" = "yes"])
 AM_CONDITIONAL([ENABLE_TESTS],[test x$BUILD_TEST = xyes])
 AM_CONDITIONAL([ENABLE_FUZZ],[test x$enable_fuzz = xyes])
 AM_CONDITIONAL([ENABLE_QT],[test x$bitcoin_enable_qt = xyes])
@@ -1525,6 +1598,9 @@ AC_SUBST(EVENT_LIBS)
 AC_SUBST(EVENT_PTHREADS_LIBS)
 AC_SUBST(ZMQ_LIBS)
 AC_SUBST(QR_LIBS)
+AC_SUBST(USB_LIBS)
+AC_SUBST(HIDAPI_LIBS)
+AC_SUBST(PROTOBUF_LIBS)
 AC_SUBST(USE_NUM_GMP)
 AC_SUBST(USE_NUM_OPENSSL)
 AC_CONFIG_FILES([Makefile src/Makefile doc/man/Makefile share/setup.nsi share/qt/Info.plist test/config.ini])
@@ -1588,8 +1664,9 @@ esac
 
 echo
 echo "Options used to compile and link:"
-echo "  with wallet   = $enable_wallet"
-echo "  with gui / qt = $bitcoin_enable_qt"
+echo "  with wallet    = $enable_wallet"
+echo "  with usbdevice = $enable_usbdevice"
+echo "  with gui / qt  = $bitcoin_enable_qt"
 if test x$bitcoin_enable_qt != xno; then
     echo "    with qtcharts     = $use_qtcharts"
 fi

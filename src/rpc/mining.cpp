@@ -301,13 +301,18 @@ UniValue getmininginfo(const JSONRPCRequest& request)
             HelpExampleCli("getmininginfo", "") +
             HelpExampleRpc("getmininginfo", ""));
 
+    const NodeContext& node = EnsureAnyNodeContext(request.context);
+    ChainstateManager& chainman = EnsureChainman(node);
+
     LOCK(cs_main);
 
+    const CChain& active_chain = chainman.ActiveChain();
+
     UniValue obj(UniValue::VOBJ);
-    obj.push_back(Pair("blocks", (int)chainActive.Height()));
+    obj.push_back(Pair("blocks", (int)active_chain.Height()));
     obj.push_back(Pair("currentblocksize", (uint64_t)nLastBlockSize));
     obj.push_back(Pair("currentblocktx", (uint64_t)nLastBlockTx));
-    obj.push_back(Pair("difficulty", (double)GetDifficulty()));
+    obj.push_back(Pair("difficulty", (double)GetDifficulty(active_chain.Tip())));
     obj.push_back(Pair("errors", GetWarnings("statusbar")));
     obj.push_back(Pair("genproclimit", (int)gArgs.GetArg("-genproclimit", -1)));
     obj.push_back(Pair("networkhashps", getnetworkhashps(request)));

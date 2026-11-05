@@ -3172,8 +3172,12 @@ bool CWallet::CreateCoinStake(const CBlockIndex* pindexPrev, unsigned int nBits,
         LogPrintf("CreateCoinStake : kernel found\n");
         nCredit += stakeInput->GetValue();
 
-        // Preserve SCH reward calculation using the explicit parent block
-        const CAmount nReward = GetBlockValue(pindexPrev->nHeight);
+        // Preserve SCH reward calculation using the explicit parent block.
+        const CAmount nReward = GetBlockSubsidyInner(
+            pindexPrev->nBits,
+            pindexPrev->nHeight,
+            Params().GetConsensus(),
+            false);
         nCredit += nReward;
 
         // Create the output transaction(s)

@@ -28,12 +28,7 @@ static int64_t GetStakeModifierSelectionIntervalSection(int nSection)
 // select a block from the candidate blocks in vSortedByTimestamp, excluding
 // already selected blocks in vSelectedBlocks, and with timestamp up to
 // nSelectionIntervalStop.
-static bool SelectBlockFromCandidates(
-    std::vector<std::pair<int64_t, uint256> >& vSortedByTimestamp,
-    std::map<uint256, const CBlockIndex*>& mapSelectedBlocks,
-    int64_t nSelectionIntervalStop,
-    uint64_t nStakeModifierPrev,
-    const CBlockIndex** pindexSelected)
+static bool SelectBlockFromCandidates(std::vector<std::pair<int64_t, uint256> >& vSortedByTimestamp, std::map<uint256, const CBlockIndex*>& mapSelectedBlocks, int64_t nSelectionIntervalStop, uint64_t nStakeModifierPrev, const CBlockIndex** pindexSelected)
 {
     bool fModifierV2 = false;
     bool fFirstRun = true;
@@ -88,35 +83,81 @@ static bool SelectBlockFromCandidates(
     return fSelected;
 }
 
-// The stake modifier used to hash for a stake kernel is chosen as the stake
-// modifier about a selection interval later than the coin generating the kernel
-bool GetOldModifier(const CBlockIndex* pindexFrom, uint64_t& nStakeModifier)
+// The historical modifier-v1 used for a stake kernel is selected from the
+// candidate parent branch, not from the process-wide active chain.
+static bool GetOldModifier(const CBlockIndex* pindexFrom, const CBlockIndex* pindexPrev, uint64_t& nStakeModifier)
 {
-    int64_t nStakeModifierTime = pindexFrom->GetBlockTime();
-    const CBlockIndex* pindex = pindexFrom;
-    CBlockIndex* pindexNext = chainActive[pindex->nHeight + 1];
+    if (!pindexFrom) {
+        return error("%s: stake origin index is null", __func__);
+    }
 
-    // loop to find the stake modifier later by a selection interval
+    if (!pindexPrev) {
+        return error("%s: candidate parent index is null", __func__);
+    }
+
+    if (pindexFrom->nHeight > pindexPrev->nHeight) {
+        return error(
+            "%s: stake origin height %d is above candidate parent height %d",
+            __func__,
+            pindexFrom->nHeight,
+            pindexPrev->nHeight);
+    }
+
+    CChain candidate_chain;
+    candidate_chain.SetTip(const_cast<CBlockIndex*>(pindexPrev));
+
+    if (!candidate_chain.Contains(pindexFrom)) {
+        return error(
+            "%s: stake origin %s is not an ancestor of candidate parent %s",
+            __func__,
+            pindexFrom->GetBlockHash().ToString(),
+            pindexPrev->GetBlockHash().ToString());
+    }
+
+    int64_t nStakeModifierTime{pindexFrom->GetBlockTime()};
+    const CBlockIndex* pindex{pindexFrom};
+
+    // Preserve the historical SCH algorithm: walk forward from the block
+    // containing the staking output until a generated modifier reaches the
+    // required selection interval.
     do {
+        const CBlockIndex* pindexNext{candidate_chain.Next(pindex)};
         if (!pindexNext) {
-            // Should never happen
-            return error("%s : Null pindexNext, current block %s ", __func__, pindex->phashBlock->GetHex());
+            return error(
+                "%s: reached candidate parent %s before finding a modifier "
+                "for stake origin %s",
+                __func__,
+                pindexPrev->GetBlockHash().ToString(),
+                pindexFrom->GetBlockHash().ToString());
         }
+
         pindex = pindexNext;
-        if (pindex->GeneratedStakeModifier()) nStakeModifierTime = pindex->GetBlockTime();
-        pindexNext = chainActive[pindex->nHeight + 1];
-    } while (nStakeModifierTime < pindexFrom->GetBlockTime() + OLD_MODIFIER_INTERVAL);
+
+        if (pindex->GeneratedStakeModifier()) {
+            nStakeModifierTime = pindex->GetBlockTime();
+        }
+    } while (
+        nStakeModifierTime <
+        pindexFrom->GetBlockTime() + OLD_MODIFIER_INTERVAL);
 
     nStakeModifier = pindex->GetStakeModifierV1();
     return true;
 }
 
-bool GetOldStakeModifier(CStakeInput* stake, uint64_t& nStakeModifier)
+bool GetOldStakeModifier(CStakeInput* stake, const CBlockIndex* pindexPrev, uint64_t& nStakeModifier)
 {
-    const CBlockIndex* pindexFrom = stake->GetIndexFrom();
-    if (!pindexFrom) return error("%s : failed to get index from", __func__);
-    if (!GetOldModifier(pindexFrom, nStakeModifier))
-        return error("%s : failed to get kernel stake modifier", __func__);
+    if (!stake) {
+        return error("%s: stake input is null", __func__);
+    }
+
+    const CBlockIndex* pindexFrom{stake->GetIndexFrom()};
+    if (!pindexFrom) {
+        return error("%s: failed to get stake origin index", __func__);
+    }
+
+    if (!GetOldModifier(pindexFrom, pindexPrev, nStakeModifier)) {
+        return error("%s: failed to get historical kernel stake modifier", __func__);
+    }
 
     return true;
 }

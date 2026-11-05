@@ -2,18 +2,19 @@
 // Copyright (c) 2013-2014 The NovaCoin Developers
 // Copyright (c) 2014-2018 The BlackCoin Developers
 // Copyright (c) 2015-2020 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef SchillingCoin_LEGACY_MODIFIER_H
-#define SchillingCoin_LEGACY_MODIFIER_H
+#ifndef SCHILLINGCOIN_LEGACY_MODIFIER_H
+#define SCHILLINGCOIN_LEGACY_MODIFIER_H
 
 #include "chain.h"
 #include "stakeinput.h"
 
-// Old Modifier - Only for IBD
-bool GetOldStakeModifier(CStakeInput* stake, uint64_t& nStakeModifier);
+// Historical modifier-v1 compatibility.
+bool GetOldStakeModifier(CStakeInput* stake, const CBlockIndex* pindexPrev, uint64_t& nStakeModifier);
+
 bool ComputeNextStakeModifier(const CBlockIndex* pindexPrev, uint64_t& nStakeModifier, bool& fGeneratedStakeModifier);
 
-#endif // SchillingCoin_LEGACY_MODIFIER_H
+#endif // SCHILLINGCOIN_LEGACY_MODIFIER_H

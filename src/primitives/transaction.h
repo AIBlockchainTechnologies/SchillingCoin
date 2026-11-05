@@ -15,6 +15,8 @@
 #include "uint256.h"
 
 #include <list>
+#include <memory>
+#include <utility>
 
 class CTransaction;
 
@@ -279,6 +281,21 @@ public:
 enum TransactionType : uint16_t
 {
     TRANSACTION_NORMAL = 0,
+    TRANSACTION_PROVIDER_REGISTER = 1,
+    TRANSACTION_PROVIDER_UPDATE_SERVICE = 2,
+    TRANSACTION_PROVIDER_UPDATE_REGISTRAR = 3,
+    TRANSACTION_PROVIDER_UPDATE_REVOKE = 4,
+    TRANSACTION_COINBASE = 5,
+    TRANSACTION_QUORUM_COMMITMENT = 6,
+    TRANSACTION_MNHF_SIGNAL = 7,
+
+    // Transaction type values 8 and 9 are intentionally reserved to preserve
+    // the authoritative Dash special-transaction numeric namespace. SCH does
+    // not implement AssetLock or AssetUnlock transactions.
+
+    TRANSACTION_PROVIDER_DISSOLVE = 10,
+    TRANSACTION_PROVIDER_UPDATE_SHARE = 11,
+    TRANSACTION_PROVIDER_UPDATE_SHARED_REGISTRAR = 12,
 };
 
 struct CMutableTransaction;
@@ -487,5 +504,13 @@ struct CMutableTransaction
     uint256 GetHash() const;
     std::string ToString() const;
 };
+
+typedef std::shared_ptr<const CTransaction> CTransactionRef;
+
+template <typename Tx>
+static inline CTransactionRef MakeTransactionRef(Tx&& txIn)
+{
+    return std::make_shared<const CTransaction>(std::forward<Tx>(txIn));
+}
 
 #endif // SCHILLINGCOIN_PRIMITIVES_TRANSACTION_H

@@ -1,74 +1,180 @@
 // Copyright (c) 2017-2021 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <version.h>
-
-#include <consensus/consensus.h>
 #include <consensus/tx_check.h>
 
 #include <consensus/amount.h>
-#include <primitives/transaction.h>
+#include <consensus/consensus.h>
 #include <consensus/validation.h>
+#include <primitives/transaction.h>
+#include <version.h>
+
+#include <set>
 
 bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
 {
-    bool allowEmptyTxIn = false;
-    bool allowEmptyTxOut = false;
-    if (tx.nType == TRANSACTION_QUORUM_COMMITMENT || tx.nType == TRANSACTION_MNHF_SIGNAL) {
-        allowEmptyTxIn = true;
-        allowEmptyTxOut = true;
+    bool allow_empty_inputs{false};
+    bool allow_empty_outputs{false};
+
+    if (tx.nType == TRANSACTION_QUORUM_COMMITMENT ||
+        tx.nType == TRANSACTION_MNHF_SIGNAL) {
+        allow_empty_inputs = true;
+        allow_empty_outputs = true;
     }
+
     if (tx.nType == TRANSACTION_ASSET_UNLOCK) {
-        allowEmptyTxIn = true;
+        allow_empty_inputs = true;
     }
 
-    // Basic checks that don't depend on any context
-    if (!allowEmptyTxIn && tx.vin.empty())
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-vin-empty");
-    if (!allowEmptyTxOut && tx.vout.empty())
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-vout-empty");
-    // Size limits
-    if (::GetSerializeSize(tx, PROTOCOL_VERSION) > MAX_LEGACY_BLOCK_SIZE)
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-oversize");
-    if (tx.vExtraPayload.size() > MAX_TX_EXTRA_PAYLOAD)
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-payload-oversize");
-
-    // Check for negative or overflow output values (see CVE-2010-5139)
-    CAmount nValueOut = 0;
-    for (const auto& txout : tx.vout) {
-        if (txout.nValue < 0)
-            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-vout-negative");
-        if (txout.nValue > MAX_MONEY)
-            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-vout-toolarge");
-        nValueOut += txout.nValue;
-        if (!MoneyRange(nValueOut))
-            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-txouttotal-toolarge");
+    if (!allow_empty_inputs && tx.vin.empty()) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-vin-empty");
     }
 
-    // Check for duplicate inputs (see CVE-2018-17144)
-    // While Consensus::CheckTxInputs does check if all inputs of a tx are available, and UpdateCoins marks all inputs
-    // of a tx as spent, it does not check if the tx has duplicate inputs.
-    // Failure to run this check will result in either a crash or an inflation bug, depending on the implementation of
-    // the underlying coins database.
-    std::set<COutPoint> vInOutPoints;
-    for (const auto& txin : tx.vin) {
-        if (!vInOutPoints.insert(txin.prevout).second)
-            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-inputs-duplicate");
+    if (!allow_empty_outputs && tx.vout.empty()) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-vout-empty");
+    }
+
+    if (::GetSerializeSize(tx, PROTOCOL_VERSION) > MAX_ZEROCOIN_TX_SIZE) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-oversize");
+    }
+
+    if (tx.vExtraPayload.size() > MAX_TX_EXTRA_PAYLOAD) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-payload-oversize");
+    }
+
+    if (tx.nVersion < 1) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-version");
+    }
+
+    if (tx.nVersion == 1) {
+        if (tx.nType != TRANSACTION_NORMAL) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-txns-type");
+        }
+
+        if (!tx.vExtraPayload.empty()) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-txns-payload");
+        }
+    }
+
+    if (tx.nVersion == 2) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-version");
+    }
+
+    if (tx.nVersion > CTransaction::SPECIAL_VERSION) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-version");
+    }
+
+    if (tx.nVersion != CTransaction::SPECIAL_VERSION &&
+        tx.nType != TRANSACTION_NORMAL) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-type");
+    }
+
+    if (tx.nVersion == CTransaction::SPECIAL_VERSION &&
+        tx.nType == TRANSACTION_NORMAL &&
+        !tx.vExtraPayload.empty()) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "bad-txns-payload");
+    }
+
+    CAmount value_out{0};
+
+    for (const CTxOut& txout : tx.vout) {
+        if (txout.IsEmpty() && !tx.IsCoinBase() && !tx.IsCoinStake()) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-txns-vout-empty");
+        }
+
+        if (txout.nValue < 0) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-txns-vout-negative");
+        }
+
+        if (txout.nValue > MAX_MONEY) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-txns-vout-toolarge");
+        }
+
+        value_out += txout.nValue;
+
+        if (!MoneyRange(value_out)) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-txns-txouttotal-toolarge");
+        }
+
+        if (txout.scriptPubKey.IsPayToColdStaking() &&
+            txout.nValue < MIN_COLDSTAKING_AMOUNT) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-txns-cold-stake",
+                "cold-staking output is below the minimum amount");
+        }
+    }
+
+    std::set<COutPoint> input_outpoints;
+
+    for (const CTxIn& txin : tx.vin) {
+        // Historical Zerocoin spends use a special null prevout and may share
+        // that serialized outpoint. Their serial-spend rules are validated by
+        // the retained historical Zerocoin compatibility path.
+        if (txin.IsZerocoinSpend()) {
+            continue;
+        }
+
+        if (!input_outpoints.insert(txin.prevout).second) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-txns-inputs-duplicate");
+        }
     }
 
     if (tx.IsCoinBase()) {
-        size_t minCbSize = 2;
+        size_t minimum_coinbase_script_size{2};
+
         if (tx.nType == TRANSACTION_COINBASE) {
-            // With the introduction of CbTx, coinbase scripts are not required anymore to hold a valid block height
-            minCbSize = 1;
+            minimum_coinbase_script_size = 1;
         }
-        if (tx.vin[0].scriptSig.size() < minCbSize || tx.vin[0].scriptSig.size() > 100)
-            return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-cb-length");
+
+        if (tx.vin[0].scriptSig.size() < minimum_coinbase_script_size ||
+            tx.vin[0].scriptSig.size() > 150) {
+            return state.Invalid(
+                TxValidationResult::TX_CONSENSUS,
+                "bad-cb-length");
+        }
     } else {
-        for (const auto& txin : tx.vin)
-            if (txin.prevout.IsNull())
-                return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-prevout-null");
+        for (const CTxIn& txin : tx.vin) {
+            if (txin.prevout.IsNull() && !txin.IsZerocoinSpend()) {
+                return state.Invalid(
+                    TxValidationResult::TX_CONSENSUS,
+                    "bad-txns-prevout-null");
+            }
+        }
     }
 
     return true;

@@ -36,7 +36,7 @@ bool SignBlock(CBlock& block, const CKeyStore& keystore)
     CKeyID keyID;
     if (block.IsProofOfWork()) {
         bool fFoundID = false;
-        for (const CTxOut& txout :block.vtx[0].vout) {
+        for (const CTxOut& txout : block.vtx[0]->vout) {
             if (!GetKeyIDFromUTXO(txout, keyID))
                 continue;
             fFoundID = true;
@@ -45,7 +45,7 @@ bool SignBlock(CBlock& block, const CKeyStore& keystore)
         if (!fFoundID)
             return error("%s: failed to find key for PoW", __func__);
     } else {
-        if (!GetKeyIDFromUTXO(block.vtx[1].vout[1], keyID))
+        if (!GetKeyIDFromUTXO(block.vtx[1]->vout[1], keyID))
             return error("%s: failed to find key for PoS", __func__);
     }
 
@@ -70,7 +70,7 @@ bool CheckBlockSignature(const CBlock& block)
     CPubKey pubkey;
     txnouttype whichType;
         std::vector<valtype> vSolutions;
-        const CTxOut& txout = block.vtx[1].vout[1];
+        const CTxOut& txout = block.vtx[1]->vout[1];
         if (!Solver(txout.scriptPubKey, whichType, vSolutions))
             return false;
         if (whichType == TX_PUBKEY || whichType == TX_PUBKEYHASH) {
@@ -78,7 +78,7 @@ bool CheckBlockSignature(const CBlock& block)
             pubkey = CPubKey(vchPubKey);
         } else if (whichType == TX_COLDSTAKE) {
             // pick the public key from the P2CS input
-            const CTxIn& txin = block.vtx[1].vin[0];
+            const CTxIn& txin = block.vtx[1]->vin[0];
             int start = 1 + (int) *txin.scriptSig.begin(); // skip sig
             start += 1 + (int) *(txin.scriptSig.begin()+start); // skip flag
             pubkey = CPubKey(txin.scriptSig.begin()+start+1, txin.scriptSig.end());

@@ -16,6 +16,7 @@
 
 #include <arith_uint256.h>
 #include <bls/bls.h>
+#include <blocksignature.h>
 #include <chain.h>
 #include <chainparams.h>
 #include <checkqueue.h>
@@ -30,6 +31,7 @@
 #include <hash.h>
 #include <kernel/disconnected_transactions.h>
 #include <kernel/mempool_entry.h>
+#include <kernel.h>
 #include <logging.h>
 #include <logging/timer.h>
 #include <node/blockstorage.h>
@@ -853,6 +855,15 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
         return false;
     }
 
+    // Zerocoin is retained only for historical blockchain validation.
+    // New Zerocoin transactions must never enter the mempool.
+    if (tx.ContainsZerocoins()) {
+        return state.Invalid(
+            TxValidationResult::TX_CONSENSUS,
+            "zerocoin-disabled",
+            "Zerocoin runtime functionality is disabled");
+    }
+
     if (tx.IsSpecialTxVersion() && tx.nType == TRANSACTION_QUORUM_COMMITMENT) {
         // quorum commitment is not allowed outside of blocks
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "qc-not-allowed");
@@ -1003,7 +1014,7 @@ bool MemPoolAccept::PreChecks(ATMPArgs& args, Workspace& ws)
     }
 
     // The mempool holds txs for the next block, so pass height+1 to CheckTxInputs
-    if (!Consensus::CheckTxInputs(tx, state, m_view, m_active_chainstate.m_chain.Height() + 1, ws.m_base_fees)) {
+    if (!Consensus::CheckTxInputs(tx, state, m_view, m_active_chainstate.m_chain.Height() + 1, chainparams.GetConsensus(), ws.m_base_fees)) {
         return false; // state filled in by CheckTxInputs
     }
 
@@ -1809,65 +1820,31 @@ NOTE:   unlike bitcoin we are using PREVIOUS block height here,
 */
 static std::pair<CAmount, CAmount> GetBlockSubsidyHelper(int nPrevBits, int nPrevHeight, const Consensus::Params& consensusParams, bool fV20Active)
 {
-    double dDiff;
-    CAmount nSubsidyBase;
+    (void)nPrevBits;
+    (void)fV20Active;
 
-    if (nPrevHeight <= 4500 && Params().NetworkIDString() == CBaseChainParams::MAIN) {
-        /* a bug which caused diff to not be correctly calculated */
-        dDiff = (double)0x0000ffff / (double)(nPrevBits & 0x00ffffff);
+    int nScheduleHeight = nPrevHeight;
+    if (!consensusParams.IsFeeRewardDistributionActive(nPrevHeight) && nScheduleHeight > 0) {
+        --nScheduleHeight;
+    }
+
+    if (Params().NetworkID() == CBaseChainParams::TESTNET &&
+        nScheduleHeight > 0 &&
+        nScheduleHeight < 200) {
+        return {1000000 * COIN, 0};
+    }
+
+    CAmount nSubsidy;
+    if (nScheduleHeight == 0) {
+        nSubsidy = 22000000 * COIN;
+    } else if (nScheduleHeight >= 5783307) {
+        nSubsidy = 1614999999;
     } else {
-        dDiff = ConvertBitsToDouble(nPrevBits);
+        nSubsidy = 3229999999;
     }
 
-    const bool isDevnet = Params().NetworkIDString() == CBaseChainParams::DEVNET;
-    const bool force_fixed_base_subsidy = fV20Active || (isDevnet && nPrevHeight >= consensusParams.nHighSubsidyBlocks);
-    if (force_fixed_base_subsidy) {
-        // Originally, nSubsidyBase calculations relied on difficulty. Once Platform is live,
-        // it must be able to calculate platformReward. However, we don't want it to constantly
-        // get blocks difficulty from the payment chain, so we set the nSubsidyBase to a fixed
-        // value starting from V20 activation. Note, that it doesn't affect mainnet really
-        // because blocks difficulty there is very high already.
-        // Devnets get fixed nSubsidyBase starting from nHighSubsidyBlocks to better mimic mainnet.
-        nSubsidyBase = 5;
-    } else if (nPrevHeight < 5465) {
-        // Early ages...
-        // 1111/((x+1)^2)
-        nSubsidyBase = (1111.0 / (pow((dDiff+1.0),2.0)));
-        if(nSubsidyBase > 500) nSubsidyBase = 500;
-        else if(nSubsidyBase < 1) nSubsidyBase = 1;
-    } else if (nPrevHeight < 17000 || (dDiff <= 75 && nPrevHeight < 24000)) {
-        // CPU mining era
-        // 11111/(((x+51)/6)^2)
-        nSubsidyBase = (11111.0 / (pow((dDiff+51.0)/6.0,2.0)));
-        if(nSubsidyBase > 500) nSubsidyBase = 500;
-        else if(nSubsidyBase < 25) nSubsidyBase = 25;
-    } else {
-        // GPU/ASIC mining era
-        // 2222222/(((x+2600)/9)^2)
-        nSubsidyBase = (2222222.0 / (pow((dDiff+2600.0)/9.0,2.0)));
-        if(nSubsidyBase > 25) nSubsidyBase = 25;
-        else if(nSubsidyBase < 5) nSubsidyBase = 5;
-    }
-
-    CAmount nSubsidy = nSubsidyBase * COIN;
-
-    // yearly decline of production by ~7.1% per year, projected ~18M coins max by year 2050+.
-    for (int i = consensusParams.nSubsidyHalvingInterval; i <= nPrevHeight; i += consensusParams.nSubsidyHalvingInterval) {
-        nSubsidy -= nSubsidy/14;
-    }
-
-    if (nPrevHeight < consensusParams.nHighSubsidyBlocks) {
-        assert(isDevnet);
-        nSubsidy *= consensusParams.nHighSubsidyFactor;
-    }
-
-    CAmount nSuperblockPart{};
-    // Hard fork to reduce the block reward by 10 extra percent (allowing budget/superblocks)
-    if (nPrevHeight > consensusParams.nBudgetPaymentsStartBlock) {
-        // Once v20 is active, the treasury is 20% instead of 10%
-        nSuperblockPart = nSubsidy / (fV20Active ? 5 : 10);
-    }
-    return {nSubsidy - nSuperblockPart, nSuperblockPart};
+    assert(consensusParams.MoneyRange(nSubsidy));
+    return {nSubsidy, 0};
 }
 
 CAmount GetSuperblockSubsidyInner(int nPrevBits, int nPrevHeight, const Consensus::Params& consensusParams, bool fV20Active)
@@ -2089,18 +2066,26 @@ void Chainstate::InvalidBlockFound(CBlockIndex *pindex, const BlockValidationSta
     }
 }
 
-void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo &txundo, int nHeight)
+void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, CTxUndo& txundo, int nHeight)
 {
-    // mark inputs spent
-    if (!tx.IsCoinBase()) {
+    // Historical Zerocoin spends use special null prevouts and do not consume
+    // ordinary UTXOs. Keep their undo entry empty for historical-chain
+    // compatibility while runtime Zerocoin functionality remains disabled.
+    if (!tx.IsCoinBase() && !tx.HasZerocoinSpendInputs()) {
         txundo.vprevout.reserve(tx.vin.size());
-        for (const CTxIn &txin : tx.vin) {
+
+        for (const CTxIn& txin : tx.vin) {
             txundo.vprevout.emplace_back();
-            bool is_spent = inputs.SpendCoin(txin.prevout, &txundo.vprevout.back());
+
+            const bool is_spent{
+                inputs.SpendCoin(
+                    txin.prevout,
+                    &txundo.vprevout.back())};
+
             assert(is_spent);
         }
     }
-    // add outputs
+
     AddCoins(inputs, tx, nHeight);
 }
 
@@ -2151,13 +2136,13 @@ bool InitScriptExecutionCache(size_t max_size_bytes)
  *
  * Non-static (and re-declared) in src/test/txvalidationcache_tests.cpp
  */
-bool CheckInputScripts(const CTransaction& tx, TxValidationState& state,
-                       const CCoinsViewCache& inputs, unsigned int flags, bool cacheSigStore,
-                       bool cacheFullScriptStore, PrecomputedTransactionData& txdata,
-                       std::vector<CScriptCheck>* pvChecks)
+bool CheckInputScripts(const CTransaction& tx, TxValidationState& state, const CCoinsViewCache& inputs, unsigned int flags, bool cacheSigStore, bool cacheFullScriptStore, PrecomputedTransactionData& txdata, std::vector<CScriptCheck>* pvChecks)
 {
     auto start = Now<SteadyMilliseconds>();
-    if (tx.IsCoinBase()) return true;
+
+    if (tx.IsCoinBase() || tx.HasZerocoinSpendInputs()) {
+        return true;
+    }
 
     if (pvChecks) {
         pvChecks->reserve(tx.vin.size());
@@ -2344,21 +2329,48 @@ DisconnectResult Chainstate::DisconnectBlock(const CBlock& block, const CBlockIn
             }
         }
 
-        // restore inputs
-        if (i > 0) { // not coinbases
-            CTxUndo &txundo = blockUndo.vtxundo[i-1];
+        // Restore ordinary UTXO inputs.
+        if (i > 0) {
+            CTxUndo& txundo{blockUndo.vtxundo[i - 1]};
+
+            /*
+             * Historical Zerocoin spends consume no ordinary UTXOs. Their
+             * aligned transaction-undo entry must therefore remain empty.
+             */
+            if (tx.HasZerocoinSpendInputs()) {
+                if (!txundo.vprevout.empty()) {
+                    LogError(
+                        "DisconnectBlock(): historical Zerocoin undo data is not empty\n");
+                    return DISCONNECT_FAILED;
+                }
+
+                continue;
+            }
+
             if (txundo.vprevout.size() != tx.vin.size()) {
-                LogError("DisconnectBlock(): transaction and undo data inconsistent\n");
+                LogError(
+                    "DisconnectBlock(): transaction and undo data inconsistent\n");
                 return DISCONNECT_FAILED;
             }
+
             for (unsigned int j = tx.vin.size(); j > 0;) {
                 --j;
-                const COutPoint& out = tx.vin[j].prevout;
-                int res = ApplyTxInUndo(std::move(txundo.vprevout[j]), view, out);
-                if (res == DISCONNECT_FAILED) return DISCONNECT_FAILED;
-                fClean = fClean && res != DISCONNECT_UNCLEAN;
+
+                const COutPoint& out{tx.vin[j].prevout};
+                const int result{
+                    ApplyTxInUndo(
+                        std::move(txundo.vprevout[j]),
+                        view,
+                        out)};
+
+                if (result == DISCONNECT_FAILED) {
+                    return DISCONNECT_FAILED;
+                }
+
+                fClean =
+                    fClean &&
+                    result != DISCONNECT_UNCLEAN;
             }
-            // At this point, all of txundo.vprevout should have been moved out.
         }
     }
 
@@ -2535,9 +2547,41 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
     // Special case for the genesis block, skipping connection of its transactions
     // (its coinbase is unspendable)
     if (block_hash == params.GetConsensus().hashGenesisBlock) {
-        if (!fJustCheck)
+        if (!fJustCheck) {
             view.SetBestBlock(pindex->GetBlockHash());
+        }
         return true;
+    }
+
+    const int last_pow_block = params.GetConsensus().height_last_PoW;
+
+    if (pindex->nHeight <= last_pow_block && block.IsProofOfStake()) {
+        return state.Invalid(
+            BlockValidationResult::BLOCK_CONSENSUS,
+            "PoS-early",
+            "proof-of-stake period is not active");
+    }
+
+    if (pindex->nHeight > last_pow_block && block.IsProofOfWork()) {
+        return state.Invalid(
+            BlockValidationResult::BLOCK_CONSENSUS,
+            "PoW-ended",
+            "proof-of-work period has ended");
+    }
+
+    if (block.IsProofOfStake()) {
+        std::string proof_of_stake_error;
+
+        if (!CheckProofOfStake(
+                block,
+                proof_of_stake_error,
+                pindex->pprev,
+                view)) {
+            return state.Invalid(
+                BlockValidationResult::BLOCK_CONSENSUS,
+                "bad-proof-of-stake",
+                proof_of_stake_error);
+        }
     }
 
     bool fScriptChecks = true;
@@ -2685,87 +2729,166 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
              Ticks<SecondsDouble>(time_process_special),
              Ticks<MillisecondsDouble>(time_process_special) / num_blocks_total);
 
-    const bool fV24Active_context{DeploymentActiveAt(*pindex, m_chainman, Consensus::DEPLOYMENT_V24)};
-    for (unsigned int i = 0; i < block.vtx.size(); i++)
-    {
-        const CTransaction &tx = *(block.vtx[i]);
+    const bool fV24Active_context{
+        DeploymentActiveAt(
+            *pindex,
+            m_chainman,
+            Consensus::DEPLOYMENT_V24)};
+
+    for (unsigned int i = 0; i < block.vtx.size(); ++i) {
+        const CTransaction& tx{*block.vtx[i]};
+        const bool is_historical_zerocoin_spend{
+            tx.HasZerocoinSpendInputs()};
 
         nInputs += tx.vin.size();
 
-        if (!tx.IsCoinBase())
-        {
-            CAmount txfee = 0;
+        if (!tx.IsCoinBase()) {
+            CAmount txfee{0};
             TxValidationState tx_state;
-            if (!Consensus::CheckTxInputs(tx, tx_state, view, pindex->nHeight, txfee)) {
-                // Any transaction validation failure in ConnectBlock is a block consensus failure
-                LogError("%s: Consensus::CheckTxInputs: %s, %s\n", __func__, tx.GetHash().ToString(), tx_state.ToString());
-                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
-                            tx_state.GetRejectReason(), tx_state.GetDebugMessage());
+
+            if (!Consensus::CheckTxInputs(
+                    tx,
+                    tx_state,
+                    view,
+                    pindex->nHeight,
+                    params.GetConsensus(),
+                    txfee)) {
+                LogError(
+                    "%s: Consensus::CheckTxInputs: %s, %s\n",
+                    __func__,
+                    tx.GetHash().ToString(),
+                    tx_state.ToString());
+
+                return state.Invalid(
+                    BlockValidationResult::BLOCK_CONSENSUS,
+                    tx_state.GetRejectReason(),
+                    tx_state.GetDebugMessage());
             }
-            // The spend side of the shared-collateral covenant runs here (not in
-            // ProcessSpecialTxsInBlock) because this view already contains outputs created by
-            // earlier transactions in this block. The creation side runs in
-            // ProcessSpecialTxsInBlock, which also covers the coinbase.
-            if (fV24Active_context) {
+
+            /*
+             * Historical Zerocoin spends do not consume ordinary UTXOs and
+             * therefore cannot participate in the shared-collateral covenant.
+             */
+            if (!is_historical_zerocoin_spend &&
+                fV24Active_context) {
                 TxValidationState shared_state;
-                if (!CheckSharedCollateralSpends(tx, view, shared_state)) {
-                    LogPrintf("ERROR: %s: CheckSharedCollateralSpends: %s, %s\n", __func__, tx.GetHash().ToString(),
-                              shared_state.ToString());
-                    return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, shared_state.GetRejectReason(),
-                                         shared_state.GetDebugMessage());
+
+                if (!CheckSharedCollateralSpends(
+                        tx,
+                        view,
+                        shared_state)) {
+                    LogPrintf(
+                        "ERROR: %s: CheckSharedCollateralSpends: %s, %s\n",
+                        __func__,
+                        tx.GetHash().ToString(),
+                        shared_state.ToString());
+
+                    return state.Invalid(
+                        BlockValidationResult::BLOCK_CONSENSUS,
+                        shared_state.GetRejectReason(),
+                        shared_state.GetDebugMessage());
                 }
             }
+
             nFees += txfee;
-            if (!MoneyRange(nFees)) {
-                LogPrintf("ERROR: %s: accumulated fee in the block out of range.\n", __func__);
-                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-txns-accumulated-fee-outofrange");
+
+            if (!params.GetConsensus().MoneyRange(nFees)) {
+                LogPrintf(
+                    "ERROR: %s: accumulated fee in the block out of range.\n",
+                    __func__);
+
+                return state.Invalid(
+                    BlockValidationResult::BLOCK_CONSENSUS,
+                    "bad-txns-accumulated-fee-outofrange");
             }
 
-            // Check that transaction is BIP68 final
-            // BIP68 lock checks (as opposed to nLockTime checks) must
-            // be in ConnectBlock because they require the UTXO set
-            prevheights.resize(tx.vin.size());
-            for (size_t j = 0; j < tx.vin.size(); j++) {
-                prevheights[j] = view.AccessCoin(tx.vin[j].prevout).nHeight;
-            }
+            /*
+             * Historical Zerocoin inputs use special null prevouts and predate
+             * ordinary UTXO-based BIP68 sequence-lock processing.
+             */
+            if (!is_historical_zerocoin_spend) {
+                prevheights.resize(tx.vin.size());
 
-            if (!SequenceLocks(tx, nLockTimeFlags, prevheights, *pindex)) {
-                LogPrintf("ERROR: %s: contains a non-BIP68-final transaction\n", __func__);
-                return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-txns-nonfinal");
+                for (size_t j = 0; j < tx.vin.size(); ++j) {
+                    prevheights[j] =
+                        view.AccessCoin(tx.vin[j].prevout).nHeight;
+                }
+
+                if (!SequenceLocks(
+                        tx,
+                        nLockTimeFlags,
+                        prevheights,
+                        *pindex)) {
+                    LogPrintf(
+                        "ERROR: %s: contains a non-BIP68-final transaction\n",
+                        __func__);
+
+                    return state.Invalid(
+                        BlockValidationResult::BLOCK_CONSENSUS,
+                        "bad-txns-nonfinal");
+                }
             }
         }
 
-        // GetTransactionSigOpCount counts 2 types of sigops:
-        // * legacy (always)
-        // * p2sh (when P2SH enabled in flags and excludes coinbase)
+        // Historical Zerocoin spends contribute only their legacy script sigops.
         nSigOps += GetTransactionSigOpCount(tx, view, flags);
+
         if (nSigOps > MaxBlockSigOps(fDIP0001Active_context)) {
             LogPrintf("ERROR: ConnectBlock(): too many sigops\n");
-            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-blk-sigops");
+
+            return state.Invalid(
+                BlockValidationResult::BLOCK_CONSENSUS,
+                "bad-blk-sigops");
         }
 
-        if (!tx.IsCoinBase())
-        {
-
-            std::vector<CScriptCheck> vChecks;
-            bool fCacheResults = fJustCheck; /* Don't cache results if we're actually connecting blocks (still consult the cache, though) */
+        if (!tx.IsCoinBase() &&
+            !is_historical_zerocoin_spend) {
+            std::vector<CScriptCheck> checks;
+            const bool cache_results{fJustCheck};
             TxValidationState tx_state;
-            if (fScriptChecks && !CheckInputScripts(tx, tx_state, view, flags, fCacheResults, fCacheResults, txsdata[i], parallel_script_checks ? &vChecks : nullptr)) {
-                // Any transaction validation failure in ConnectBlock is a block consensus failure
-                state.Invalid(BlockValidationResult::BLOCK_CONSENSUS,
-                              tx_state.GetRejectReason(), tx_state.GetDebugMessage());
-                LogError("ConnectBlock(): CheckInputScripts on %s failed with %s\n",
-                    tx.GetHash().ToString(), state.ToString());
+
+            if (fScriptChecks &&
+                !CheckInputScripts(
+                    tx,
+                    tx_state,
+                    view,
+                    flags,
+                    cache_results,
+                    cache_results,
+                    txsdata[i],
+                    parallel_script_checks ? &checks : nullptr)) {
+                state.Invalid(
+                    BlockValidationResult::BLOCK_CONSENSUS,
+                    tx_state.GetRejectReason(),
+                    tx_state.GetDebugMessage());
+
+                LogError(
+                    "ConnectBlock(): CheckInputScripts on %s failed with %s\n",
+                    tx.GetHash().ToString(),
+                    state.ToString());
+
                 return false;
             }
-            control.Add(std::move(vChecks));
+
+            control.Add(std::move(checks));
         }
 
-        CTxUndo undoDummy;
+        CTxUndo undo_dummy;
+
         if (i > 0) {
+            /*
+             * Preserve one block-undo entry for every non-coinbase
+             * transaction. Historical Zerocoin entries intentionally remain
+             * empty because they consume no ordinary UTXOs.
+             */
             blockundo.vtxundo.emplace_back();
         }
-        UpdateCoins(tx, view, i == 0 ? undoDummy : blockundo.vtxundo.back(), pindex->nHeight);
+
+        UpdateCoins(
+            tx,
+            view,
+            i == 0 ? undo_dummy : blockundo.vtxundo.back(),
+            pindex->nHeight);
     }
 
     const auto time_3{SteadyClock::now()};
@@ -3677,7 +3800,9 @@ bool Chainstate::ActivateBestChainStep(BlockValidationState& state, CBlockIndex*
         // any disconnected transactions back to the mempool.
         MaybeUpdateMempoolForReorg(disconnectpool, true);
     }
-    if (m_mempool) m_mempool->check(this->CoinsTip(), this->m_chain.Height() + 1);
+    if (m_mempool) {
+        m_mempool->check(CoinsTip(), m_chain.Height() + 1, m_chainman.GetConsensus());
+    }
 
     CheckForkWarningConditions();
 
@@ -4394,8 +4519,14 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
     // Check that the header is valid (particularly PoW).  This is mostly
     // redundant with the call in AcceptBlockHeader.
     const uint256 hash{known_hash ? *known_hash : block.GetHash()};
-    if (!CheckBlockHeader(block, hash, state, consensusParams, fCheckPOW))
+    if (!CheckBlockHeader(
+            block,
+            hash,
+            state,
+            consensusParams,
+            fCheckPOW && block.IsProofOfWork())) {
         return false;
+    }
 
     // Check the merkle root.
     if (fCheckMerkleRoot && !CheckMerkleRoot(block, state)) {
@@ -4410,12 +4541,57 @@ bool CheckBlock(const CBlock& block, BlockValidationState& state, const Consensu
     if (block.vtx.empty() || block.vtx.size() > MaxBlockSize() || ::GetSerializeSize(block, PROTOCOL_VERSION) > MaxBlockSize())
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-blk-length", "size limits failed");
 
-    // First transaction must be coinbase, the rest must not be
-    if (block.vtx.empty() || !block.vtx[0]->IsCoinBase())
-        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-missing", "first tx is not coinbase");
-    for (unsigned int i = 1; i < block.vtx.size(); i++)
-        if (block.vtx[i]->IsCoinBase())
-            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cb-multiple", "more than one coinbase");
+    // First transaction must be coinbase, the rest must not be.
+    if (block.vtx.empty() || !block.vtx[0]->IsCoinBase()) {
+        return state.Invalid(
+            BlockValidationResult::BLOCK_CONSENSUS,
+            "bad-cb-missing",
+            "first tx is not coinbase");
+    }
+
+    for (unsigned int i = 1; i < block.vtx.size(); ++i) {
+        if (block.vtx[i]->IsCoinBase()) {
+            return state.Invalid(
+                BlockValidationResult::BLOCK_CONSENSUS,
+                "bad-cb-multiple",
+                "more than one coinbase");
+        }
+    }
+
+    if (block.IsProofOfStake()) {
+        // Historical SCH PoS blocks use an empty coinbase marker output.
+        if (block.vtx[0]->vout.size() != 1 ||
+            !block.vtx[0]->vout[0].IsEmpty()) {
+            return state.Invalid(
+                BlockValidationResult::BLOCK_CONSENSUS,
+                "bad-cb-not-empty",
+                "coinbase output not empty for proof-of-stake block");
+        }
+
+        // The second transaction must be the only coinstake transaction.
+        if (block.vtx.size() < 2 || !block.vtx[1]->IsCoinStake()) {
+            return state.Invalid(
+                BlockValidationResult::BLOCK_CONSENSUS,
+                "bad-cs-missing",
+                "second tx is not coinstake");
+        }
+
+        for (unsigned int i = 2; i < block.vtx.size(); ++i) {
+            if (block.vtx[i]->IsCoinStake()) {
+                return state.Invalid(
+                    BlockValidationResult::BLOCK_CONSENSUS,
+                    "bad-cs-multiple",
+                    "more than one coinstake");
+            }
+        }
+    }
+
+    if (!CheckBlockSignature(block)) {
+        return state.Invalid(
+            BlockValidationResult::BLOCK_CONSENSUS,
+            "bad-blk-signature",
+            "bad proof-of-stake block signature");
+    }
 
     // Check transactions
     // Must check for duplicate inputs (see CVE-2018-17144)
@@ -4933,7 +5109,10 @@ MempoolAcceptResult ChainstateManager::ProcessTransaction(const CTransactionRef&
         return MempoolAcceptResult::Failure(state);
     }
     auto result = AcceptToMemoryPool(active_chainstate, tx, GetTime(), bypass_limits, test_accept);
-    active_chainstate.GetMempool()->check(active_chainstate.CoinsTip(), active_chainstate.m_chain.Height() + 1);
+    active_chainstate.GetMempool()->check(
+        active_chainstate.CoinsTip(),
+        active_chainstate.m_chain.Height() + 1,
+        GetConsensus());
     return result;
 }
 
@@ -5221,15 +5400,19 @@ bool Chainstate::RollforwardBlock(const CBlockIndex* pindex, CCoinsViewCache& in
     }
     RecordBackgroundMNListHash(pindex, mnlist_updates.new_list);
 
-    for (size_t i = 0; i < block.vtx.size(); i++) {
-        const CTransactionRef& tx = block.vtx[i];
-
-        if (!tx->IsCoinBase()) {
-            for (const CTxIn &txin : tx->vin) {
+    for (const CTransactionRef& tx : block.vtx) {
+        /*
+         * Historical Zerocoin spends use special null prevouts and do not
+         * consume ordinary UTXOs.
+         */
+        if (!tx->IsCoinBase() &&
+            !tx->HasZerocoinSpendInputs()) {
+            for (const CTxIn& txin : tx->vin) {
                 inputs.SpendCoin(txin.prevout);
             }
         }
-        // Pass check = true as every addition may be an overwrite.
+
+        // Every addition may overwrite state already replayed from the journal.
         AddCoins(inputs, *tx, pindex->nHeight, true);
     }
 

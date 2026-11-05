@@ -44,8 +44,12 @@ endif
 if ENABLE_WALLET
 LIBBITCOIN_WALLET = libbitcoin_wallet.a
 endif
+if ENABLE_USBDEVICE
+LIBBITCOIN_USBDEVICE = libbitcoin_usbdevice.a
+endif
 
 $(LIBDASHBLS):
+
 	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C $(@D)
 
 $(LIBSECP256K1): $(wildcard secp256k1/src/*.h) $(wildcard secp256k1/src/*.c) $(wildcard secp256k1/include/*)
@@ -62,6 +66,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_NODE) \
   $(LIBBITCOIN_CLI) \
   $(LIBBITCOIN_WALLET) \
+  $(LIBBITCOIN_USBDEVICE) \
   $(LIBBITCOIN_ZMQ)
 
 lib_LTLIBRARIES = $(LIBBITCOINCONSENSUS)
@@ -94,7 +99,6 @@ BITCOIN_CORE_H = \
   bip38.h \
   bip324.h \
   bloom.h \
-  blockassembler.h \
   blocksignature.h \
   chain.h \
   chainparams.h \
@@ -143,11 +147,13 @@ BITCOIN_CORE_H = \
   httprpc.h \
   httpserver.h \
   i2p.h \
+  indirectmap.h \
   init.h \
   interfaces/chain.h \
   interfaces/coinjoin.h \
   interfaces/echo.h \
   interfaces/handler.h \
+  interfaces/init.h \
   interfaces/node.h \
   interfaces/providertx.h \
   interfaces/wallet.h \
@@ -158,9 +164,13 @@ BITCOIN_CORE_H = \
   kernel/context.h \
   kernel/cs_main.h \
   kernel/disconnected_transactions.h \
+  kernel/mempool_entry.h \
+  kernel/mempool_limits.h \
+  kernel/mempool_options.h \
   kernel/mempool_persist.h \
   kernel.h \
   key.h \
+  key/extkey.h \
   key_io.h \
   keystore.h \
   legacy/stakemodifier.h \
@@ -168,7 +178,6 @@ BITCOIN_CORE_H = \
   logging/categories.h \
   logging.h \
   logging/timer.h \
-  main.h \
   mapport.h \
   memusage.h \
   masternode-payments.h \
@@ -186,6 +195,8 @@ BITCOIN_CORE_H = \
   node/context.h \
   node/miner.h \
   node/transaction.h \
+  pos/kernel.h \
+  pos/miner.h \
   node/utxo_snapshot.h \
   noui.h \
   optional.h \
@@ -271,12 +282,25 @@ BITCOIN_CORE_H = \
   wallet/bip39.h \
   wallet/bip39_english.h \
   wallet/coincontrol.h \
+  wallet/coinselection.h \
   wallet/context.h \
   wallet/db.h \
-  wallet/hdchain.h \
+  wallet/external_signer_scriptpubkeyman.h \
   wallet/fees.h \
+  wallet/hdchain.h \
+  wallet/hdwallet.h \
+  wallet/hdwalletdb.h \
+  wallet/hdwallettypes.h \
   wallet/init.h \
+  wallet/load.h \
+  wallet/receive.h \
+  wallet/rpc/util.h \
+  wallet/rpc/wallet.h \
+  wallet/rpchdwallet.h \
   wallet/scriptpubkeyman.h \
+  wallet/spend.h \
+  wallet/sqlite.h \
+  wallet/transaction.h \
   wallet/wallet.h \
   wallet/walletdb.h \
   wallet/walletutil.h \
@@ -305,7 +329,6 @@ libbitcoin_node_a_SOURCES = \
   banman.cpp \
   batchedlogger.cpp \
   bip324.cpp \
-  blockassembler.cpp \
   blockencodings.cpp \
   blockfilter.cpp \
   blocksignature.cpp \
@@ -411,16 +434,21 @@ libbitcoin_node_a_SOURCES = \
   policy/packages.cpp \
   policy/policy.cpp \
   policy/settings.cpp \
+  pos/kernel.cpp \
   pow.cpp \
   rest.cpp \
   rpc/blockchain.cpp \
+  rpc/external_signer.cpp \
+  rpc/fees.cpp \
   rpc/masternode.cpp \
+  rpc/mempool.cpp \
   rpc/mining.cpp \
   rpc/misc.cpp \
   rpc/net.cpp \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
   rpc/server_util.cpp \
+  rpc/txoutproof.cpp \
   script/sigcache.cpp \
   shutdown.cpp \
   stats/client.cpp \
@@ -445,9 +473,50 @@ libbitcoin_zmq_a_SOURCES = \
   zmq/zmqpublishnotifier.cpp
 endif
 
+# usbdevice: native hardware-wallet support
+if ENABLE_USBDEVICE
+libbitcoin_usbdevice_a_CPPFLAGS = $(BITCOIN_INCLUDES) $(AM_CPPFLAGS) $(PROTOBUF_CFLAGS)
+libbitcoin_usbdevice_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libbitcoin_usbdevice_a_CFLAGS = -DHAVE_HIDAPI $(AM_CFLAGS) $(PIE_FLAGS)
+libbitcoin_usbdevice_a_SOURCES = \
+  usbdevice/usbwrapper.cpp \
+  usbdevice/usbwrapper.h \
+  usbdevice/ledger/btchipApdu.h \
+  usbdevice/ledger/ledgerLayer.h \
+  usbdevice/ledger/ledgerLayer.c \
+  usbdevice/ledger/dongleCommHidHidapi.h \
+  usbdevice/ledger/dongleCommHidHidapi.c \
+  usbdevice/usbdevice.cpp \
+  usbdevice/usbdevice.h \
+  usbdevice/debugdevice.h \
+  usbdevice/debugdevice.cpp \
+  usbdevice/ledgerdevice.h \
+  usbdevice/ledgerdevice.cpp \
+  usbdevice/trezor/messages.proto \
+  usbdevice/trezor/messages-common.proto \
+  usbdevice/trezor/messages-management.proto \
+  usbdevice/trezor/messages-bitcoin.proto \
+  usbdevice/trezordevice.h \
+  usbdevice/trezordevice.cpp \
+  usbdevice/rpcusbdevice.h \
+  usbdevice/rpcusbdevice.cpp
+
+nodist_libbitcoin_usbdevice_a_SOURCES = \
+  usbdevice/trezor/messages.pb.h \
+  usbdevice/trezor/messages.pb.cc \
+  usbdevice/trezor/messages-common.pb.h \
+  usbdevice/trezor/messages-common.pb.cc \
+  usbdevice/trezor/messages-management.pb.h \
+  usbdevice/trezor/messages-management.pb.cc \
+  usbdevice/trezor/messages-bitcoin.pb.h \
+  usbdevice/trezor/messages-bitcoin.pb.cc
+
+BUILT_SOURCES = $(nodist_libbitcoin_usbdevice_a_SOURCES)
+endif
+
 # wallet: shared between schillingcoind and schillingcoin-qt, but only linked
 # when wallet enabled
-libbitcoin_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
+libbitcoin_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(SQLITE_CFLAGS)
 libbitcoin_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_wallet_a_SOURCES = \
   bip38.cpp \
@@ -460,20 +529,37 @@ libbitcoin_wallet_a_SOURCES = \
   kernel.cpp \
   wallet/bdb.cpp \
   wallet/coincontrol.cpp \
+  wallet/coinselection.cpp \
   wallet/context.cpp \
   wallet/db.cpp \
+  wallet/external_signer_scriptpubkeyman.cpp \
   wallet/fees.cpp \
+  wallet/hdchain.cpp \
+  wallet/hdwallet.cpp \
+  wallet/hdwalletdb.cpp \
+  wallet/hdwallettypes.cpp \
   wallet/init.cpp \
+  wallet/load.cpp \
+  wallet/receive.cpp \
+  wallet/rpc/util.cpp \
+  wallet/rpc/wallet.cpp \
+  wallet/rpchdwallet.cpp \
   wallet/rpcdump.cpp \
   wallet/rpcwallet.cpp \
-  wallet/hdchain.cpp \
   wallet/scriptpubkeyman.cpp \
+  wallet/spend.cpp \
+  wallet/transaction.cpp \
   wallet/wallet.cpp \
   wallet/wallet_ismine.cpp \
   wallet/walletdb.cpp \
   wallet/walletutil.cpp \
+  pos/miner.cpp \
   stakeinput.cpp \
   $(BITCOIN_CORE_H)
+
+if USE_SQLITE
+libbitcoin_wallet_a_SOURCES += wallet/sqlite.cpp
+endif
 
 # crypto primitives library
 crypto_libbitcoin_crypto_a_CPPFLAGS = $(AM_CPPFLAGS) $(PIC_FLAGS)
@@ -581,6 +667,7 @@ libbitcoin_common_a_SOURCES = \
   coins.cpp \
   common/args.cpp \
   common/bloom.cpp \
+  common/common.cpp \
   common/interfaces.cpp \
   common/run_command.cpp \
   common/settings.cpp \
@@ -598,6 +685,7 @@ libbitcoin_common_a_SOURCES = \
   wallet/hdchain.cpp \
   kernel/chainparams.cpp \
   key.cpp \
+  key/extkey.cpp \
   key_io.cpp \
   keystore.cpp \
   llmq/core_write.cpp \
@@ -665,6 +753,7 @@ libbitcoin_util_a_SOURCES = \
   util/check.cpp \
   util/edge.cpp \
   util/error.cpp \
+  util/expected.cpp \
   util/fees.cpp \
   util/fs.cpp \
   util/fs_helpers.cpp \
@@ -749,7 +838,7 @@ nodist_libbitcoin_util_a_SOURCES = $(srcdir)/obj/build.h
 #
 
 # schillingcoind binary #
-schillingcoind_SOURCES = schillingcoind.cpp
+schillingcoind_SOURCES = schillingcoind.cpp init/bitcoind.cpp
 schillingcoind_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
 schillingcoind_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 schillingcoind_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
@@ -760,6 +849,7 @@ endif
 schillingcoind_LDADD = \
   $(LIBBITCOIN_NODE) \
   $(LIBBITCOIN_WALLET) \
+  $(LIBBITCOIN_USBDEVICE) \
   $(LIBBITCOIN_COMMON) \
   $(LIBUNIVALUE) \
   $(LIBBITCOIN_BIGNUM) \
@@ -773,7 +863,7 @@ schillingcoind_LDADD = \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
-schillingcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS)
+schillingcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(USB_LIBS) $(HIDAPI_LIBS) $(PROTOBUF_LIBS)
 
 # schillingcoin-cli binary #
 schillingcoin_cli_SOURCES = schillingcoin-cli.cpp
@@ -895,6 +985,12 @@ clean-local:
 	@test -f $(WINDRES)
 	## FIXME: How to get the appropriate modulename_CPPFLAGS in here?
 	$(AM_V_GEN) $(WINDRES) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(CPPFLAGS) -DWINDRES_PREPROC -i $< -o $@
+
+if ENABLE_USBDEVICE
+%.pb.cc %.pb.h: %.proto
+	@test -f $(PROTOC)
+	$(AM_V_GEN) $(PROTOC) --cpp_out=$(@D) --proto_path=$(<D) $<
+endif
 
 check-symbols: $(bin_PROGRAMS)
 if GLIBC_BACK_COMPAT

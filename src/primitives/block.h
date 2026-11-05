@@ -80,42 +80,42 @@ public:
 class CBlock : public CBlockHeader
 {
 public:
-    // network and disk
-    std::vector<CTransaction> vtx;
+    // Network and disk.
+    std::vector<CTransactionRef> vtx;
 
     // Block signature, signed by the owner of the staking output for PoS blocks.
     std::vector<unsigned char> vchBlockSig;
 
-    // memory only
+    // Memory only.
     mutable CScript payee;
-    mutable bool fChecked;
+    mutable bool fChecked{false};
 
     CBlock()
     {
         SetNull();
     }
 
-    CBlock(const CBlockHeader &header)
+    explicit CBlock(const CBlockHeader& header)
     {
         SetNull();
-        *((CBlockHeader*)this) = header;
+        *static_cast<CBlockHeader*>(this) = header;
     }
 
     SERIALIZE_METHODS(CBlock, obj)
     {
         READWRITE(AsBase<CBlockHeader>(obj), obj.vtx);
-
-        if (obj.vtx.size() > 1 && obj.vtx[1].IsCoinStake())
+        if (obj.vtx.size() > 1 && obj.vtx[1]->IsCoinStake()) {
             READWRITE(obj.vchBlockSig);
+        }
     }
 
     void SetNull()
     {
         CBlockHeader::SetNull();
         vtx.clear();
-        fChecked = false;
-        payee = CScript();
         vchBlockSig.clear();
+        payee = CScript();
+        fChecked = false;
     }
 
     CBlockHeader GetBlockHeader() const
@@ -127,14 +127,17 @@ public:
         block.nTime          = nTime;
         block.nBits          = nBits;
         block.nNonce         = nNonce;
-        if (nVersion == 4)
+
+        if (nVersion == 4) {
             block.nAccumulatorCheckpoint = nAccumulatorCheckpoint;
+        }
+
         return block;
     }
 
     bool IsProofOfStake() const
     {
-        return (vtx.size() > 1 && vtx[1].IsCoinStake());
+        return vtx.size() > 1 && vtx[1]->IsCoinStake();
     }
 
     bool IsProofOfWork() const
@@ -146,7 +149,9 @@ public:
 
     std::pair<COutPoint, unsigned int> GetProofOfStake() const
     {
-        return IsProofOfStake() ? std::make_pair(vtx[1].vin[0].prevout, nTime) : std::make_pair(COutPoint(), (unsigned int)0);
+        return IsProofOfStake()
+            ? std::make_pair(vtx[1]->vin[0].prevout, nTime)
+            : std::make_pair(COutPoint(), static_cast<unsigned int>(0));
     }
 
     std::string ToString() const;

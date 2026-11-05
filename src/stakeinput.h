@@ -17,44 +17,63 @@ class CWalletTx;
 class CStakeInput
 {
 protected:
-    const CBlockIndex* pindexFrom = nullptr;
+    explicit CStakeInput(const CBlockIndex* pindexFromIn = nullptr)
+        : pindexFrom(pindexFromIn)
+    {
+    }
+
+    const CBlockIndex* pindexFrom{nullptr};
 
 public:
-    virtual ~CStakeInput() {}
-    virtual bool InitFromTxIn(const CTxIn& txin) = 0;
-    virtual const CBlockIndex* GetIndexFrom() = 0;
+    virtual ~CStakeInput() = default;
+
+    virtual const CBlockIndex* GetIndexFrom() const = 0;
     virtual bool CreateTxIn(CWallet* pwallet, CTxIn& txIn, uint256 hashTxOut = UINT256_ZERO) = 0;
     virtual bool GetTxFrom(CTransaction& tx) const = 0;
     virtual bool GetTxOutFrom(CTxOut& out) const = 0;
     virtual CAmount GetValue() const = 0;
     virtual bool CreateTxOuts(CWallet* pwallet, std::vector<CTxOut>& vout, CAmount nTotal) = 0;
     virtual CDataStream GetUniqueness() const = 0;
-    virtual bool ContextCheck(int nHeight, uint32_t nTime) = 0;
+    virtual bool ContextCheck(int nHeight, uint32_t nTime) const = 0;
 };
 
 class CSchStake : public CStakeInput
 {
 private:
     CTransaction txFrom{CTransaction()};
-    unsigned int nPosition{0};
+    CTxOut outputFrom{};
+    COutPoint outpointFrom{};
 
 public:
-    CSchStake() {}
+    CSchStake() = default;
 
-    bool InitFromTxIn(const CTxIn& txin);
-    bool SetPrevout(
-        const CTransaction& txPrev,
-        unsigned int n,
-        const CBlockIndex* pindex = nullptr);
+    CSchStake(const CTransaction& txPrev, unsigned int n, const CBlockIndex* pindex)
+        : CStakeInput(pindex),
+          txFrom(txPrev),
+          outputFrom(txPrev.vout[n]),
+          outpointFrom(txPrev.GetHash(), n)
+    {
+    }
 
-    const CBlockIndex* GetIndexFrom() override;
+    CSchStake(const CTxOut& output, const COutPoint& outpoint, const CBlockIndex* pindex)
+        : CStakeInput(pindex),
+          outputFrom(output),
+          outpointFrom(outpoint)
+    {
+    }
+
+    bool SetPrevout(const CTransaction& txPrev, unsigned int n, const CBlockIndex* pindex);
+
+    bool SetPrevout(const CTxOut& output, const COutPoint& outpoint, const CBlockIndex* pindex);
+
+    const CBlockIndex* GetIndexFrom() const override;
     bool GetTxFrom(CTransaction& tx) const override;
     bool GetTxOutFrom(CTxOut& out) const override;
     CAmount GetValue() const override;
     CDataStream GetUniqueness() const override;
     bool CreateTxIn(CWallet* pwallet, CTxIn& txIn, uint256 hashTxOut = UINT256_ZERO) override;
     bool CreateTxOuts(CWallet* pwallet, std::vector<CTxOut>& vout, CAmount nTotal) override;
-    bool ContextCheck(int nHeight, uint32_t nTime) override;
+    bool ContextCheck(int nHeight, uint32_t nTime) const override;
 };
 
-#endif //SCHILLINGCOIN_STAKEINPUT_H
+#endif // SCHILLINGCOIN_STAKEINPUT_H

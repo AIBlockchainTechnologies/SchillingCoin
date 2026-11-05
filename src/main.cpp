@@ -1449,25 +1449,6 @@ bool IsColdStakingEnabled()
     return gArgs.GetBoolArg("-coldstaking", true);
 }
 
-double ConvertBitsToDouble(unsigned int nBits)
-{
-    int nShift = (nBits >> 24) & 0xff;
-
-    double dDiff =
-        (double)0x0000ffff / (double)(nBits & 0x00ffffff);
-
-    while (nShift < 29) {
-        dDiff *= 256.0;
-        nShift++;
-    }
-    while (nShift > 29) {
-        dDiff /= 256.0;
-        nShift--;
-    }
-
-    return dDiff;
-}
-
 int64_t GetBlockValue(int nHeight)
 {
     const Consensus::Params& consensus = Params().GetConsensus();

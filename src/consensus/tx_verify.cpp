@@ -3,206 +3,144 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "consensus/consensus.h"
-#include "script/interpreter.h"
-#include "tx_verify.h"
-#include "validation.h"
+#include <consensus/tx_verify.h>
+
+#include <chain.h>
+#include <coins.h>
+#include <consensus/consensus.h>
+#include <consensus/params.h>
+#include <consensus/validation.h>
+#include <primitives/transaction.h>
+#include <script/interpreter.h>
+#include <tinyformat.h>
+#include <util/check.h>
+#include <util/moneystr.h>
+
+#include <algorithm>
+#include <cassert>
+#include <cstdint>
+#include <utility>
 
 bool IsFinalTx(const CTransaction& tx, int nBlockHeight, int64_t nBlockTime)
 {
-    AssertLockHeld(cs_main);
-    // Time based nLockTime implemented in 0.1.6
-    if (tx.nLockTime == 0)
+    if (tx.nLockTime == 0) {
         return true;
-    if (nBlockHeight == 0)
-        nBlockHeight = chainActive.Height();
-    if (nBlockTime == 0)
-        nBlockTime = GetAdjustedTime();
-    if ((int64_t)tx.nLockTime < ((int64_t)tx.nLockTime < LOCKTIME_THRESHOLD ? (int64_t)nBlockHeight : nBlockTime))
+    }
+
+    if (static_cast<int64_t>(tx.nLockTime) <
+        (tx.nLockTime < LOCKTIME_THRESHOLD
+             ? static_cast<int64_t>(nBlockHeight)
+             : nBlockTime)) {
         return true;
-    for (const CTxIn& txin : tx.vin)
-        if (!txin.IsFinal())
+    }
+
+    for (const auto& txin : tx.vin) {
+        if (txin.nSequence != CTxIn::SEQUENCE_FINAL) {
             return false;
+        }
+    }
+
     return true;
+}
+
+std::pair<int, int64_t> CalculateSequenceLocks(const CTransaction& tx, int flags, std::vector<int>& prevHeights, const CBlockIndex& block)
+{
+    assert(prevHeights.size() == tx.vin.size());
+    int nMinHeight{-1};
+    int64_t nMinTime{-1};
+    const bool enforce_bip68 = static_cast<uint32_t>(tx.nVersion) >= 2 && (flags & LOCKTIME_VERIFY_SEQUENCE);
+    if (!enforce_bip68) return {nMinHeight, nMinTime};
+
+    for (size_t txin_index = 0; txin_index < tx.vin.size(); ++txin_index) {
+        const CTxIn& txin = tx.vin[txin_index];
+        if (txin.nSequence & CTxIn::SEQUENCE_LOCKTIME_DISABLE_FLAG) {
+            prevHeights[txin_index] = 0;
+            continue;
+        }
+        const int coin_height = prevHeights[txin_index];
+        if (txin.nSequence & CTxIn::SEQUENCE_LOCKTIME_TYPE_FLAG) {
+            const int64_t coin_time{Assert(block.GetAncestor(std::max(coin_height - 1, 0)))->GetMedianTimePast()};
+            nMinTime = std::max(nMinTime, coin_time + (static_cast<int64_t>(txin.nSequence & CTxIn::SEQUENCE_LOCKTIME_MASK) << CTxIn::SEQUENCE_LOCKTIME_GRANULARITY) - 1);
+        } else {
+            nMinHeight = std::max(nMinHeight, coin_height + static_cast<int>(txin.nSequence & CTxIn::SEQUENCE_LOCKTIME_MASK) - 1);
+        }
+    }
+    return {nMinHeight, nMinTime};
+}
+
+bool EvaluateSequenceLocks(const CBlockIndex& block, std::pair<int, int64_t> lockPair)
+{
+    assert(block.pprev);
+    const int64_t block_time{block.pprev->GetMedianTimePast()};
+    return lockPair.first < block.nHeight && lockPair.second < block_time;
+}
+
+bool SequenceLocks(const CTransaction& tx, int flags, std::vector<int>& prevHeights, const CBlockIndex& block)
+{
+    return EvaluateSequenceLocks(block, CalculateSequenceLocks(tx, flags, prevHeights, block));
 }
 
 unsigned int GetLegacySigOpCount(const CTransaction& tx)
 {
-    unsigned int nSigOps = 0;
-    for (const CTxIn& txin : tx.vin) {
-        nSigOps += txin.scriptSig.GetSigOpCount(false);
-    }
-    for (const CTxOut& txout : tx.vout) {
-        nSigOps += txout.scriptPubKey.GetSigOpCount(false);
-    }
-    return nSigOps;
+    unsigned int sigops{0};
+    for (const auto& txin : tx.vin) sigops += txin.scriptSig.GetSigOpCount(false);
+    for (const auto& txout : tx.vout) sigops += txout.scriptPubKey.GetSigOpCount(false);
+    return sigops;
 }
 
 unsigned int GetP2SHSigOpCount(const CTransaction& tx, const CCoinsViewCache& inputs)
 {
-    if (tx.IsCoinBase() || tx.HasZerocoinSpendInputs())
-        // a tx containing a zc spend can have only zc inputs
-        return 0;
-
-    unsigned int nSigOps = 0;
-    for (unsigned int i = 0; i < tx.vin.size(); i++) {
-        const CTxOut& prevout = inputs.AccessCoin(tx.vin[i].prevout).out;
-        if (prevout.scriptPubKey.IsPayToScriptHash())
-            nSigOps += prevout.scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
+    if (tx.IsCoinBase() || tx.HasZerocoinSpendInputs()) return 0;
+    unsigned int sigops{0};
+    for (unsigned int i = 0; i < tx.vin.size(); ++i) {
+        const Coin& coin{inputs.AccessCoin(tx.vin[i].prevout)};
+        assert(!coin.IsSpent());
+        const CTxOut& prevout = coin.out;
+        if (prevout.scriptPubKey.IsPayToScriptHash()) sigops += prevout.scriptPubKey.GetSigOpCount(tx.vin[i].scriptSig);
     }
-    return nSigOps;
+    return sigops;
 }
 
-bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, CValidationState& state, bool fColdStakingActive)
+unsigned int GetTransactionSigOpCount(const CTransaction& tx, const CCoinsViewCache& inputs, uint32_t flags)
 {
-    // Basic checks that don't depend on any context
-    if (tx.vin.empty())
-        return state.DoS(10, error("CheckTransaction() : vin empty"),
-            REJECT_INVALID, "bad-txns-vin-empty");
+    unsigned int sigops{GetLegacySigOpCount(tx)};
+    if (tx.IsCoinBase() || tx.HasZerocoinSpendInputs()) return sigops;
+    if (flags & SCRIPT_VERIFY_P2SH) sigops += GetP2SHSigOpCount(tx, inputs);
+    return sigops;
+}
 
-    if (tx.vout.empty())
-        return state.DoS(10, error("CheckTransaction() : vout empty"),
-            REJECT_INVALID, "bad-txns-vout-empty");
+bool Consensus::CheckTxInputs(const CTransaction& tx, TxValidationState& state, const CCoinsViewCache& inputs, int nSpendHeight, const Consensus::Params& consensus_params, CAmount& txfee)
+{
+    assert(!tx.IsCoinBase());
 
-    // Size limits
-    unsigned int nMaxSize = MAX_ZEROCOIN_TX_SIZE;
-
-    if (::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION) > nMaxSize)
-        return state.DoS(100, error("CheckTransaction() : size limits failed"),
-            REJECT_INVALID, "bad-txns-oversize");
-
-    if (tx.vExtraPayload.size() > MAX_TX_EXTRA_PAYLOAD)
-        return state.DoS(100,
-            error("CheckTransaction() : extra payload too large"),
-            REJECT_INVALID,
-            "bad-txns-payload-oversize");
-
-    if (tx.nVersion < 1)
-        return state.DoS(100,
-            error("CheckTransaction() : version too low"),
-            REJECT_INVALID,
-            "bad-txns-version");
-
-    if (tx.nVersion == 1) {
-        if (tx.nType != TRANSACTION_NORMAL)
-            return state.DoS(100,
-                error("CheckTransaction() : legacy transaction has non-zero type"),
-                REJECT_INVALID,
-                "bad-txns-type");
-
-        if (!tx.vExtraPayload.empty())
-            return state.DoS(100,
-                error("CheckTransaction() : legacy transaction has extra payload"),
-                REJECT_INVALID,
-                "bad-txns-payload");
+    if (tx.HasZerocoinSpendInputs()) {
+        const CAmount value_in{tx.GetZerocoinSpent()};
+        const CAmount value_out{tx.GetValueOut()};
+        if (!consensus_params.MoneyRange(value_in)) return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-inputvalues-outofrange");
+        if (value_in < value_out) return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-in-belowout", strprintf("value in (%s) < value out (%s)", FormatMoney(value_in), FormatMoney(value_out)));
+        const CAmount fee{value_in - value_out};
+        if (!consensus_params.MoneyRange(fee)) return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-fee-outofrange");
+        txfee = fee;
+        return true;
     }
 
-    if (tx.nVersion == 2)
-        return state.DoS(100,
-            error("CheckTransaction() : transaction version 2 reserved"),
-            REJECT_INVALID,
-            "bad-txns-version");
+    if (!inputs.HaveInputs(tx)) return state.Invalid(TxValidationResult::TX_MISSING_INPUTS, "bad-txns-inputs-missingorspent", strprintf("%s: inputs missing/spent", __func__));
 
-    if (tx.nVersion > CTransaction::SPECIAL_VERSION)
-        return state.DoS(100,
-            error("CheckTransaction() : unsupported transaction version"),
-            REJECT_INVALID,
-            "bad-txns-version");
-
-    if (tx.nVersion == CTransaction::SPECIAL_VERSION) {
-        if (tx.nType == TRANSACTION_NORMAL) {
-            if (!tx.vExtraPayload.empty())
-                return state.DoS(100,
-                    error("CheckTransaction() : normal transaction has extra payload"),
-                    REJECT_INVALID,
-                    "bad-txns-payload");
-        } else {
-            return state.DoS(100,
-                error("CheckTransaction() : unsupported special transaction type"),
-                REJECT_INVALID,
-                "bad-txns-type");
-        }
-    }
-
-    // Check for negative or overflow output values
-    const Consensus::Params& consensus = Params().GetConsensus();
-    CAmount nValueOut = 0;
-
-    for (const CTxOut& txout : tx.vout) {
-        if (txout.IsEmpty() && !tx.IsCoinBase() && !tx.IsCoinStake())
-            return state.DoS(100,
-                error("CheckTransaction(): txout empty for user transaction"));
-
-        if (txout.nValue < 0)
-            return state.DoS(100,
-                error("CheckTransaction() : txout.nValue negative"),
-                REJECT_INVALID,
-                "bad-txns-vout-negative");
-
-        if (txout.nValue > consensus.nMaxMoneyOut)
-            return state.DoS(100,
-                error("CheckTransaction() : txout.nValue too high"),
-                REJECT_INVALID,
-                "bad-txns-vout-toolarge");
-
-        nValueOut += txout.nValue;
-
-        if (!consensus.MoneyRange(nValueOut))
-            return state.DoS(100,
-                error("CheckTransaction() : txout total out of range"),
-                REJECT_INVALID,
-                "bad-txns-txouttotal-toolarge");
-
-        // Check cold staking enforcement for delegations and value out.
-        if (txout.scriptPubKey.IsPayToColdStaking()) {
-            if (!fColdStakingActive)
-                return state.DoS(10,
-                    error("%s: cold staking not active", __func__),
-                    REJECT_INVALID,
-                    "bad-txns-cold-stake");
-
-            if (txout.nValue < MIN_COLDSTAKING_AMOUNT)
-                return state.DoS(100,
-                    error("%s: dust amount (%d) not allowed for cold staking. Min amount: %d",
-                        __func__, txout.nValue, MIN_COLDSTAKING_AMOUNT),
-                    REJECT_INVALID,
-                    "bad-txns-cold-stake");
-        }
-    }
-
-    std::set<COutPoint> vInOutPoints;
-
+    CAmount value_in{0};
     for (const CTxIn& txin : tx.vin) {
-        // Check for duplicate inputs
-        if (vInOutPoints.count(txin.prevout))
-            return state.DoS(100,
-                error("CheckTransaction() : duplicate inputs"),
-                REJECT_INVALID,
-                "bad-txns-inputs-duplicate");
-
-        // Ignore Zerocoin spends as they can share the same prevout if they came from the same mint TX
-        if (!txin.IsZerocoinSpend())
-            vInOutPoints.insert(txin.prevout);
-    }
-
-    if (tx.IsCoinBase()) {
-        if (tx.vin[0].scriptSig.size() < 2 || tx.vin[0].scriptSig.size() > 150)
-            return state.DoS(100,
-                error("CheckTransaction() : coinbase script size=%d",
-                    tx.vin[0].scriptSig.size()),
-                REJECT_INVALID,
-                "bad-cb-length");
-    } else {
-        for (const CTxIn& txin : tx.vin) {
-            if (txin.prevout.IsNull() &&
-                (fZerocoinActive && !txin.IsZerocoinSpend())) {
-                return state.DoS(10,
-                    error("CheckTransaction() : prevout is null"),
-                    REJECT_INVALID,
-                    "bad-txns-prevout-null");
-            }
+        const Coin& coin{inputs.AccessCoin(txin.prevout)};
+        assert(!coin.IsSpent());
+        if ((coin.IsCoinBase() || coin.IsCoinStake()) && nSpendHeight - coin.nHeight < consensus_params.nCoinbaseMaturity) {
+            return state.Invalid(TxValidationResult::TX_PREMATURE_SPEND, "bad-txns-premature-spend-of-coinbase", strprintf("tried to spend coinbase/coinstake at depth %d", nSpendHeight - coin.nHeight));
         }
+        value_in += coin.out.nValue;
+        if (!consensus_params.MoneyRange(coin.out.nValue) || !consensus_params.MoneyRange(value_in)) return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-inputvalues-outofrange");
     }
 
+    const CAmount value_out{tx.GetValueOut()};
+    if (value_in < value_out) return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-in-belowout", strprintf("value in (%s) < value out (%s)", FormatMoney(value_in), FormatMoney(value_out)));
+    const CAmount fee{value_in - value_out};
+    if (!consensus_params.MoneyRange(fee)) return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-txns-fee-outofrange");
+    txfee = fee;
     return true;
 }

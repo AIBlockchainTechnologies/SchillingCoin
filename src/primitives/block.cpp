@@ -36,19 +36,16 @@ std::string CBlock::ToString() const
         hashMerkleRoot.ToString(),
         nTime, nBits, nNonce,
         vtx.size());
-    for (unsigned int i = 0; i < vtx.size(); i++)
-    {
-        s << "  " << vtx[i].ToString() << "\n";
+    for (const auto& tx : vtx) {
+        s << "  " << tx->ToString() << "\n";
     }
     return s.str();
 }
-
 void CBlock::print() const
 {
     LogPrintf("%s", ToString());
 }
-
 bool CBlock::IsZerocoinStake() const
 {
-    return IsProofOfStake() && vtx[1].HasZerocoinSpendInputs();
+    return IsProofOfStake() && vtx[1]->HasZerocoinSpendInputs();
 }

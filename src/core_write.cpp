@@ -5,20 +5,48 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "core_io.h"
+
+#include "coins.h"
+#include "consensus/amount.h"
+#include "evo/cbtx.h"
+#include "evo/mnhftx.h"
+#include "evo/providertx.h"
+#include "evo/specialtx.h"
+#include "index/spentindex_types.h"
 #include "key_io.h"
+#include "llmq/commitment.h"
 #include "primitives/transaction.h"
 #include "script/script.h"
 #include "script/standard.h"
 #include "serialize.h"
 #include "streams.h"
-#include "util.h"
+#include "undo.h"
+#include "util/check.h"
 #include "util/system.h"
-#include "utilmoneystr.h"
 #include "utilstrencodings.h"
 
 #include <univalue.h>
 
-#include <boost/assign/list_of.hpp>
+#include <map>
+#include <string>
+#include <vector>
+
+UniValue ValueFromAmount(const CAmount amount)
+{
+    static_assert(COIN > 1);
+
+    int64_t quotient = amount / COIN;
+    int64_t remainder = amount % COIN;
+
+    if (amount < 0) {
+        quotient = -quotient;
+        remainder = -remainder;
+    }
+
+    return UniValue(
+        UniValue::VNUM,
+        strprintf("%s%d.%08d", amount < 0 ? "-" : "", quotient, remainder));
+}
 
 std::string FormatScript(const CScript& script)
 {
@@ -55,15 +83,21 @@ std::string FormatScript(const CScript& script)
     return ret.substr(0, ret.size() - 1);
 }
 
-const std::map<unsigned char, std::string> mapSigHashTypes =
-    boost::assign::map_list_of
-    (static_cast<unsigned char>(SIGHASH_ALL), std::string("ALL"))
-    (static_cast<unsigned char>(SIGHASH_ALL|SIGHASH_ANYONECANPAY), std::string("ALL|ANYONECANPAY"))
-    (static_cast<unsigned char>(SIGHASH_NONE), std::string("NONE"))
-    (static_cast<unsigned char>(SIGHASH_NONE|SIGHASH_ANYONECANPAY), std::string("NONE|ANYONECANPAY"))
-    (static_cast<unsigned char>(SIGHASH_SINGLE), std::string("SINGLE"))
-    (static_cast<unsigned char>(SIGHASH_SINGLE|SIGHASH_ANYONECANPAY), std::string("SINGLE|ANYONECANPAY"))
-    ;
+const std::map<unsigned char, std::string> mapSigHashTypes = {
+    {static_cast<unsigned char>(SIGHASH_ALL), std::string("ALL")},
+    {static_cast<unsigned char>(SIGHASH_ALL | SIGHASH_ANYONECANPAY), std::string("ALL|ANYONECANPAY")},
+    {static_cast<unsigned char>(SIGHASH_NONE), std::string("NONE")},
+    {static_cast<unsigned char>(SIGHASH_NONE | SIGHASH_ANYONECANPAY), std::string("NONE|ANYONECANPAY")},
+    {static_cast<unsigned char>(SIGHASH_SINGLE), std::string("SINGLE")},
+    {static_cast<unsigned char>(SIGHASH_SINGLE | SIGHASH_ANYONECANPAY), std::string("SINGLE|ANYONECANPAY")},
+};
+
+std::string SighashToStr(unsigned char sighash_type)
+{
+    const auto& it = mapSigHashTypes.find(sighash_type);
+    if (it == mapSigHashTypes.end()) return "";
+    return it->second;
+}
 
 /**
  * Create the assembly string representation of a CScript object.
@@ -99,8 +133,9 @@ std::string ScriptToAsmStr(const CScript& script, const bool fAttemptSighashDeco
                     // checks in CheckSignatureEncoding.
                     if (CheckSignatureEncoding(vch, SCRIPT_VERIFY_STRICTENC, NULL)) {
                         const unsigned char chSigHashType = vch.back();
-                        if (mapSigHashTypes.count(chSigHashType)) {
-                            strSigHashDecode = "[" + mapSigHashTypes.find(chSigHashType)->second + "]";
+                        const auto it = mapSigHashTypes.find(chSigHashType);
+                        if (it != mapSigHashTypes.end()) {
+                            strSigHashDecode = "[" + it->second + "]";
                             vch.pop_back(); // remove the sighash type byte. it will be replaced by the decode.
                         }
                     }
@@ -120,21 +155,22 @@ std::string EncodeHexTx(const CTransaction& tx)
 {
     CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
     ssTx << tx;
-    return HexStr(ssTx.begin(), ssTx.end());
+    return HexStr(ssTx);
 }
 
-void ScriptPubKeyToUniv(const CScript& scriptPubKey, UniValue& out, bool fIncludeHex)
+void ScriptToUniv(const CScript& script, UniValue& out, bool include_hex, bool include_address)
 {
     txnouttype type;
     std::vector<CTxDestination> addresses;
     int nRequired;
 
-    out.pushKV("asm", ScriptToAsmStr(scriptPubKey));
+    out.pushKV("asm", ScriptToAsmStr(script));
 
-    if (fIncludeHex)
-        out.pushKV("hex", HexStr(scriptPubKey.begin(), scriptPubKey.end()));
+    if (include_hex) {
+        out.pushKV("hex", HexStr(script));
+    }
 
-    if (!ExtractDestinations(scriptPubKey, type, addresses, nRequired)) {
+    if (!ExtractDestinations(script, type, addresses, nRequired)) {
         out.pushKV("type", GetTxnOutputType(type));
         return;
     }
@@ -142,38 +178,99 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey, UniValue& out, bool fInclud
     out.pushKV("reqSigs", nRequired);
     out.pushKV("type", GetTxnOutputType(type));
 
-    UniValue a(UniValue::VARR);
-    if (type == TX_COLDSTAKE && addresses.size() == 2) {
-        a.push_back(EncodeDestination(addresses[0], CChainParams::STAKING_ADDRESS));
-        a.push_back(EncodeDestination(addresses[1], CChainParams::PUBKEY_ADDRESS));
-    } else {
-        for (const CTxDestination& addr : addresses)
-            a.push_back(EncodeDestination(addr));
+    if (!include_address) {
+        return;
     }
-    out.pushKV("addresses", a);
+
+    UniValue addresses_json(UniValue::VARR);
+
+    if (type == TX_COLDSTAKE && addresses.size() == 2) {
+        addresses_json.push_back(
+            EncodeDestination(addresses[0], CChainParams::STAKING_ADDRESS));
+        addresses_json.push_back(
+            EncodeDestination(addresses[1], CChainParams::PUBKEY_ADDRESS));
+    } else {
+        for (const CTxDestination& address : addresses) {
+            addresses_json.push_back(EncodeDestination(address));
+        }
+    }
+
+    out.pushKV("addresses", addresses_json);
 }
 
-void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry)
+void TxToUniv(const CTransaction& tx, const uint256& block_hash, UniValue& entry, bool include_hex, int serialize_flags, const CTxUndo* txundo, TxVerbosity verbosity, const CSpentIndexTxInfo* ptxSpentInfo)
 {
-    entry.pushKV("txid", tx.GetHash().GetHex());
-    entry.pushKV("version", tx.nVersion);
+    CHECK_NONFATAL(verbosity >= TxVerbosity::SHOW_DETAILS);
+
+    const uint256 txid = tx.GetHash();
+    entry.pushKV("txid", txid.GetHex());
+    entry.pushKV("version", static_cast<int64_t>(static_cast<uint16_t>(tx.nVersion)));
     entry.pushKV("type", tx.nType);
-    entry.pushKV("size", (int)::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION));
+    entry.pushKV("size", (int)::GetSerializeSize(tx, PROTOCOL_VERSION));
     entry.pushKV("locktime", (int64_t)tx.nLockTime);
 
     UniValue vin(UniValue::VARR);
-    for (const CTxIn& txin : tx.vin) {
+
+    const bool have_undo = txundo != nullptr;
+    CAmount amt_total_in = 0;
+    CAmount amt_total_out = 0;
+
+    for (unsigned int i = 0; i < tx.vin.size(); i++) {
+        const CTxIn& txin = tx.vin[i];
         UniValue in(UniValue::VOBJ);
-        if (tx.IsCoinBase())
-            in.pushKV("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
-        else {
+
+        if (tx.IsCoinBase()) {
+            in.pushKV("coinbase", HexStr(txin.scriptSig));
+        } else {
             in.pushKV("txid", txin.prevout.hash.GetHex());
             in.pushKV("vout", (int64_t)txin.prevout.n);
 
-            UniValue o(UniValue::VOBJ);
-            o.pushKV("asm", ScriptToAsmStr(txin.scriptSig, true));
-            o.pushKV("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end()));
-            in.pushKV("scriptSig", o);
+            UniValue script_sig(UniValue::VOBJ);
+            script_sig.pushKV("asm", ScriptToAsmStr(txin.scriptSig, true));
+            script_sig.pushKV("hex", HexStr(txin.scriptSig));
+            in.pushKV("scriptSig", script_sig);
+
+            if (ptxSpentInfo != nullptr) {
+                CSpentIndexKey spent_key(txin.prevout.hash, txin.prevout.n);
+                const auto it = ptxSpentInfo->mSpentInfo.find(spent_key);
+
+                if (it != ptxSpentInfo->mSpentInfo.end()) {
+                    const auto& spent_info = it->second;
+
+                    in.pushKV("value", ValueFromAmount(spent_info.m_amount));
+                    in.pushKV("valueSat", spent_info.m_amount);
+
+                    if (spent_info.m_address_type == AddressType::P2PK_OR_P2PKH) {
+                        in.pushKV("address", EncodeDestination(PKHash(spent_info.m_address_bytes)));
+                    } else if (spent_info.m_address_type == AddressType::P2SH) {
+                        in.pushKV("address", EncodeDestination(ScriptHash(spent_info.m_address_bytes)));
+                    }
+                }
+            }
+        }
+
+        if (have_undo) {
+            const Coin& prev_coin = txundo->vprevout[i];
+            const CTxOut& prev_txout = prev_coin.out;
+
+            amt_total_in += prev_txout.nValue;
+
+            if (verbosity == TxVerbosity::SHOW_DETAILS_AND_PREVOUT) {
+                UniValue script_pub_key(UniValue::VOBJ);
+                ScriptToUniv(
+                    prev_txout.scriptPubKey,
+                    script_pub_key,
+                    /*include_hex=*/true,
+                    /*include_address=*/true);
+
+                UniValue prevout(UniValue::VOBJ);
+                prevout.pushKV("generated", bool(prev_coin.fCoinBase));
+                prevout.pushKV("height", uint64_t(prev_coin.nHeight));
+                prevout.pushKV("value", ValueFromAmount(prev_txout.nValue));
+                prevout.pushKV("scriptPubKey", script_pub_key);
+
+                in.pushKV("prevout", prevout);
+            }
         }
 
         in.pushKV("sequence", (int64_t)txin.nSequence);
@@ -183,33 +280,102 @@ void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry)
     entry.pushKV("vin", vin);
 
     UniValue vout(UniValue::VARR);
+
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const CTxOut& txout = tx.vout[i];
 
         UniValue out(UniValue::VOBJ);
-
-        UniValue outValue(UniValue::VNUM, FormatMoney(txout.nValue));
-        out.pushKV("value", outValue);
+        out.pushKV("value", ValueFromAmount(txout.nValue));
+        out.pushKV("valueSat", txout.nValue);
         out.pushKV("n", (int64_t)i);
 
-        UniValue o(UniValue::VOBJ);
-        ScriptPubKeyToUniv(txout.scriptPubKey, o, true);
-        out.pushKV("scriptPubKey", o);
+        UniValue script_pub_key(UniValue::VOBJ);
+        ScriptToUniv(
+            txout.scriptPubKey,
+            script_pub_key,
+            /*include_hex=*/true,
+            /*include_address=*/true);
+        out.pushKV("scriptPubKey", script_pub_key);
+
+        if (ptxSpentInfo != nullptr) {
+            CSpentIndexKey spent_key(txid, i);
+            const auto it = ptxSpentInfo->mSpentInfo.find(spent_key);
+
+            if (it != ptxSpentInfo->mSpentInfo.end()) {
+                const auto& spent_info = it->second;
+                out.pushKV("spentTxId", spent_info.m_tx_hash.GetHex());
+                out.pushKV("spentIndex", spent_info.m_tx_index);
+                out.pushKV("spentHeight", spent_info.m_block_height);
+            }
+        }
 
         vout.push_back(out);
+
+        if (have_undo) {
+            amt_total_out += txout.nValue;
+        }
     }
 
     entry.pushKV("vout", vout);
 
     if (!tx.vExtraPayload.empty()) {
-        entry.pushKV("extraPayloadSize",
-            (int)tx.vExtraPayload.size());
-        entry.pushKV("extraPayload",
-            HexStr(tx.vExtraPayload));
+        entry.pushKV("extraPayloadSize", tx.vExtraPayload.size());
+        entry.pushKV("extraPayload", HexStr(tx.vExtraPayload));
     }
 
-    if (!hashBlock.IsNull())
-        entry.pushKV("blockhash", hashBlock.GetHex());
+    if (tx.nType == TRANSACTION_PROVIDER_REGISTER) {
+        if (const auto pro_tx = GetTxPayload<CProRegTx>(tx)) {
+            entry.pushKV("proRegTx", pro_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_SERVICE) {
+        if (const auto pro_tx = GetTxPayload<CProUpServTx>(tx)) {
+            entry.pushKV("proUpServTx", pro_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_REGISTRAR) {
+        if (const auto pro_tx = GetTxPayload<CProUpRegTx>(tx)) {
+            entry.pushKV("proUpRegTx", pro_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_REVOKE) {
+        if (const auto pro_tx = GetTxPayload<CProUpRevTx>(tx)) {
+            entry.pushKV("proUpRevTx", pro_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_COINBASE) {
+        if (const auto cb_tx = GetTxPayload<CCbTx>(tx)) {
+            entry.pushKV("cbTx", cb_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_QUORUM_COMMITMENT) {
+        if (const auto qc_tx = GetTxPayload<llmq::CFinalCommitmentTxPayload>(tx)) {
+            entry.pushKV("qcTx", qc_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_MNHF_SIGNAL) {
+        if (const auto mnhf_tx = GetTxPayload<MNHFTxPayload>(tx)) {
+            entry.pushKV("mnhfTx", mnhf_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_PROVIDER_DISSOLVE) {
+        if (const auto pro_tx = GetTxPayload<CProDisTx>(tx)) {
+            entry.pushKV("proDisTx", pro_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_SHARE) {
+        if (const auto pro_tx = GetTxPayload<CProUpShareTx>(tx)) {
+            entry.pushKV("proUpShareTx", pro_tx->ToJson());
+        }
+    } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_SHARED_REGISTRAR) {
+        if (const auto pro_tx = GetTxPayload<CProUpSharedRegTx>(tx)) {
+            entry.pushKV("proUpSharedRegTx", pro_tx->ToJson());
+        }
+    }
 
-    entry.pushKV("hex", EncodeHexTx(tx)); // the hex-encoded transaction. used the name "hex" to be consistent with the verbose output of "getrawtransaction".
+    if (have_undo) {
+        const CAmount fee = amt_total_in - amt_total_out;
+        CHECK_NONFATAL(MoneyRange(fee));
+        entry.pushKV("fee", ValueFromAmount(fee));
+    }
+
+    if (!block_hash.IsNull()) {
+        entry.pushKV("blockhash", block_hash.GetHex());
+    }
+
+    if (include_hex) {
+        entry.pushKV("hex", EncodeHexTx(tx));
+    }
 }
