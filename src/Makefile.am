@@ -147,6 +147,18 @@ BITCOIN_CORE_H = \
   httprpc.h \
   httpserver.h \
   i2p.h \
+  index/addressindex.h \
+  index/addressindex_types.h \
+  index/addressindex_util.h \
+  index/base.h \
+  index/blockfilterindex.h \
+  index/coinstatsindex.h \
+  index/disktxpos.h \
+  index/spentindex.h \
+  index/spentindex_types.h \
+  index/timestampindex.h \
+  index/timestampindex_types.h \
+  index/txindex.h \
   indirectmap.h \
   init.h \
   interfaces/chain.h \
@@ -194,6 +206,9 @@ BITCOIN_CORE_H = \
   node/coin.h \
   node/context.h \
   node/miner.h \
+  node/minisketchwrapper.h \
+  node/psbt.h \
+  node/sync_manager.h \
   node/transaction.h \
   pos/kernel.h \
   pos/miner.h \
@@ -256,6 +271,7 @@ BITCOIN_CORE_H = \
   utilstrencodings.h \
   utiltime.h \
   util/asmap.h \
+  util/bitset.h \
   util/edge.h \
   util/fastrange.h \
   util/fees.h \
@@ -264,6 +280,7 @@ BITCOIN_CORE_H = \
   util/memory.h \
   util/overflow.h \
   util/readwritefile.h \
+  util/serfloat.h \
   util/settings.h \
   util/sock.h \
   util/stdmutex.h \
@@ -273,6 +290,7 @@ BITCOIN_CORE_H = \
   util/threadnames.h \
   util/chaintype.h \
   util/types.h \
+  util/vecdeque.h \
   util/wpipe.h \
   validation.h \
   validationinterface.h \
@@ -424,6 +442,9 @@ libbitcoin_node_a_SOURCES = \
   node/mempool_args.cpp \
   node/mempool_persist_args.cpp \
   node/miner.cpp \
+  node/minisketchwrapper.cpp \
+  node/psbt.cpp \
+  node/sync_manager.cpp \
   node/transaction.cpp \
   node/txreconciliation.cpp \
   node/utxo_snapshot.cpp \
@@ -763,6 +784,7 @@ libbitcoin_util_a_SOURCES = \
   util/moneystr.cpp \
   util/ranges_set.cpp \
   util/readwritefile.cpp \
+  util/serfloat.cpp \
   util/settings.cpp \
   util/sock.cpp \
   util/spanparsing.cpp \
@@ -863,7 +885,7 @@ schillingcoind_LDADD = \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
-schillingcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(USB_LIBS) $(HIDAPI_LIBS) $(PROTOBUF_LIBS)
+schillingcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(MINIUPNPC_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(USB_LIBS) $(HIDAPI_LIBS) $(PROTOBUF_LIBS)
 
 # schillingcoin-cli binary #
 schillingcoin_cli_SOURCES = schillingcoin-cli.cpp

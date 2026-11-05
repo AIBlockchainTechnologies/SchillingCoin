@@ -8,8 +8,11 @@
 #ifndef SCHILLINGCOIN_TXDB_H
 #define SCHILLINGCOIN_TXDB_H
 
-#include "dbwrapper.h"
-#include "validation.h"
+#include <coins.h>
+#include <dbwrapper.h>
+#include <kernel/cs_main.h>
+#include <sync.h>
+#include <util/fs.h>
 
 #include <functional>
 #include <map>
@@ -20,9 +23,16 @@
 #include <boost/scoped_ptr.hpp>
 
 class Coin;
+class CBlockFileInfo;
+class CBlockIndex;
+class CDiskBlockIndex;
 class CCoinsViewCursor;
 class CCoinsViewDBCursor;
 class uint256;
+
+namespace Consensus {
+struct Params;
+};
 
 //! -dbcache default (MiB)
 static const int64_t nDefaultDbCache = 100;
@@ -30,32 +40,6 @@ static const int64_t nDefaultDbCache = 100;
 static const int64_t nMaxDbCache = sizeof(void*) > 4 ? 4096 : 1024;
 //! min. -dbcache in (MiB)
 static const int64_t nMinDbCache = 4;
-
-struct CDiskTxPos : public CDiskBlockPos {
-    unsigned int nTxOffset; // after header
-
-    SERIALIZE_METHODS(CDiskTxPos, obj)
-    {
-        READWRITE(
-            AsBase<CDiskBlockPos>(obj),
-            VARINT(obj.nTxOffset));
-    }
-
-    CDiskTxPos(const CDiskBlockPos& blockIn, unsigned int nTxOffsetIn) : CDiskBlockPos(blockIn.nFile, blockIn.nPos), nTxOffset(nTxOffsetIn)
-    {
-    }
-
-    CDiskTxPos()
-    {
-        SetNull();
-    }
-
-    void SetNull()
-    {
-        CDiskBlockPos::SetNull();
-        nTxOffset = 0;
-    }
-};
 
 class CCoinsViewDB : public CCoinsView
 {
@@ -118,14 +102,11 @@ public:
     bool ReadLastBlockFile(int& nFile);
     bool WriteReindexing(bool fReindex);
     bool ReadReindexing(bool& fReindex);
-    bool ReadTxIndex(const uint256& txid, CDiskTxPos& pos);
-    bool WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> >& list);
     bool WriteFlag(const std::string& name, bool fValue);
     bool ReadFlag(const std::string& name, bool& fValue);
     bool WriteInt(const std::string& name, int nValue);
     bool ReadInt(const std::string& name, int& nValue);
-    bool LoadBlockIndexGuts(const Consensus::Params& consensusParams,
-                            std::function<CBlockIndex*(const uint256&)> insertBlockIndex)
+    bool LoadBlockIndexGuts(const Consensus::Params& consensusParams, std::function<CBlockIndex*(const uint256&)> insertBlockIndex)
         EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 };
 

@@ -63,6 +63,15 @@ bool IsStandard(const CScript& scriptPubKey, txnouttype& whichType);
 bool IsStandardTx(const CTransaction& tx, std::string& reason);
 bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs);
 
+/** Compute the virtual transaction size (taking sigops into account). */
+int64_t GetVirtualTransactionSize(int64_t nSize, int64_t nSigOp, unsigned int bytes_per_sigop);
+int64_t GetVirtualTransactionSize(const CTransaction& tx, int64_t nSigOp, unsigned int bytes_per_sigop);
+
+static inline int64_t GetVirtualTransactionSize(const CTransaction& tx)
+{
+    return GetVirtualTransactionSize(tx, 0, 0);
+}
+
 extern CFeeRate dustRelayFee;
 
 

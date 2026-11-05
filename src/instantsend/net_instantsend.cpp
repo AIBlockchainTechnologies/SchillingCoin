@@ -1,4 +1,5 @@
 // Copyright (c) 2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -513,7 +514,7 @@ void NetInstantSend::UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockI
 {
     bool fDIP0008Active = pindexNew->pprev && pindexNew->pprev->nHeight >= Params().GetConsensus().DIP0008Height;
 
-    if (m_chainlocks.IsEnabled() && fDIP0008Active) {
+    if (m_chainlocks.IsEnabled(pindexNew->nHeight) && fDIP0008Active) {
         // Nothing to do here. We should keep all islocks and let chainlocks handle them.
         return;
     }

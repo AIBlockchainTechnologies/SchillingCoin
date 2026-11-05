@@ -1742,7 +1742,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
     assert(!node.sporkman);
     node.sporkman = std::make_unique<CSporkManager>();
-    node.chainlocks = std::make_unique<chainlock::Chainlocks>(*node.sporkman);
+    node.chainlocks = std::make_unique<chainlock::Chainlocks>();
 
     const std::string spork_address{args.GetArg("-sporkaddr", chainparams.SporkAddress())};
     if (args.GetArgs("-sporkaddr").size() > 1) {
@@ -2041,7 +2041,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         auto [status, error] = catch_exceptions([&]() -> node::ChainstateLoadResult {
             node.evodb = std::make_unique<CEvoDB>(util::DbWrapperParams{.path = args.GetDataDirNet(), .memory = false, .wipe = node::fReindex || fReindexChainState});
             node.dmnman = std::make_unique<CDeterministicMNManager>(*node.evodb, *node.mn_metaman);
-            node.isman = std::make_unique<llmq::CInstantSendManager>(*node.sporkman, util::DbWrapperParams{.path = args.GetDataDirNet(), .memory = false, .wipe = node::fReindex || fReindexChainState});
+            node.isman = std::make_unique<llmq::CInstantSendManager>(util::DbWrapperParams{.path = args.GetDataDirNet(), .memory = false, .wipe = node::fReindex || fReindexChainState});
 
             mempool_opts.dmnman = node.dmnman.get();
             mempool_opts.isman = node.isman.get();
@@ -2194,7 +2194,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     assert(!node.peerman);
     node.peerman = PeerManager::make(*node.connman, *node.addrman, node.banman.get(), *node.dstxman,
                                      chainman, *node.mempool, *node.mn_metaman, *node.mn_sync,
-                                     *node.sporkman, *node.chainlocks, *node.clhandler,
+                                     *node.chainlocks, *node.clhandler,
                                      node.active_ctx ? node.active_ctx->nodeman.get() : nullptr,
                                      *node.dmnman, node.cj_walletman.get(), *node.isman, *node.llmq_ctx, ignores_incoming_txs);
     RegisterValidationInterface(node.peerman.get());

@@ -12,6 +12,7 @@
 #define SCHILLINGCOIN_CHAIN_H
 
 #include "chainparams.h"
+#include "flatfile.h"
 #include "optional.h"
 #include "pow.h"
 #include "primitives/block.h"
@@ -78,44 +79,6 @@ public:
         if (nTimeIn > nTimeLast)
             nTimeLast = nTimeIn;
     }
-};
-
-struct CDiskBlockPos {
-    int nFile;
-    unsigned int nPos;
-
-    SERIALIZE_METHODS(CDiskBlockPos, obj)
-    {
-        READWRITE(VARINT(obj.nFile), VARINT(obj.nPos));
-    }
-
-    CDiskBlockPos()
-    {
-        SetNull();
-    }
-
-    CDiskBlockPos(int nFileIn, unsigned int nPosIn)
-    {
-        nFile = nFileIn;
-        nPos = nPosIn;
-    }
-
-    friend bool operator==(const CDiskBlockPos& a, const CDiskBlockPos& b)
-    {
-        return (a.nFile == b.nFile && a.nPos == b.nPos);
-    }
-
-    friend bool operator!=(const CDiskBlockPos& a, const CDiskBlockPos& b)
-    {
-        return !(a == b);
-    }
-
-    void SetNull()
-    {
-        nFile = -1;
-        nPos = 0;
-    }
-    bool IsNull() const { return (nFile == -1); }
 };
 
 enum BlockStatus {
@@ -244,8 +207,28 @@ public:
 
     std::string ToString() const;
 
-    CDiskBlockPos GetBlockPos() const;
-    CDiskBlockPos GetUndoPos() const;
+    FlatFilePos GetBlockPos() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+    {
+        AssertLockHeld(::cs_main);
+        FlatFilePos ret;
+        if (nStatus & BLOCK_HAVE_DATA) {
+            ret.nFile = nFile;
+            ret.nPos = nDataPos;
+        }
+        return ret;
+    }
+
+    FlatFilePos GetUndoPos() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+    {
+        AssertLockHeld(::cs_main);
+        FlatFilePos ret;
+        if (nStatus & BLOCK_HAVE_UNDO) {
+            ret.nFile = nFile;
+            ret.nPos = nUndoPos;
+        }
+        return ret;
+    }
+
     CBlockHeader GetBlockHeader() const;
     uint256 GetBlockHash() const { return *phashBlock; }
     int64_t GetBlockTime() const { return (int64_t)nTime; }
@@ -311,14 +294,14 @@ public:
         int nSerVersion = s.GetVersion();
 
         if (!(s.GetType() & SER_GETHASH))
-            READWRITE(VARINT(nSerVersion));
+            READWRITE(VARINT_MODE(nSerVersion, VarIntMode::NONNEGATIVE_SIGNED));
 
-        READWRITE(VARINT(obj.nHeight));
+        READWRITE(VARINT_MODE(obj.nHeight, VarIntMode::NONNEGATIVE_SIGNED));
         READWRITE(VARINT(obj.nStatus));
         READWRITE(VARINT(obj.nTx));
 
         if (obj.nStatus & (BLOCK_HAVE_DATA | BLOCK_HAVE_UNDO))
-            READWRITE(VARINT(obj.nFile));
+            READWRITE(VARINT_MODE(obj.nFile, VarIntMode::NONNEGATIVE_SIGNED));
 
         if (obj.nStatus & BLOCK_HAVE_DATA)
             READWRITE(VARINT(obj.nDataPos));

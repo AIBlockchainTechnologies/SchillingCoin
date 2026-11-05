@@ -20,7 +20,15 @@
 static const size_t DBWRAPPER_PREALLOC_KEY_SIZE = 64;
 static const size_t DBWRAPPER_PREALLOC_VALUE_SIZE = 1024;
 
+inline const char* CharCast(const std::byte* data)
+{
+    return reinterpret_cast<const char*>(data);
+}
+
+class CDBWrapper;
+
 class dbwrapper_error : public std::runtime_error
+
 {
 public:
     dbwrapper_error(const std::string& msg) : std::runtime_error(msg) {}
@@ -39,18 +47,21 @@ class CDBBatch
     friend class CDBWrapper;
 
 private:
+    const CDBWrapper& parent;
     leveldb::WriteBatch batch;
 
-    CDataStream ssKey;
+    DataStream ssKey{};
     CDataStream ssValue;
 
-    size_t size_estimate;
+    size_t size_estimate{0};
 
 public:
-    CDBBatch()
-        : ssKey(SER_DISK, CLIENT_VERSION),
-          ssValue(SER_DISK, CLIENT_VERSION),
-          size_estimate(0)
+    /**
+     * @param[in] _parent CDBWrapper that this batch is to be submitted to.
+     */
+    explicit CDBBatch(const CDBWrapper& _parent)
+        : parent(_parent),
+          ssValue(SER_DISK, CLIENT_VERSION)
     {
     }
 
@@ -63,21 +74,26 @@ public:
     template <typename K, typename V>
     void Write(const K& key, const V& value)
     {
-        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
         ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey << key;
-        leveldb::Slice slKey(&ssKey[0], ssKey.size());
+        Write(ssKey, value);
+        ssKey.clear();
+    }
 
-        CDataStream ssValue(SER_DISK, CLIENT_VERSION);
+    template <typename V>
+    void Write(const DataStream& serialized_key, const V& value)
+    {
+        leveldb::Slice slKey(CharCast(serialized_key.data()), serialized_key.size());
+
         ssValue.reserve(DBWRAPPER_PREALLOC_VALUE_SIZE);
         ssValue << value;
-        leveldb::Slice slValue(&ssValue[0], ssValue.size());
+        leveldb::Slice slValue(CharCast(ssValue.data()), ssValue.size());
 
         batch.Put(slKey, slValue);
 
         // LevelDB serializes writes as:
         // - byte: header
-        // - varint: key length (1 byte up to 127B, 2 bytes up to 16383B, ...)
+        // - varint: key length
         // - byte[\]: key
         // - varint: value length
         // - byte[\]: value
@@ -88,17 +104,21 @@ public:
                          (slValue.size() > 127) +
                          slValue.size();
 
-        ssKey.clear();
         ssValue.clear();
     }
 
     template <typename K>
     void Erase(const K& key)
     {
-        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
         ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey << key;
-        leveldb::Slice slKey(&ssKey[0], ssKey.size());
+        Erase(ssKey);
+        ssKey.clear();
+    }
+
+    void Erase(const DataStream& serialized_key)
+    {
+        leveldb::Slice slKey(CharCast(serialized_key.data()), serialized_key.size());
 
         batch.Delete(slKey);
 
@@ -110,8 +130,6 @@ public:
         size_estimate += 2 +
                          (slKey.size() > 127) +
                          slKey.size();
-
-        ssKey.clear();
     }
 
     size_t SizeEstimate() const
@@ -123,27 +141,38 @@ public:
 class CDBIterator
 {
 private:
+    const CDBWrapper& parent;
     leveldb::Iterator* piter;
 
 public:
-    CDBIterator(leveldb::Iterator* _piter)
-        : piter(_piter)
+    /**
+     * @param[in] _parent Parent CDBWrapper instance.
+     * @param[in] _piter  Original LevelDB iterator.
+     */
+    CDBIterator(const CDBWrapper& _parent, leveldb::Iterator* _piter)
+        : parent(_parent),
+          piter(_piter)
     {
     }
 
     ~CDBIterator();
 
-    bool Valid();
+    bool Valid() const;
 
     void SeekToFirst();
 
     template <typename K>
     void Seek(const K& key)
     {
-        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+        DataStream ssKey{};
         ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey << key;
-        leveldb::Slice slKey(&ssKey[0], ssKey.size());
+        Seek(ssKey);
+    }
+
+    void Seek(const DataStream& ssKey)
+    {
+        leveldb::Slice slKey(CharCast(ssKey.data()), ssKey.size());
         piter->Seek(slKey);
     }
 
@@ -152,21 +181,20 @@ public:
     template <typename K>
     bool GetKey(K& key)
     {
-        leveldb::Slice slKey = piter->key();
-
         try {
-            CDataStream ssKey(
-                slKey.data(),
-                slKey.data() + slKey.size(),
-                SER_DISK,
-                CLIENT_VERSION);
-
+            DataStream ssKey = GetKey();
             ssKey >> key;
-        } catch (std::exception& e) {
+        } catch (const std::exception&) {
             return false;
         }
 
         return true;
+    }
+
+    DataStream GetKey()
+    {
+        const leveldb::Slice slKey = piter->key();
+        return DataStream{MakeByteSpan(slKey)};
     }
 
     unsigned int GetKeySize()
@@ -177,17 +205,12 @@ public:
     template <typename V>
     bool GetValue(V& value)
     {
-        leveldb::Slice slValue = piter->value();
+        const leveldb::Slice slValue = piter->value();
 
         try {
-            CDataStream ssValue(
-                slValue.data(),
-                slValue.data() + slValue.size(),
-                SER_DISK,
-                CLIENT_VERSION);
-
+            CDataStream ssValue{MakeByteSpan(slValue), SER_DISK, CLIENT_VERSION};
             ssValue >> value;
-        } catch (std::exception& e) {
+        } catch (const std::exception&) {
             return false;
         }
 
@@ -228,35 +251,69 @@ public:
     CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory = false, bool fWipe = false);
     ~CDBWrapper();
 
-    template <typename K, typename V>
-    bool Read(const K& key, V& value) const
+    CDBWrapper(const CDBWrapper&) = delete;
+    CDBWrapper& operator=(const CDBWrapper&) = delete;
+
+    template <typename K>
+    bool ReadDataStream(const K& key, CDataStream& ssValue) const
     {
-        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+        DataStream ssKey{};
         ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey << key;
-        leveldb::Slice slKey(&ssKey[0], ssKey.size());
+        return ReadDataStream(ssKey, ssValue);
+    }
+
+    bool ReadDataStream(const DataStream& ssKey, CDataStream& ssValue) const
+    {
+        leveldb::Slice slKey(CharCast(ssKey.data()), ssKey.size());
 
         std::string strValue;
-        leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
+        const leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
+
         if (!status.ok()) {
-            if (status.IsNotFound())
+            if (status.IsNotFound()) {
                 return false;
+            }
+
             LogPrintf("LevelDB read failure: %s\n", status.ToString());
             dbwrapper_private::HandleError(status);
         }
+
+        ssValue = CDataStream{MakeByteSpan(strValue), SER_DISK, CLIENT_VERSION};
+        return true;
+    }
+
+    template <typename K, typename V>
+    bool Read(const K& key, V& value) const
+    {
+        DataStream ssKey{};
+        ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
+        ssKey << key;
+        return Read(ssKey, value);
+    }
+
+    template <typename V>
+    bool Read(const DataStream& ssKey, V& value) const
+    {
+        CDataStream ssValue(SER_DISK, CLIENT_VERSION);
+
+        if (!ReadDataStream(ssKey, ssValue)) {
+            return false;
+        }
+
         try {
-            CDataStream ssValue(strValue.data(), strValue.data() + strValue.size(), SER_DISK, CLIENT_VERSION);
             ssValue >> value;
         } catch (const std::exception&) {
             return false;
         }
+
         return true;
     }
 
     template <typename K, typename V>
     bool Write(const K& key, const V& value, bool fSync = false)
     {
-        CDBBatch batch;
+        CDBBatch batch(*this);
         batch.Write(key, value);
         return WriteBatch(batch, fSync);
     }
@@ -264,48 +321,44 @@ public:
     template <typename K>
     bool Exists(const K& key) const
     {
-        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+        DataStream ssKey{};
         ssKey.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey << key;
-        leveldb::Slice slKey(&ssKey[0], ssKey.size());
+        return Exists(ssKey);
+    }
+
+    bool Exists(const DataStream& key) const
+    {
+        leveldb::Slice slKey(CharCast(key.data()), key.size());
 
         std::string strValue;
-        leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
+        const leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
+
         if (!status.ok()) {
-            if (status.IsNotFound())
+            if (status.IsNotFound()) {
                 return false;
+            }
+
             LogPrintf("LevelDB read failure: %s\n", status.ToString());
             dbwrapper_private::HandleError(status);
         }
+
         return true;
     }
 
     template <typename K>
     bool Erase(const K& key, bool fSync = false)
     {
-        CDBBatch batch;
+        CDBBatch batch(*this);
         batch.Erase(key);
         return WriteBatch(batch, fSync);
     }
 
     bool WriteBatch(CDBBatch& batch, bool fSync = false);
 
-    // not available for LevelDB; provide for compatibility with BDB
-    bool Flush()
-    {
-        return true;
-    }
-
-    bool Sync()
-    {
-        CDBBatch batch;
-        return WriteBatch(batch, true);
-    }
-
-    // not exactly clean encapsulation, but it's easiest for now
     CDBIterator* NewIterator()
     {
-        return new CDBIterator(pdb->NewIterator(iteroptions));
+        return new CDBIterator(*this, pdb->NewIterator(iteroptions));
     }
 
     /**
@@ -316,8 +369,8 @@ public:
     template <typename K>
     size_t EstimateSize(const K& key_begin, const K& key_end) const
     {
-        CDataStream ssKey1(SER_DISK, CLIENT_VERSION);
-        CDataStream ssKey2(SER_DISK, CLIENT_VERSION);
+        DataStream ssKey1{};
+        DataStream ssKey2{};
 
         ssKey1.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
         ssKey2.reserve(DBWRAPPER_PREALLOC_KEY_SIZE);
@@ -325,14 +378,12 @@ public:
         ssKey1 << key_begin;
         ssKey2 << key_end;
 
-        leveldb::Slice slKey1(&ssKey1[0], ssKey1.size());
-        leveldb::Slice slKey2(&ssKey2[0], ssKey2.size());
+        leveldb::Slice slKey1(CharCast(ssKey1.data()), ssKey1.size());
+        leveldb::Slice slKey2(CharCast(ssKey2.data()), ssKey2.size());
 
-        uint64_t size = 0;
+        uint64_t size{0};
         leveldb::Range range(slKey1, slKey2);
-
         pdb->GetApproximateSizes(&range, 1, &size);
-
         return size;
     }
 };

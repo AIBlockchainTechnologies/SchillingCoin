@@ -9,6 +9,7 @@
 #define SCHILLINGCOIN_FS_H
 
 #include <stdio.h>
+#include <functional>
 #include <string>
 
 #if defined WIN32 && defined __GLIBCXX__
@@ -24,6 +25,8 @@ namespace fs = boost::filesystem;
 
 /** Bridge operations to C stdio */
 namespace fsbridge {
+
+using FopenFn = std::function<FILE*(const fs::path&, const char*)>;
 
 FILE* fopen(const fs::path& p, const char* mode);
 

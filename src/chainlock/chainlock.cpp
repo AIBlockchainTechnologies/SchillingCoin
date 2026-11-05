@@ -1,12 +1,13 @@
 // Copyright (c) 2019-2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <chainlock/chainlock.h>
 
 #include <chain.h>
+#include <chainparams.h>
 #include <logging.h>
-#include <spork.h>
 
 namespace chainlock {
 
@@ -25,14 +26,10 @@ std::string ChainLockSig::ToString() const
     return strprintf("ChainLockSig(nHeight=%d, blockHash=%s)", nHeight, blockHash.ToString());
 }
 
-Chainlocks::Chainlocks(const CSporkManager& sporkman) :
-    m_sporks(sporkman)
+bool Chainlocks::IsEnabled(const int32_t nHeight) const
 {
+    return Params().GetConsensus().IsDIP0002Active(nHeight);
 }
-
-bool Chainlocks::IsEnabled() const { return m_sporks.IsSporkActive(SPORK_19_CHAINLOCKS_ENABLED); }
-
-bool Chainlocks::IsSigningEnabled() const { return m_sporks.GetSporkValue(SPORK_19_CHAINLOCKS_ENABLED) == 0; }
 
 chainlock::ChainLockSig Chainlocks::GetBestChainLock() const
 {
@@ -50,7 +47,7 @@ bool Chainlocks::HasChainLock(int nHeight, const uint256& blockHash) const
 {
     LOCK(cs);
 
-    if (!IsEnabled()) {
+    if (!IsEnabled(nHeight)) {
         return false;
     }
 
@@ -74,7 +71,7 @@ bool Chainlocks::HasConflictingChainLock(int nHeight, const uint256& blockHash) 
 {
     LOCK(cs);
 
-    if (!IsEnabled()) {
+    if (!IsEnabled(nHeight)) {
         return false;
     }
 

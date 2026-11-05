@@ -44,12 +44,14 @@ BITCOIN_TESTS =\
   test/base64_tests.cpp \
   test/bip32_tests.cpp \
   test/bip39_tests.cpp \
+  test/blockfilter_tests.cpp \
   test/checkblock_tests.cpp \
   test/Checkpoints_tests.cpp \
   test/coins_tests.cpp \
   test/compress_tests.cpp \
   test/crypto_tests.cpp \
   test/cuckoocache_tests.cpp \
+  test/dbwrapper_tests.cpp \
   test/DoS_tests.cpp \
   test/fs_tests.cpp \
   test/getarg_tests.cpp \
@@ -80,9 +82,11 @@ BITCOIN_TESTS =\
   test/timedata_tests.cpp \
   test/torcontrol_tests.cpp \
   test/transaction_tests.cpp \
+  test/txvalidation_tests.cpp \
   test/uint256_tests.cpp \
   test/univalue_tests.cpp \
-  test/util_tests.cpp
+  test/util_tests.cpp \
+  test/validation_tests.cpp
 
 if ENABLE_WALLET
 BITCOIN_TESTS += \

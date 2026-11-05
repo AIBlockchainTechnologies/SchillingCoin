@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -64,7 +65,8 @@ void ChainlockHandler::Start()
 {
     scheduler->scheduleEvery(
         [&]() {
-            CheckActiveState();
+            const int nHeight = WITH_LOCK(::cs_main, return m_chainman.ActiveChain().Height());
+            CheckActiveState(nHeight);
             EnforceBestChainLock();
             Cleanup();
         },
@@ -104,7 +106,8 @@ void ChainlockHandler::UpdateTxFirstSeenMap(const Uint256HashSet& tx, const int6
 MessageProcessingResult ChainlockHandler::ProcessCoinbaseChainLock(const CBlock& block, const CBlockIndex* pindex,
                                                                    const llmq::CQuorumManager& qman)
 {
-    if (!m_mn_sync.IsBlockchainSynced() || !m_chainlocks.IsEnabled() || pindex == nullptr ||
+    if (!m_mn_sync.IsBlockchainSynced() || pindex == nullptr ||
+        !m_chainlocks.IsEnabled(pindex->nHeight) ||
         !DeploymentActiveAt(*pindex, Params().GetConsensus(), Consensus::DEPLOYMENT_V20) || block.vtx.empty()) {
         return {};
     }
@@ -133,7 +136,11 @@ MessageProcessingResult ChainlockHandler::ProcessCoinbaseChainLock(const CBlock&
 MessageProcessingResult ChainlockHandler::ProcessNewChainLock(const NodeId from, const chainlock::ChainLockSig& clsig,
                                                               const llmq::CQuorumManager& qman, const uint256& hash)
 {
-    CheckActiveState();
+    if (!m_chainlocks.IsEnabled(clsig.getHeight())) {
+        return {};
+    }
+
+    CheckActiveState(clsig.getHeight());
 
     {
         LOCK(cs);
@@ -170,7 +177,8 @@ MessageProcessingResult ChainlockHandler::ProcessNewChainLock(const NodeId from,
     if (pindex) {
         scheduler->scheduleFromNow(
             [&]() {
-                CheckActiveState();
+                const int nHeight = WITH_LOCK(::cs_main, return m_chainman.ActiveChain().Height());
+                CheckActiveState(nHeight);
                 EnforceBestChainLock();
             },
             std::chrono::seconds{0});
@@ -178,6 +186,7 @@ MessageProcessingResult ChainlockHandler::ProcessNewChainLock(const NodeId from,
         LogPrint(BCLog::CHAINLOCKS, "ChainlockHandler::%s -- processed new CLSIG (%s), peer=%d\n", __func__,
                  clsig.ToString(), from);
     }
+
     const CInv clsig_inv(MSG_CLSIG, hash);
     return clsig_inv;
 }
@@ -197,7 +206,8 @@ void ChainlockHandler::UpdatedBlockTip(const CBlockIndex* pindexNew, const CBloc
     if (bool expected = false; tryLockChainTipScheduled.compare_exchange_strong(expected, true)) {
         scheduler->scheduleFromNow(
             [&]() {
-                CheckActiveState();
+                const int nHeight = WITH_LOCK(::cs_main, return m_chainman.ActiveChain().Height());
+                CheckActiveState(nHeight);
                 EnforceBestChainLock();
                 Cleanup();
                 tryLockChainTipScheduled = false;
@@ -206,15 +216,14 @@ void ChainlockHandler::UpdatedBlockTip(const CBlockIndex* pindexNew, const CBloc
     }
 }
 
-void ChainlockHandler::CheckActiveState()
+void ChainlockHandler::CheckActiveState(const int32_t nHeight)
 {
-    bool oldIsEnabled = isEnabled;
-    isEnabled = m_chainlocks.IsEnabled();
+    const bool oldIsEnabled = isEnabled;
+    isEnabled = m_chainlocks.IsEnabled(nHeight);
 
     if (!oldIsEnabled && isEnabled) {
-        // ChainLocks got activated just recently, but it's possible that it was already running before, leaving
-        // us with some stale values which we should not try to enforce anymore (there probably was a good reason
-        // to disable spork19)
+        // ChainLocks have just crossed SCH's deterministic activation boundary.
+        // Discard any stale pre-activation state before enforcement begins.
         LOCK(cs);
         m_chainlocks.ResetChainlock();
         lastNotifyChainLockBlockIndex = nullptr;

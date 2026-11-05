@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -18,7 +19,6 @@
 #include <llmq/signing_shares.h>
 #include <logging.h>
 #include <masternode/sync.h>
-#include <spork.h>
 #include <util/helpers.h>
 #include <validation.h>
 
@@ -36,14 +36,13 @@ namespace instantsend {
 InstantSendSigner::InstantSendSigner(const ChainstateManager& chainman, const chainlock::Chainlocks& chainlocks,
                                      llmq::CInstantSendManager& isman, llmq::CSigningManager& sigman,
                                      llmq::CSigSharesManager& shareman, llmq::CQuorumManager& qman,
-                                     CSporkManager& sporkman, CTxMemPool& mempool, const CMasternodeSync& mn_sync) :
+                                     CTxMemPool& mempool, const CMasternodeSync& mn_sync) :
     m_chainman{chainman},
     m_chainlocks{chainlocks},
     m_isman{isman},
     m_sigman{sigman},
     m_shareman{shareman},
     m_qman{qman},
-    m_sporkman{sporkman},
     m_mempool{mempool},
     m_mn_sync{mn_sync}
 {
@@ -100,7 +99,12 @@ llmq::RecoveredSigResult InstantSendSigner::HandleNewRecoveredSig(const llmq::CR
 
 bool InstantSendSigner::IsInstantSendMempoolSigningEnabled() const
 {
-    return !m_chainman.m_blockman.LoadingBlocks() && m_sporkman.GetSporkValue(SPORK_2_INSTANTSEND_ENABLED) == 0;
+    if (m_chainman.m_blockman.LoadingBlocks()) {
+        return false;
+    }
+
+    const int nHeight = WITH_LOCK(::cs_main, return m_chainman.ActiveHeight());
+    return Params().GetConsensus().IsDIP0002Active(nHeight);
 }
 
 void InstantSendSigner::HandleNewInputLockRecoveredSig(const llmq::CRecoveredSig& recoveredSig, const uint256& txid)

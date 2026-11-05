@@ -45,10 +45,11 @@
 //    blocks valid while SCH moves forward as a non-privacy pure UTXO coin.
 // ============================================================================
 
-#ifndef SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
-#define SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
+#ifndef SCHILLINGCOIN_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
+#define SCHILLINGCOIN_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
 
 #include <stdint.h>
+#include <type_traits>
 #include <vector>
 
 namespace libzerocoin {
@@ -182,7 +183,9 @@ namespace libzerocoin {
         template <typename T>
         explicit ZerocoinParams(const T&) {}
     };
-
 } // namespace libzerocoin
 
-#endif // SchillingCoin_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H
+template<typename T> struct is_serializable_enum;
+template<> struct is_serializable_enum<libzerocoin::CoinDenomination> : std::true_type {};
+
+#endif // SCHILLINGCOIN_SRC_STUBS_LEGACY_ZEROCOIN_CONSENSUS_H

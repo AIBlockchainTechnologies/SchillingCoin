@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CHAINLOCK_HANDLER_H
-#define BITCOIN_CHAINLOCK_HANDLER_H
+#ifndef SCHILLINGCOIN_CHAINLOCK_HANDLER_H
+#define SCHILLINGCOIN_CHAINLOCK_HANDLER_H
 
 #include <limitedmap.h>
 #include <net_types.h>
@@ -89,11 +90,9 @@ public:
                                                               const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(!cs);
 
 public:
-    void CheckActiveState() EXCLUSIVE_LOCKS_REQUIRED(!cs);
+    void CheckActiveState(int32_t nHeight) EXCLUSIVE_LOCKS_REQUIRED(!cs);
     void EnforceBestChainLock() EXCLUSIVE_LOCKS_REQUIRED(!cs);
-
     bool IsTxSafeForMining(const uint256& txid) const EXCLUSIVE_LOCKS_REQUIRED(!cs);
-
     void CleanupFromSigner(const std::vector<std::shared_ptr<Uint256HashSet>>& cleanup_txes) EXCLUSIVE_LOCKS_REQUIRED(!cs);
 
 protected:
@@ -112,4 +111,4 @@ private:
 };
 } // namespace chainlock
 
-#endif // BITCOIN_CHAINLOCK_HANDLER_H
+#endif // SCHILLINGCOIN_CHAINLOCK_HANDLER_H

@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -44,7 +45,6 @@ void ChainLockSigner::Start()
 {
     m_scheduler->scheduleEvery(
         [&]() {
-            if (!m_chainlocks.IsSigningEnabled()) return;
             // regularly retry signing the current chaintip as it might have failed before due to missing islocks
             TrySignChainTip();
             Cleanup();
@@ -84,13 +84,13 @@ void ChainLockSigner::TrySignChainTip()
         return;
     }
 
-    if (!m_chainlocks.IsEnabled() || !m_chainlocks.IsSigningEnabled()) {
-        return;
-    }
-
     const CBlockIndex* pindex = WITH_LOCK(::cs_main, return m_chainman.ActiveChain().Tip());
 
     if (!pindex || !pindex->pprev) {
+        return;
+    }
+
+    if (!m_chainlocks.IsEnabled(pindex->nHeight)) {
         return;
     }
 
@@ -262,13 +262,13 @@ ChainLockSigner::BlockTxs::mapped_type ChainLockSigner::GetBlockTxs(const uint25
 
 llmq::RecoveredSigResult ChainLockSigner::HandleNewRecoveredSig(const llmq::CRecoveredSig& recoveredSig)
 {
-    if (!m_chainlocks.IsEnabled()) {
-        return std::monostate{};
-    }
-
     ChainLockSig clsig;
     {
         LOCK(cs_signer);
+
+        if (!m_chainlocks.IsEnabled(lastSignedHeight)) {
+            return std::monostate{};
+        }
 
         if (recoveredSig.getId() != lastSignedRequestId || recoveredSig.getMsgHash() != lastSignedMsgHash) {
             // this is not what we signed, so lets not create a CLSIG for it

@@ -77,26 +77,6 @@ std::string CBlockIndex::ToString() const
         GetBlockHash().ToString());
 }
 
-CDiskBlockPos CBlockIndex::GetBlockPos() const
-{
-    CDiskBlockPos ret;
-    if (nStatus & BLOCK_HAVE_DATA) {
-        ret.nFile = nFile;
-        ret.nPos = nDataPos;
-    }
-    return ret;
-}
-
-CDiskBlockPos CBlockIndex::GetUndoPos() const
-{
-    CDiskBlockPos ret;
-    if (nStatus & BLOCK_HAVE_UNDO) {
-        ret.nFile = nFile;
-        ret.nPos = nUndoPos;
-    }
-    return ret;
-}
-
 CBlockHeader CBlockIndex::GetBlockHeader() const
 {
     CBlockHeader block;

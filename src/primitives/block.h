@@ -95,7 +95,7 @@ public:
         SetNull();
     }
 
-    explicit CBlock(const CBlockHeader& header)
+    CBlock(const CBlockHeader& header)
     {
         SetNull();
         *static_cast<CBlockHeader*>(this) = header;

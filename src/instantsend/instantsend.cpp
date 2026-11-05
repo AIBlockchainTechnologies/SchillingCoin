@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,19 +8,16 @@
 #include <chainparams.h>
 #include <consensus/validation.h>
 #include <node/blockstorage.h>
-#include <spork.h>
 #include <stats/client.h>
 
 using node::fImporting;
 using node::fReindex;
 
 namespace llmq {
-CInstantSendManager::CInstantSendManager(CSporkManager& sporkman, const util::DbWrapperParams& db_params) :
-    db{db_params},
-    spork_manager{sporkman}
+CInstantSendManager::CInstantSendManager(const util::DbWrapperParams& db_params) :
+    db{db_params}
 {
 }
-
 CInstantSendManager::~CInstantSendManager() = default;
 
 bool ShouldReportISLockTiming() { return g_stats_client->active() || LogAcceptDebug(BCLog::INSTANTSEND); }
@@ -509,7 +507,7 @@ int CInstantSendManager::GetTipHeight() const
 
 bool CInstantSendManager::IsInstantSendEnabled() const
 {
-    return !fReindex && !fImporting && spork_manager.IsSporkActive(SPORK_2_INSTANTSEND_ENABLED);
+    return !fReindex && !fImporting && Params().GetConsensus().IsDIP0002Active(GetTipHeight());
 }
 
 Uint256HashMap<instantsend::InstantSendLockPtr> CInstantSendManager::RemoveConfirmedInstantSendLocks(const CBlockIndex* pindex)

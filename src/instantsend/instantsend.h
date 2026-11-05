@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INSTANTSEND_INSTANTSEND_H
-#define BITCOIN_INSTANTSEND_INSTANTSEND_H
+#ifndef SCHILLINGCOIN_INSTANTSEND_INSTANTSEND_H
+#define SCHILLINGCOIN_INSTANTSEND_INSTANTSEND_H
 
 #include <instantsend/db.h>
 #include <instantsend/lock.h>
@@ -20,7 +21,6 @@
 
 class CBlockIndex;
 class CDataStream;
-class CSporkManager;
 namespace Consensus {
 struct LLMQParams;
 } // namespace Consensus
@@ -52,7 +52,6 @@ class CInstantSendManager
 {
 private:
     instantsend::CInstantSendDb db;
-    CSporkManager& spork_manager;
 
     // Hard ceiling on the number of peer-supplied InstantSend locks retained in each of
     // the pending queues -- pendingInstantSendLocks (received, not yet BLS-verified) and
@@ -96,7 +95,7 @@ public:
     CInstantSendManager() = delete;
     CInstantSendManager(const CInstantSendManager&) = delete;
     CInstantSendManager& operator=(const CInstantSendManager&) = delete;
-    explicit CInstantSendManager(CSporkManager& sporkman, const util::DbWrapperParams& db_params);
+    explicit CInstantSendManager(const util::DbWrapperParams& db_params);
     ~CInstantSendManager();
 
     void AddNonLockedTx(const CTransactionRef& tx, const CBlockIndex* pindexMined)
@@ -169,4 +168,4 @@ public:
 };
 } // namespace llmq
 
-#endif // BITCOIN_INSTANTSEND_INSTANTSEND_H
+#endif // SCHILLINGCOIN_INSTANTSEND_INSTANTSEND_H

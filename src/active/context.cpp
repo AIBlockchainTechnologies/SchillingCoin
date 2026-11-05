@@ -1,4 +1,5 @@
 // Copyright (c) 2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -47,7 +48,7 @@ ActiveContext::ActiveContext(CBLSWorker& bls_worker, ChainstateManager& chainman
     cl_signer{std::make_unique<chainlock::ChainLockSigner>(chainman, chainlocks, clhandler, isman,
                                                            qman, sigman, *shareman, mn_sync)},
     is_signer{std::make_unique<instantsend::InstantSendSigner>(chainman, chainlocks, isman, sigman,
-                                                               *shareman, qman, sporkman, mempool, mn_sync)}
+                                                               *shareman, qman, mempool, mn_sync)}
 {
 }
 

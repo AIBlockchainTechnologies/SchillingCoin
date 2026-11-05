@@ -8,7 +8,7 @@ define(_CLIENT_VERSION_RC, 0)
 define(_CLIENT_VERSION_IS_RELEASE, true)
 define(_COPYRIGHT_YEAR, 2020)
 AC_INIT([Schilling Coin],m4_join([.], _CLIENT_VERSION_MAJOR, _CLIENT_VERSION_MINOR, _CLIENT_VERSION_REVISION, m4_if(_CLIENT_VERSION_BUILD, [0], [], _CLIENT_VERSION_BUILD))m4_if(_CLIENT_VERSION_RC, [0], [], [rc]_CLIENT_VERSION_RC),[https://gitlab.com/schillingcoin/SCH/issues],[schillingcoin],[https://schillingcoin.org/])
-AC_CONFIG_SRCDIR([src/main.cpp])
+AC_CONFIG_SRCDIR([src/validation.cpp])
 AC_CONFIG_HEADERS([src/config/schillingcoin-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([build-aux/m4])
@@ -106,6 +106,12 @@ AC_ARG_ENABLE([wallet],
   [disable wallet (enabled by default)])],
   [enable_wallet=$enableval],
   [enable_wallet=yes])
+
+AC_ARG_WITH([sqlite],
+  [AS_HELP_STRING([--with-sqlite=yes|no|auto],
+  [enable sqlite wallet support (default: auto, i.e., enabled if wallet is enabled and sqlite is found)])],
+  [use_sqlite=$withval],
+  [use_sqlite=auto])
 
 AC_ARG_ENABLE([usbdevice],
   [AS_HELP_STRING([--enable-usbdevice],
@@ -948,6 +954,25 @@ AC_SUBST(LIBMEMENV)
 if test x$enable_wallet != xno; then
     dnl Check for libdb_cxx only if wallet enabled
     BITCOIN_FIND_BDB48
+
+    dnl Check for sqlite3
+    if test "$use_sqlite" != "no"; then
+      PKG_CHECK_MODULES([SQLITE], [sqlite3 >= 3.7.17], [have_sqlite=yes], [have_sqlite=no])
+    fi
+
+    AC_MSG_CHECKING([whether to build wallet with support for sqlite])
+    if test "$use_sqlite" = "no"; then
+      use_sqlite=no
+    elif test "$have_sqlite" = "no"; then
+      if test "$use_sqlite" = "yes"; then
+        AC_MSG_ERROR([sqlite support requested but cannot be built. Use --without-sqlite])
+      fi
+      use_sqlite=no
+    else
+      AC_DEFINE([USE_SQLITE], [1], [Define if sqlite support should be compiled in])
+      use_sqlite=yes
+    fi
+    AC_MSG_RESULT([$use_sqlite])
 fi
 
 dnl Check for libminiupnpc (optional)
@@ -973,8 +998,6 @@ if test "x$enable_fuzz" = "xyes"; then
   use_upnp=no
 else
   BITCOIN_QT_INIT
-
-BITCOIN_QT_INIT
 
 dnl sets $bitcoin_enable_qt, $bitcoin_enable_qt_test, $bitcoin_enable_qt_dbus
 BITCOIN_QT_CONFIGURE([$use_pkgconfig])
@@ -1531,6 +1554,7 @@ AM_CONDITIONAL([TARGET_DARWIN], [test x$TARGET_OS = xdarwin])
 AM_CONDITIONAL([BUILD_DARWIN], [test x$BUILD_OS = xdarwin])
 AM_CONDITIONAL([TARGET_WINDOWS], [test x$TARGET_OS = xwindows])
 AM_CONDITIONAL([ENABLE_WALLET],[test x$enable_wallet = xyes])
+AM_CONDITIONAL([USE_SQLITE], [test "$use_sqlite" = "yes"])
 AM_CONDITIONAL([ENABLE_USBDEVICE],[test "$enable_usbdevice" = "yes"])
 AM_CONDITIONAL([ENABLE_TESTS],[test x$BUILD_TEST = xyes])
 AM_CONDITIONAL([ENABLE_FUZZ],[test x$enable_fuzz = xyes])
@@ -1585,9 +1609,12 @@ AC_SUBST(SSE41_CXXFLAGS)
 AC_SUBST(AVX2_CXXFLAGS)
 AC_SUBST(SHANI_CXXFLAGS)
 AC_SUBST(LIBTOOL_APP_LDFLAGS)
+AC_SUBST(USE_SQLITE)
 AC_SUBST(USE_UPNP)
 AC_SUBST(USE_QTCHARTS)
 AC_SUBST(BOOST_LIBS)
+AC_SUBST(SQLITE_CFLAGS)
+AC_SUBST(SQLITE_LIBS)
 AC_SUBST(TESTDEFS)
 AC_SUBST(LEVELDB_TARGET_FLAGS)
 AC_SUBST(MINIUPNPC_CPPFLAGS)
@@ -1665,6 +1692,9 @@ esac
 echo
 echo "Options used to compile and link:"
 echo "  with wallet    = $enable_wallet"
+if test "$enable_wallet" != "no"; then
+    echo "    with sqlite  = $use_sqlite"
+fi
 echo "  with usbdevice = $enable_usbdevice"
 echo "  with gui / qt  = $bitcoin_enable_qt"
 if test x$bitcoin_enable_qt != xno; then

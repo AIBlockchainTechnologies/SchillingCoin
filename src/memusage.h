@@ -1,20 +1,24 @@
-// Copyright (c) 2015 The Bitcoin developers
-// Copyright (c) 2021 The DECENOMY Core Developers
+// Copyright (c) 2015-2022 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef BITCOIN_MEMUSAGE_H
 #define BITCOIN_MEMUSAGE_H
 
-#include "prevector.h"
+#include <indirectmap.h>
+#include <prevector.h>
+#include <support/allocators/pool.h>
 
-#include <stdlib.h>
-
+#include <cassert>
+#include <cstdlib>
+#include <list>
 #include <map>
+#include <memory>
 #include <set>
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
+
 
 namespace memusage
 {
@@ -35,26 +39,14 @@ static inline size_t DynamicUsage(const float& v) { return 0; }
 static inline size_t DynamicUsage(const double& v) { return 0; }
 template<typename X> static inline size_t DynamicUsage(X * const &v) { return 0; }
 template<typename X> static inline size_t DynamicUsage(const X * const &v) { return 0; }
-template<typename X, typename Y> static inline size_t DynamicUsage(std::pair<X, Y> &p) { return 0; }
 
 /** Compute the memory used for dynamically allocated but owned data structures.
  *  For generic data types, this is *not* recursive. DynamicUsage(vector<vector<int> >)
  *  will compute the memory used for the vector<int>'s, but not for the ints inside.
  *  This is for efficiency reasons, as these functions are intended to be fast. If
  *  application data structures require more accurate inner accounting, they should
- *  use RecursiveDynamicUsage, iterate themselves, or use more efficient caching +
- *  updating on modification.
+ *  iterate themselves, or use more efficient caching + updating on modification.
  */
-template<typename X> static size_t DynamicUsage(const std::vector<X>& v);
-template<typename X> static size_t DynamicUsage(const std::set<X>& s);
-template<typename X, typename Y> static size_t DynamicUsage(const std::map<X, Y>& m);
-template<typename X> static size_t DynamicUsage(const X& x);
-
-template<typename X> static size_t RecursiveDynamicUsage(const std::vector<X>& v);
-template<typename X> static size_t RecursiveDynamicUsage(const std::set<X>& v);
-template<typename X, typename Y> static size_t RecursiveDynamicUsage(const std::map<X, Y>& v);
-template<typename X, typename Y> static size_t RecursiveDynamicUsage(const std::pair<X, Y>& v);
-template<typename X> static size_t RecursiveDynamicUsage(const X& v);
 
 static inline size_t MallocUsage(size_t alloc)
 {
@@ -83,20 +75,19 @@ private:
     X x;
 };
 
+struct stl_shared_counter
+{
+    /* Various platforms use different sized counters here.
+     * Conservatively assume that they won't be larger than size_t. */
+    void* class_type;
+    size_t use_count;
+    size_t weak_count;
+};
+
 template<typename X>
 static inline size_t DynamicUsage(const std::vector<X>& v)
 {
     return MallocUsage(v.capacity() * sizeof(X));
-}
-
-template<typename X>
-static inline size_t RecursiveDynamicUsage(const std::vector<X>& v)
-{
-    size_t usage = DynamicUsage(v);
-    for (const X& x : v) {
-        usage += RecursiveDynamicUsage(x);
-    }
-    return usage;
 }
 
 template<unsigned int N, typename X, typename S, typename D>
@@ -111,16 +102,6 @@ static inline size_t DynamicUsage(const std::set<X, Y>& s)
     return MallocUsage(sizeof(stl_tree_node<X>)) * s.size();
 }
 
-template<typename X>
-static inline size_t RecursiveDynamicUsage(const std::set<X>& v)
-{
-    size_t usage = DynamicUsage(v);
-    for (const X& x : v) {
-        usage += RecursiveDynamicUsage(x);
-    }
-    return usage;
-}
-
 template<typename X, typename Y>
 static inline size_t IncrementalDynamicUsage(const std::set<X, Y>& s)
 {
@@ -133,35 +114,55 @@ static inline size_t DynamicUsage(const std::map<X, Y, Z>& m)
     return MallocUsage(sizeof(stl_tree_node<std::pair<const X, Y> >)) * m.size();
 }
 
-template<typename X, typename Y>
-static inline size_t DynamicUsage(const std::map<X, Y>& m)
-{
-    return MallocUsage(sizeof(stl_tree_node<std::pair<const X, Y> >)) * m.size();
-}
-
-template<typename X, typename Y>
-static inline size_t RecursiveDynamicUsage(const std::map<X, Y>& v)
-{
-    size_t usage = DynamicUsage(v);
-    for (typename std::map<X, Y>::const_iterator it = v.begin(); it != v.end(); it++) {
-        usage += RecursiveDynamicUsage(*it);
-    }
-    return usage;
-}
-
 template<typename X, typename Y, typename Z>
 static inline size_t IncrementalDynamicUsage(const std::map<X, Y, Z>& m)
 {
     return MallocUsage(sizeof(stl_tree_node<std::pair<const X, Y> >));
 }
 
+// indirectmap has underlying map with pointer as key
+
 template<typename X, typename Y>
-static inline size_t RecursiveDynamicUsage(const std::pair<X, Y>& v)
+static inline size_t DynamicUsage(const indirectmap<X, Y>& m)
 {
-    return RecursiveDynamicUsage(v.first) + RecursiveDynamicUsage(v.second);
+    return MallocUsage(sizeof(stl_tree_node<std::pair<const X*, Y> >)) * m.size();
 }
 
-// Boost data structures
+template<typename X, typename Y>
+static inline size_t IncrementalDynamicUsage(const indirectmap<X, Y>& m)
+{
+    return MallocUsage(sizeof(stl_tree_node<std::pair<const X*, Y> >));
+}
+
+template<typename X>
+static inline size_t DynamicUsage(const std::unique_ptr<X>& p)
+{
+    return p ? MallocUsage(sizeof(X)) : 0;
+}
+
+template<typename X>
+static inline size_t DynamicUsage(const std::shared_ptr<X>& p)
+{
+    // A shared_ptr can either use a single continuous memory block for both
+    // the counter and the storage (when using std::make_shared), or separate.
+    // We can't observe the difference, however, so assume the worst.
+    return p ? MallocUsage(sizeof(X)) + MallocUsage(sizeof(stl_shared_counter)) : 0;
+}
+
+template<typename X>
+struct list_node
+{
+private:
+    void* ptr_next;
+    void* ptr_prev;
+    X x;
+};
+
+template<typename X>
+static inline size_t DynamicUsage(const std::list<X>& l)
+{
+    return MallocUsage(sizeof(list_node<X>)) * l.size();
+}
 
 template<typename X>
 struct unordered_node : private X
@@ -182,20 +183,25 @@ static inline size_t DynamicUsage(const std::unordered_map<X, Y, Z>& m)
     return MallocUsage(sizeof(unordered_node<std::pair<const X, Y> >)) * m.size() + MallocUsage(sizeof(void*) * m.bucket_count());
 }
 
-// Dispatch to class method as fallback
-
-template<typename X>
-static inline size_t DynamicUsage(const X& x)
+template <class Key, class T, class Hash, class Pred, std::size_t MAX_BLOCK_SIZE_BYTES, std::size_t ALIGN_BYTES>
+static inline size_t DynamicUsage(const std::unordered_map<Key,
+                                                           T,
+                                                           Hash,
+                                                           Pred,
+                                                           PoolAllocator<std::pair<const Key, T>,
+                                                                         MAX_BLOCK_SIZE_BYTES,
+                                                                         ALIGN_BYTES>>& m)
 {
-    return x.DynamicMemoryUsage();
+    auto* pool_resource = m.get_allocator().resource();
+
+    // The allocated chunks are stored in a std::list. Size per node should
+    // therefore be 3 pointers: next, previous, and a pointer to the chunk.
+    size_t estimated_list_node_size = MallocUsage(sizeof(void*) * 3);
+    size_t usage_resource = estimated_list_node_size * pool_resource->NumAllocatedChunks();
+    size_t usage_chunks = MallocUsage(pool_resource->ChunkSizeBytes()) * pool_resource->NumAllocatedChunks();
+    return usage_resource + usage_chunks + MallocUsage(sizeof(void*) * m.bucket_count());
 }
 
-template<typename X>
-static inline size_t RecursiveDynamicUsage(const X& x)
-{
-    return DynamicUsage(x);
-}
-
-}
+} // namespace memusage
 
 #endif // BITCOIN_MEMUSAGE_H

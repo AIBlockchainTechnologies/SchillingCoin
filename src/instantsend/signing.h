@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INSTANTSEND_SIGNING_H
-#define BITCOIN_INSTANTSEND_SIGNING_H
+#ifndef SCHILLINGCOIN_INSTANTSEND_SIGNING_H
+#define SCHILLINGCOIN_INSTANTSEND_SIGNING_H
 
 #include <instantsend/lock.h>
 #include <llmq/signing.h>
@@ -13,7 +14,6 @@
 
 class CMasternodeSync;
 class ChainstateManager;
-class CSporkManager;
 class CTxMemPool;
 
 namespace Consensus {
@@ -40,7 +40,6 @@ private:
     llmq::CSigningManager& m_sigman;
     llmq::CSigSharesManager& m_shareman;
     llmq::CQuorumManager& m_qman;
-    CSporkManager& m_sporkman;
     CTxMemPool& m_mempool;
     const CMasternodeSync& m_mn_sync;
 
@@ -69,7 +68,7 @@ public:
     InstantSendSigner& operator=(const InstantSendSigner&) = delete;
     explicit InstantSendSigner(const ChainstateManager& chainman, const chainlock::Chainlocks& chainlocks,
                                llmq::CInstantSendManager& isman, llmq::CSigningManager& sigman,
-                               llmq::CSigSharesManager& shareman, llmq::CQuorumManager& qman, CSporkManager& sporkman,
+                               llmq::CSigSharesManager& shareman, llmq::CQuorumManager& qman,
                                CTxMemPool& mempool, const CMasternodeSync& mn_sync);
     ~InstantSendSigner() override;
 
@@ -114,4 +113,4 @@ private:
 };
 } // namespace instantsend
 
-#endif // BITCOIN_INSTANTSEND_SIGNING_H
+#endif // SCHILLINGCOIN_INSTANTSEND_SIGNING_H

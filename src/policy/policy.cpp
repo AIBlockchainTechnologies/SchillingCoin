@@ -216,3 +216,13 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
 
     return true;
 }
+
+int64_t GetVirtualTransactionSize(int64_t nSize, int64_t nSigOp, unsigned int bytes_per_sigop)
+{
+    return std::max(nSize, nSigOp * bytes_per_sigop);
+}
+
+int64_t GetVirtualTransactionSize(const CTransaction& tx, int64_t nSigOp, unsigned int bytes_per_sigop)
+{
+    return GetVirtualTransactionSize(tx.GetTotalSize(), nSigOp, bytes_per_sigop);
+}

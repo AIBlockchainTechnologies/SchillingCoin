@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CHAINLOCK_CHAINLOCK_H
-#define BITCOIN_CHAINLOCK_CHAINLOCK_H
+#ifndef SCHILLINGCOIN_CHAINLOCK_CHAINLOCK_H
+#define SCHILLINGCOIN_CHAINLOCK_CHAINLOCK_H
 
 #include <bls/bls.h>
 #include <gsl/pointers.h>
@@ -12,7 +13,6 @@
 #include <uint256.h>
 
 class CBlockIndex;
-class CSporkManager;
 class uint256;
 
 namespace chainlock {
@@ -35,6 +35,7 @@ public:
     [[nodiscard]] int32_t getHeight() const { return nHeight; }
     [[nodiscard]] const uint256& getBlockHash() const { return blockHash; }
     [[nodiscard]] const CBLSSignature& getSig() const { return sig; }
+
     [[nodiscard]] bool IsNull() const { return nHeight == -1 && blockHash == uint256(); }
     [[nodiscard]] std::string ToString() const;
 
@@ -47,8 +48,6 @@ public:
 class Chainlocks
 {
 private:
-    const CSporkManager& m_sporks;
-
     mutable Mutex cs;
     const CBlockIndex* bestChainLockBlockIndex GUARDED_BY(cs){nullptr};
 
@@ -58,10 +57,9 @@ private:
     chainlock::ChainLockSig bestChainLockWithKnownBlock GUARDED_BY(cs);
 
 public:
-    explicit Chainlocks(const CSporkManager& sporkman);
+    Chainlocks() = default;
 
-    [[nodiscard]] bool IsEnabled() const;
-    [[nodiscard]] bool IsSigningEnabled() const;
+    [[nodiscard]] bool IsEnabled(int32_t nHeight) const;
 
     [[nodiscard]] chainlock::ChainLockSig GetBestChainLock() const EXCLUSIVE_LOCKS_REQUIRED(!cs);
 
@@ -86,4 +84,4 @@ public:
 
 } // namespace chainlock
 
-#endif // BITCOIN_CHAINLOCK_CHAINLOCK_H
+#endif // SCHILLINGCOIN_CHAINLOCK_CHAINLOCK_H

@@ -63,7 +63,6 @@
 #include <masternode/meta.h>
 #include <masternode/sync.h>
 #include <msg_result.h>
-#include <spork.h>
 #include <stats/client.h>
 
 #include <algorithm>
@@ -396,10 +395,6 @@ struct Peer {
 
     /** Whether this peer has already sent us a getaddr message. */
     bool m_getaddr_recvd GUARDED_BY(NetEventsInterface::g_msgproc_mutex){false};
-    /** Whether this peer has already requested sporks. */
-    bool m_getsporks_recvd GUARDED_BY(NetEventsInterface::g_msgproc_mutex){false};
-    /** Hashes of active sporks sent in the last getsporks response. */
-    std::vector<uint256> m_getsporks_last_response GUARDED_BY(NetEventsInterface::g_msgproc_mutex){};
     /** Number of addresses that can be processed from this peer. Start at 1 to
      *  permit self-announcement. */
     double m_addr_token_bucket GUARDED_BY(NetEventsInterface::g_msgproc_mutex){1.0};
@@ -555,7 +550,7 @@ class PeerManagerImpl final : public PeerManager
     PeerManagerImpl(CConnman& connman, AddrMan& addrman, BanMan* banman,
                     ChainstateManager& chainman, CTxMemPool& pool,
                     CMasternodeMetaMan& mn_metaman, CMasternodeSync& mn_sync,
-                    CSporkManager& sporkman, const chainlock::Chainlocks& chainlocks,
+                    const chainlock::Chainlocks& chainlocks,
                     chainlock::ChainlockHandler& clhandler,
                     CActiveMasternodeManager* nodeman,
                     CDeterministicMNManager& dmnman,
@@ -820,7 +815,6 @@ private:
     LLMQContext& m_llmq_ctx;
     CMasternodeMetaMan& m_mn_metaman;
     CMasternodeSync& m_mn_sync;
-    CSporkManager& m_sporkman;
     const chainlock::Chainlocks& m_chainlocks;
     // TODO: consider further refactoring ChainlockHandler to NetHandler to avoid boiler code in PeerManager
     chainlock::ChainlockHandler& m_clhandler;
@@ -2073,20 +2067,19 @@ std::unique_ptr<PeerManager> PeerManager::make(CConnman& connman, AddrMan& addrm
                                                BanMan* banman, ChainstateManager& chainman,
                                                CTxMemPool& pool, CMasternodeMetaMan& mn_metaman,
                                                CMasternodeSync& mn_sync,
-                                               CSporkManager& sporkman, const chainlock::Chainlocks& chainlocks,
+                                               const chainlock::Chainlocks& chainlocks,
                                                chainlock::ChainlockHandler& clhandler,
                                                CActiveMasternodeManager* nodeman,
                                                CDeterministicMNManager& dmnman,
                                                llmq::CInstantSendManager& isman,
                                                LLMQContext& llmq_ctx, bool ignore_incoming_txs)
 {
-    return std::make_unique<PeerManagerImpl>(connman, addrman, banman, chainman, pool, mn_metaman, mn_sync, sporkman, chainlocks, clhandler, nodeman, dmnman, isman, llmq_ctx, ignore_incoming_txs);
+    return std::make_unique<PeerManagerImpl>(connman, addrman, banman, chainman, pool, mn_metaman, mn_sync, chainlocks, clhandler, nodeman, dmnman, isman, llmq_ctx, ignore_incoming_txs);
 }
 
 PeerManagerImpl::PeerManagerImpl(CConnman& connman, AddrMan& addrman, BanMan* banman,
                                  ChainstateManager& chainman, CTxMemPool& pool,
                                  CMasternodeMetaMan& mn_metaman, CMasternodeSync& mn_sync,
-                                 CSporkManager& sporkman,
                                  const chainlock::Chainlocks& chainlocks,
                                  chainlock::ChainlockHandler& clhandler,
                                  CActiveMasternodeManager* nodeman,
@@ -2105,7 +2098,6 @@ PeerManagerImpl::PeerManagerImpl(CConnman& connman, AddrMan& addrman, BanMan* ba
       m_llmq_ctx(llmq_ctx),
       m_mn_metaman(mn_metaman),
       m_mn_sync(mn_sync),
-      m_sporkman(sporkman),
       m_chainlocks(chainlocks),
       m_clhandler{clhandler},
       m_ignore_incoming_txs(ignore_incoming_txs)
@@ -2377,19 +2369,11 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
 
     /*
         Dash Related Inventory Messages
-
-        --
-
+        ---
         We shouldn't update the sync times for each of the messages when we already have it.
         We're going to be asking many nodes upfront for the full inventory list, so we'll get duplicates of these.
         We want to only update the time on new hits, so that we can time out appropriately if needed.
     */
-
-    case MSG_SPORK:
-        {
-            return m_sporkman.GetSporkByHash(inv.hash).has_value();
-        }
-
     case MSG_GOVERNANCE_OBJECT:
     case MSG_GOVERNANCE_OBJECT_VOTE:
         for (const auto& handler : m_handlers) {
@@ -2940,13 +2924,6 @@ void PeerManagerImpl::ProcessGetData(CNode& pfrom, Peer& peer, const std::atomic
                         State(pfrom.GetId())->m_recently_announced_invs.insert(parent_txid);
                     }
                 }
-            }
-        }
-
-        if (!push && inv.type == MSG_SPORK) {
-            if (auto opt_spork = m_sporkman.GetSporkByHash(inv.hash)) {
-                m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::SPORK, *opt_spork));
-                push = true;
             }
         }
 
@@ -4352,9 +4329,7 @@ void PeerManagerImpl::ProcessMessage(
                 LogPrint(BCLog::NET, "got inv: %s  %s peer=%d\n", inv.ToString(), fAlreadyHave ? "have" : "new", pfrom.GetId());
                 ::g_stats_client->inc(strprintf("message.received.inv_%s", inv.GetCommand()), 1.0f);
 
-                static std::set<int> allowWhileInIBDObjs = {
-                        MSG_SPORK
-                };
+                static const std::set<int> allowWhileInIBDObjs{};
 
                 AddKnownInv(*peer, inv.hash);
                 if (!fAlreadyHave) {
@@ -5443,56 +5418,6 @@ void PeerManagerImpl::ProcessMessage(
             } else {
                 Misbehaving(*peer, 1, strError);
             }
-        }
-        return;
-    }
-
-    if (msg_type == NetMsgType::SPORK) {
-        CSporkMessage spork;
-        try {
-            vRecv >> spork;
-        } catch (const std::ios_base::failure& e) {
-            // Attribute deserialization failures to the peer; the outer catch would otherwise silently drop.
-            Misbehaving(*peer, 100, strprintf("malformed spork received. peer=%d error=%s", pfrom.GetId(), e.what()));
-            return;
-        }
-
-        uint256 hash = spork.GetHash();
-        CInv spork_inv{MSG_SPORK, hash};
-        WITH_LOCK(m_object_request_mutex, m_object_request.ReceivedResponse(pfrom.GetId(), spork_inv));
-        if (!m_sporkman.IsValidSpork(spork)) {
-            Misbehaving(*peer, 100, strprintf("invalid spork received. peer=%d", pfrom.GetId()));
-            return;
-        }
-        if (m_sporkman.ProcessSpork(spork, strprintf(" peer=%d", pfrom.GetId()))) {
-            WITH_LOCK(m_object_request_mutex, m_object_request.ForgetTxHash(spork_inv));
-            RelayInv(spork_inv);
-        }
-        return;
-    }
-
-    if (msg_type == NetMsgType::GETSPORKS) {
-        // For 'getsporks', active sporks is sent to the requesting peer.
-        auto active_sporks = m_sporkman.ActiveSporks();
-        std::vector<uint256> active_spork_hashes;
-        active_spork_hashes.reserve(active_sporks.size());
-        for (const auto& spork : active_sporks) {
-            active_spork_hashes.push_back(spork.GetHash());
-        }
-        std::sort(active_spork_hashes.begin(), active_spork_hashes.end());
-
-        // Ignore repeated requests only while the active spork set is unchanged.
-        // Functional tests and some peers request sporks again after a spork
-        // update; those requests must receive the newer active set.
-        if (peer->m_getsporks_recvd && peer->m_getsporks_last_response == active_spork_hashes) {
-            LogPrint(BCLog::NET, "Ignoring repeated \"getsporks\". peer=%d\n", pfrom.GetId());
-            return;
-        }
-        peer->m_getsporks_recvd = true;
-        peer->m_getsporks_last_response = active_spork_hashes;
-
-        for (const auto& spork : active_sporks) {
-            m_connman.PushMessage(&pfrom, CNetMsgMaker(pfrom.GetCommonVersion()).Make(NetMsgType::SPORK, spork));
         }
         return;
     }

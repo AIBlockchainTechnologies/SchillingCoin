@@ -123,7 +123,7 @@ std::unique_ptr<PeerManager> MakePeerManager(CConnman& connman,
                                              bool ignore_incoming_txs)
 {
     return PeerManager::make(connman, *node.addrman, banman, *node.dstxman, *node.chainman, *node.mempool, *node.mn_metaman,
-                             *node.mn_sync, *node.sporkman, *node.chainlocks, *node.clhandler, /*nodeman=*/nullptr, *node.dmnman, node.cj_walletman.get(),
+                             *node.mn_sync, *node.chainlocks, *node.clhandler, /*nodeman=*/nullptr, *node.dmnman, node.cj_walletman.get(),
                              *node.isman, *node.llmq_ctx, ignore_incoming_txs);
 }
 
@@ -212,10 +212,10 @@ BasicTestingSetup::BasicTestingSetup(const std::string& chainName, const std::ve
     m_node.mn_metaman = std::make_unique<CMasternodeMetaMan>();
     m_node.netfulfilledman = std::make_unique<CNetFulfilledRequestManager>();
     m_node.sporkman = std::make_unique<CSporkManager>();
-    m_node.chainlocks = std::make_unique<chainlock::Chainlocks>(*m_node.sporkman);
+    m_node.chainlocks = std::make_unique<chainlock::Chainlocks>();
     m_node.evodb = std::make_unique<CEvoDB>(util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
     m_node.dmnman = std::make_unique<CDeterministicMNManager>(*m_node.evodb, *m_node.mn_metaman);
-    m_node.isman = std::make_unique<llmq::CInstantSendManager>(*m_node.sporkman, util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
+    m_node.isman = std::make_unique<llmq::CInstantSendManager>(util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
 
     static bool noui_connected = false;
     if (!noui_connected) {
@@ -348,7 +348,7 @@ void ChainTestingSetup::LoadVerifyActivateChainstate()
         m_node.evodb.reset();
         m_node.evodb = std::make_unique<CEvoDB>(util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
         m_node.dmnman = std::make_unique<CDeterministicMNManager>(*m_node.evodb, *m_node.mn_metaman);
-        m_node.isman = std::make_unique<llmq::CInstantSendManager>(*m_node.sporkman, util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
+        m_node.isman = std::make_unique<llmq::CInstantSendManager>(util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
         m_node.mempool = std::make_unique<CTxMemPool>(MemPoolOptionsForTest(m_node));
         m_node.clhandler = std::make_unique<chainlock::ChainlockHandler>(*m_node.chainlocks, chainman, *m_node.mempool, *m_node.mn_sync);
         options = ChainstateLoadOptionsForTest();

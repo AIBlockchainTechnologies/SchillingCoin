@@ -7,6 +7,7 @@
 #include "coins.h"
 
 #include "consensus/consensus.h"
+#include "logging.h"
 #include "memusage.h"
 #include "random.h"
 #include "util.h"
@@ -31,12 +32,6 @@ void CCoinsViewBacked::SetBackend(CCoinsView& viewIn) { base = &viewIn; }
 bool CCoinsViewBacked::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock) { return base->BatchWrite(mapCoins, hashBlock); }
 CCoinsViewCursor* CCoinsViewBacked::Cursor() const { return base->Cursor(); }
 size_t CCoinsViewBacked::EstimateSize() const { return base->EstimateSize(); }
-
-SaltedOutpointHasher::SaltedOutpointHasher()
-    : k0(GetRand(std::numeric_limits<uint64_t>::max())),
-      k1(GetRand(std::numeric_limits<uint64_t>::max()))
-{
-}
 
 CCoinsViewCache::CCoinsViewCache(CCoinsView* baseIn)
     : CCoinsViewBacked(baseIn),
@@ -311,9 +306,7 @@ double CCoinsViewCache::GetPriority(const CTransaction& tx, int nHeight) const
     return tx.ComputePriority(dResult);
 }
 
-int CCoinsViewCache::GetCoinDepthAtHeight(
-    const COutPoint& output,
-    int nHeight) const
+int CCoinsViewCache::GetCoinDepthAtHeight(const COutPoint& output, int nHeight) const
 {
     const Coin& coin = AccessCoin(output);
 
@@ -330,20 +323,42 @@ static const size_t MAX_OUTPUTS_PER_BLOCK =
         SER_NETWORK,
         PROTOCOL_VERSION);
 
-const Coin& AccessByTxid(
-    const CCoinsViewCache& view,
-    const uint256& txid)
+const Coin& AccessByTxid(const CCoinsViewCache& view, const uint256& txid)
 {
     COutPoint iter(txid, 0);
-
     while (iter.n < MAX_OUTPUTS_PER_BLOCK) {
         const Coin& coin = view.AccessCoin(iter);
-
         if (!coin.IsSpent())
             return coin;
-
         ++iter.n;
     }
-
     return coinEmpty;
+}
+
+template <typename Func>
+static bool ExecuteBackedWrapper(Func func, const std::vector<std::function<void()>>& err_callbacks)
+{
+    try {
+        return func();
+    } catch (const std::runtime_error& e) {
+        for (const auto& f : err_callbacks) {
+            f();
+        }
+        LogPrintf("Error reading from database: %s\n", e.what());
+        // Starting the shutdown sequence and returning false to the caller would be
+        // interpreted as 'entry not found' (as opposed to unable to read data), and
+        // could lead to invalid interpretation. Just exit immediately, as we can't
+        // continue anyway, and all writes should be atomic.
+        std::abort();
+    }
+}
+
+bool CCoinsViewErrorCatcher::GetCoin(const COutPoint &outpoint, Coin &coin) const
+{
+    return ExecuteBackedWrapper([&]() { return CCoinsViewBacked::GetCoin(outpoint, coin); }, m_err_callbacks);
+}
+
+bool CCoinsViewErrorCatcher::HaveCoin(const COutPoint &outpoint) const
+{
+    return ExecuteBackedWrapper([&]() { return CCoinsViewBacked::HaveCoin(outpoint); }, m_err_callbacks);
 }

@@ -15,9 +15,9 @@
 
 #include <boost/thread.hpp>
 
+static constexpr uint8_t DB_COIN{'C'};
+static constexpr uint8_t DB_BLOCK_FILES{'f'};
 static constexpr uint8_t DB_BLOCK_INDEX{'b'};
-static constexpr uint8_t DB_TXINDEX{'t'};
-
 static constexpr uint8_t DB_BEST_BLOCK{'B'};
 static constexpr uint8_t DB_FLAG{'F'};
 static constexpr uint8_t DB_INT{'I'};
@@ -84,7 +84,7 @@ uint256 CCoinsViewDB::GetBestBlock() const
 
 bool CCoinsViewDB::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock)
 {
-    CDBBatch batch;
+    CDBBatch batch(db);
     size_t count = 0;
     size_t changed = 0;
 
@@ -229,7 +229,7 @@ bool CBlockTreeDB::ReadLastBlockFile(int& nFile)
 }
 
 bool CBlockTreeDB::WriteBatchSync(const std::vector<std::pair<int, const CBlockFileInfo*> >& fileInfo, int nLastFile, const std::vector<const CBlockIndex*>& blockinfo) {
-    CDBBatch batch;
+    CDBBatch batch(*this);
     for (std::vector<std::pair<int, const CBlockFileInfo*> >::const_iterator it=fileInfo.begin(); it != fileInfo.end(); it++) {
         batch.Write(std::make_pair(DB_BLOCK_FILES, it->first), *it->second);
     }
@@ -238,19 +238,6 @@ bool CBlockTreeDB::WriteBatchSync(const std::vector<std::pair<int, const CBlockF
         batch.Write(std::make_pair(DB_BLOCK_INDEX, (*it)->GetBlockHash()), CDiskBlockIndex(*it));
     }
     return WriteBatch(batch, true);
-}
-
-bool CBlockTreeDB::ReadTxIndex(const uint256& txid, CDiskTxPos& pos)
-{
-    return Read(std::make_pair(DB_TXINDEX, txid), pos);
-}
-
-bool CBlockTreeDB::WriteTxIndex(const std::vector<std::pair<uint256, CDiskTxPos> >& vect)
-{
-    CDBBatch batch;
-    for (std::vector<std::pair<uint256, CDiskTxPos> >::const_iterator it = vect.begin(); it != vect.end(); it++)
-        batch.Write(std::make_pair(DB_TXINDEX, it->first), it->second);
-    return WriteBatch(batch);
 }
 
 bool CBlockTreeDB::WriteFlag(const std::string& name, bool fValue)
