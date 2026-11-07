@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,7 +10,6 @@
 #include <llmq/dkgsessionhandler.h>
 #include <llmq/options.h>
 #include <llmq/utils.h>
-#include <spork.h>
 #include <unordered_lru_cache.h>
 #include <util/helpers.h>
 #include <util/std23.h>

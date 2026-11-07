@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_PROVIDERTX_H
-#define BITCOIN_EVO_PROVIDERTX_H
+#ifndef SCHILLINGCOIN_EVO_PROVIDERTX_H
+#define SCHILLINGCOIN_EVO_PROVIDERTX_H
 
 #include <bls/bls.h>
 #include <evo/dmn_types.h>
@@ -104,11 +105,9 @@ template<class T>
 [[nodiscard]] std::string PayoutListToString(const MasternodePayoutShares& payouts);
 [[nodiscard]] UniValue PayoutListToJson(const MasternodePayoutShares& payouts);
 
-/** Validate all provider network fields using the same rules as special transaction validation.
- *  Pass nullptr for platform_node_id when validating endpoint input separately from the rest of a payload. */
+/** Validate all provider network fields using the same rules as special transaction validation. */
 [[nodiscard]] bool CheckProviderNetworkFields(const std::shared_ptr<NetInfoInterface>& net_info, MnType type,
-                                              uint16_t version, const uint160* platform_node_id, uint16_t platform_p2p_port,
-                                              uint16_t platform_http_port, bool allow_empty, TxValidationState& state);
+                                              uint16_t version, bool allow_empty, TxValidationState& state);
 
 [[nodiscard]] bool IsShareListTriviallyValid(const CollateralShares& shares, uint32_t early_period_blocks,
                                              CAmount early_penalty, CAmount required_collateral,
@@ -139,13 +138,10 @@ public:
     static constexpr uint32_t MAX_EARLY_PERIOD_BLOCKS{420480}; // approx. two years at 2.5-minute blocks
 
     uint16_t nVersion{ProTxVersion::LegacyBLS}; // message version
-    MnType nType{MnType::Regular};
+    MnType nType{MnType::Level1};
     uint16_t nMode{0};                                     // only 0 supported for now
     COutPoint collateralOutpoint{uint256(), static_cast<uint32_t>(-1)}; // if hash is null, we refer to a ProRegTx output
     std::shared_ptr<NetInfoInterface> netInfo{nullptr};
-    uint160 platformNodeID{};
-    uint16_t platformP2PPort{0};
-    uint16_t platformHTTPPort{0};
     CKeyID keyIDOwner;
     CBLSLazyPublicKey pubKeyOperator;
     CKeyID keyIDVoting;
@@ -212,15 +208,6 @@ public:
         READWRITE(
                 obj.inputsHash
         );
-        if (obj.nType == MnType::Evo) {
-            READWRITE(
-                obj.platformNodeID);
-            if (obj.nVersion < ProTxVersion::ExtAddr) {
-                READWRITE(
-                obj.platformP2PPort,
-                obj.platformHTTPPort);
-            }
-        }
         if (!(s.GetType() & SER_GETHASH)) {
             READWRITE(obj.vchSig);
         }
@@ -256,12 +243,9 @@ public:
     static constexpr auto SPECIALTX_TYPE = TRANSACTION_PROVIDER_UPDATE_SERVICE;
 
     uint16_t nVersion{ProTxVersion::LegacyBLS}; // message version
-    MnType nType{MnType::Regular};
+    MnType nType{MnType::Level1};
     uint256 proTxHash;
     std::shared_ptr<NetInfoInterface> netInfo{nullptr};
-    uint160 platformNodeID{};
-    uint16_t platformP2PPort{0};
-    uint16_t platformHTTPPort{0};
     CScript scriptOperatorPayout;
     uint256 inputsHash; // replay protection
     CBLSSignature sig;
@@ -287,15 +271,6 @@ public:
                 obj.scriptOperatorPayout,
                 obj.inputsHash
         );
-        if (obj.nType == MnType::Evo) {
-            READWRITE(
-                obj.platformNodeID);
-            if (obj.nVersion < ProTxVersion::ExtAddr) {
-                READWRITE(
-                obj.platformP2PPort,
-                obj.platformHTTPPort);
-            }
-        }
         if (!(s.GetType() & SER_GETHASH)) {
             READWRITE(
                     CBLSSignatureVersionWrapper(const_cast<CBLSSignature&>(obj.sig), (obj.nVersion == ProTxVersion::LegacyBLS))
@@ -565,4 +540,4 @@ static bool CheckInputsHash(const CTransaction& tx, const ProTx& proTx, TxValida
     return true;
 }
 
-#endif // BITCOIN_EVO_PROVIDERTX_H
+#endif // SCHILLINGCOIN_EVO_PROVIDERTX_H

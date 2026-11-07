@@ -10,21 +10,23 @@
 
 #include "script/interpreter.h"
 #include "uint256.h"
-
-#include <boost/variant.hpp>
+#include "util/hash_type.h"
 
 #include <stdint.h>
+#include <variant>
 
 class CKeyID;
 class CScript;
+struct ScriptHash;
 
 /** A reference to a CScript: the Hash160 of its serialization (see script.h) */
-class CScriptID : public uint160
+class CScriptID : public BaseHash<uint160>
 {
 public:
-    CScriptID() : uint160() {}
-    CScriptID(const CScript& in);
-    CScriptID(const uint160& in) : uint160(in) {}
+    CScriptID() : BaseHash() {}
+    explicit CScriptID(const CScript& in);
+    explicit CScriptID(const uint160& in) : BaseHash(in) {}
+    explicit CScriptID(const ScriptHash& in);
 };
 
 static const unsigned int MAX_OP_RETURN_RELAY = 83;      //!< bytes (+1 for OP_RETURN, +2 for the pushdata opcodes)
@@ -56,18 +58,41 @@ enum txnouttype
 
 class CNoDestination {
 public:
-    friend bool operator==(const CNoDestination &a, const CNoDestination &b) { return true; }
-    friend bool operator<(const CNoDestination &a, const CNoDestination &b) { return true; }
+    friend bool operator==(const CNoDestination& a, const CNoDestination& b) { return true; }
+    friend bool operator<(const CNoDestination& a, const CNoDestination& b) { return true; }
+};
+
+struct PKHash : public BaseHash<uint160>
+{
+    PKHash() : BaseHash() {}
+    explicit PKHash(const uint160& hash) : BaseHash(hash) {}
+    explicit PKHash(const CPubKey& pubkey);
+    explicit PKHash(const CKeyID& pubkey_id);
+};
+
+CKeyID ToKeyID(const PKHash& key_hash);
+
+struct ScriptHash : public BaseHash<uint160>
+{
+    ScriptHash() : BaseHash() {}
+
+    // These do not do what callers usually expect. Construct the ScriptHash
+    // from the actual redeem script instead.
+    explicit ScriptHash(const PKHash& hash) = delete;
+
+    explicit ScriptHash(const uint160& hash) : BaseHash(hash) {}
+    explicit ScriptHash(const CScript& script);
+    explicit ScriptHash(const CScriptID& script);
 };
 
 /**
- * A txout script template with a specific destination. It is either:
- *  * CNoDestination: no destination set
- *  * CKeyID: TX_PUBKEYHASH destination
- *  * CScriptID: TX_SCRIPTHASH destination
- *  A CTxDestination is the internal destination representation.
+ * A transaction-output script destination.
+ *
+ * CNoDestination represents no destination.
+ * PKHash represents a P2PKH destination.
+ * ScriptHash represents a P2SH destination.
  */
-typedef boost::variant<CNoDestination, CKeyID, CScriptID> CTxDestination;
+using CTxDestination = std::variant<CNoDestination, PKHash, ScriptHash>;
 
 /** Check whether a CTxDestination is a CNoDestination. */
 bool IsValidDestination(const CTxDestination& dest);

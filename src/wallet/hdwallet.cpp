@@ -1,8 +1,9 @@
 // Copyright (c) 2017-2025 The Particl Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <config/bitcoin-config.h> // IWYU pragma: keep
+#include <config/schillingcoin-config.h> // IWYU pragma: keep
 
 #include <wallet/hdwallet.h>
 

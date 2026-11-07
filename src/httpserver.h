@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_HTTPSERVER_H
-#define BITCOIN_HTTPSERVER_H
+#ifndef SCHILLINGCOIN_HTTPSERVER_H
+#define SCHILLINGCOIN_HTTPSERVER_H
 
 #include <string>
 #include <stdint.h>
@@ -13,6 +13,7 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <condition_variable>
 #include <type_traits>
 #include <utility>
@@ -196,11 +197,14 @@ public:
     std::string GetURI();
     CService GetPeer();
     RequestMethod GetRequestMethod();
+    std::optional<std::string> GetQueryParameter(const std::string& key) const;
     std::pair<bool, std::string> GetHeader(const std::string& hdr);
     std::string ReadBody();
     void WriteHeader(const std::string& hdr, const std::string& value);
     void WriteReply(int nStatus, const std::string& strReply = "");
 };
+
+std::optional<std::string> GetQueryParameterFromUri(const char* uri, const std::string& key);
 
 class HTTPClosure
 {
@@ -222,4 +226,4 @@ private:
     struct event* ev;
 };
 
-#endif // BITCOIN_HTTPSERVER_H
+#endif // SCHILLINGCOIN_HTTPSERVER_H

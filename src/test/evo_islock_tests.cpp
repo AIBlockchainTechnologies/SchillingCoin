@@ -1,4 +1,5 @@
 // Copyright (c) 2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,7 +15,6 @@
 #include <llmq/signhash.h>
 #include <llmq/signing.h>
 #include <primitives/transaction.h>
-#include <spork.h>
 #include <streams.h>
 #include <test/util/llmq_tests.h>
 #include <test/util/net.h>

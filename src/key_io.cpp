@@ -8,17 +8,15 @@
 
 #include "base58.h"
 
-#include <boost/variant/apply_visitor.hpp>
-#include <boost/variant/static_visitor.hpp>
-
 #include <algorithm>
 #include <assert.h>
 #include <string.h>
+#include <variant>
 
 namespace
 {
 
-class DestinationEncoder : public boost::static_visitor<std::string>
+class DestinationEncoder
 {
 private:
     const CChainParams& m_params;
@@ -33,14 +31,14 @@ public:
     {
     }
 
-    std::string operator()(const CKeyID& id) const
+    std::string operator()(const PKHash& id) const
     {
         std::vector<unsigned char> data = m_params.Base58Prefix(m_addrType);
         data.insert(data.end(), id.begin(), id.end());
         return EncodeBase58Check(data);
     }
 
-    std::string operator()(const CScriptID& id) const
+    std::string operator()(const ScriptHash& id) const
     {
         std::vector<unsigned char> data = m_params.Base58Prefix(CChainParams::SCRIPT_ADDRESS);
         data.insert(data.end(), id.begin(), id.end());
@@ -70,7 +68,7 @@ CTxDestination DecodeDestination(
         if (data.size() == hash.size() + pubkeyPrefix.size() &&
             std::equal(pubkeyPrefix.begin(), pubkeyPrefix.end(), data.begin())) {
             std::copy(data.begin() + pubkeyPrefix.size(), data.end(), hash.begin());
-            return CKeyID(hash);
+            return PKHash(hash);
         }
 
         const std::vector<unsigned char>& stakingPrefix =
@@ -80,7 +78,7 @@ CTxDestination DecodeDestination(
             std::equal(stakingPrefix.begin(), stakingPrefix.end(), data.begin())) {
             isStaking = true;
             std::copy(data.begin() + stakingPrefix.size(), data.end(), hash.begin());
-            return CKeyID(hash);
+            return PKHash(hash);
         }
 
         const std::vector<unsigned char>& scriptPrefix =
@@ -89,7 +87,7 @@ CTxDestination DecodeDestination(
         if (data.size() == hash.size() + scriptPrefix.size() &&
             std::equal(scriptPrefix.begin(), scriptPrefix.end(), data.begin())) {
             std::copy(data.begin() + scriptPrefix.size(), data.end(), hash.begin());
-            return CScriptID(hash);
+            return ScriptHash(hash);
         }
     }
 
@@ -109,7 +107,7 @@ std::string EncodeDestination(
     const CTxDestination& dest,
     const CChainParams::Base58Type addrType)
 {
-    return boost::apply_visitor(DestinationEncoder(Params(), addrType), dest);
+    return std::visit(DestinationEncoder(Params(), addrType), dest);
 }
 
 CTxDestination DecodeDestination(const std::string& str)

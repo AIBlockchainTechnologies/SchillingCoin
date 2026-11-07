@@ -64,7 +64,7 @@ public:
             cachedNodeStats.reserve(vstats.size());
             for (const CNodeStats& nodestats : vstats) {
                 CNodeCombinedStats stats;
-                stats.nodeStateStats.nMisbehavior = 0;
+                stats.nodeStateStats.m_misbehavior_score = 0;
                 stats.nodeStateStats.nSyncHeight = -1;
                 stats.nodeStateStats.nCommonHeight = -1;
                 stats.fNodeStateStatsAvailable = false;

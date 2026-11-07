@@ -282,10 +282,13 @@ set(SERVER_SOURCES
         ./src/bloom.cpp
         ./src/blocksignature.cpp
         ./src/chain.cpp
+        ./src/legacy/stakemodifier.cpp
         ./src/checkpoints.cpp
         ./src/dbwrapper.cpp
+        ./src/deploymentstatus.cpp
         ./src/httprpc.cpp
         ./src/httpserver.cpp
+        ./src/init/common.cpp
         ./src/init.cpp
         ./src/merkleblock.cpp
         ./src/net.cpp
@@ -299,6 +302,7 @@ set(SERVER_SOURCES
         ./src/rest.cpp
         ./src/rpc/blockchain.cpp
         ./src/rpc/fees.cpp
+        ./src/rpc/json_help.cpp
         ./src/rpc/masternode.cpp
         ./src/rpc/mempool.cpp
         ./src/rpc/mining.cpp
@@ -306,6 +310,7 @@ set(SERVER_SOURCES
         ./src/rpc/net.cpp
         ./src/rpc/rawtransaction.cpp
         ./src/rpc/server.cpp
+        ./src/rpc/signmessage.cpp
         ./src/rpc/txoutproof.cpp
         ./src/script/sigcache.cpp
         ./src/sporkdb.cpp
@@ -333,6 +338,8 @@ if(ZMQ_FOUND)
             ./src/zmq/zmqabstractnotifier.cpp
             ./src/zmq/zmqnotificationinterface.cpp
             ./src/zmq/zmqpublishnotifier.cpp
+            ./src/zmq/zmqrpc.cpp
+            ./src/zmq/zmqutil.cpp
             )
     add_library(ZMQ_A STATIC ${BitcoinHeaders} ${ZMQ_SOURCES} ${ZMQ_LIB})
     target_include_directories(ZMQ_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${ZMQ_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
@@ -353,7 +360,6 @@ set(WALLET_SOURCES
         ./src/wallet/scriptpubkeyman.cpp
         ./src/wallet/rpcwallet.cpp
         ./src/kernel.cpp
-        ./src/legacy/stakemodifier.cpp
         ./src/wallet/bdb.cpp
         ./src/wallet/db.cpp
         ./src/wallet/hdchain.cpp
@@ -471,11 +477,23 @@ target_include_directories(ZEROCOIN_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
 set(COMMON_SOURCES
         ./src/allocators.cpp
         ./src/base58.cpp
+        ./src/bech32.cpp
         ./src/bip38.cpp
         ./src/chainparams.cpp
         ./src/coins.cpp
+        ./src/common/args.cpp
+        ./src/common/bloom.cpp
+        ./src/common/common.cpp
+        ./src/common/config.cpp
+        ./src/common/init.cpp
+        ./src/common/interfaces.cpp
+        ./src/common/run_command.cpp
+        ./src/common/settings.cpp
+        ./src/common/system.cpp
+        ./src/common/url.cpp
         ./src/core_read.cpp
         ./src/core_write.cpp
+        ./src/deploymentinfo.cpp
         ./src/compressor.cpp
         ./src/consensus/merkle.cpp
         ./src/consensus/tx_verify.cpp
@@ -483,6 +501,9 @@ set(COMMON_SOURCES
         ./src/evo/specialtx.cpp
         ./src/hash.cpp
         ./src/key.cpp
+        ./src/key/crypter.cpp
+        ./src/key/keyutil.cpp
+        ./src/key/stealth.cpp
         ./src/key_io.cpp
         ./src/keystore.cpp
         ./src/netaddress.cpp
@@ -525,16 +546,20 @@ set(UTIL_SOURCES
         ./src/clientversion.cpp
         ./src/logging.cpp
         ./src/random.cpp
-        ./src/rpc/protocol.cpp
+        ./src/stacktraces.cpp
         ./src/support/cleanse.cpp
         ./src/sync.cpp
         ./src/util.cpp
         ./src/utilmoneystr.cpp
         ./src/utilstrencodings.cpp
         ./src/utiltime.cpp
+        ./src/util/exception.cpp
         ./src/util/fs.cpp
+        ./src/util/signalinterrupt.cpp
+        ./src/util/thread.cpp
         ./src/util/threadinterrupt.cpp
         ./src/util/threadnames.cpp
+        ./src/util/tokenpipe.cpp
         )
 add_library(UTIL_A STATIC ${BitcoinHeaders} ${UTIL_SOURCES})
 target_include_directories(UTIL_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -594,7 +619,7 @@ endif()
 
 link_directories(${CMAKE_BINARY_DIR})
 
-set(schillingcoind_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/schillingcoind.cpp)
+set(schillingcoind_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/init/bitcoind.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/schillingcoind.cpp)
 if($ENV{target} MATCHES "Windows")
     list(APPEND schillingcoind_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/schillingcoind-res.rc)
 endif()

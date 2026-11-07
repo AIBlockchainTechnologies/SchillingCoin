@@ -143,6 +143,7 @@ public:
      * thus the filter will likely be modified.
      */
     CMerkleBlock(const CBlock& block, CBloomFilter& filter);
+    CMerkleBlock() = default;
 
     SERIALIZE_METHODS(CMerkleBlock, obj)
     {

@@ -12,14 +12,17 @@
 #include "chainparamsbase.h"
 #include "checkpoints.h"
 #include "consensus/params.h"
+#include "netaddress.h"
+#include "netbase.h"
 #include "primitives/block.h"
 #include "protocol.h"
 #include "uint256.h"
 
+#include <memory>
 #include <optional>
 #include <vector>
 
-typedef unsigned char MessageStartChars[MESSAGE_START_SIZE];
+class ArgsManager;
 
 class CDNSSeedData {
 public:
@@ -57,8 +60,37 @@ public:
 
     const Consensus::Params& GetConsensus() const { return consensus; }
     [[nodiscard]] std::optional<Consensus::LLMQParams> GetLLMQ(Consensus::LLMQType llmqType) const;
-    const MessageStartChars& MessageStart() const { return pchMessageStart; }
-    int GetDefaultPort() const { return nDefaultPort; }
+    const CMessageHeader::MessageStartChars& MessageStart() const { return pchMessageStart; }
+
+    uint16_t GetDefaultPort() const { return nDefaultPort; }
+
+    uint16_t GetDefaultPort(Network net) const
+    {
+        return net == NET_I2P ? I2P_SAM31_PORT : GetDefaultPort();
+    }
+
+    uint16_t GetDefaultPort(const std::string& addr) const
+    {
+        CNetAddr net_addr;
+        return net_addr.SetSpecial(addr) ? GetDefaultPort(net_addr.GetNetwork()) : GetDefaultPort();
+    }
+
+    /** Allow multiple outbound addresses from the same network group. */
+    bool AllowMultipleAddressesFromGroup() const
+    {
+        return fAllowMultipleAddressesFromGroup;
+    }
+
+    /** How long to wait before retrying an LLMQ connection. */
+    int LLMQConnectionRetryTimeout() const
+    {
+        return nLLMQConnectionRetryTimeout;
+    }
+
+    int FulfilledRequestExpireTime() const
+    {
+        return nFulfilledRequestExpireTime;
+    }
 
     const CBlock& GenesisBlock() const { return genesis; }
 
@@ -69,33 +101,38 @@ public:
     /** Default value for -checkmempool and -checkblockindex argument */
     bool DefaultConsistencyChecks() const { return IsRegTestNet(); }
 
-    /** Return the BIP70 network string (main, test or regtest) */
-    std::string NetworkIDString() const { return strNetworkID; }
+    /** Return the network string (main, test or regtest). */
+    std::string NetworkIDString() const { return ChainTypeToString(m_chain_type); }
+    ChainType GetChainType() const { return m_chain_type; }
+    bool IsRegTestNet() const { return m_chain_type == ChainType::REGTEST; }
     const std::vector<CDNSSeedData>& DNSSeeds() const { return vSeeds; }
     const std::vector<unsigned char>& Base58Prefix(Base58Type type) const { return base58Prefixes[type]; }
     int ExtCoinType() const { return nExtCoinType; }
     const std::vector<CAddress>& FixedSeeds() const { return vFixedSeeds; }
     virtual const Checkpoints::CCheckpointData& Checkpoints() const = 0;
 
-    CBaseChainParams::Network NetworkID() const { return networkID; }
-    bool IsRegTestNet() const { return NetworkID() == CBaseChainParams::REGTEST; }
-
 protected:
-    CChainParams() {}
+    CChainParams() = default;
 
     void AddLLMQ(Consensus::LLMQType llmqType);
 
-    CBaseChainParams::Network networkID;
-    std::string strNetworkID;
+    ChainType m_chain_type;
     CBlock genesis;
     Consensus::Params consensus;
-    MessageStartChars pchMessageStart;
-    int nDefaultPort;
+    CMessageHeader::MessageStartChars pchMessageStart;
+    uint16_t nDefaultPort;
     std::vector<CDNSSeedData> vSeeds;
     std::vector<unsigned char> base58Prefixes[MAX_BASE58_TYPES];
     int nExtCoinType;
     std::vector<CAddress> vFixedSeeds;
+    bool fAllowMultipleAddressesFromGroup{false};
+    int nLLMQConnectionRetryTimeout{60};
 };
+
+/**
+ * Creates and returns parameters for the chosen chain type.
+ */
+std::unique_ptr<const CChainParams> CreateChainParams(const ArgsManager& args, ChainType chain);
 
 /**
  * Return the currently selected parameters. This won't change after app startup
@@ -103,16 +140,7 @@ protected:
  */
 const CChainParams& Params();
 
-/** Return parameters for the given network. */
-CChainParams& Params(CBaseChainParams::Network network);
-
-/** Sets the params returned by Params() to those for the given network. */
-void SelectParams(CBaseChainParams::Network network);
-
-/**
- * Looks for -regtest or -testnet and then calls SelectParams as appropriate.
- * Returns false if an invalid combination is given.
- */
-bool SelectParamsFromCommandLine();
+/** Sets the params returned by Params() to those for the given chain type. */
+void SelectParams(ChainType chain);
 
 #endif // SCHILLINGCOIN_CHAINPARAMS_H

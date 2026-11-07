@@ -4,11 +4,16 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CHAINPARAMSBASE_H
-#define BITCOIN_CHAINPARAMSBASE_H
+#ifndef SCHILLINGCOIN_CHAINPARAMSBASE_H
+#define SCHILLINGCOIN_CHAINPARAMSBASE_H
 
+#include <util/chaintype.h>
+
+#include <cstdint>
+#include <memory>
 #include <string>
-#include <vector>
+
+class ArgsManager;
 
 /**
  * CBaseChainParams defines the base parameters (shared between schillingcoin-cli and schillingcoind)
@@ -17,60 +22,38 @@
 class CBaseChainParams
 {
 public:
-    enum Network {
-        MAIN,
-        TESTNET,
-        REGTEST,
-
-        MAX_NETWORK_TYPES
-    };
-
     const std::string& DataDir() const { return strDataDir; }
-    int RPCPort() const { return nRPCPort; }
+    uint16_t RPCPort() const { return m_rpc_port; }
 
-protected:
-    CBaseChainParams() {}
+    CBaseChainParams() = delete;
+    CBaseChainParams(const std::string& data_dir, uint16_t rpc_port)
+        : m_rpc_port(rpc_port), strDataDir(data_dir) {}
 
-    int nRPCPort;
+private:
+    const uint16_t m_rpc_port;
     std::string strDataDir;
-    Network networkID;
 };
 
 /**
- * Return the currently selected parameters. This won't change after app startup
- * outside of the unit tests.
+ * Creates and returns a std::unique_ptr<CBaseChainParams> of the chosen chain.
+ */
+std::unique_ptr<CBaseChainParams> CreateBaseChainParams(ChainType chain);
+
+/**
+ * Set the arguments for chainparams.
+ */
+void SetupChainParamsBaseOptions(ArgsManager& argsman);
+
+/**
+ * Return the currently selected parameters. This won't change after app
+ * startup, except for unit tests.
  */
 const CBaseChainParams& BaseParams();
 
-/**
- * Return parameters for the given network.
- */
-CBaseChainParams& BaseParams(CBaseChainParams::Network network);
+/** Sets the params returned by BaseParams() to those for the given chain. */
+void SelectBaseParams(ChainType chain);
 
-/**
- * Return the configuration-section identifier for the given network.
- */
-std::string NetworkIdString(CBaseChainParams::Network network);
+/** List of possible SCH chain / network names. */
+#define LIST_CHAIN_NAMES "main, test, regtest"
 
-/** Sets the params returned by Params() to those for the given network. */
-void SelectBaseParams(CBaseChainParams::Network network);
-
-/**
- * Looks for -regtest or -testnet and returns the appropriate Network ID.
- * Returns MAX_NETWORK_TYPES if an invalid combination is given.
- */
-CBaseChainParams::Network NetworkIdFromCommandLine();
-
-/**
- * Calls NetworkIdFromCommandLine() and then calls SelectParams as appropriate.
- * Returns false if an invalid combination is given.
- */
-bool SelectBaseParamsFromCommandLine();
-
-/**
- * Return true if SelectBaseParamsFromCommandLine() has been called to select
- * a network.
- */
-bool AreBaseParamsConfigured();
-
-#endif // BITCOIN_CHAINPARAMSBASE_H
+#endif // SCHILLINGCOIN_CHAINPARAMSBASE_H

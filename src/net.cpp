@@ -16,8 +16,10 @@
 #include <addrman.h>
 #include <banman.h>
 #include <clientversion.h>
+#include <common/args.h>
 #include <compat/compat.h>
 #include <consensus/consensus.h>
+#include <crypto/hex_base.h>
 #include <crypto/sha256.h>
 #include <node/eviction.h>
 #include <i2p.h>
@@ -202,28 +204,6 @@ uint16_t GetListenPort()
         }
     }
     return addr;
-}
-
-//! Convert the serialized seeds into usable address objects.
-static std::vector<CAddress> ConvertSeeds(const std::vector<uint8_t> &vSeedsIn)
-{
-    // It'll only connect to one or two seed nodes because once it connects,
-    // it'll get a pile of addresses with newer timestamps.
-    // Seed nodes are given a random 'last seen time' of between one and two
-    // weeks ago.
-    const auto one_week{7 * 24h};
-    std::vector<CAddress> vSeedsOut;
-    FastRandomContext rng;
-    CDataStream s(vSeedsIn, SER_NETWORK, PROTOCOL_VERSION | ADDRV2_FORMAT);
-    while (!s.eof()) {
-        CService endpoint;
-        s >> endpoint;
-        CAddress addr{endpoint, GetDesirableServiceFlags(NODE_NONE)};
-        addr.nTime = rng.rand_uniform_delay(Now<NodeSeconds>() - one_week, -one_week);
-        LogPrint(BCLog::NET, "Added hardcoded seed: %s\n", addr.ToStringAddrPort());
-        vSeedsOut.push_back(addr);
-    }
-    return vSeedsOut;
 }
 
 // Determine the "best" local address for a particular peer.
@@ -798,8 +778,8 @@ CNetMessage V1Transport::GetReceivedMessage(const std::chrono::microseconds time
     if (memcmp(hash.begin(), hdr.pchChecksum, CMessageHeader::CHECKSUM_SIZE) != 0) {
         LogPrint(BCLog::NET, "Header error: Wrong checksum (%s, %u bytes), expected %s was %s, peer=%d\n",
                  SanitizeString(msg.m_type), msg.m_message_size,
-                 HexStr(Span{hash}.first(CMessageHeader::CHECKSUM_SIZE)),
-                 HexStr(hdr.pchChecksum),
+                 HexStr(std::span{hash}.first(CMessageHeader::CHECKSUM_SIZE)),
+                 HexStr(std::span{hdr.pchChecksum}),
                  m_node_id);
         reject_message = true;
     } else if (!hdr.IsCommandValid()) {
@@ -1217,7 +1197,7 @@ bool V2Transport::ProcessReceivedKeyBytes() noexcept
     if (!m_initiating && m_recv_buffer.size() >= OFFSET + MATCH.size()) {
         if (std::equal(MATCH.begin(), MATCH.end(), m_recv_buffer.begin() + OFFSET)) {
             LogPrint(BCLog::NET, "V2 transport error: V1 peer with wrong MessageStart %s\n",
-                     HexStr(Span(m_recv_buffer).first(OFFSET)));
+                     HexStr(std::span(m_recv_buffer).first(OFFSET)));
             return false;
         }
     }
@@ -2681,7 +2661,7 @@ void CConnman::WakeMessageHandler()
 void CConnman::ThreadDNSAddressSeed()
 {
     FastRandomContext rng;
-    std::vector<std::string> seeds = Params().DNSSeeds();
+    std::vector<CDNSSeedData> seeds = Params().DNSSeeds();
     Shuffle(seeds.begin(), seeds.end(), rng);
     int seeds_right_now = 0; // Number of seeds left before testing if we have enough connections
     int found = 0;
@@ -2755,15 +2735,14 @@ void CConnman::ThreadDNSAddressSeed()
             } while (!fNetworkActive);
         }
 
-        LogPrintf("Loading addresses from DNS seed %s\n", seed);
-        // If -proxy is in use, we make an ADDR_FETCH connection to the DNS resolved peer address
-        // for the base dns seed domain in chainparams
+        LogPrintf("Loading addresses from DNS seed %s\n", seed.host);
+        // If -proxy is in use, make an ADDR_FETCH connection to the base DNS seed.
         if (HaveNameProxy()) {
-            AddAddrFetch(seed);
+            AddAddrFetch(seed.host);
         } else {
             std::vector<CAddress> vAdd;
             ServiceFlags requiredServiceBits = GetDesirableServiceFlags(NODE_NONE);
-            std::string host = strprintf("x%x.%s", requiredServiceBits, seed);
+            const std::string host = seed.getHost(requiredServiceBits);
             CNetAddr resolveSource;
             if (!resolveSource.SetInternal(host)) {
                 continue;
@@ -2786,7 +2765,7 @@ void CConnman::ThreadDNSAddressSeed()
                 // If the seed does not support a subdomain with our desired service bits,
                 // we make an ADDR_FETCH connection to the DNS resolved peer address for the
                 // base dns seed domain in chainparams
-                AddAddrFetch(seed);
+                AddAddrFetch(seed.host);
             }
         }
         --seeds_right_now;
@@ -2995,7 +2974,7 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
             }
 
             if (add_fixed_seeds_now) {
-                std::vector<CAddress> seed_addrs{ConvertSeeds(Params().FixedSeeds())};
+                std::vector<CAddress> seed_addrs{Params().FixedSeeds()};
                 // We will not make outgoing connections to peers that are unreachable
                 // (e.g. because of -onlynet configuration).
                 // Therefore, we do not add them to addrman in the first place.
@@ -5036,7 +5015,7 @@ static void CaptureMessageToFile(const CAddress& addr,
     std::string clean_addr = addr.ToStringAddrPort();
     std::replace(clean_addr.begin(), clean_addr.end(), ':', '_');
 
-    fs::path base_path = gArgs.GetDataDirNet() / "message_capture" / fs::u8path(clean_addr);
+    fs::path base_path = gArgs.GetDataDirNet() / "message_capture" / fs::PathFromString(clean_addr);
     fs::create_directories(base_path);
 
     fs::path path = base_path / (is_incoming ? "msgs_recv.dat" : "msgs_sent.dat");

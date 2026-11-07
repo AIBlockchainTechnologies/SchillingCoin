@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -472,7 +473,7 @@ void CTxMemPool::addUnchecked(const CTxMemPoolEntry &entry, setEntries &setAnces
         minerPolicyEstimator->processTransaction(entry, validFeeEstimate);
     }
 
-    vTxHashes.emplace_back(entry.GetTx().GetInstanceHash(), newit);
+    vTxHashes.emplace_back(entry.GetTx().GetHash(), newit);
     newit->vTxHashesIdx = vTxHashes.size() - 1;
 
     // Invalid ProTxes should never get this far because transactions should be
@@ -604,12 +605,6 @@ void CTxMemPool::removeSpentIndex(const uint256 txhash)
     }
 }
 
-/** The amount the credit pool charges for an asset unlock: its outputs plus its fee. */
-static CAmount GetAssetUnlockAmount(const CTransaction& tx, const CAssetUnlockPayload& payload)
-{
-    return tx.GetValueOut() + payload.getFee();
-}
-
 void CTxMemPool::addUncheckedProTx(indexed_transaction_set::iterator& newit, const CTransaction& tx)
 {
     AssertLockHeld(cs);
@@ -632,9 +627,6 @@ void CTxMemPool::addUncheckedProTx(indexed_transaction_set::iterator& newit, con
             mapProTxPubKeyIDs.emplace(proTx.keyIDOwner, tx_hash);
         }
         mapProTxBlsPubKeyHashes.emplace(proTx.pubKeyOperator.GetHash(), tx_hash);
-        if (proTx.nType == MnType::Evo && !proTx.platformNodeID.IsNull()) {
-            mapProTxPlatformNodeIDs.emplace(proTx.platformNodeID, tx_hash);
-        }
         if (!proTx.collateralOutpoint.hash.IsNull()) {
             mapProTxCollaterals.emplace(proTx.collateralOutpoint, tx_hash);
         } else {
@@ -649,9 +641,6 @@ void CTxMemPool::addUncheckedProTx(indexed_transaction_set::iterator& newit, con
         }
         for (const auto& entry : proTx.netInfo->GetEntries()) {
             mapProTxAddresses.emplace(entry, tx_hash);
-        }
-        if (proTx.nType == MnType::Evo && !proTx.platformNodeID.IsNull()) {
-            mapProTxPlatformNodeIDs.emplace(proTx.platformNodeID, tx_hash);
         }
     } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_REGISTRAR) {
         auto proTx = *Assert(GetTxPayload<CProUpRegTx>(tx));
@@ -669,18 +658,6 @@ void CTxMemPool::addUncheckedProTx(indexed_transaction_set::iterator& newit, con
         newit->validForProTxKey = ::SerializeHash(dmn->pdmnState->pubKeyOperator);
         if (dmn->pdmnState->pubKeyOperator.Get() != CBLSPublicKey()) {
             newit->isKeyChangeProTx = true;
-        }
-    } else if (tx.nType == TRANSACTION_ASSET_UNLOCK) {
-        const auto assetUnlockTx = *Assert(GetTxPayload<CAssetUnlockPayload>(tx));
-        m_asset_unlock_indexes.emplace(assetUnlockTx.getIndex(), tx_hash);
-        m_pending_asset_unlock_amount += GetAssetUnlockAmount(tx, assetUnlockTx);
-        if (IsAssetUnlockWithStableTxid(tx)) {
-            // Re-signed instances of one withdrawal share the txid. The withdrawal is kept while
-            // expired, awaiting a fresher instance, instead of being expiry-evicted (which would
-            // take its descendants with it); relay identifies instances by instance hash.
-            m_asset_unlock_instances.emplace(tx.GetInstanceHash(), tx_hash);
-        } else {
-            mapAssetUnlockExpiry.insert({tx_hash, assetUnlockTx.getHeightToExpiry()});
         }
     } else if (tx.nType == TRANSACTION_MNHF_SIGNAL) {
         PrioritiseTransaction(tx_hash, 0.1 * COIN);
@@ -776,9 +753,6 @@ void CTxMemPool::removeUncheckedProTx(const CTransaction& tx)
             mapProTxPubKeyIDs.erase(proTx.keyIDOwner);
         }
         mapProTxBlsPubKeyHashes.erase(proTx.pubKeyOperator.GetHash());
-        if (proTx.nType == MnType::Evo && !proTx.platformNodeID.IsNull()) {
-            mapProTxPlatformNodeIDs.erase(proTx.platformNodeID);
-        }
         mapProTxCollaterals.erase(proTx.collateralOutpoint);
         mapProTxCollaterals.erase(COutPoint(tx_hash, proTx.collateralOutpoint.n));
     } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_SERVICE) {
@@ -787,9 +761,6 @@ void CTxMemPool::removeUncheckedProTx(const CTransaction& tx)
         for (const auto& entry : proTx.netInfo->GetEntries()) {
             mapProTxAddresses.erase(entry);
         }
-        if (proTx.nType == MnType::Evo && !proTx.platformNodeID.IsNull()) {
-            mapProTxPlatformNodeIDs.erase(proTx.platformNodeID);
-        }
     } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_REGISTRAR) {
         auto proTx = *Assert(GetTxPayload<CProUpRegTx>(tx));
         eraseProTxRef(proTx.proTxHash, tx_hash);
@@ -797,20 +768,6 @@ void CTxMemPool::removeUncheckedProTx(const CTransaction& tx)
     } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_REVOKE) {
         auto proTx = *Assert(GetTxPayload<CProUpRevTx>(tx));
         eraseProTxRef(proTx.proTxHash, tx_hash);
-    } else if (tx.nType == TRANSACTION_ASSET_UNLOCK) {
-        const auto assetUnlockTx = *Assert(GetTxPayload<CAssetUnlockPayload>(tx));
-        auto [begin, end] = m_asset_unlock_indexes.equal_range(assetUnlockTx.getIndex());
-        if (auto it = std::find_if(begin, end, [&](const auto& e) { return e.second == tx_hash; }); it != end) {
-            m_asset_unlock_indexes.erase(it);
-        }
-        const auto amount = GetAssetUnlockAmount(tx, assetUnlockTx);
-        Assume(m_pending_asset_unlock_amount >= arith_uint256{static_cast<uint64_t>(amount)});
-        m_pending_asset_unlock_amount -= amount;
-        if (IsAssetUnlockWithStableTxid(tx)) {
-            m_asset_unlock_instances.erase(tx.GetInstanceHash());
-        } else {
-            mapAssetUnlockExpiry.erase(tx_hash);
-        }
     } else if (tx.nType == TRANSACTION_PROVIDER_DISSOLVE) {
         auto proTx = *Assert(GetTxPayload<CProDisTx>(tx));
         eraseProTxRef(proTx.proTxHash, tx_hash);
@@ -822,56 +779,6 @@ void CTxMemPool::removeUncheckedProTx(const CTransaction& tx)
         eraseProTxRef(proTx.proTxHash, tx_hash);
         mapProTxBlsPubKeyHashes.erase(proTx.pubKeyOperator.GetHash());
     }
-}
-
-std::vector<uint256> CTxMemPool::GetAssetUnlockTxidsByIndex(uint64_t index) const
-{
-    AssertLockHeld(cs);
-    std::vector<uint256> txids;
-    auto [it, end] = m_asset_unlock_indexes.equal_range(index);
-    for (; it != end; ++it) {
-        txids.push_back(it->second);
-    }
-    return txids;
-}
-
-void CTxMemPool::removeAssetUnlockConflicts(const CTransaction& tx)
-{
-    AssertLockHeld(cs);
-    if (tx.nType != TRANSACTION_ASSET_UNLOCK) return;
-    const auto opt_payload = GetTxPayload<CAssetUnlockPayload>(tx);
-    if (!opt_payload) return;
-    for (const uint256& txid : GetAssetUnlockTxidsByIndex(opt_payload->getIndex())) {
-        if (txid == tx.GetHash()) continue;
-        if (auto it = mapTx.find(txid); it != mapTx.end()) {
-            removeRecursive(it->GetTx(), MemPoolRemovalReason::CONFLICT);
-        }
-    }
-}
-
-CTransactionRef CTxMemPool::GetAssetUnlockByInstanceHash(const uint256& instance_hash) const
-{
-    LOCK(cs);
-    auto it = m_asset_unlock_instances.find(instance_hash);
-    if (it == m_asset_unlock_instances.end()) return nullptr;
-    return get(it->second);
-}
-
-void CTxMemPool::ReplaceAssetUnlockInstance(const CTransactionRef& tx)
-{
-    AssertLockHeld(cs);
-    auto it = mapTx.find(tx->GetHash());
-    assert(it != mapTx.end());
-    const uint256 old_instance_hash{it->GetTx().GetInstanceHash()};
-    // Sharing a txid implies everything but the quorum signing info is identical, so all cached
-    // entry values (size, fee, ancestry) and multi-index keys remain valid; modify() cannot fail.
-    Assume(it->GetTx().GetTotalSize() == tx->GetTotalSize());
-    const bool modified{mapTx.modify(it, [&tx](CTxMemPoolEntry& e) { e.ReplaceAssetUnlockTx(tx); })};
-    assert(modified);
-    vTxHashes[it->vTxHashesIdx].first = tx->GetInstanceHash();
-    m_asset_unlock_instances.erase(old_instance_hash);
-    m_asset_unlock_instances.emplace(tx->GetInstanceHash(), tx->GetHash());
-    nTransactionsUpdated++;
 }
 
 // Calculates descendants of entry that are not already in setDescendants, and adds to
@@ -1002,16 +909,6 @@ void CTxMemPool::removeProTxPubKeyConflicts(const CTransaction &tx, const CBLSLa
 {
     if (mapProTxBlsPubKeyHashes.count(pubKey.GetHash())) {
         uint256 conflictHash = mapProTxBlsPubKeyHashes[pubKey.GetHash()];
-        if (conflictHash != tx.GetHash() && mapTx.count(conflictHash)) {
-            removeRecursive(mapTx.find(conflictHash)->GetTx(), MemPoolRemovalReason::CONFLICT);
-        }
-    }
-}
-
-void CTxMemPool::removeProTxPlatformNodeIDConflicts(const CTransaction &tx, const uint160 &platformNodeID)
-{
-    if (mapProTxPlatformNodeIDs.count(platformNodeID)) {
-        uint256 conflictHash = mapProTxPlatformNodeIDs[platformNodeID];
         if (conflictHash != tx.GetHash() && mapTx.count(conflictHash)) {
             removeRecursive(mapTx.find(conflictHash)->GetTx(), MemPoolRemovalReason::CONFLICT);
         }
@@ -1159,9 +1056,6 @@ void CTxMemPool::removeProTxConflicts(const CTransaction &tx)
             removeProTxPubKeyConflicts(tx, proTx.keyIDOwner);
         }
         removeProTxPubKeyConflicts(tx, proTx.pubKeyOperator);
-        if (proTx.nType == MnType::Evo && !proTx.platformNodeID.IsNull()) {
-            removeProTxPlatformNodeIDConflicts(tx, proTx.platformNodeID);
-        }
         if (!proTx.collateralOutpoint.hash.IsNull()) {
             removeProTxCollateralConflicts(tx, proTx.collateralOutpoint);
             // A ProRegTx reusing an external collateral replaces the MN that collateral
@@ -1188,9 +1082,6 @@ void CTxMemPool::removeProTxConflicts(const CTransaction &tx)
                     removeRecursive(mapTx.find(conflictHash)->GetTx(), MemPoolRemovalReason::CONFLICT);
                 }
             }
-        }
-        if (opt_proTx->nType == MnType::Evo && !opt_proTx->platformNodeID.IsNull()) {
-            removeProTxPlatformNodeIDConflicts(tx, opt_proTx->platformNodeID);
         }
     } else if (tx.nType == TRANSACTION_PROVIDER_UPDATE_REGISTRAR) {
         const auto opt_proTx = GetTxPayload<CProUpRegTx>(tx);
@@ -1263,30 +1154,10 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
         }
         removeConflicts(*tx);
         removeProTxConflicts(*tx);
-        removeAssetUnlockConflicts(*tx);
-        ClearPrioritisation(tx->GetHash());
+        ClearPrioritisation(t*->GetHash());
     }
     lastRollingFeeUpdate = GetTime();
     blockSinceLastRollingFeeBump = true;
-}
-
-/**
-  * Called when a length of chain is increased. Removes from mempool expired asset-unlock transactions
-  */
-void CTxMemPool::removeExpiredAssetUnlock(int nBlockHeight)
-{
-    AssertLockHeld(cs);
-    // items to removed should be firstly collected to independent list,
-    // because removing items by `removeRecursive` changes the mapAssetUnlockExpiry
-    std::vector<CTransactionRef> entries;
-    for (const auto& item: mapAssetUnlockExpiry) {
-        if (item.second < nBlockHeight) {
-            entries.push_back(get(item.first));
-        }
-    }
-    for (const auto& tx : entries) {
-        removeRecursive(*tx, MemPoolRemovalReason::EXPIRY);
-    }
 }
 
 void CTxMemPool::check(const CCoinsViewCache& active_coins_tip, int64_t spendheight, const Consensus::Params& consensus_params) const
@@ -1303,9 +1174,6 @@ void CTxMemPool::check(const CCoinsViewCache& active_coins_tip, int64_t spendhei
     CAmount check_total_fee{0};
     uint64_t innerUsage = 0;
     uint64_t prev_ancestor_count{0};
-    size_t check_asset_unlock_instances{0};
-    size_t check_asset_unlock_indexes{0};
-    arith_uint256 check_pending_asset_unlock_amount{0};
 
     CCoinsViewCache mempoolDuplicate(const_cast<CCoinsViewCache*>(&active_coins_tip));
 
@@ -1315,19 +1183,6 @@ void CTxMemPool::check(const CCoinsViewCache& active_coins_tip, int64_t spendhei
         innerUsage += it->DynamicMemoryUsage();
         const CTransaction& tx = it->GetTx();
         innerUsage += memusage::DynamicUsage(it->GetMemPoolParentsConst()) + memusage::DynamicUsage(it->GetMemPoolChildrenConst());
-        if (IsAssetUnlockWithStableTxid(tx)) {
-            ++check_asset_unlock_instances;
-            auto instance_it = m_asset_unlock_instances.find(tx.GetInstanceHash());
-            assert(instance_it != m_asset_unlock_instances.end());
-            assert(instance_it->second == tx.GetHash());
-        }
-        if (tx.nType == TRANSACTION_ASSET_UNLOCK) {
-            const auto payload = *Assert(GetTxPayload<CAssetUnlockPayload>(tx));
-            ++check_asset_unlock_indexes;
-            check_pending_asset_unlock_amount += GetAssetUnlockAmount(tx, payload);
-            const auto txids = GetAssetUnlockTxidsByIndex(payload.getIndex());
-            assert(std::find(txids.begin(), txids.end(), tx.GetHash()) != txids.end());
-        }
         CTxMemPoolEntry::Parents setParentCheck;
         for (const CTxIn &txin : tx.vin) {
             // Check that every mempool transaction's inputs refer to available coins, or other mempool tx's.
@@ -1408,9 +1263,6 @@ void CTxMemPool::check(const CCoinsViewCache& active_coins_tip, int64_t spendhei
     assert(totalTxSize == checkTotal);
     assert(m_total_fee == check_total_fee);
     assert(innerUsage == cachedInnerUsage);
-    assert(check_asset_unlock_instances == m_asset_unlock_instances.size());
-    assert(check_asset_unlock_indexes == m_asset_unlock_indexes.size());
-    assert(check_pending_asset_unlock_amount == m_pending_asset_unlock_amount);
 }
 
 bool CTxMemPool::CompareDepthAndScore(const uint256& hasha, const uint256& hashb)
@@ -1617,9 +1469,6 @@ bool CTxMemPool::existsProviderTxConflict(const CTransaction &tx) const {
         } else if (mapProTxPubKeyIDs.count(proTx.keyIDOwner) || mapProTxBlsPubKeyHashes.count(proTx.pubKeyOperator.GetHash())) {
             return true;
         }
-        if (proTx.nType == MnType::Evo && !proTx.platformNodeID.IsNull() && mapProTxPlatformNodeIDs.count(proTx.platformNodeID)) {
-            return true;
-        }
         if (!proTx.collateralOutpoint.hash.IsNull()) {
             if (mapProTxCollaterals.count(proTx.collateralOutpoint)) {
                 // there is another ProRegTx that refers to the same collateral
@@ -1648,12 +1497,6 @@ bool CTxMemPool::existsProviderTxConflict(const CTransaction &tx) const {
         for (const auto& entry : opt_proTx->netInfo->GetEntries()) {
             auto it = mapProTxAddresses.find(entry);
             if (it != mapProTxAddresses.end() && it->second != opt_proTx->proTxHash) {
-                return true;
-            }
-        }
-        if (opt_proTx->nType == MnType::Evo && !opt_proTx->platformNodeID.IsNull()) {
-            auto it = mapProTxPlatformNodeIDs.find(opt_proTx->platformNodeID);
-            if (it != mapProTxPlatformNodeIDs.end() && it->second != opt_proTx->proTxHash) {
                 return true;
             }
         }
@@ -1877,7 +1720,7 @@ bool CCoinsViewMemPool::GetCoin(const COutPoint &outpoint, Coin &coin) const {
     CTransactionRef ptx = mempool.get(outpoint.hash);
     if (ptx) {
         if (outpoint.n < ptx->vout.size()) {
-            coin = Coin(ptx->vout[outpoint.n], MEMPOOL_HEIGHT, false);
+            coin = Coin(ptx->vout[outpoint.n], MEMPOOL_HEIGHT, false, false);
             return true;
         } else {
             return false;
@@ -1889,7 +1732,7 @@ bool CCoinsViewMemPool::GetCoin(const COutPoint &outpoint, Coin &coin) const {
 void CCoinsViewMemPool::PackageAddTransaction(const CTransactionRef& tx)
 {
     for (unsigned int n = 0; n < tx->vout.size(); ++n) {
-        m_temp_added.emplace(COutPoint(tx->GetHash(), n), Coin(tx->vout[n], MEMPOOL_HEIGHT, false));
+        m_temp_added.emplace(COutPoint(tx->GetHash(), n), Coin(tx->vout[n], MEMPOOL_HEIGHT, false, false));
     }
 }
 

@@ -74,18 +74,6 @@ void ActiveContext::Stop()
     cl_signer->Stop();
 }
 
-CCoinJoinServer& ActiveContext::GetCJServer() const
-{
-    return *Assert(m_cj_server);
-}
-
-void ActiveContext::SetCJServer(gsl::not_null<CCoinJoinServer*> cj_server)
-{
-    // Prohibit double initialization
-    assert(m_cj_server == nullptr);
-    m_cj_server = cj_server;
-}
-
 void ActiveContext::InitializeCurrentBlockTip(const CBlockIndex* tip, bool ibd)
 {
     UpdatedBlockTip(tip, nullptr, ibd);

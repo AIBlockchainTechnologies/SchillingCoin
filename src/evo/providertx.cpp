@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -165,21 +166,15 @@ bool IsPayoutListKeySafe(const MasternodePayoutShares& payouts, const CTxDestina
 
 static bool IsNetInfoTriviallyValid(const std::shared_ptr<NetInfoInterface>& net_info, MnType type, TxValidationState& state)
 {
+    if (!IsValidMnType(type)) {
+        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-type");
+    }
     if (!net_info->HasEntries(NetInfoPurpose::CORE_P2P)) {
         // Mandatory for all nodes
         return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-netinfo-empty");
     }
-    if (type == MnType::Regular) {
-        // Regular nodes shouldn't populate Platform-specific fields
-        if (net_info->HasEntries(NetInfoPurpose::PLATFORM_HTTPS) || net_info->HasEntries(NetInfoPurpose::PLATFORM_P2P)) {
-            return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-netinfo-bad");
-        }
-    }
-    if (net_info->CanStorePlatform() && type == MnType::Evo) {
-        // Platform fields are mandatory for EvoNodes
-        if (!net_info->HasEntries(NetInfoPurpose::PLATFORM_HTTPS) || !net_info->HasEntries(NetInfoPurpose::PLATFORM_P2P)) {
-            return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-netinfo-empty");
-        }
+    if (net_info->HasEntries(NetInfoPurpose::PLATFORM_HTTPS) || net_info->HasEntries(NetInfoPurpose::PLATFORM_P2P)) {
+        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-netinfo-bad");
     }
     return true;
 }
@@ -210,8 +205,7 @@ static bool CheckNetInfo(const NetInfoInterface& net_info, TxValidationState& st
 }
 
 bool CheckProviderNetworkFields(const std::shared_ptr<NetInfoInterface>& net_info, MnType type, uint16_t version,
-                                const uint160* platform_node_id, uint16_t platform_p2p_port,
-                                uint16_t platform_http_port, bool allow_empty, TxValidationState& state)
+                                bool allow_empty, TxValidationState& state)
 {
     if (!net_info || net_info->CanStorePlatform() != (version >= ProTxVersion::ExtAddr)) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-netinfo-version");
@@ -226,39 +220,6 @@ bool CheckProviderNetworkFields(const std::shared_ptr<NetInfoInterface>& net_inf
         }
     }
 
-    if (type != MnType::Evo) return true;
-    if (platform_node_id && platform_node_id->IsNull()) {
-        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-platform-nodeid");
-    }
-    if (version >= ProTxVersion::ExtAddr) {
-        if (platform_p2p_port != 0) {
-            return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-platform-p2p-port");
-        }
-        if (platform_http_port != 0) {
-            return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-platform-http-port");
-        }
-        return true;
-    }
-
-    if (::IsNodeOnMainnet()) {
-        if (platform_p2p_port != ::MainParams().GetDefaultPlatformP2PPort()) {
-            return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-platform-p2p-port");
-        }
-        if (platform_http_port != ::MainParams().GetDefaultPlatformHTTPPort()) {
-            return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-platform-http-port");
-        }
-    }
-    if (platform_p2p_port == ::MainParams().GetDefaultPort()) {
-        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-platform-p2p-port");
-    }
-    if (platform_http_port == ::MainParams().GetDefaultPort()) {
-        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-platform-http-port");
-    }
-
-    const uint16_t core_port{net_info->GetPrimary().GetPort()};
-    if (platform_p2p_port == platform_http_port || platform_p2p_port == core_port || platform_http_port == core_port) {
-        return state.Invalid(TxValidationResult::TX_BAD_SPECIAL, "bad-protx-platform-dup-ports");
-    }
     return true;
 }
 
@@ -266,9 +227,6 @@ bool CProRegTx::IsTriviallyValid(TxValidationState& state) const
 {
     if (nVersion == 0 || nVersion > ProTxVersion::ExtAddr) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-version");
-    }
-    if (nVersion < ProTxVersion::BasicBLS && nType == MnType::Evo) {
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-evo-version");
     }
     if (!IsValidMnType(nType)) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-type");
@@ -356,9 +314,6 @@ uint256 CProRegTx::MakeSharedRegConsentHash(const CTransaction& tx) const
     hw << nMode;
     hw << NetInfoSerWrapper(const_cast<std::shared_ptr<NetInfoInterface>&>(netInfo),
                             nVersion >= ProTxVersion::ExtAddr);
-    if (nType == MnType::Evo) {
-        hw << platformNodeID;
-    }
     hw << keyIDVoting;
     hw << CBLSLazyPublicKeyVersionWrapper(const_cast<CBLSLazyPublicKey&>(pubKeyOperator),
                                           nVersion == ProTxVersion::LegacyBLS);
@@ -400,22 +355,16 @@ std::string CProRegTx::ToString() const
                                        : PayoutListToString(GetOwnerPayouts(*this));
 
     return strprintf("CProRegTx(nVersion=%d, nType=%d, collateralOutpoint=%s, netInfo=%s, nOperatorReward=%f, "
-                     "ownerAddress=%s, pubKeyOperator=%s, votingAddress=%s, scriptPayout=%s, platformNodeID=%s%s)\n",
+                     "ownerAddress=%s, pubKeyOperator=%s, votingAddress=%s, scriptPayout=%s)\n",
                      nVersion, std23::to_underlying(nType), collateralOutpoint.ToStringShort(), netInfo->ToString(),
                      static_cast<double>(nOperatorReward) / 100, EncodeDestination(PKHash(keyIDOwner)), pubKeyOperator.ToString(),
-                     EncodeDestination(PKHash(keyIDVoting)), payee, platformNodeID.ToString(),
-                     (nVersion >= ProTxVersion::ExtAddr
-                          ? ""
-                          : strprintf(", platformP2PPort=%d, platformHTTPPort=%d", platformP2PPort, platformHTTPPort)));
+                     EncodeDestination(PKHash(keyIDVoting)), payee);
 }
 
 bool CProUpServTx::IsTriviallyValid(TxValidationState& state) const
 {
     if (nVersion == 0 || nVersion > ProTxVersion::ExtAddr) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-version");
-    }
-    if (nVersion < ProTxVersion::BasicBLS && nType == MnType::Evo) {
-        return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-evo-version");
     }
     if (!IsValidMnType(nType)) {
         return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-protx-type");
@@ -447,13 +396,8 @@ std::string CProUpServTx::ToString() const
         payee = EncodeDestination(dest);
     }
 
-    return strprintf("CProUpServTx(nVersion=%d, nType=%d, proTxHash=%s, netInfo=%s, operatorPayoutAddress=%s, "
-                     "platformNodeID=%s%s)\n",
-                     nVersion, std23::to_underlying(nType), proTxHash.ToString(), netInfo->ToString(), payee,
-                     platformNodeID.ToString(),
-                     (nVersion >= ProTxVersion::ExtAddr
-                          ? ""
-                          : strprintf(", platformP2PPort=%d, platformHTTPPort=%d", platformP2PPort, platformHTTPPort)));
+    return strprintf("CProUpServTx(nVersion=%d, nType=%d, proTxHash=%s, netInfo=%s, operatorPayoutAddress=%s)\n",
+                     nVersion, std23::to_underlying(nType), proTxHash.ToString(), netInfo->ToString(), payee);
 }
 
 bool CProUpRegTx::IsTriviallyValid(TxValidationState& state) const

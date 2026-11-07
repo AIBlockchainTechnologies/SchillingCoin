@@ -1,17 +1,18 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_COMMITMENT_H
-#define BITCOIN_LLMQ_COMMITMENT_H
+#ifndef SCHILLINGCOIN_LLMQ_COMMITMENT_H
+#define SCHILLINGCOIN_LLMQ_COMMITMENT_H
 
 #include <bls/bls.h>
+#include <crypto/hex_base.h>
 #include <llmq/params.h>
 #include <llmq/types.h>
+#include <primitives/transaction.h>
 #include <util/helpers.h>
 #include <util/std23.h>
-
-#include <primitives/transaction.h>
 #include <util/strencodings.h>
 
 #include <gsl/pointers.h>
@@ -170,4 +171,4 @@ uint256 BuildCommitmentHash(Consensus::LLMQType llmqType, const uint256& blockHa
 
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_COMMITMENT_H
+#endif // SCHILLINGCOIN_LLMQ_COMMITMENT_H

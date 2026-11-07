@@ -5,128 +5,45 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "chainparamsbase.h"
+#include <chainparamsbase.h>
 
-#include "util.h"
-#include "util/system.h"
+#include <common/args.h>
+#include <util/chaintype.h>
 
-#include <assert.h>
+#include <cassert>
 
-#include <boost/assign/list_of.hpp>
-
-
-/**
- * Main network
- */
-class CBaseMainParams : public CBaseChainParams
+void SetupChainParamsBaseOptions(ArgsManager& argsman)
 {
-public:
-    CBaseMainParams()
-    {
-        networkID = CBaseChainParams::MAIN;
-        nRPCPort = 9071;
-    }
-};
-static CBaseMainParams mainParams;
+    argsman.AddArg("-chain=<chain>", "Use the chain <chain> (default: main). Allowed values: " LIST_CHAIN_NAMES, ArgsManager::ALLOW_ANY, OptionsCategory::CHAINPARAMS);
+    argsman.AddArg("-regtest", "Enter regression test mode, which uses a special chain in which blocks can be solved instantly. "
+                              "This is intended for regression testing tools and app development. Equivalent to -chain=regtest.",
+                   ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::CHAINPARAMS);
+    argsman.AddArg("-testnet", "Use the test chain. Equivalent to -chain=test.", ArgsManager::ALLOW_ANY, OptionsCategory::CHAINPARAMS);
+}
 
-/**
- * Testnet (v3)
- */
-class CBaseTestNetParams : public CBaseMainParams
-{
-public:
-    CBaseTestNetParams()
-    {
-        networkID = CBaseChainParams::TESTNET;
-        nRPCPort = 51475;
-        strDataDir = "testnet4";
-    }
-};
-static CBaseTestNetParams testNetParams;
-
-/*
- * Regression test
- */
-class CBaseRegTestParams : public CBaseTestNetParams
-{
-public:
-    CBaseRegTestParams()
-    {
-        networkID = CBaseChainParams::REGTEST;
-        strDataDir = "regtest";
-    }
-};
-static CBaseRegTestParams regTestParams;
-
-static CBaseChainParams* pCurrentBaseParams = 0;
+static std::unique_ptr<CBaseChainParams> globalChainBaseParams;
 
 const CBaseChainParams& BaseParams()
 {
-    assert(pCurrentBaseParams);
-    return *pCurrentBaseParams;
+    assert(globalChainBaseParams);
+    return *globalChainBaseParams;
 }
 
-CBaseChainParams& BaseParams(CBaseChainParams::Network network)
+std::unique_ptr<CBaseChainParams> CreateBaseChainParams(const ChainType chain)
 {
-    switch (network) {
-    case CBaseChainParams::MAIN:
-        return mainParams;
-    case CBaseChainParams::TESTNET:
-        return testNetParams;
-    case CBaseChainParams::REGTEST:
-        return regTestParams;
-    default:
-        assert(false && "Unimplemented network");
-        return mainParams;
+    switch (chain) {
+    case ChainType::MAIN:
+        return std::make_unique<CBaseChainParams>("", 9071);
+    case ChainType::TESTNET:
+        return std::make_unique<CBaseChainParams>("testnet4", 51475);
+    case ChainType::REGTEST:
+        return std::make_unique<CBaseChainParams>("regtest", 51475);
     }
+    assert(false);
 }
 
-std::string NetworkIdString(CBaseChainParams::Network network)
+void SelectBaseParams(const ChainType chain)
 {
-    switch (network) {
-    case CBaseChainParams::MAIN:
-        return "main";
-    case CBaseChainParams::TESTNET:
-        return "test";
-    case CBaseChainParams::REGTEST:
-        return "regtest";
-    default:
-        assert(false && "Unimplemented network");
-        return "main";
-    }
-}
-
-void SelectBaseParams(CBaseChainParams::Network network)
-{
-    pCurrentBaseParams = &BaseParams(network);
-    gArgs.SelectConfigNetwork(NetworkIdString(network));
-}
-
-CBaseChainParams::Network NetworkIdFromCommandLine()
-{
-    bool fRegTest = gArgs.GetBoolArg("-regtest", false);
-    bool fTestNet = gArgs.GetBoolArg("-testnet", false);
-
-    if (fTestNet && fRegTest)
-        return CBaseChainParams::MAX_NETWORK_TYPES;
-    if (fRegTest)
-        return CBaseChainParams::REGTEST;
-    if (fTestNet)
-        return CBaseChainParams::TESTNET;
-    return CBaseChainParams::MAIN;
-}
-
-bool SelectBaseParamsFromCommandLine()
-{
-    CBaseChainParams::Network network = NetworkIdFromCommandLine();
-    if (network == CBaseChainParams::MAX_NETWORK_TYPES)
-        return false;
-
-    SelectBaseParams(network);
-    return true;
-}
-
-bool AreBaseParamsConfigured()
-{
-    return pCurrentBaseParams != NULL;
+    globalChainBaseParams = CreateBaseChainParams(chain);
+    gArgs.SelectConfigNetwork(ChainTypeToString(chain));
 }

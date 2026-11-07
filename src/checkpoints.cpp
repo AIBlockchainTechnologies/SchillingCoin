@@ -81,23 +81,4 @@ int GetTotalBlocksEstimate()
     return checkpoints.rbegin()->first;
 }
 
-CBlockIndex* GetLastCheckpoint()
-{
-    if (!fEnabled)
-        return nullptr;
-
-    const MapCheckpoints& checkpoints = *Params().Checkpoints().mapCheckpoints;
-
-    for (MapCheckpoints::const_reverse_iterator it = checkpoints.rbegin();
-         it != checkpoints.rend();
-         ++it) {
-        const uint256& hash = it->second;
-        BlockMap::const_iterator t = mapBlockIndex.find(hash);
-        if (t != mapBlockIndex.end())
-            return t->second;
-    }
-
-    return nullptr;
-}
-
 } // namespace Checkpoints

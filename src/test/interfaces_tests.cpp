@@ -1,4 +1,5 @@
 // Copyright (c) 2020-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,7 +15,6 @@
 #include <llmq/commitment.h>
 #include <llmq/context.h>
 #include <script/standard.h>
-#include <spork.h>
 #include <streams.h>
 #include <test/util/llmq_tests.h>
 #include <test/util/setup_common.h>

@@ -405,7 +405,7 @@ public:
     indexed_transaction_set mapTx GUARDED_BY(cs);
 
     using txiter = indexed_transaction_set::nth_index<0>::type::const_iterator;
-    std::vector<std::pair<uint256, txiter> > vTxHashes GUARDED_BY(cs); //!< All tx instance hashes (see CTransaction::GetInstanceHash)/entries in mapTx, in random order
+    std::vector<std::pair<uint256, txiter> > vTxHashes GUARDED_BY(cs); //!< All transaction hashes and entries in mapTx, in random order
 
     typedef std::set<txiter, CompareIteratorByHash> setEntries;
 
@@ -424,21 +424,7 @@ private:
     std::map<NetInfoEntry, uint256> mapProTxAddresses;
     std::map<CKeyID, uint256> mapProTxPubKeyIDs;
     std::map<uint256, uint256> mapProTxBlsPubKeyHashes;
-    std::map<uint160, uint256> mapProTxPlatformNodeIDs;
     std::map<COutPoint, uint256> mapProTxCollaterals;
-    std::map<uint256, int /* expiry height */> mapAssetUnlockExpiry; // tx hash -> height (version 1 only)
-    /** Instance hash (see CTransaction::GetInstanceHash) -> txid of version 2+ asset unlocks.
-     *  Relay identifies the re-signed instances of one withdrawal by instance hash. */
-    std::map<uint256, uint256> m_asset_unlock_instances GUARDED_BY(cs);
-    /** Withdrawal index -> txid of every asset unlock in the pool (any version). Instances of one
-     *  withdrawal signed under different versions have different txids, so this is a multimap. */
-    std::multimap<uint64_t, uint256> m_asset_unlock_indexes GUARDED_BY(cs);
-    /** Sum of the withdrawal amounts (outputs plus fee, what the credit pool charges) of every
-     *  asset unlock in the pool. Compared against the credit pool limit to decide whether all
-     *  pending withdrawals fit the next block; see GetPendingAssetUnlockAmount(). */
-    // The aggregate is not supply-bounded until block validation. Keep the exact sum
-    // even beyond CAmount's range so removals restore the correct pending amount.
-    arith_uint256 m_pending_asset_unlock_amount GUARDED_BY(cs){0};
 
     void UpdateParent(txiter entry, txiter parent, bool add) EXCLUSIVE_LOCKS_REQUIRED(cs);
     void UpdateChild(txiter entry, txiter child, bool add) EXCLUSIVE_LOCKS_REQUIRED(cs);
@@ -449,7 +435,6 @@ private:
      * Track locally submitted transactions to periodically retry initial broadcast.
      */
     std::set<uint256> m_unbroadcast_txids GUARDED_BY(cs);
-
 
     /**
      * Helper function to calculate all in-mempool ancestors of staged_ancestors and apply ancestor
@@ -533,7 +518,6 @@ public:
     void removeConflicts(const CTransaction& tx) EXCLUSIVE_LOCKS_REQUIRED(cs);
     void removeProTxPubKeyConflicts(const CTransaction &tx, const CKeyID &keyId) EXCLUSIVE_LOCKS_REQUIRED(cs);
     void removeProTxPubKeyConflicts(const CTransaction &tx, const CBLSLazyPublicKey &pubKey) EXCLUSIVE_LOCKS_REQUIRED(cs);
-    void removeProTxPlatformNodeIDConflicts(const CTransaction &tx, const uint160 &platformNodeID) EXCLUSIVE_LOCKS_REQUIRED(cs);
     void removeProTxCollateralConflicts(const CTransaction &tx, const COutPoint &collateralOutpoint) EXCLUSIVE_LOCKS_REQUIRED(cs);
     /** Remove every mempool TX that refers to proTxHash. Used when the MN it names ceases to exist
      *  (collateral spent, or collateral reused by a replacement ProRegTx), since such TXs can never
@@ -546,7 +530,6 @@ public:
     void removeProTxVotingPayeeConflicts(const uint256& proTxHash, const CKeyID& keyIDVoting, uint16_t refType) EXCLUSIVE_LOCKS_REQUIRED(cs);
     void removeProTxConflicts(const CTransaction &tx) EXCLUSIVE_LOCKS_REQUIRED(cs);
     void removeForBlock(const std::vector<CTransactionRef>& vtx, unsigned int nBlockHeight) EXCLUSIVE_LOCKS_REQUIRED(cs);
-    void removeExpiredAssetUnlock(int nBlockHeight) EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     bool CompareDepthAndScore(const uint256& hasha, const uint256& hashb);
     bool isSpent(const COutPoint& outpoint) const;
@@ -718,28 +701,6 @@ public:
     CTransactionRef get(const uint256& hash) const;
     TxMempoolInfo info(const uint256& hash) const;
     std::vector<TxMempoolInfo> infoAll() const;
-
-    /** Get the transaction holding this version 2 asset unlock instance hash, if any. */
-    CTransactionRef GetAssetUnlockByInstanceHash(const uint256& instance_hash) const;
-    /** Txids of the asset unlocks in the pool claiming this withdrawal index. */
-    std::vector<uint256> GetAssetUnlockTxidsByIndex(uint64_t index) const EXCLUSIVE_LOCKS_REQUIRED(cs);
-    /** Sum of the withdrawal amounts of every asset unlock in the pool. When it does not exceed
-     *  the credit pool's current limit, every pending withdrawal can be mined in the next block.
-     *  Totals beyond CAmount's range are capped, remaining above any valid credit-pool limit. */
-    CAmount GetPendingAssetUnlockAmount() const EXCLUSIVE_LOCKS_REQUIRED(cs)
-    {
-        AssertLockHeld(cs);
-        constexpr CAmount max_amount{std::numeric_limits<CAmount>::max()};
-        return m_pending_asset_unlock_amount > arith_uint256{max_amount}
-                   ? max_amount
-                   : static_cast<CAmount>(m_pending_asset_unlock_amount.GetLow64());
-    }
-    /** Remove the asset unlocks whose withdrawal index another instance (of any version) in this
-     *  block consumed; they can never be mined and version 2 instances are not expiry-evicted. */
-    void removeAssetUnlockConflicts(const CTransaction& tx) EXCLUSIVE_LOCKS_REQUIRED(cs);
-    /** Replace the held instance of a pending withdrawal with a fresher re-signed instance
-     *  sharing its txid. The caller has fully validated the new instance. */
-    void ReplaceAssetUnlockInstance(const CTransactionRef& tx) EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     bool existsProviderTxConflict(const CTransaction &tx) const;
 

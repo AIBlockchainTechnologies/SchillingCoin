@@ -3108,11 +3108,11 @@ bool CWallet::CreateCoinStake(const CBlockIndex* pindexPrev, unsigned int nBits,
         if (IsSpent(out.tx->GetHash(), out.i))
             continue;
 
-        std::unique_ptr<CSchStake> input(new CSchStake());
+        auto input{std::make_unique<CSchStake>()};
 
         if (!input->SetPrevout(
-                CTransaction(*out.tx),
-                out.i,
+                out.tx->vout[out.i],
+                COutPoint(out.tx->GetHash(), out.i),
                 out.pindex)) {
             continue;
         }

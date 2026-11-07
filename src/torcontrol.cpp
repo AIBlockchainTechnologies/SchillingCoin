@@ -6,13 +6,14 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "torcontrol.h"
-#include "utilstrencodings.h"
 #include "netaddress.h"
 #include "net.h"
 #include "netbase.h"
 #include "util.h"
 #include "util/system.h"
 #include "crypto/hmac_sha256.h"
+
+#include <util/strencodings.h>
 
 #include <vector>
 #include <deque>
@@ -499,8 +500,8 @@ void TorController::add_onion_cb(TorControlConnection& _conn, const TorControlRe
             }
             return;
         }
-        LookupNumeric(std::string(service_id+".onion").c_str(), service, GetListenPort());
-        LogPrintf("tor: Got service ID %s, advertising service %s\n", service_id, service.ToString());
+        service = LookupNumeric(service_id + ".onion", Params().GetDefaultPort());
+        LogPrintf("tor: Got service ID %s, advertising service %s\n", service_id, service.ToStringAddrPort());
         if (WriteBinaryFile(GetPrivateKeyFile(), private_key)) {
             LogPrint(BCLog::TOR, "tor: Cached service private key to %s\n", GetPrivateKeyFile());
         } else {
@@ -520,14 +521,25 @@ void TorController::auth_cb(TorControlConnection& _conn, const TorControlReply& 
     if (reply.code == 250) {
         LogPrint(BCLog::TOR, "tor: Authentication successful\n");
 
-        // Now that we know Tor is running setup the proxy for onion addresses
+        // Now that we know Tor is running, set up the proxy for onion addresses
         // if -onion isn't set to something else.
         if (gArgs.GetArg("-onion", "") == "") {
-            CService resolved;
-            assert(LookupNumeric("127.0.0.1", resolved, 9050));
-            CService addrOnion = CService(resolved, 9050);
-            SetProxy(NET_TOR, addrOnion);
-            SetLimited(NET_TOR, false);
+            const CService resolved{LookupNumeric("127.0.0.1", 9050)};
+            assert(resolved.IsValid());
+
+            const Proxy onion_proxy{resolved, true};
+            SetProxy(NET_ONION, onion_proxy);
+
+            const auto onlynets = gArgs.GetArgs("-onlynet");
+            const bool onion_allowed_by_onlynet{
+                !gArgs.IsArgSet("-onlynet") ||
+                std::any_of(onlynets.begin(), onlynets.end(), [](const std::string& net) {
+                    return ParseNetwork(net) == NET_ONION;
+                })};
+
+            if (onion_allowed_by_onlynet) {
+                g_reachable_nets.Add(NET_ONION);
+            }
         }
 
         // Finally - now create the service
@@ -650,8 +662,8 @@ void TorController::protocolinfo_cb(TorControlConnection& _conn, const TorContro
             std::pair<bool,std::string> status_cookie = ReadBinaryFile(cookiefile, TOR_COOKIE_SIZE);
             if (status_cookie.first && status_cookie.second.size() == TOR_COOKIE_SIZE) {
                 cookie = std::vector<uint8_t>(status_cookie.second.begin(), status_cookie.second.end());
-                clientNonce = std::vector<uint8_t>(TOR_NONCE_SIZE, 0);
-                GetRandBytes(&clientNonce[0], TOR_NONCE_SIZE);
+                clientNonce = std::vector<uint8_t>(TOR_NONCE_SIZE);
+                GetRandBytes(MakeWritableByteSpan(clientNonce));
                 _conn.Command("AUTHCHALLENGE SAFECOOKIE " + HexStr(clientNonce), boost::bind(&TorController::authchallenge_cb, this, _1, _2));
             } else {
                 if (status_cookie.first) {

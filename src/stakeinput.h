@@ -29,7 +29,6 @@ public:
 
     virtual const CBlockIndex* GetIndexFrom() const = 0;
     virtual bool CreateTxIn(CWallet* pwallet, CTxIn& txIn, uint256 hashTxOut = UINT256_ZERO) = 0;
-    virtual bool GetTxFrom(CTransaction& tx) const = 0;
     virtual bool GetTxOutFrom(CTxOut& out) const = 0;
     virtual CAmount GetValue() const = 0;
     virtual bool CreateTxOuts(CWallet* pwallet, std::vector<CTxOut>& vout, CAmount nTotal) = 0;
@@ -40,20 +39,11 @@ public:
 class CSchStake : public CStakeInput
 {
 private:
-    CTransaction txFrom{CTransaction()};
     CTxOut outputFrom{};
     COutPoint outpointFrom{};
 
 public:
     CSchStake() = default;
-
-    CSchStake(const CTransaction& txPrev, unsigned int n, const CBlockIndex* pindex)
-        : CStakeInput(pindex),
-          txFrom(txPrev),
-          outputFrom(txPrev.vout[n]),
-          outpointFrom(txPrev.GetHash(), n)
-    {
-    }
 
     CSchStake(const CTxOut& output, const COutPoint& outpoint, const CBlockIndex* pindex)
         : CStakeInput(pindex),
@@ -62,12 +52,9 @@ public:
     {
     }
 
-    bool SetPrevout(const CTransaction& txPrev, unsigned int n, const CBlockIndex* pindex);
-
     bool SetPrevout(const CTxOut& output, const COutPoint& outpoint, const CBlockIndex* pindex);
 
     const CBlockIndex* GetIndexFrom() const override;
-    bool GetTxFrom(CTransaction& tx) const override;
     bool GetTxOutFrom(CTxOut& out) const override;
     CAmount GetValue() const override;
     CDataStream GetUniqueness() const override;

@@ -150,7 +150,7 @@ UniValue getpeerinfo(const JSONRPCRequest& request)
         obj.push_back(Pair("inbound", stats.fInbound));
         obj.push_back(Pair("startingheight", stats.nStartingHeight));
         if (fStateStats) {
-            obj.push_back(Pair("banscore", statestats.nMisbehavior));
+            obj.push_back(Pair("banscore", statestats.m_misbehavior_score));
             obj.push_back(Pair("synced_headers", statestats.nSyncHeight));
             obj.push_back(Pair("synced_blocks", statestats.nCommonHeight));
             UniValue heights(UniValue::VARR);

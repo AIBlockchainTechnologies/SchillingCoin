@@ -1,13 +1,14 @@
 // Copyright (c) 2018-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INTERFACES_CHAIN_H
-#define BITCOIN_INTERFACES_CHAIN_H
+#ifndef SCHILLINGCOIN_INTERFACES_CHAIN_H
+#define SCHILLINGCOIN_INTERFACES_CHAIN_H
 
 #include <blockfilter.h>
+#include <common/settings.h>
 #include <primitives/transaction.h> // For CTransactionRef
-#include <util/settings.h>          // For util::SettingsValue
 #include <util/result.h>
 
 #include <functional>
@@ -329,17 +330,17 @@ public:
     virtual void rpcRunLater(const std::string& name, std::function<void()> fn, int64_t seconds) = 0;
 
     //! Get settings value.
-    virtual util::SettingsValue getSetting(const std::string& arg) = 0;
+    virtual common::SettingsValue getSetting(const std::string& arg) = 0;
 
     //! Get list of settings values.
-    virtual std::vector<util::SettingsValue> getSettingsList(const std::string& arg) = 0;
+    virtual std::vector<common::SettingsValue> getSettingsList(const std::string& arg) = 0;
 
     //! Return <datadir>/settings.json setting value.
-    virtual util::SettingsValue getRwSetting(const std::string& name) = 0;
+    virtual common::SettingsValue getRwSetting(const std::string& name) = 0;
 
     //! Write a setting to <datadir>/settings.json. Optionally just update the
     //! setting in memory and do not write the file.
-    virtual bool updateRwSetting(const std::string& name, const util::SettingsValue& value, bool write=true) = 0;
+    virtual bool updateRwSetting(const std::string& name, const common::SettingsValue& value, bool write = true) = 0;
 
     //! Synchronously send transactionAddedToMempool notifications about all
     //! current mempool transactions to the specified handler and return after
@@ -393,4 +394,4 @@ std::unique_ptr<Chain> MakeChain(node::NodeContext& node);
 
 } // namespace interfaces
 
-#endif // BITCOIN_INTERFACES_CHAIN_H
+#endif // SCHILLINGCOIN_INTERFACES_CHAIN_H

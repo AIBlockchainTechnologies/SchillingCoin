@@ -1,16 +1,15 @@
 // Copyright (c) 2015-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_DSNOTIFICATIONINTERFACE_H
-#define BITCOIN_DSNOTIFICATIONINTERFACE_H
+#ifndef SCHILLINGCOIN_DSNOTIFICATIONINTERFACE_H
+#define SCHILLINGCOIN_DSNOTIFICATIONINTERFACE_H
 
 #include <validationinterface.h>
 
 class CConnman;
-class CDSTXManager;
 class CDeterministicMNManager;
-class CGovernanceManager;
 class ChainstateManager;
 class CMasternodeSync;
 
@@ -20,32 +19,27 @@ public:
     CDSNotificationInterface() = delete;
     CDSNotificationInterface(const CDSNotificationInterface&) = delete;
     CDSNotificationInterface& operator=(const CDSNotificationInterface&) = delete;
-    explicit CDSNotificationInterface(CConnman& connman, CDSTXManager& dstxman, CMasternodeSync& mn_sync,
-                                      CGovernanceManager& govman, const ChainstateManager& chainman,
+    explicit CDSNotificationInterface(CConnman& connman, CMasternodeSync& mn_sync,
+                                      const ChainstateManager& chainman,
                                       CDeterministicMNManager& dmnman);
     virtual ~CDSNotificationInterface();
 
     // CValidationInterface
     void InitializeCurrentBlockTip(const CBlockIndex* tip, bool ibd) override;
+
 protected:
     // CValidationInterface
-    void AcceptedBlockHeader(const CBlockIndex *pindexNew) override;
-    void NotifyHeaderTip(const CBlockIndex *pindexNew, bool fInitialDownload) override;
-    void SynchronousUpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload) override;
-    void UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload) override;
-    void TransactionAddedToMempool(const CTransactionRef& tx, int64_t nAcceptTime, uint64_t mempool_sequence) override;
-    void BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex* pindex) override;
-    void BlockDisconnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex* pindexDisconnected) override;
+    void AcceptedBlockHeader(const CBlockIndex* pindexNew) override;
+    void NotifyHeaderTip(const CBlockIndex* pindexNew, bool fInitialDownload) override;
+    void SynchronousUpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload) override;
+    void UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload) override;
     void NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff) override;
-    void NotifyChainLock(const CBlockIndex* pindex, const std::shared_ptr<const chainlock::ChainLockSig>& clsig) override;
 
 private:
     CConnman& m_connman;
-    CDSTXManager& m_dstxman;
     CMasternodeSync& m_mn_sync;
-    CGovernanceManager& m_govman;
     const ChainstateManager& m_chainman;
     CDeterministicMNManager& m_dmnman;
 };
 
-#endif // BITCOIN_DSNOTIFICATIONINTERFACE_H
+#endif // SCHILLINGCOIN_DSNOTIFICATIONINTERFACE_H

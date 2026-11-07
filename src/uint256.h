@@ -10,14 +10,18 @@
 #define SCHILLINGCOIN_UINT256_H
 
 #include <crypto/common.h>
+#include <crypto/hex_base.h>
 #include <span.h>
+#include <util/strencodings.h>
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstring>
+#include <optional>
 #include <stdint.h>
 #include <string>
+#include <string_view>
 
 /** Template base class for fixed-sized opaque blobs. */
 template<unsigned int BITS>
@@ -89,12 +93,43 @@ public:
     }
 };
 
+namespace detail {
+
+/**
+ * Writes the hex string in reverse byte order into a new uintN_t object.
+ * A value is returned only when the input has the exact required length
+ * and every input character is hexadecimal.
+ */
+template <class uintN_t>
+std::optional<uintN_t> FromHex(std::string_view str)
+{
+    if (uintN_t::size() * 2 != str.size() || !IsHex(str)) return std::nullopt;
+
+    uintN_t result;
+    unsigned char* output = result.begin();
+    unsigned char* output_end = result.end();
+    size_t digits = str.size();
+
+    while (digits > 0 && output < output_end) {
+        *output = ::HexDigit(str[--digits]);
+        if (digits > 0) {
+            *output |= static_cast<unsigned char>(::HexDigit(str[--digits]) << 4);
+            ++output;
+        }
+    }
+
+    return result;
+}
+
+} // namespace detail
+
 /** 160-bit opaque blob.
  * @note This type is called uint160 historical reasons only. It is an opaque
  * blob of 160 bits and has no integer operations.
  */
 class uint160 : public base_blob<160> {
 public:
+    static std::optional<uint160> FromHex(std::string_view str) { return detail::FromHex<uint160>(str); }
     constexpr uint160() = default;
     constexpr explicit uint160(Span<const unsigned char> vch) : base_blob<160>(vch) {}
 };
@@ -105,6 +140,7 @@ public:
  */
 class uint256 : public base_blob<256> {
 public:
+    static std::optional<uint256> FromHex(std::string_view str) { return detail::FromHex<uint256>(str); }
     constexpr uint256() = default;
     constexpr explicit uint256(uint8_t v) : base_blob<256>(v) {}
     constexpr explicit uint256(Span<const unsigned char> vch) : base_blob<256>(vch) {}

@@ -1,13 +1,16 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-present The Bitcoin Core developers
+// Copyright (c) 2009-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_KERNEL_CHAINPARAMS_H
-#define BITCOIN_KERNEL_CHAINPARAMS_H
+#ifndef SCHILLINGCOIN_KERNEL_CHAINPARAMS_H
+#define SCHILLINGCOIN_KERNEL_CHAINPARAMS_H
 
 #include <consensus/params.h>
 #include <kernel/messagestartchars.h>
+#include <netaddress.h>
+#include <netbase.h>
 #include <primitives/block.h>
 #include <uint256.h>
 #include <util/chaintype.h>
@@ -88,7 +91,20 @@ public:
 
     const Consensus::Params& GetConsensus() const { return consensus; }
     const MessageStartChars& MessageStart() const { return pchMessageStart; }
+
     uint16_t GetDefaultPort() const { return nDefaultPort; }
+
+    uint16_t GetDefaultPort(Network net) const
+    {
+        return net == NET_I2P ? I2P_SAM31_PORT : GetDefaultPort();
+    }
+
+    uint16_t GetDefaultPort(const std::string& addr) const
+    {
+        CNetAddr net_addr;
+        return net_addr.SetSpecial(addr) ? GetDefaultPort(net_addr.GetNetwork()) : GetDefaultPort();
+    }
+
     std::vector<int> GetAvailableSnapshotHeights() const;
 
     const CBlock& GenesisBlock() const { return genesis; }
@@ -105,6 +121,13 @@ public:
     uint64_t AssumedChainStateSize() const { return m_assumed_chain_state_size; }
     /** Whether it is possible to mine blocks on demand (no retargeting) */
     bool MineBlocksOnDemand() const { return consensus.fPowNoRetargeting; }
+
+    /** Allow multiple addresses to be selected from the same network group. */
+    bool AllowMultipleAddressesFromGroup() const { return fAllowMultipleAddressesFromGroup; }
+
+    /** How long to wait before retrying an LLMQ connection. */
+    int LLMQConnectionRetryTimeout() const { return nLLMQConnectionRetryTimeout; }
+
     /** Return the chain type string */
     std::string GetChainTypeString() const { return ChainTypeToString(m_chain_type); }
     /** Return the chain type */
@@ -195,6 +218,8 @@ protected:
     std::vector<uint8_t> vFixedSeeds;
     bool fDefaultConsistencyChecks;
     bool m_is_mockable_chain;
+    bool fAllowMultipleAddressesFromGroup{false};
+    int nLLMQConnectionRetryTimeout{60};
     std::vector<AssumeutxoData> m_assumeutxo_data;
     ChainTxData chainTxData;
     HeadersSyncParams m_headers_sync_params;
@@ -204,4 +229,4 @@ protected:
 
 std::optional<ChainType> GetNetworkForMagic(const MessageStartChars& pchMessageStart);
 
-#endif // BITCOIN_KERNEL_CHAINPARAMS_H
+#endif // SCHILLINGCOIN_KERNEL_CHAINPARAMS_H

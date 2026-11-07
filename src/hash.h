@@ -14,6 +14,7 @@
 #include "crypto/common.h"
 #include "crypto/ripemd160.h"
 #include "crypto/sha256.h"
+#include "crypto/siphash.h"
 #include "prevector.h"
 #include "serialize.h"
 #include "uint256.h"
@@ -133,8 +134,8 @@ GLOBAL sph_skein512_context z_skein;
 #define ZKECCAK (memcpy(&ctx_keccak, &z_keccak, sizeof(z_keccak)))
 #define ZSKEIN (memcpy(&ctx_skein, &z_skein, sizeof(z_skein)))
 
-/* ----------- Bitcoin Hash ------------------------------------------------- */
-/** A hasher class for Bitcoin's 160-bit hash (SHA-256 + RIPEMD-160). */
+/* ----------- SchillingCoin Hash ------------------------------------------------- */
+/** A hasher class for SchillingCoin's 160-bit hash (SHA-256 + RIPEMD-160). */
 class CHash160
 {
 private:
@@ -143,16 +144,17 @@ private:
 public:
     static const size_t OUTPUT_SIZE = CRIPEMD160::OUTPUT_SIZE;
 
-    void Finalize(unsigned char hash[OUTPUT_SIZE])
+    void Finalize(Span<unsigned char> output)
     {
+        assert(output.size() == OUTPUT_SIZE);
         unsigned char buf[CSHA256::OUTPUT_SIZE];
         sha.Finalize(buf);
-        CRIPEMD160().Write(buf, CSHA256::OUTPUT_SIZE).Finalize(hash);
+        CRIPEMD160().Write(buf, CSHA256::OUTPUT_SIZE).Finalize(output.data());
     }
 
-    CHash160& Write(const unsigned char* data, size_t len)
+    CHash160& Write(Span<const unsigned char> input)
     {
-        sha.Write(data, len);
+        sha.Write(input.data(), input.size());
         return *this;
     }
 
@@ -196,6 +198,7 @@ inline uint512 Hash512(const T1 pbegin, const T1 pend)
     CHash512().Write(pbegin == pend ? pblank : (const unsigned char*)&pbegin[0], (pend - pbegin) * sizeof(pbegin[0])).Finalize((unsigned char*)&result);
     return result;
 }
+
 template <typename T1, typename T2>
 inline uint512 Hash512(const T1 p1begin, const T1 p1end, const T2 p2begin, const T2 p2end)
 {
@@ -206,6 +209,30 @@ inline uint512 Hash512(const T1 p1begin, const T1 p1end, const T2 p2begin, const
 }
 
 /** Compute the 256-bit hash of an object. */
+template <typename T>
+inline uint256 Hash(const T& input)
+{
+    const auto input_span = MakeUCharSpan(input);
+    uint256 result;
+    CHash256()
+        .Write(input_span.data(), input_span.size())
+        .Finalize(result.begin());
+    return result;
+}
+
+/** Compute the 256-bit hash of the concatenation of two objects. */
+template <typename T1, typename T2>
+inline uint256 Hash(const T1& input1, const T2& input2)
+{
+    uint256 result;
+    CHash256()
+        .Write(MakeUCharSpan(input1))
+        .Write(MakeUCharSpan(input2))
+        .Finalize(result);
+    return result;
+}
+
+/** Compute the 256-bit hash of an iterator range. */
 template <typename T1>
 inline uint256 Hash(const T1 pbegin, const T1 pend)
 {
@@ -266,26 +293,12 @@ inline uint256 Hash(const T1 p1begin, const T1 p1end, const T2 p2begin, const T2
 }
 
 /** Compute the 160-bit hash an object. */
-template <typename T1>
-inline uint160 Hash160(const T1 pbegin, const T1 pend)
+template<typename T1>
+inline uint160 Hash160(const T1& in1)
 {
-    static unsigned char pblank[1] = {};
     uint160 result;
-    CHash160().Write(pbegin == pend ? pblank : (const unsigned char*)&pbegin[0], (pend - pbegin) * sizeof(pbegin[0])).Finalize((unsigned char*)&result);
+    CHash160().Write(MakeUCharSpan(in1)).Finalize(result);
     return result;
-}
-
-/** Compute the 160-bit hash of a vector. */
-inline uint160 Hash160(const std::vector<unsigned char>& vch)
-{
-    return Hash160(vch.begin(), vch.end());
-}
-
-/** Compute the 160-bit hash of a prevector. */
-template <unsigned int N>
-inline uint160 Hash160(const prevector<N, unsigned char>& vch)
-{
-    return Hash160(vch.begin(), vch.end());
 }
 
 /** A writer stream (for serialization) that computes a 256-bit hash. */
@@ -331,6 +344,7 @@ public:
         return *this;
     }
 };
+
 class CHashWriter : public HashWriter
 {
 private:
@@ -375,6 +389,7 @@ public:
         return (*this);
     }
 };
+
 /** Writes data to an underlying source stream, while hashing the written data. */
 template <typename Source>
 class HashedSourceWriter : public CHashWriter
@@ -504,6 +519,7 @@ inline uint256 HashQuark(const T1 pbegin, const T1 pend)
     }
     return hash[8].trim256();
 }
+
 template<typename T1>
 inline uint256 XEVAN(const T1 pbegin, const T1 pend)
 {
@@ -675,40 +691,5 @@ inline uint256 XEVAN(const T1 pbegin, const T1 pend)
     return hash[33].trim256();
 }
 void scrypt_hash(const char* pass, unsigned int pLen, const char* salt, unsigned int sLen, char* output, unsigned int N, unsigned int r, unsigned int p, unsigned int dkLen);
-
-/** SipHash-2-4 */
-class CSipHasher
-{
-private:
-    uint64_t v[4];
-    uint64_t tmp;
-    int count;
-
-public:
-    /** Construct a SipHash calculator initialized with 128-bit key (k0, k1) */
-    CSipHasher(uint64_t k0, uint64_t k1);
-    /** Hash a 64-bit integer worth of data
-     *  It is treated as if this was the little-endian interpretation of 8 bytes.
-     *  This function can only be used when a multiple of 8 bytes have been written so far.
-     */
-    CSipHasher& Write(uint64_t data);
-    /** Hash arbitrary bytes. */
-    CSipHasher& Write(const unsigned char* data, size_t size);
-    /** Compute the 64-bit SipHash-2-4 of the data written so far. The object remains untouched. */
-    uint64_t Finalize() const;
-};
-
-/** Optimized SipHash-2-4 implementation for uint256.
- *
- *  It is identical to:
- *    SipHasher(k0, k1)
- *      .Write(val.GetUint64(0))
- *      .Write(val.GetUint64(1))
- *      .Write(val.GetUint64(2))
- *      .Write(val.GetUint64(3))
- *      .Finalize()
- */
-uint64_t SipHashUint256(uint64_t k0, uint64_t k1, const uint256& val);
-uint64_t SipHashUint256Extra(uint64_t k0, uint64_t k1, const uint256& val, uint32_t extra);
 
 #endif // SCHILLINGCOIN_HASH_H

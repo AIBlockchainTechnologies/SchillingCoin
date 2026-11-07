@@ -16,7 +16,9 @@
 #include "sync.h"
 #include "util.h"
 #include "util/system.h"
-#include "utilstrencodings.h"
+
+#include <util/strencodings.h>
+#include <util/string.h>
 
 #include <boost/algorithm/string.hpp>
 
@@ -91,14 +93,14 @@ static bool RPCAuthorized(const std::string& strAuth, std::string& strAuthUserna
         return false;
     if (strAuth.substr(0, 6) != "Basic ")
         return false;
+    std::string_view strUserPass64 = TrimStringView(std::string_view{strAuth}.substr(6));
+    auto userpass_data = DecodeBase64(strUserPass64);
+    std::string strUserPass;
+    if (!userpass_data) return false;
+    strUserPass.assign(userpass_data->begin(), userpass_data->end());
 
-    std::string strUserPass64 = strAuth.substr(6);
-    boost::trim(strUserPass64);
-
-    std::string strUserPass = DecodeBase64(strUserPass64);
-
-    if (strUserPass.find(":") != std::string::npos)
-        strAuthUsernameOut = strUserPass.substr(0, strUserPass.find(":"));
+    if (strUserPass.find(':') != std::string::npos)
+        strAuthUsernameOut = strUserPass.substr(0, strUserPass.find(':'));
 
     return TimingResistantEqual(strUserPass, strRPCUserColonPass);
 }

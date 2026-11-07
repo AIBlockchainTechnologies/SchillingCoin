@@ -75,37 +75,36 @@ public:
         setValid.insert(entry);
     }
 
-    uint32_t setup_bytes(size_t n)
+    std::optional<std::pair<uint32_t, size_t>> setup_bytes(size_t n)
     {
         return setValid.setup_bytes(n);
     }
 };
 
+/* In previous versions of this code, signatureCache was a local static variable
+ * in CachingTransactionSignatureChecker::VerifySignature. We initialize
+ * signatureCache outside of VerifySignature to avoid the atomic operation per
+ * call overhead associated with local static variables even though
+ * signatureCache could be made local to VerifySignature.
+ */
 static CSignatureCache signatureCache;
 
-}
+} // namespace
 
-void InitSignatureCache()
+bool InitSignatureCache(size_t max_size_bytes)
 {
-    const int64_t configuredSize =
-        gArgs.GetArg("-maxsigcachesize", DEFAULT_MAX_SIG_CACHE_SIZE);
+    const auto setup_results = signatureCache.setup_bytes(max_size_bytes);
+    if (!setup_results) {
+        return false;
+    }
 
-    const int64_t boundedSize =
-        std::min(
-            std::max<int64_t>(0, configuredSize),
-            MAX_MAX_SIG_CACHE_SIZE);
-
-    const size_t maxCacheBytes =
-        static_cast<size_t>(boundedSize) << 20;
-
-    const size_t elementCount =
-        signatureCache.setup_bytes(maxCacheBytes);
-
+    const auto [num_elems, approx_size_bytes] = *setup_results;
     LogPrintf(
-        "Using %zu MiB out of %zu requested for signature cache, able to store %zu elements\n",
-        (elementCount * sizeof(uint256)) >> 20,
-        maxCacheBytes >> 20,
-        elementCount);
+        "Using %zu MiB out of %zu MiB requested for signature cache, able to store %zu elements\n",
+        approx_size_bytes >> 20,
+        max_size_bytes >> 20,
+        num_elems);
+    return true;
 }
 
 bool CachingTransactionSignatureChecker::VerifySignature(

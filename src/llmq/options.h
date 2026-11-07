@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_OPTIONS_H
-#define BITCOIN_LLMQ_OPTIONS_H
+#ifndef SCHILLINGCOIN_LLMQ_OPTIONS_H
+#define SCHILLINGCOIN_LLMQ_OPTIONS_H
 
 #include <gsl/pointers.h>
 
@@ -14,7 +15,6 @@
 class ArgsManager;
 class CBlockIndex;
 class ChainstateManager;
-class CSporkManager;
 namespace Consensus {
 struct LLMQParams;
 enum class LLMQType : uint8_t;
@@ -41,9 +41,9 @@ extern int16_t DEFAULT_WORKER_COUNT;
 /** Maximum number of dedicated script-checking threads allowed */
 static constexpr int8_t MAX_BLSCHECK_THREADS{33};
 
-bool IsAllMembersConnectedEnabled(const Consensus::LLMQType llmqType, const CSporkManager& sporkman);
-bool IsQuorumDKGEnabled(const CSporkManager& sporkman);
-bool IsQuorumPoseEnabled(const Consensus::LLMQType llmqType, const CSporkManager& sporkman);
+bool IsAllMembersConnectedEnabled(Consensus::LLMQType llmq_type);
+bool IsQuorumDKGEnabled();
+bool IsQuorumPoseEnabled(Consensus::LLMQType llmq_type);
 bool IsQuorumRotationEnabled(const Consensus::LLMQParams& llmqParams, gsl::not_null<const CBlockIndex*> pindex);
 
 /// Returns the parsed entries given by `-llmq-qvvec-sync`
@@ -56,4 +56,4 @@ std::vector<std::reference_wrapper<const Consensus::LLMQParams>> GetEnabledQuoru
     const ChainstateManager& chainman, gsl::not_null<const CBlockIndex*> pindex);
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_OPTIONS_H
+#endif // SCHILLINGCOIN_LLMQ_OPTIONS_H

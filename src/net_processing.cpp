@@ -547,6 +547,7 @@ struct CNodeState {
 
 class PeerManagerImpl final : public PeerManager
 {
+public:
     PeerManagerImpl(CConnman& connman, AddrMan& addrman, BanMan* banman,
                     ChainstateManager& chainman, CTxMemPool& pool,
                     CMasternodeMetaMan& mn_metaman, CMasternodeSync& mn_sync,
@@ -662,8 +663,7 @@ private:
     /** Delete all MSG_TX announcements of a transaction across all peers. */
     void ForgetTx(const uint256& txid) EXCLUSIVE_LOCKS_REQUIRED(!m_object_request_mutex, ::cs_main);
 
-    /** As above, additionally forgetting the MSG_ASSET_UNLOCK announcement (by instance hash)
-     *  used for version 2 asset unlocks. */
+    /** Delete the MSG_TX announcement for a transaction across all peers. */
     void ForgetTx(const CTransaction& tx) EXCLUSIVE_LOCKS_REQUIRED(!m_object_request_mutex, ::cs_main);
 
     /** Helper to process result of external handlers of message */
@@ -753,8 +753,6 @@ private:
     void ProcessHeadersMessage(CNode& pfrom, Peer& peer,
                                const std::vector<CBlockHeader>& headers,
                                bool via_compact_block)
-        EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex, g_msgproc_mutex);
-    [[nodiscard]] MessageProcessingResult ProcessPlatformBanMessage(NodeId node, std::string_view msg_type, CDataStream& vRecv)
         EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex, g_msgproc_mutex);
 
     /** Various helpers for headers processing, invoked by ProcessHeadersMessage() */
@@ -1554,7 +1552,7 @@ void PeerManagerImpl::PushNodeVersion(CNode& pnode, const Peer& peer)
 
     int nProtocolVersion = PROTOCOL_VERSION;
     if (m_chainparams.NetworkIDString() != CBaseChainParams::MAIN && gArgs.IsArgSet("-pushversion")) {
-        nProtocolVersion = gArgs.GetIntArg("-pushversion", PROTOCOL_VERSION);
+        nProtocolVersion = gArgs.GetArg("-pushversion", PROTOCOL_VERSION);
     }
 
     const bool tx_relay{!RejectIncomingTxs(pnode)};
@@ -1652,9 +1650,6 @@ void PeerManagerImpl::ForgetTx(const CTransaction& tx)
     AssertLockHeld(cs_main);
     LOCK(m_object_request_mutex);
     m_object_request.ForgetTxHash(CInv(MSG_TX, tx.GetHash()));
-    if (IsAssetUnlockWithStableTxid(tx)) {
-        m_object_request.ForgetTxHash(CInv(MSG_ASSET_UNLOCK, tx.GetInstanceHash()));
-    }
 }
 
 size_t PeerManagerImpl::GetRequestedObjectCount(NodeId nodeid) const
@@ -1896,12 +1891,12 @@ bool PeerManagerImpl::GetNodeStateStats(NodeId nodeid, CNodeStateStats& stats) c
 
 void PeerManagerImpl::AddToCompactExtraTransactions(const CTransactionRef& tx)
 {
-    size_t max_extra_txn = gArgs.GetIntArg("-blockreconstructionextratxn", DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN);
+    size_t max_extra_txn = gArgs.GetArg("-blockreconstructionextratxn", DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN);
     if (max_extra_txn <= 0)
         return;
     if (!vExtraTxnForCompact.size())
         vExtraTxnForCompact.resize(max_extra_txn);
-    vExtraTxnForCompact[vExtraTxnForCompactIt] = std::make_pair(tx->GetInstanceHash(), tx);
+    vExtraTxnForCompact[vExtraTxnForCompactIt] = std::make_pair(tx->GetHash(), tx);
     vExtraTxnForCompactIt = (vExtraTxnForCompactIt + 1) % max_extra_txn;
 }
 
@@ -2157,11 +2152,6 @@ void PeerManagerImpl::BlockConnected(const std::shared_ptr<const CBlock>& pblock
         LOCK(m_recent_confirmed_transactions_mutex);
         for (const auto& ptx : pblock->vtx) {
             m_recent_confirmed_transactions.insert(ptx->GetHash());
-            // Version 2 asset unlocks are announced and deduplicated by instance hash; record the
-            // mined instance so AlreadyHave() stops re-requesting it once it leaves the mempool.
-            if (IsAssetUnlockWithStableTxid(*ptx)) {
-                m_recent_confirmed_transactions.insert(ptx->GetInstanceHash());
-            }
         }
     }
 
@@ -2322,7 +2312,6 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
     switch (inv.type)
     {
     case MSG_TX:
-    case MSG_ASSET_UNLOCK:
         {
             if (m_chainman.ActiveChain().Tip()->GetBlockHash() != hashRecentRejectsChainTip)
             {
@@ -2332,19 +2321,6 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
                 // txs a second chance.
                 hashRecentRejectsChainTip = m_chainman.ActiveChain().Tip()->GetBlockHash();
                 m_recent_rejects.reset();
-            }
-
-            if (inv.IsMsgAssetUnlock()) {
-                // inv.hash is the instance hash of a version 2 asset unlock. Rejects and mined
-                // instances are tracked by instance hash, so a rejected or already-mined stale
-                // instance never blocks a fresher re-signed instance of the same withdrawal
-                // (which shares its txid) yet is not endlessly re-requested either.
-                if (WITH_LOCK(m_recent_confirmed_transactions_mutex,
-                              return m_recent_confirmed_transactions.contains(inv.hash))) {
-                    return true;
-                }
-                return m_recent_rejects.contains(inv.hash) ||
-                       m_mempool.GetAssetUnlockByInstanceHash(inv.hash) != nullptr;
             }
 
             if (m_orphanage.HaveTx(inv.hash)) return true;
@@ -2391,8 +2367,6 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
     // TODO: move it to NetInstantSend
     case MSG_ISDLOCK:
         return m_isman.AlreadyHave(inv);
-    case MSG_PLATFORM_BAN:
-        return m_mn_metaman.AlreadyHavePlatformBan(inv.hash);
 
     case MSG_QUORUM_CONTRIB:
     case MSG_QUORUM_COMPLAINT:
@@ -2822,12 +2796,6 @@ void PeerManagerImpl::ProcessGetBlockData(CNode& pfrom, Peer& peer, const CInv& 
 CTransactionRef PeerManagerImpl::FindTxForGetData(const CNode* peer, const uint256& txid, const std::chrono::seconds mempool_req, const std::chrono::seconds now)
 {
     auto txinfo = m_mempool.info(txid);
-    if (!txinfo.tx) {
-        // A MSG_ASSET_UNLOCK getdata identifies a version 2 asset unlock by its instance hash
-        if (const auto unlock_tx = m_mempool.GetAssetUnlockByInstanceHash(txid)) {
-            txinfo = m_mempool.info(unlock_tx->GetHash());
-        }
-    }
     if (txinfo.tx) {
         // If a TX could have been INVed in reply to a MEMPOOL request,
         // or is older than UNCONDITIONAL_RELAY_DELAY, permit the request
@@ -2956,13 +2924,6 @@ void PeerManagerImpl::ProcessGetData(CNode& pfrom, Peer& peer, const std::atomic
             instantsend::InstantSendLock o;
             if (m_isman.GetInstantSendLockByHash(inv.hash, o)) {
                 m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::ISDLOCK, o));
-                push = true;
-            }
-        }
-        if (!push && inv.type == MSG_PLATFORM_BAN) {
-            auto opt_platform_ban = m_mn_metaman.GetPlatformBan(inv.hash);
-            if (opt_platform_ban.has_value()) {
-                m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::PLATFORMBAN, *opt_platform_ban));
                 push = true;
             }
         }
@@ -3494,15 +3455,9 @@ void PeerManagerImpl::ProcessGetCFCheckPt(CNode& node, Peer& peer, CDataStream& 
     m_connman.PushMessage(&node, std::move(msg));
 }
 
-//! The inventory type and hash to announce a mempool transaction with to a peer at the given
-//! negotiated protocol version. Version 2 asset unlocks are announced by instance hash (MSG_ASSET_UNLOCK)
-//! so a re-signed instance of a withdrawal the peer already has (sharing its txid) is still announced;
-//! a getdata for it is served as a plain `tx`. Older peers get MSG_TX and never learn of refreshes.
+//! Return the ordinary transaction inventory type and transaction hash.
 static std::pair<int, uint256> GetTxAnnouncement(const CTransaction& tx, int peer_version)
 {
-    if (IsAssetUnlockWithStableTxid(tx) && peer_version >= ASSET_UNLOCK_INV_VERSION) {
-        return {MSG_ASSET_UNLOCK, tx.GetInstanceHash()};
-    }
     return {MSG_TX, tx.GetHash()};
 }
 
@@ -3628,85 +3583,6 @@ void PeerManagerImpl::PostProcessMessage(MessageProcessingResult&& result, NodeI
     }
 }
 
-MessageProcessingResult PeerManagerImpl::ProcessPlatformBanMessage(NodeId node, std::string_view msg_type, CDataStream& vRecv)
-{
-    if (msg_type != NetMsgType::PLATFORMBAN) return {};
-
-    // Do nothing if node is out of sync
-    if (!m_mn_sync.IsBlockchainSynced()) {
-        return {};
-    }
-
-    PlatformBanMessage ban_msg;
-    vRecv >> ban_msg;
-
-    const uint256 hash = ban_msg.GetHash();
-
-    LogPrintf("PLATFORMBAN -- hash: %s protx_hash: %s height: %d peer=%d\n", hash.ToString(), ban_msg.m_protx_hash.ToString(), ban_msg.m_requested_height, node);
-
-    // NOTE: deliberately no solicitation gate here, unlike the other GETDATA-only object types.
-    // PLATFORMBAN has no local ingress (no RPC, no internal producer): the originating Dash
-    // Platform node injects the ban by pushing the message straight to a Dash Core peer, so the
-    // first hop is always unsolicited by design. See p2p_platform_ban.py.
-    MessageProcessingResult ret{};
-    ret.m_to_erase = CInv{MSG_PLATFORM_BAN, hash};
-
-    const auto list = m_dmnman.GetListAtChainTip();
-    auto dmn = list.GetMN(ban_msg.m_protx_hash);
-    if (!dmn) {
-        // small P2P penalty (1), as the evonode may have very recently been removed
-        ret.m_error = MisbehavingError{1};
-        return ret;
-    }
-    if (dmn->nType != MnType::Evo) {
-        // Ban node, P2P penalty (100) if protx_hash is associated with a regular node not an evonode
-        LogPrintf("PLATFORMBAN -- hash: %s protx_hash: %s unexpected type of node\n", hash.ToString(), ban_msg.m_protx_hash.ToString());
-        ret.m_error = MisbehavingError{100};
-        return ret;
-    }
-    static constexpr int PLATFORM_BAN_WINDOW_BLOCKS = 576;
-    int tipHeight = WITH_LOCK(cs_main, return m_chainman.ActiveChainstate().m_chain.Height());
-    if (tipHeight < ban_msg.m_requested_height || tipHeight - PLATFORM_BAN_WINDOW_BLOCKS > ban_msg.m_requested_height) {
-        // m_requested_height is inside the range [TipHeight - PLATFORM_BAN_WINDOW_BLOCKS - 5, TipHeight + 5]
-        LogPrintf("PLATFORMBAN -- hash: %s protx_hash: %s unexpected height: %d tip: %d\n", hash.ToString(), ban_msg.m_protx_hash.ToString(), ban_msg.m_requested_height, tipHeight);
-        if (tipHeight + 5 < ban_msg.m_requested_height || tipHeight - PLATFORM_BAN_WINDOW_BLOCKS - 5 > ban_msg.m_requested_height) {
-            // m_requested_height is outside the range [TipHeight - PLATFORM_BAN_WINDOW_BLOCKS - 5, TipHeight + 5]
-            ret.m_error = MisbehavingError{10};
-            return ret;
-        }
-        ret.m_error = MisbehavingError{1};
-        return ret;
-    }
-
-    Consensus::LLMQType llmq_type = m_chainparams.GetConsensus().llmqTypePlatform;
-    auto quorum = m_llmq_ctx.qman->GetQuorum(llmq_type, ban_msg.m_quorum_hash);
-    if (!quorum) {
-        LogPrintf("PLATFORMBAN -- hash: %s protx_hash: %s missing quorum_hash: %s llmq_type: %d\n", hash.ToString(), ban_msg.m_protx_hash.ToString(), ban_msg.m_quorum_hash.ToString(), std23::to_underlying(llmq_type));
-        ret.m_error = MisbehavingError{100};
-        return ret;
-    }
-
-    const std::string PLATFORM_BAN_REQUESTID_PREFIX = "PlatformPoSeBan";
-    const auto data = std::make_pair(ban_msg.m_protx_hash, ban_msg.m_requested_height);
-    const uint256 request_id = ::SerializeHash(std::make_pair(PLATFORM_BAN_REQUESTID_PREFIX, data));
-    const uint256 msg_hash = ::SerializeHash(data);
-
-    auto signHash = llmq::SignHash(llmq_type, quorum->qc->quorumHash, request_id, msg_hash);
-
-    if (!ban_msg.m_signature.VerifyInsecure(quorum->qc->quorumPublicKey, signHash.Get())) {
-        LogPrintf("PLATFORMBAN -- hash: %s protx_hash: %s request_id: %s msg_hash: %s sig validation failed\n", hash.ToString(), ban_msg.m_protx_hash.ToString(), request_id.ToString(), msg_hash.ToString());
-        ret.m_error = MisbehavingError{100};
-        return ret;
-    }
-
-    // At this point, the outgoing message serialization version can't change.
-    if (m_mn_metaman.SetPlatformBan(hash, std::move(ban_msg))) {
-        LogPrintf("PLATFORMBAN -- hash: %s forward message to other nodes\n", hash.ToString());
-        ret.m_inventory.emplace_back(MSG_PLATFORM_BAN, hash);
-    }
-    return ret;
-}
-
 void PeerManagerImpl::ProcessMessage(
     CNode& pfrom,
     const std::string& msg_type,
@@ -3820,18 +3696,6 @@ void PeerManagerImpl::ProcessMessage(
         // Be shy and don't send version until we hear
         if (pfrom.IsInboundConn()) {
             PushNodeVersion(pfrom, *peer);
-        }
-
-        if (m_chainparams.NetworkIDString() == CBaseChainParams::DEVNET) {
-            if (cleanSubVer.find(strprintf("devnet.%s", gArgs.GetDevNetName())) == std::string::npos) {
-                LogPrintf("connected to wrong devnet. Reported version is %s, expected devnet name is %s\n", cleanSubVer, gArgs.GetDevNetName());
-                if (!pfrom.IsInboundConn())
-                    Misbehaving(*peer, 100, "wrong-devnet-name"); // don't try to connect again
-                else
-                    Misbehaving(*peer, 1, "wrong-devnet-name"); // whover connected, might just have made a mistake, don't ban him immediately
-                pfrom.fDisconnect = true;
-                return;
-            }
         }
 
         // Change version
@@ -3956,7 +3820,7 @@ void PeerManagerImpl::ProcessMessage(
         if (!pfrom.IsInboundConn()) {
             // Don't use timedata samples from inbound peers to make it
             // harder for others to tamper with our adjusted time.
-            AddTimeData(pfrom.addr, nTimeOffset);
+            AddTimeData(pfrom.addr, nTimeOffset, gArgs.GetArg("-maxtimeadjustment", DEFAULT_MAX_TIME_ADJUSTMENT));
         }
 
         // Feeler connections exist only to verify if address is online.
@@ -4455,7 +4319,7 @@ void PeerManagerImpl::ProcessMessage(
             }
             // If pruning, don't inv blocks unless we have on disk and are likely to still have
             // for some reasonable time window (1 hour) that block relay might require.
-            const int nPrunedBlocksLikelyToHave = MIN_BLOCKS_TO_KEEP - 3600 / m_chainparams.GetConsensus().nPowTargetSpacing;
+            const int nPrunedBlocksLikelyToHave = MIN_BLOCKS_TO_KEEP - 3600 / m_chainparams.GetConsensus().nTargetSpacing;
             if (m_chainman.m_blockman.IsPruneMode() && (!(pindex->nStatus & BLOCK_HAVE_DATA) || pindex->nHeight <= m_chainman.ActiveChain().Tip()->nHeight - nPrunedBlocksLikelyToHave)) {
                 LogPrint(BCLog::NET, " getblocks stopping, pruned or too old block at %d %s\n", pindex->nHeight, pindex->GetBlockHash().ToString());
                 break;
@@ -4640,32 +4504,16 @@ void PeerManagerImpl::ProcessMessage(
         CTransactionRef ptx;
         vRecv >> ptx;
 
-        int nInvType = MSG_TX;
         const CTransaction& tx = *ptx;
-
         const uint256& txid = ptx->GetHash();
-        // Version 2 asset unlocks are announced, requested and deduplicated by instance hash so
-        // that a re-signed instance of a withdrawal already in the mempool (sharing its txid)
-        // still propagates.
-        const bool is_stable_unlock{IsAssetUnlockWithStableTxid(tx)};
-        if (is_stable_unlock) nInvType = MSG_ASSET_UNLOCK;
-        const uint256 relay_hash{is_stable_unlock ? tx.GetInstanceHash() : txid};
-        AddKnownInv(*peer, relay_hash);
-        // A peer below ASSET_UNLOCK_INV_VERSION is announced the txid; record it too so the
-        // transaction is not echoed back to it. Never for a newer peer: relay queues the txid and
-        // the known filter is consulted before it is turned into an instance-hash announcement,
-        // so recording it would keep every later refresh of this withdrawal from reaching the
-        // peer that sent the first instance.
-        if (is_stable_unlock && pfrom.GetCommonVersion() < ASSET_UNLOCK_INV_VERSION) AddKnownInv(*peer, txid);
 
-        CInv inv(nInvType, relay_hash);
+        AddKnownInv(*peer, txid);
+
+        CInv inv(MSG_TX, txid);
         {
             LOCK(cs_main);
             LOCK(m_object_request_mutex);
-            m_object_request.ReceivedResponse(pfrom.GetId(), CInv(MSG_TX, txid));
-            if (is_stable_unlock) {
-                m_object_request.ReceivedResponse(pfrom.GetId(), CInv(MSG_ASSET_UNLOCK, relay_hash));
-            }
+            m_object_request.ReceivedResponse(pfrom.GetId(), inv);
         }
 
         LOCK(cs_main);
@@ -4738,7 +4586,7 @@ void PeerManagerImpl::ProcessMessage(
                 ForgetTx(tx.GetHash());
 
                 // DoS prevention: do not allow m_orphans to grow unbounded (see CVE-2012-3789)
-                unsigned int nMaxOrphanTxSize = (unsigned int)std::max((int64_t)0, gArgs.GetIntArg("-maxorphantxsize", DEFAULT_MAX_ORPHAN_TRANSACTIONS_SIZE)) * 1000000;
+                unsigned int nMaxOrphanTxSize = (unsigned int)std::max((int64_t)0, gArgs.GetArg("-maxorphantxsize", DEFAULT_MAX_ORPHAN_TRANSACTIONS_SIZE)) * 1000000;
                 m_orphanage.LimitOrphans(nMaxOrphanTxSize);
             } else {
                 LogPrint(BCLog::MEMPOOL, "not keeping orphan with rejected parents %s\n",tx.GetHash().ToString());
@@ -4749,7 +4597,7 @@ void PeerManagerImpl::ProcessMessage(
                 m_isman.TransactionIsRemoved(ptx);
             }
         } else {
-            m_recent_rejects.insert(relay_hash);
+            m_recent_rejects.insert(txid);
             ForgetTx(tx);
             if (RecursiveDynamicUsage(*ptx) < 100000) {
                 AddToCompactExtraTransactions(ptx);
@@ -4778,9 +4626,7 @@ void PeerManagerImpl::ProcessMessage(
                 pfrom.GetId(),
                 state.ToString());
             MaybePunishNodeForTx(pfrom.GetId(), state);
-            // A rejected instance of a version 2 asset unlock says nothing about another instance
-            // sharing its txid, which may be held in the mempool and locked
-            if (!is_stable_unlock) m_isman.TransactionIsRemoved(ptx);
+            m_isman.TransactionIsRemoved(ptx);
         }
         return;
     }
@@ -5472,10 +5318,10 @@ void PeerManagerImpl::ProcessMessage(
                                           GetDataResponse::UNREQUESTED;
                                }),
                            pfrom.GetId());
-        PostProcessMessage(ProcessPlatformBanMessage(pfrom.GetId(), msg_type, vRecv), pfrom.GetId());
 
         if (msg_type == NetMsgType::CLSIG) {
-            if (m_chainlocks.IsEnabled()) {
+            const int32_t chain_height = WITH_LOCK(::cs_main, return m_chainman.ActiveChain().Height());
+            if (m_chainlocks.IsEnabled(chain_height)) {
                 chainlock::ChainLockSig clsig;
                 vRecv >> clsig;
                 const CInv clsig_inv{MSG_CLSIG, ::SerializeHash(clsig)};
@@ -6071,7 +5917,7 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                          // Convert HEADERS_DOWNLOAD_TIMEOUT_PER_HEADER to microseconds before scaling
                          // to maintain precision
                          std::chrono::microseconds{HEADERS_DOWNLOAD_TIMEOUT_PER_HEADER} *
-                         Ticks<std::chrono::seconds>(NodeClock::now() - m_chainman.m_best_header->Time()) / consensusParams.nPowTargetSpacing
+                         Ticks<std::chrono::seconds>(NodeClock::now() - m_chainman.m_best_header->Time()) / consensusParams.nTargetSpacing
                         );
                     nSyncStarted++;
                 }
@@ -6443,7 +6289,7 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
         if (state.vBlocksInFlight.size() > 0) {
             QueuedBlock &queuedBlock = state.vBlocksInFlight.front();
             int nOtherPeersWithValidatedDownloads = m_peers_downloading_from - 1;
-            if (current_time > state.m_downloading_since + std::chrono::seconds{consensusParams.nPowTargetSpacing} * (BLOCK_DOWNLOAD_TIMEOUT_BASE + BLOCK_DOWNLOAD_TIMEOUT_PER_PEER * nOtherPeersWithValidatedDownloads)) {
+            if (current_time > state.m_downloading_since + std::chrono::seconds{consensusParams.nTargetSpacing} * (BLOCK_DOWNLOAD_TIMEOUT_BASE + BLOCK_DOWNLOAD_TIMEOUT_PER_PEER * nOtherPeersWithValidatedDownloads)) {
                 LogPrintf("Timeout downloading block %s from peer=%d%s, disconnecting\n", queuedBlock.pindex->GetBlockHash().ToString(), pto->GetId(), fLogIPs ? strprintf(" peeraddr=%s", pto->addr.ToStringAddrPort()) : "");
                 pto->fDisconnect = true;
                 return true;
@@ -6646,11 +6492,6 @@ void PeerManagerImpl::PeerRelayInvFiltered(const CInv& inv, const CTransaction& 
 void PeerManagerImpl::PeerRelayInvFiltered(const CInv& inv, const uint256& relatedTxHash)
 {
     RelayInvFiltered(inv, relatedTxHash);
-}
-
-void PeerManagerImpl::PeerRelayDSQ(const CCoinJoinQueue& queue)
-{
-    RelayDSQ(queue);
 }
 
 void PeerManagerImpl::PeerRelayTransaction(const uint256& txid)

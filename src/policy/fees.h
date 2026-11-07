@@ -11,7 +11,8 @@
 #include "policy/feerate.h"
 #include "random.h"
 #include "sync.h"
-#include "uint256.h"
+#include <uint256.h>
+#include <util/fs.h>
 #include "util/fees.h"
 
 #include <map>
@@ -138,9 +139,14 @@ private:
     /** Exponential spacing used between estimator feerate buckets. */
     static constexpr double FEE_SPACING = 1.05;
 
+    /** Path used to load and persist fee-estimation data. */
+    const fs::path m_estimation_filepath;
+
 public:
     /** Construct the estimator and initialize its tracking horizons. */
-    CBlockPolicyEstimator();
+    CBlockPolicyEstimator(
+        const fs::path& estimation_filepath,
+        bool read_stale_estimates);
 
     ~CBlockPolicyEstimator();
 

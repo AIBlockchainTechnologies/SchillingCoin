@@ -322,7 +322,17 @@ public:
     std::vector<uint8_t> vExtraPayload;
 
     CTransaction();
-    CTransaction(const CMutableTransaction &tx);
+    CTransaction(const CMutableTransaction& tx);
+
+    /**
+     * This deserializing constructor is provided instead of an Unserialize
+     * method. Unserialize is not possible without overwriting const fields.
+     */
+    template <typename Stream>
+    CTransaction(deserialize_type, Stream& s)
+        : CTransaction(CMutableTransaction(deserialize, s))
+    {
+    }
 
     // Explicit copy constructor to avoid deprecated implicit copy.
     CTransaction(const CTransaction& tx) :
@@ -489,6 +499,12 @@ struct CMutableTransaction
         } else {
             SER_READ(obj, obj.vExtraPayload.clear(););
         }
+    }
+
+    template <typename Stream>
+    CMutableTransaction(deserialize_type, Stream& s)
+    {
+        Unserialize(s);
     }
 
     bool IsSpecialTxVersion() const

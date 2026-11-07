@@ -1,12 +1,13 @@
 // Copyright (c) 2014-2015 The ShadowCoin developers
 // Copyright (c) 2017-2024 The Particl Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef PARTICL_KEY_EXTKEY_H
-#define PARTICL_KEY_EXTKEY_H
+#ifndef SCHILLINGCOIN_KEY_EXTKEY_H
+#define SCHILLINGCOIN_KEY_EXTKEY_H
 
-#include <config/bitcoin-config.h> // IWYU pragma: keep
+#include <config/schillingcoin-config.h> // IWYU pragma: keep
 
 #include <key.h>
 #include <key/keyutil.h>
@@ -947,4 +948,4 @@ std::string HDKeyIDToString(const CKeyID &id);
 
 std::string GetDefaultAccountPath();
 
-#endif // PARTICL_KEY_EXTKEY_H
+#endif // SCHILLINGCOIN_KEY_EXTKEY_H

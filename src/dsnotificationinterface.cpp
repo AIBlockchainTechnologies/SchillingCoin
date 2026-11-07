@@ -1,26 +1,20 @@
 // Copyright (c) 2014-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-
 #include <dsnotificationinterface.h>
 
-#include <coinjoin/coinjoin.h>
 #include <evo/deterministicmns.h>
 #include <evo/mnauth.h>
-#include <governance/governance.h>
-#include <instantsend/instantsend.h>
 #include <masternode/sync.h>
 #include <validation.h>
 
-
-CDSNotificationInterface::CDSNotificationInterface(CConnman& connman, CDSTXManager& dstxman, CMasternodeSync& mn_sync,
-                                                   CGovernanceManager& govman, const ChainstateManager& chainman,
+CDSNotificationInterface::CDSNotificationInterface(CConnman& connman, CMasternodeSync& mn_sync,
+                                                   const ChainstateManager& chainman,
                                                    CDeterministicMNManager& dmnman) :
     m_connman{connman},
-    m_dstxman{dstxman},
     m_mn_sync{mn_sync},
-    m_govman{govman},
     m_chainman{chainman},
     m_dmnman{dmnman}
 {
@@ -52,53 +46,15 @@ void CDSNotificationInterface::SynchronousUpdatedBlockTip(const CBlockIndex *pin
     m_dmnman.UpdatedBlockTip(pindexNew);
 }
 
-void CDSNotificationInterface::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload)
+void CDSNotificationInterface::UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload)
 {
     if (pindexNew == pindexFork) // blocks were disconnected without any new ones
         return;
 
     m_mn_sync.UpdatedBlockTip(WITH_LOCK(::cs_main, return m_chainman.m_best_header), pindexNew, fInitialDownload);
-
-    if (fInitialDownload)
-        return;
-
-    if (m_mn_sync.IsBlockchainSynced()) {
-        m_dstxman.UpdatedBlockTip(pindexNew);
-    }
-
-    if (m_govman.IsValid()) {
-        m_govman.UpdatedBlockTip(pindexNew);
-    }
-}
-
-void CDSNotificationInterface::TransactionAddedToMempool(const CTransactionRef& ptx, int64_t nAcceptTime,
-                                                         uint64_t mempool_sequence)
-{
-    m_dstxman.TransactionAddedToMempool(ptx);
-}
-
-void CDSNotificationInterface::BlockConnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex* pindex)
-{
-    m_dstxman.BlockConnected(pblock, pindex);
-}
-
-void CDSNotificationInterface::BlockDisconnected(const std::shared_ptr<const CBlock>& pblock, const CBlockIndex* pindexDisconnected)
-{
-    m_dstxman.BlockDisconnected(pblock, pindexDisconnected);
 }
 
 void CDSNotificationInterface::NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff)
 {
     CMNAuth::NotifyMasternodeListChanged(undo, oldMNList, diff, m_connman);
-    if (m_govman.IsValid()) {
-        m_govman.CheckAndRemove();
-    }
-}
-
-void CDSNotificationInterface::NotifyChainLock(const CBlockIndex* pindex,
-                                               const std::shared_ptr<const chainlock::ChainLockSig>& clsig)
-{
-    if (m_mn_sync.IsBlockchainSynced()) {
-        m_dstxman.NotifyChainLock(pindex);
-    }
 }

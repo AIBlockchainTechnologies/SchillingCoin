@@ -295,6 +295,24 @@ void UpdateTransaction(CMutableTransaction& tx, unsigned int nIn, const Signatur
     tx.vin[nIn].scriptSig = data.scriptSig;
 }
 
+void SignatureData::MergeSignatureData(SignatureData sigdata)
+{
+    if (complete) return;
+
+    if (sigdata.complete) {
+        *this = std::move(sigdata);
+        return;
+    }
+
+    if (redeem_script.empty() && !sigdata.redeem_script.empty()) {
+        redeem_script = sigdata.redeem_script;
+    }
+
+    signatures.insert(
+        std::make_move_iterator(sigdata.signatures.begin()),
+        std::make_move_iterator(sigdata.signatures.end()));
+}
+
 bool SignSignature(const CKeyStore& keystore, const CScript& fromPubKey, CMutableTransaction& txTo, unsigned int nIn, const CAmount& amount, int nHashType, bool fColdStake)
 {
     assert(nIn < txTo.vin.size());

@@ -11,8 +11,10 @@
 #ifndef SCHILLINGCOIN_CHAIN_H
 #define SCHILLINGCOIN_CHAIN_H
 
+#include "arith_uint256.h"
 #include "chainparams.h"
 #include "flatfile.h"
+#include "kernel/cs_main.h"
 #include "optional.h"
 #include "pow.h"
 #include "primitives/block.h"
@@ -21,6 +23,7 @@
 #include "uint256.h"
 #include "util.h"
 #include "util/system.h"
+#include "util/time.h"
 #include "stubs/legacy_zerocoin_consensus.h"
 
 #include <vector>
@@ -157,7 +160,7 @@ public:
     unsigned int nUndoPos{0};
 
     //! (memory only) Total amount of work (expected number of hashes) in the chain up to and including this block
-    uint256 nChainWork{};
+    arith_uint256 nChainWork{};
 
     //! Number of transactions in this block.
     //! Note: in a potential headers-first mode, this number cannot be relied upon
@@ -230,8 +233,35 @@ public:
     }
 
     CBlockHeader GetBlockHeader() const;
-    uint256 GetBlockHash() const { return *phashBlock; }
-    int64_t GetBlockTime() const { return (int64_t)nTime; }
+
+    uint256 GetBlockHash() const
+    {
+        assert(phashBlock != nullptr);
+        return *phashBlock;
+    }
+
+    /**
+     * Check whether this block's and all previous blocks' transactions were
+     * downloaded and linked at some point.
+     *
+     * This does not imply that the transactions remain stored on disk or that
+     * the block has reached full script validity.
+     */
+    bool HaveTxsDownloaded() const
+    {
+        return nChainTx != 0;
+    }
+
+    NodeSeconds Time() const
+    {
+        return NodeSeconds{std::chrono::seconds{nTime}};
+    }
+
+    int64_t GetBlockTime() const
+    {
+        return static_cast<int64_t>(nTime);
+    }
+
     int64_t GetMedianTimePast() const;
 
     int64_t MaxFutureBlockTime() const;
@@ -268,6 +298,22 @@ public:
     int64_t GetZcMints(libzerocoin::CoinDenomination denom) const;
     int64_t GetZcMintsAmount(libzerocoin::CoinDenomination denom) const;
 };
+
+/** Compute the amount of work represented by a block index entry. */
+arith_uint256 GetBlockProof(const CBlockIndex& block);
+
+/**
+ * Return the time required to redo the work difference between two block-index
+ * entries, assuming the work rate represented by the supplied tip.
+ */
+int64_t GetBlockProofEquivalentTime(
+    const CBlockIndex& to,
+    const CBlockIndex& from,
+    const CBlockIndex& tip,
+    const Consensus::Params& params);
+
+/** Find the last common ancestor of two non-null block-index entries. */
+const CBlockIndex* LastCommonAncestor(const CBlockIndex* pa, const CBlockIndex* pb);
 
 /** Used to marshal pointers into hashes for db storage. */
 
@@ -470,14 +516,21 @@ public:
     /** Set/initialize a chain with a given tip. */
     void SetTip(CBlockIndex* pindex);
 
-    /** Return a CBlockLocator that refers to a block in this chain (by default the tip). */
-    CBlockLocator GetLocator(const CBlockIndex* pindex = NULL) const;
+    /** Return a block locator beginning at this chain's current tip. */
+    CBlockLocator GetLocator() const;
 
     /** Find the last common block between this chain and a block index entry. */
+
     const CBlockIndex* FindFork(const CBlockIndex* pindex) const;
 
     /** Check if new message signatures are active **/
     bool NewSigsActive() { return Params().GetConsensus().IsMessSigV2(Height()); }
 };
+
+/** Construct the block-hash entries for a block locator. */
+std::vector<uint256> LocatorEntries(const CBlockIndex* index);
+
+/** Return a block locator beginning at the supplied block index entry. */
+CBlockLocator GetLocator(const CBlockIndex* index);
 
 #endif // SCHILLINGCOIN_CHAIN_H

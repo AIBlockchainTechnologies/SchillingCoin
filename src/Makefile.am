@@ -24,16 +24,41 @@ BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
 BITCOIN_INCLUDES += -isystem$(srcdir)/dashbls/include -isystem$(srcdir)/dashbls/depends/relic/include -isystem$(srcdir)/dashbls/depends/minialloc/include
 BITCOIN_INCLUDES += -isystem$(srcdir)/immer
 
+lib_LTLIBRARIES =
+noinst_LTLIBRARIES =
+
 LIBBITCOIN_NODE = libbitcoin_node.a
 LIBBITCOIN_COMMON = libbitcoin_common.a
 LIBBITCOIN_CONSENSUS = libbitcoin_consensus.a
 LIBBITCOIN_CLI = libbitcoin_cli.a
 LIBBITCOIN_UTIL = libbitcoin_util.a
-LIBBITCOIN_CRYPTO = crypto/libbitcoin_crypto.a
+LIBBITCOIN_CRYPTO_BASE = crypto/libbitcoin_crypto_base.la
+LIBBITCOIN_CRYPTO_SPH = crypto/libbitcoin_crypto_sph.la
 LIBBITCOIN_BIGNUM = libbignum.a
 LIBBITCOINQT = qt/libbitcoinqt.a
 LIBDASHBLS = dashbls/libdashbls.la
 LIBSECP256K1 = secp256k1/libsecp256k1.la
+
+LIBBITCOIN_CRYPTO = $(LIBBITCOIN_CRYPTO_BASE) $(LIBBITCOIN_CRYPTO_SPH)
+
+if ENABLE_SSE41
+LIBBITCOIN_CRYPTO_SSE41 = crypto/libbitcoin_crypto_sse41.la
+LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_SSE41)
+endif
+if ENABLE_AVX2
+LIBBITCOIN_CRYPTO_AVX2 = crypto/libbitcoin_crypto_avx2.la
+LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_AVX2)
+endif
+if ENABLE_X86_SHANI
+LIBBITCOIN_CRYPTO_X86_SHANI = crypto/libbitcoin_crypto_x86_shani.la
+LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_X86_SHANI)
+endif
+if ENABLE_ARM_SHANI
+LIBBITCOIN_CRYPTO_ARM_SHANI = crypto/libbitcoin_crypto_arm_shani.la
+LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_ARM_SHANI)
+endif
+
+noinst_LTLIBRARIES += $(LIBBITCOIN_CRYPTO)
 
 if ENABLE_ZMQ
 LIBBITCOIN_ZMQ = libbitcoin_zmq.a
@@ -49,16 +74,13 @@ LIBBITCOIN_USBDEVICE = libbitcoin_usbdevice.a
 endif
 
 $(LIBDASHBLS):
-
 	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C $(@D)
-
 $(LIBSECP256K1): $(wildcard secp256k1/src/*.h) $(wildcard secp256k1/src/*.c) $(wildcard secp256k1/include/*)
 	$(AM_V_at)$(MAKE) $(AM_MAKEFLAGS) -C $(@D) $(@F)
 
 # Make is not made aware of per-object dependencies to avoid limiting building parallelization
 # But to build the less dependent modules first, we manually select their order here:
 EXTRA_LIBRARIES += \
-  $(LIBBITCOIN_CRYPTO) \
   $(LIBBITCOIN_UTIL) \
   $(LIBBITCOIN_COMMON) \
   $(LIBBITCOIN_CONSENSUS) \
@@ -69,9 +91,7 @@ EXTRA_LIBRARIES += \
   $(LIBBITCOIN_USBDEVICE) \
   $(LIBBITCOIN_ZMQ)
 
-lib_LTLIBRARIES = $(LIBBITCOINCONSENSUS)
-noinst_LTLIBRARIES =
-
+lib_LTLIBRARIES += $(LIBBITCOINCONSENSUS)
 bin_PROGRAMS =
 noinst_PROGRAMS =
 TESTS =
@@ -95,6 +115,7 @@ BITCOIN_CORE_H = \
   arith_uint256.h \
   attributes.h \
   base58.h \
+  bech32.h \
   blob_uint256.h \
   bip38.h \
   bip324.h \
@@ -109,12 +130,12 @@ BITCOIN_CORE_H = \
   checkpoints.h \
   checkqueue.h \
   clientversion.h \
-  coinjoin/options.h \
   coins.h \
   common/args.h \
   common/bloom.h \
   common/run_command.h \
   common/settings.h \
+  common/system.h \
   compat.h \
   compat/byteswap.h \
   compat/compat.h \
@@ -135,6 +156,8 @@ BITCOIN_CORE_H = \
   cuckoocache.h \
   crypter.h \
   dbwrapper.h \
+  deploymentinfo.h \
+  deploymentstatus.h \
   evo/specialtx.h \
   external_signer.h \
   forgeman.h \
@@ -161,14 +184,15 @@ BITCOIN_CORE_H = \
   index/txindex.h \
   indirectmap.h \
   init.h \
+  init/common.h \
   interfaces/chain.h \
-  interfaces/coinjoin.h \
   interfaces/echo.h \
   interfaces/handler.h \
   interfaces/init.h \
   interfaces/node.h \
   interfaces/providertx.h \
   interfaces/wallet.h \
+  kernel.h \
   kernel/blockmanager_opts.h \
   kernel/chainstatemanager_opts.h \
   kernel/checks.h \
@@ -180,9 +204,13 @@ BITCOIN_CORE_H = \
   kernel/mempool_limits.h \
   kernel/mempool_options.h \
   kernel/mempool_persist.h \
-  kernel.h \
+  kernel/messagestartchars.h \
   key.h \
+  key/crypter.h \
   key/extkey.h \
+  key/keyutil.h \
+  key/stealth.h \
+  key/types.h \
   key_io.h \
   keystore.h \
   legacy/stakemodifier.h \
@@ -191,6 +219,7 @@ BITCOIN_CORE_H = \
   logging.h \
   logging/timer.h \
   mapport.h \
+  masternode/utils.h \
   memusage.h \
   masternode-payments.h \
   merkleblock.h \
@@ -232,11 +261,16 @@ BITCOIN_CORE_H = \
   reverselock.h \
   reverse_iterate.h \
   rpc/client.h \
+  rpc/json_help.h \
+  rpc/mempool.h \
+  rpc/mining.h \
   rpc/protocol.h \
+  rpc/register.h \
   rpc/request.h \
   rpc/server.h \
   rpc/server_util.h \
   scheduler.h \
+  script/ismine.h \
   script/script_error.h \
   script/interpreter.h \
   script/keyorigin.h \
@@ -247,12 +281,14 @@ BITCOIN_CORE_H = \
   script/standard.h \
   serialize.h \
   span.h \
+  stacktraces.h \
   stakeinput.h \
   streams.h \
   stubs/legacy_zerocoin_consensus.h \
   support/allocators/secure.h \
   support/allocators/zeroafterfree.h \
   support/cleanse.h \
+  support/events.h \
   support/lockedpool.h \
   sync.h \
   threadsafety.h \
@@ -270,9 +306,11 @@ BITCOIN_CORE_H = \
   utilmoneystr.h \
   utilstrencodings.h \
   utiltime.h \
+  util/any.h \
   util/asmap.h \
   util/bitset.h \
   util/edge.h \
+  util/exception.h \
   util/fastrange.h \
   util/fees.h \
   util/fs.h \
@@ -282,12 +320,15 @@ BITCOIN_CORE_H = \
   util/readwritefile.h \
   util/serfloat.h \
   util/settings.h \
+  util/signalinterrupt.h \
   util/sock.h \
   util/stdmutex.h \
   util/string.h \
   util/subprocess.hpp \
   util/system.h \
+  util/thread.h \
   util/threadnames.h \
+  util/tokenpipe.h \
   util/chaintype.h \
   util/types.h \
   util/vecdeque.h \
@@ -326,7 +367,9 @@ BITCOIN_CORE_H = \
   zmq/zmqabstractnotifier.h \
   zmq/zmqconfig.h \
   zmq/zmqnotificationinterface.h \
-  zmq/zmqpublishnotifier.h
+  zmq/zmqpublishnotifier.h \
+  zmq/zmqrpc.h \
+  zmq/zmqutil.h
 
 obj/build.h: FORCE
 	@$(MKDIR_P) $(builddir)/obj
@@ -351,6 +394,7 @@ libbitcoin_node_a_SOURCES = \
   blockfilter.cpp \
   blocksignature.cpp \
   chain.cpp \
+  legacy/stakemodifier.cpp \
   chainlock/chainlock.cpp \
   chainlock/clsig.cpp \
   chainlock/handler.cpp \
@@ -388,6 +432,7 @@ libbitcoin_node_a_SOURCES = \
   index/spentindex.cpp \
   index/timestampindex.cpp \
   index/txindex.cpp \
+  init/common.cpp \
   init.cpp \
   instantsend/db.cpp \
   instantsend/instantsend.cpp \
@@ -425,6 +470,7 @@ libbitcoin_node_a_SOURCES = \
   masternode/meta.cpp \
   masternode/payments.cpp \
   masternode/sync.cpp \
+  masternode/utils.cpp \
   net.cpp \
   net_processing.cpp \
   netfulfilledman.cpp \
@@ -461,6 +507,7 @@ libbitcoin_node_a_SOURCES = \
   rpc/blockchain.cpp \
   rpc/external_signer.cpp \
   rpc/fees.cpp \
+  rpc/json_help.cpp \
   rpc/masternode.cpp \
   rpc/mempool.cpp \
   rpc/mining.cpp \
@@ -469,6 +516,7 @@ libbitcoin_node_a_SOURCES = \
   rpc/rawtransaction.cpp \
   rpc/server.cpp \
   rpc/server_util.cpp \
+  rpc/signmessage.cpp \
   rpc/txoutproof.cpp \
   script/sigcache.cpp \
   shutdown.cpp \
@@ -485,13 +533,24 @@ libbitcoin_node_a_SOURCES = \
   versionbits.cpp \
   $(BITCOIN_CORE_H)
 
+if ENABLE_WALLET
+libbitcoin_node_a_SOURCES += wallet/init.cpp
+libbitcoin_node_a_CPPFLAGS += $(BDB_CPPFLAGS)
+endif
+
+if !ENABLE_WALLET
+libbitcoin_node_a_SOURCES += dummywallet.cpp
+endif
+
 if ENABLE_ZMQ
-libbitcoin_zmq_a_CPPFLAGS = $(BITCOIN_INCLUDES) $(ZMQ_CFLAGS)
+libbitcoin_zmq_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(BOOST_CPPFLAGS) $(ZMQ_CFLAGS)
 libbitcoin_zmq_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_zmq_a_SOURCES = \
   zmq/zmqabstractnotifier.cpp \
   zmq/zmqnotificationinterface.cpp \
-  zmq/zmqpublishnotifier.cpp
+  zmq/zmqpublishnotifier.cpp \
+  zmq/zmqrpc.cpp \
+  zmq/zmqutil.cpp
 endif
 
 # usbdevice: native hardware-wallet support
@@ -546,7 +605,6 @@ libbitcoin_wallet_a_SOURCES = \
   masternode-payments.cpp \
   forgeman.cpp \
   messagesigner.cpp \
-  legacy/stakemodifier.cpp \
   kernel.cpp \
   wallet/bdb.cpp \
   wallet/coincontrol.cpp \
@@ -556,6 +614,7 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/external_signer_scriptpubkeyman.cpp \
   wallet/fees.cpp \
   wallet/hdchain.cpp \
+  wallet/interfaces.cpp \
   wallet/hdwallet.cpp \
   wallet/hdwalletdb.cpp \
   wallet/hdwallettypes.cpp \
@@ -583,34 +642,57 @@ libbitcoin_wallet_a_SOURCES += wallet/sqlite.cpp
 endif
 
 # crypto primitives library
-crypto_libbitcoin_crypto_a_CPPFLAGS = $(AM_CPPFLAGS) $(PIC_FLAGS)
-crypto_libbitcoin_crypto_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIC_FLAGS)
-crypto_libbitcoin_crypto_a_SOURCES = \
+# Portable crypto base. CPU-specific SHA256 implementations are linked
+# separately below and selected at runtime by SHA256AutoDetect().
+crypto_libbitcoin_crypto_base_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(PIC_FLAGS) -static
+crypto_libbitcoin_crypto_base_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libbitcoin_crypto_base_la_SOURCES = \
   crypto/aes.cpp \
   crypto/aes.h \
-  crypto/sha1.cpp \
-  crypto/sha3.cpp \
-  crypto/sha256.cpp \
-  crypto/sha512.cpp \
-  crypto/siphash.cpp \
-  crypto/siphash.h \
   crypto/chacha20.cpp \
   crypto/chacha20.h \
   crypto/chacha20poly1305.cpp \
   crypto/chacha20poly1305.h \
+  crypto/common.h \
   crypto/hex_base.cpp \
   crypto/hex_base.h \
   crypto/hkdf_sha256_32.cpp \
   crypto/hkdf_sha256_32.h \
   crypto/hmac_sha256.cpp \
-  crypto/rfc6979_hmac_sha256.cpp \
+  crypto/hmac_sha256.h \
   crypto/hmac_sha512.cpp \
+  crypto/hmac_sha512.h \
   crypto/muhash.cpp \
   crypto/muhash.h \
   crypto/poly1305.cpp \
   crypto/poly1305.h \
-  crypto/scrypt.cpp \
+  crypto/rfc6979_hmac_sha256.cpp \
+  crypto/rfc6979_hmac_sha256.h \
   crypto/ripemd160.cpp \
+  crypto/ripemd160.h \
+  crypto/scrypt.cpp \
+  crypto/scrypt.h \
+  crypto/sha1.cpp \
+  crypto/sha1.h \
+  crypto/sha256.cpp \
+  crypto/sha256.h \
+  crypto/sha3.cpp \
+  crypto/sha512.cpp \
+  crypto/sha512.h \
+  crypto/siphash.cpp \
+  crypto/siphash.h
+
+if USE_ASM
+crypto_libbitcoin_crypto_base_la_SOURCES += crypto/sha256_sse4.cpp
+endif
+
+# SCH historical SPH hash family. These sources are consensus-sensitive and
+# remain unchanged; only their build ownership is modernized.
+crypto_libbitcoin_crypto_sph_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(PIC_FLAGS) -static
+crypto_libbitcoin_crypto_sph_la_CFLAGS = $(AM_CFLAGS) $(PIC_FLAGS)
+crypto_libbitcoin_crypto_sph_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libbitcoin_crypto_sph_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libbitcoin_crypto_sph_la_SOURCES = \
   crypto/sph_md_helper.c \
   crypto/sph_sha2big.c \
   crypto/aes_helper.c \
@@ -633,15 +715,6 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/hamsi_helper.c \
   crypto/fugue.c \
   crypto/sha2.c \
-  crypto/common.h \
-  crypto/sha256.h \
-  crypto/sha512.h \
-  crypto/hmac_sha256.h \
-  crypto/rfc6979_hmac_sha256.h \
-  crypto/hmac_sha512.h \
-  crypto/scrypt.h \
-  crypto/sha1.h \
-  crypto/ripemd160.h \
   crypto/sph_blake.h \
   crypto/sph_bmw.h \
   crypto/sph_groestl.h \
@@ -660,6 +733,34 @@ crypto_libbitcoin_crypto_a_SOURCES = \
   crypto/sph_sha2.h \
   crypto/sph_haval.h \
   crypto/sph_types.h
+
+crypto_libbitcoin_crypto_sse41_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libbitcoin_crypto_sse41_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
+crypto_libbitcoin_crypto_sse41_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libbitcoin_crypto_sse41_la_CXXFLAGS += $(SSE41_CXXFLAGS)
+crypto_libbitcoin_crypto_sse41_la_CPPFLAGS += -DENABLE_SSE41
+crypto_libbitcoin_crypto_sse41_la_SOURCES = crypto/sha256_sse41.cpp
+
+crypto_libbitcoin_crypto_avx2_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libbitcoin_crypto_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
+crypto_libbitcoin_crypto_avx2_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libbitcoin_crypto_avx2_la_CXXFLAGS += $(AVX2_CXXFLAGS)
+crypto_libbitcoin_crypto_avx2_la_CPPFLAGS += -DENABLE_AVX2
+crypto_libbitcoin_crypto_avx2_la_SOURCES = crypto/sha256_avx2.cpp
+
+crypto_libbitcoin_crypto_x86_shani_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libbitcoin_crypto_x86_shani_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
+crypto_libbitcoin_crypto_x86_shani_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libbitcoin_crypto_x86_shani_la_CXXFLAGS += $(X86_SHANI_CXXFLAGS)
+crypto_libbitcoin_crypto_x86_shani_la_CPPFLAGS += -DENABLE_SSE41 -DENABLE_X86_SHANI
+crypto_libbitcoin_crypto_x86_shani_la_SOURCES = crypto/sha256_x86_shani.cpp
+
+crypto_libbitcoin_crypto_arm_shani_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libbitcoin_crypto_arm_shani_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
+crypto_libbitcoin_crypto_arm_shani_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libbitcoin_crypto_arm_shani_la_CXXFLAGS += $(ARM_SHANI_CXXFLAGS)
+crypto_libbitcoin_crypto_arm_shani_la_CPPFLAGS += -DENABLE_ARM_SHANI
+crypto_libbitcoin_crypto_arm_shani_la_SOURCES = crypto/sha256_arm_shani.cpp
 
 # bignum library
 libbignum_a_CPPFLAGS = $(AM_CPPFLAGS) $(BOOST_CPPFLAGS)
@@ -682,6 +783,7 @@ libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_common_a_SOURCES = \
   allocators.cpp \
   base58.cpp \
+  bech32.cpp \
   wallet/bip39.cpp \
   bip38.cpp \
   chainparams.cpp \
@@ -689,14 +791,18 @@ libbitcoin_common_a_SOURCES = \
   common/args.cpp \
   common/bloom.cpp \
   common/common.cpp \
+  common/config.cpp \
+  common/init.cpp \
   common/interfaces.cpp \
   common/run_command.cpp \
   common/settings.cpp \
+  common/system.cpp \
   common/url.cpp \
   compressor.cpp \
   consensus/merkle.cpp \
   core_read.cpp \
   core_write.cpp \
+  deploymentinfo.cpp \
   evo/core_write.cpp \
   evo/netinfo.cpp \
   evo/providertx_util.cpp \
@@ -706,7 +812,10 @@ libbitcoin_common_a_SOURCES = \
   wallet/hdchain.cpp \
   kernel/chainparams.cpp \
   key.cpp \
+  key/crypter.cpp \
   key/extkey.cpp \
+  key/keyutil.cpp \
+  key/stealth.cpp \
   key_io.cpp \
   keystore.cpp \
   llmq/core_write.cpp \
@@ -730,6 +839,7 @@ libbitcoin_common_a_SOURCES = \
   scheduler.cpp \
   script/descriptor.cpp \
   script/interpreter.cpp \
+  script/miniscript.cpp \
   script/script.cpp \
   script/sign.cpp \
   script/signingprovider.cpp \
@@ -757,7 +867,7 @@ libbitcoin_util_a_SOURCES = \
   logging.cpp \
   random.cpp \
   randomenv.cpp \
-  rpc/protocol.cpp \
+  stacktraces.cpp \
   support/cleanse.cpp \
   support/lockedpool.cpp \
   streams.cpp \
@@ -774,6 +884,7 @@ libbitcoin_util_a_SOURCES = \
   util/check.cpp \
   util/edge.cpp \
   util/error.cpp \
+  util/exception.cpp \
   util/expected.cpp \
   util/fees.cpp \
   util/fs.cpp \
@@ -786,6 +897,7 @@ libbitcoin_util_a_SOURCES = \
   util/readwritefile.cpp \
   util/serfloat.cpp \
   util/settings.cpp \
+  util/signalinterrupt.cpp \
   util/sock.cpp \
   util/spanparsing.cpp \
   util/string.cpp \

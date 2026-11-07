@@ -1,9 +1,10 @@
 // Copyright (c) 2025-2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ACTIVE_CONTEXT_H
-#define BITCOIN_ACTIVE_CONTEXT_H
+#ifndef SCHILLINGCOIN_ACTIVE_CONTEXT_H
+#define SCHILLINGCOIN_ACTIVE_CONTEXT_H
 
 #include <llmq/quorumsman.h>
 
@@ -17,7 +18,6 @@
 
 class CActiveMasternodeManager;
 class CBLSWorker;
-class CCoinJoinServer;
 class CConnman;
 class CGovernanceManager;
 class CMasternodeSync;
@@ -71,9 +71,6 @@ public:
     void Start();
     void Stop();
 
-    CCoinJoinServer& GetCJServer() const;
-    void SetCJServer(gsl::not_null<CCoinJoinServer*> cj_server);
-
     // QuorumRole
     bool IsMasternode() const override;
     bool IsWatching() const override;
@@ -102,9 +99,6 @@ private:
 
 public:
     const std::unique_ptr<instantsend::InstantSendSigner> is_signer;
-
-    /** Owned by PeerManager, use GetCJServer() */
-    CCoinJoinServer* m_cj_server{nullptr};
 };
 
-#endif // BITCOIN_ACTIVE_CONTEXT_H
+#endif // SCHILLINGCOIN_ACTIVE_CONTEXT_H

@@ -8,7 +8,13 @@
 #ifndef SCHILLINGCOIN_SCRIPT_SIGN_H
 #define SCHILLINGCOIN_SCRIPT_SIGN_H
 
+#include "pubkey.h"
 #include "script/interpreter.h"
+#include "script/keyorigin.h"
+
+#include <map>
+#include <utility>
+#include <vector>
 
 class CKeyID;
 class CKeyStore;
@@ -120,9 +126,22 @@ public:
         SigVersion sigversion) const override;
 };
 
+typedef std::pair<CPubKey, std::vector<unsigned char>> SigPair;
+
+// This struct contains information from a transaction input and also contains
+// signatures for that input. The information contained here can be used to
+// create a signature and is also filled by ProduceSignature in order to
+// construct the final scriptSig.
 struct SignatureData
 {
+    bool complete = false;
     CScript scriptSig;
+    CScript redeem_script;
+    std::map<CKeyID, SigPair> signatures;
+    std::map<CKeyID, std::pair<CPubKey, KeyOriginInfo>> misc_pubkeys;
+    std::vector<CKeyID> missing_pubkeys;
+    std::vector<CKeyID> missing_sigs;
+    uint160 missing_redeem_script;
 
     SignatureData()
     {
@@ -132,6 +151,8 @@ struct SignatureData
         scriptSig(script)
     {
     }
+
+    void MergeSignatureData(SignatureData sigdata);
 };
 
 /** Produce a script signature using a generic signature creator. */

@@ -1,13 +1,14 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 /**
  * Utilities for converting data from/to strings.
  */
-#ifndef BITCOIN_UTIL_STRENCODINGS_H
-#define BITCOIN_UTIL_STRENCODINGS_H
+#ifndef SCHILLINGCOIN_UTIL_STRENCODINGS_H
+#define SCHILLINGCOIN_UTIL_STRENCODINGS_H
 
 #include <span.h>
 #include <util/string.h>
@@ -232,13 +233,6 @@ std::optional<T> ToIntegral(std::string_view str)
 [[nodiscard]] bool ParseUInt64(std::string_view str, uint64_t *out);
 
 /**
- * Convert a span of bytes to a lower-case hexadecimal string.
- */
-std::string HexStr(const Span<const uint8_t> s);
-inline std::string HexStr(const Span<const char> s) { return HexStr(MakeUCharSpan(s)); }
-inline std::string HexStr(const Span<const std::byte> s) { return HexStr(MakeUCharSpan(s)); }
-
-/**
  * Format a paragraph of text to a fixed width, adding spaces for
  * indentation to any added line.
  */
@@ -377,4 +371,4 @@ std::string Capitalize(std::string str);
  */
 std::optional<uint64_t> ParseByteUnits(std::string_view str, ByteUnit default_multiplier);
 
-#endif // BITCOIN_UTIL_STRENCODINGS_H
+#endif // SCHILLINGCOIN_UTIL_STRENCODINGS_H

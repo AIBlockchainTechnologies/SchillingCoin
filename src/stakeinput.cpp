@@ -7,38 +7,15 @@
 #include "stakeinput.h"
 #include "wallet/wallet.h"
 
-bool CSchStake::SetPrevout(const CTransaction& txPrev, unsigned int n, const CBlockIndex* pindex)
-{
-    if (txPrev.IsNull() || n >= txPrev.vout.size() || !pindex)
-        return false;
-
-    txFrom = txPrev;
-    outputFrom = txPrev.vout[n];
-    outpointFrom = COutPoint(txPrev.GetHash(), n);
-    pindexFrom = pindex;
-
-    return true;
-}
-
 bool CSchStake::SetPrevout(const CTxOut& output, const COutPoint& outpoint, const CBlockIndex* pindex)
 {
     if (output.IsNull() || outpoint.IsNull() || !pindex)
         return false;
 
-    txFrom = CTransaction();
     outputFrom = output;
     outpointFrom = outpoint;
     pindexFrom = pindex;
 
-    return true;
-}
-
-bool CSchStake::GetTxFrom(CTransaction& tx) const
-{
-    if (txFrom.IsNull())
-        return false;
-
-    tx = txFrom;
     return true;
 }
 

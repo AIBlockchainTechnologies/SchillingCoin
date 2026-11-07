@@ -18,24 +18,48 @@ class CCoinsViewCache;
 class CTxOut;
 
 /** Default for -blockmaxsize and -blockminsize, which control the range of sizes the mining code will create. */
-static const unsigned int DEFAULT_BLOCK_MAX_SIZE = 750000;
-static const unsigned int DEFAULT_BLOCK_MIN_SIZE = 0;
+static constexpr unsigned int DEFAULT_BLOCK_MAX_SIZE{750000};
+static constexpr unsigned int DEFAULT_BLOCK_MIN_SIZE{0};
 
 /** Default for -blockprioritysize, maximum space for zero/low-fee transactions. */
-static const unsigned int DEFAULT_BLOCK_PRIORITY_SIZE = 50000;
+static constexpr unsigned int DEFAULT_BLOCK_PRIORITY_SIZE{50000};
+
+/** The maximum serialized size for transactions SCH is willing to relay or mine. */
+static constexpr unsigned int MAX_STANDARD_TX_SIZE{100000};
 
 /** Maximum number of signature check operations in an IsStandard() P2SH script. */
-static const unsigned int MAX_P2SH_SIGOPS = 15;
+static constexpr unsigned int MAX_P2SH_SIGOPS{15};
+
+/** Default for -incrementalrelayfee. */
+static constexpr unsigned int DEFAULT_INCREMENTAL_RELAY_FEE{1000};
+
+/** Default for -minrelaytxfee. */
+static constexpr unsigned int DEFAULT_MIN_RELAY_TX_FEE{1000};
+
+/** Default for -limitancestorcount. */
+static constexpr unsigned int DEFAULT_ANCESTOR_LIMIT{25};
+
+/** Default for -limitancestorsize, in kilobytes. */
+static constexpr unsigned int DEFAULT_ANCESTOR_SIZE_LIMIT_KVB{101};
+
+/** Default for -limitdescendantcount. */
+static constexpr unsigned int DEFAULT_DESCENDANT_LIMIT{25};
+
+/** Default for -limitdescendantsize, in kilobytes. */
+static constexpr unsigned int DEFAULT_DESCENDANT_SIZE_LIMIT_KVB{101};
+
+/** Default for accepting data-carrier transactions. */
+static constexpr bool DEFAULT_ACCEPT_DATACARRIER{true};
 
 /** Default for accepting bare multisig transactions. */
-static const bool DEFAULT_PERMIT_BAREMULTISIG = true;
+static constexpr bool DEFAULT_PERMIT_BAREMULTISIG{true};
 extern bool fIsBareMultisigStd;
 
 /**
  * Minimum fee rate used for defining dust. This is intentionally
  * independent from the configurable relay fee.
  */
-static const unsigned int DUST_RELAY_TX_FEE = 30000;
+static constexpr unsigned int DUST_RELAY_TX_FEE{30000};
 
 /**
  * Standard script verification flags that standard transactions will comply

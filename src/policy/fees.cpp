@@ -493,28 +493,70 @@ bool CBlockPolicyEstimator::_removeTx(const uint256& hash, bool inBlock)
     }
 }
 
-CBlockPolicyEstimator::CBlockPolicyEstimator()
-    : nBestSeenHeight(0), firstRecordedHeight(0), historicalFirst(0), historicalBest(0), trackedTxs(0), untrackedTxs(0)
+CBlockPolicyEstimator::CBlockPolicyEstimator(const fs::path& estimation_filepath, const bool read_stale_estimates)
+    : m_estimation_filepath{estimation_filepath}
 {
     static_assert(MIN_BUCKET_FEERATE > 0, "Min feerate must be nonzero");
     size_t bucketIndex = 0;
 
-    for (double bucketBoundary = MIN_BUCKET_FEERATE; bucketBoundary <= MAX_BUCKET_FEERATE; bucketBoundary *= FEE_SPACING, bucketIndex++) {
+    for (double bucketBoundary = MIN_BUCKET_FEERATE;
+         bucketBoundary <= MAX_BUCKET_FEERATE;
+         bucketBoundary *= FEE_SPACING, ++bucketIndex) {
         buckets.push_back(bucketBoundary);
         bucketMap[bucketBoundary] = bucketIndex;
     }
+
     buckets.push_back(INF_FEERATE);
     bucketMap[INF_FEERATE] = bucketIndex;
     assert(bucketMap.size() == buckets.size());
 
-    feeStats = std::make_unique<TxConfirmStats>(buckets, bucketMap, MED_BLOCK_PERIODS, MED_DECAY, MED_SCALE);
-    shortStats = std::make_unique<TxConfirmStats>(buckets, bucketMap, SHORT_BLOCK_PERIODS, SHORT_DECAY, SHORT_SCALE);
-    longStats = std::make_unique<TxConfirmStats>(buckets, bucketMap, LONG_BLOCK_PERIODS, LONG_DECAY, LONG_SCALE);
+    feeStats = std::make_unique<TxConfirmStats>(
+        buckets,
+        bucketMap,
+        MED_BLOCK_PERIODS,
+        MED_DECAY,
+        MED_SCALE);
+
+    shortStats = std::make_unique<TxConfirmStats>(
+        buckets,
+        bucketMap,
+        SHORT_BLOCK_PERIODS,
+        SHORT_DECAY,
+        SHORT_SCALE);
+
+    longStats = std::make_unique<TxConfirmStats>(
+        buckets,
+        bucketMap,
+        LONG_BLOCK_PERIODS,
+        LONG_DECAY,
+        LONG_SCALE);
+
+    AutoFile est_file{fsbridge::fopen(m_estimation_filepath, "rb")};
+
+    if (est_file.IsNull()) {
+        LogPrintf(
+            "%s is not found. Continue anyway.\n",
+            fs::PathToString(m_estimation_filepath));
+        return;
+    }
+
+    const std::chrono::hours file_age = GetFeeEstimatorFileAge();
+
+    if (file_age > MAX_FILE_AGE && !read_stale_estimates) {
+        LogPrintf(
+            "Fee estimation file %s is too old and will not be used.\n",
+            fs::PathToString(m_estimation_filepath));
+        return;
+    }
+
+    if (!Read(est_file)) {
+        LogPrintf(
+            "Failed to read fee estimates from %s. Continue anyway.\n",
+            fs::PathToString(m_estimation_filepath));
+    }
 }
 
-CBlockPolicyEstimator::~CBlockPolicyEstimator()
-{
-}
+CBlockPolicyEstimator::~CBlockPolicyEstimator() = default;
 
 void CBlockPolicyEstimator::processTransaction(const CTxMemPoolEntry& entry, bool validFeeEstimate)
 {

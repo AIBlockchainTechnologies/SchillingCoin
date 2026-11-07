@@ -7,12 +7,14 @@
 #include "timedata.h"
 
 #include "chainparams.h"
-#include "guiinterface.h"
 #include "netbase.h"
 #include "sync.h"
-#include "util.h"
-#include "util/system.h"
-#include "utilstrencodings.h"
+
+#include <node/interface_ui.h>
+#include <util/system.h>
+#include <util/time.h>
+#include <util/translation.h>
+#include <warnings.h>
 
 static RecursiveMutex cs_nTimeOffset;
 static int64_t nTimeOffset = 0;
@@ -75,12 +77,12 @@ void AddTimeData(const CNetAddr& ip, int64_t nOffsetSample, int nOffsetLimit)
         // Only let other nodes change our time by so much
         if (abs64(nMedian) < nOffsetLimit) {
             nTimeOffset = nMedian;
-            strMiscWarning = "";
+            SetMiscWarning({});
         } else {
             nTimeOffset = (nMedian > 0 ? 1 : -1) * nOffsetLimit;
-            std::string strMessage = _("Warning: Please check that your computer's date and time are correct! If your clock is wrong Schilling Coin will not work properly.");
-            strMiscWarning = strMessage;
-            LogPrintf("*** %s\n", strMessage);
+            const bilingual_str strMessage = _("Warning: Please check that your computer's date and time are correct! If your clock is wrong Schilling Coin will not work properly.");
+            SetMiscWarning(strMessage);
+            LogPrintf("*** %s\n", strMessage.original);
             uiInterface.ThreadSafeMessageBox(strMessage, "", CClientUIInterface::MSG_ERROR);
         }
         if (fDebug) {

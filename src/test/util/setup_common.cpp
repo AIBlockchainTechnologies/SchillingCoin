@@ -86,7 +86,6 @@
 #include <masternode/meta.h>
 #include <masternode/sync.h>
 #include <netfulfilledman.h>
-#include <spork.h>
 #include <stats/client.h>
 
 #ifdef ENABLE_WALLET
@@ -122,8 +121,8 @@ std::unique_ptr<PeerManager> MakePeerManager(CConnman& connman,
                                              BanMan* banman,
                                              bool ignore_incoming_txs)
 {
-    return PeerManager::make(connman, *node.addrman, banman, *node.dstxman, *node.chainman, *node.mempool, *node.mn_metaman,
-                             *node.mn_sync, *node.chainlocks, *node.clhandler, /*nodeman=*/nullptr, *node.dmnman, node.cj_walletman.get(),
+    return PeerManager::make(connman, *node.addrman, banman, *node.chainman, *node.mempool, *node.mn_metaman,
+                             *node.mn_sync, *node.chainlocks, *node.clhandler, /*nodeman=*/nullptr, *node.dmnman,
                              *node.isman, *node.llmq_ctx, ignore_incoming_txs);
 }
 

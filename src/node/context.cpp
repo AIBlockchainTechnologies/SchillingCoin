@@ -36,7 +36,6 @@
 #include <llmq/observer.h>
 #include <masternode/meta.h>
 #include <masternode/sync.h>
-#include <spork.h>
 
 namespace node {
 NodeContext::NodeContext() = default;

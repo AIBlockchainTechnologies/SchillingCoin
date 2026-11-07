@@ -5,16 +5,10 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RPCPROTOCOL_H
-#define BITCOIN_RPCPROTOCOL_H
+#ifndef SCHILLINGCOIN_RPCPROTOCOL_H
+#define SCHILLINGCOIN_RPCPROTOCOL_H
 
-#include <list>
-#include <map>
-#include <stdint.h>
-#include <string>
-#include <boost/filesystem.hpp>
-
-#include <univalue.h>
+#include <cstdint>
 
 //! HTTP status codes
 enum HTTPStatusCode {
@@ -76,18 +70,4 @@ enum RPCErrorCode {
     RPC_WALLET_ALREADY_UNLOCKED         = -17, //! Wallet is already unlocked
 };
 
-std::string JSONRPCRequestObj(const std::string& strMethod, const UniValue& params, const UniValue& id);
-UniValue JSONRPCReplyObj(const UniValue& result, const UniValue& error, const UniValue& id);
-std::string JSONRPCReply(const UniValue& result, const UniValue& error, const UniValue& id);
-UniValue JSONRPCError(int code, const std::string& message);
-
-/** Get name of RPC authentication cookie file */
-boost::filesystem::path GetAuthCookieFile();
-/** Generate a new RPC authentication cookie and write it to disk */
-bool GenerateAuthCookie(std::string *cookie_out);
-/** Read the RPC authentication cookie from disk */
-bool GetAuthCookie(std::string *cookie_out);
-/** Delete RPC authentication cookie from disk */
-void DeleteAuthCookie();
-
-#endif // BITCOIN_RPCPROTOCOL_H
+#endif // SCHILLINGCOIN_RPCPROTOCOL_H

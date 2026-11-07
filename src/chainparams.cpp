@@ -7,6 +7,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "chainparams.h"
+#include "common/args.h"
 #include "consensus/merkle.h"
 #include "random.h"
 #include "util.h"
@@ -233,8 +234,7 @@ class CMainParams : public CChainParams
 public:
     CMainParams()
     {
-        networkID = CBaseChainParams::MAIN;
-        strNetworkID = "main";
+        m_chain_type = ChainType::MAIN;
 
 		genesis = CreateGenesisBlock(1540198678, 1057070, 0x1e0ffff0, 1, 0 * COIN);
 		consensus.hashGenesisBlock = genesis.GetHash();
@@ -326,7 +326,6 @@ public:
     }
 
 };
-static CMainParams mainParams;
 
 /**
  * Schilling Coin (SCH) Testnet (v3)
@@ -336,8 +335,7 @@ class CTestNetParams : public CMainParams
 public:
     CTestNetParams()
     {
-        networkID = CBaseChainParams::TESTNET;
-        strNetworkID = "test";
+        m_chain_type = ChainType::TESTNET;
 
         genesis = CreateGenesisBlock(1538323043, 1050765, 0x1e0ffff0, 1, 0 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
@@ -435,7 +433,6 @@ public:
         return dataTestnet;
     }
 };
-static CTestNetParams testNetParams;
 
 /**
  * Regression test
@@ -445,8 +442,7 @@ class CRegTestParams : public CTestNetParams
 public:
     CRegTestParams()
     {
-        networkID = CBaseChainParams::REGTEST;
-        strNetworkID = "regtest";
+        m_chain_type = ChainType::REGTEST;
 
         genesis = CreateGenesisBlock(1454124731, 2402015, 0x1e0ffff0, 1, 250 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
@@ -520,8 +516,10 @@ public:
         pchMessageStart[2] = 0x7e;
         pchMessageStart[3] = 0xac;
         nDefaultPort = 51476;
+        fAllowMultipleAddressesFromGroup = true;
+        nLLMQConnectionRetryTimeout = 1;
 
-        vFixedSeeds.clear(); //! Testnet mode doesn't have any fixed seeds.
+        vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear(); //! Testnet mode doesn't have any DNS seeds.
     }
 
@@ -530,43 +528,33 @@ public:
         return dataRegtest;
     }
 };
-static CRegTestParams regTestParams;
 
-static CChainParams* pCurrentParams = 0;
+static std::unique_ptr<const CChainParams> globalChainParams;
 
 const CChainParams& Params()
 {
-    assert(pCurrentParams);
-    return *pCurrentParams;
+    assert(globalChainParams);
+    return *globalChainParams;
 }
 
-CChainParams& Params(CBaseChainParams::Network network)
+std::unique_ptr<const CChainParams> CreateChainParams(const ArgsManager& args, const ChainType chain)
 {
-    switch (network) {
-    case CBaseChainParams::MAIN:
-        return mainParams;
-    case CBaseChainParams::TESTNET:
-        return testNetParams;
-    case CBaseChainParams::REGTEST:
-        return regTestParams;
-    default:
-        assert(false && "Unimplemented network");
-        return mainParams;
+    (void)args;
+
+    switch (chain) {
+    case ChainType::MAIN:
+        return std::make_unique<CMainParams>();
+    case ChainType::TESTNET:
+        return std::make_unique<CTestNetParams>();
+    case ChainType::REGTEST:
+        return std::make_unique<CRegTestParams>();
     }
+
+    assert(false);
 }
 
-void SelectParams(CBaseChainParams::Network network)
+void SelectParams(const ChainType chain)
 {
-    SelectBaseParams(network);
-    pCurrentParams = &Params(network);
-}
-
-bool SelectParamsFromCommandLine()
-{
-    CBaseChainParams::Network network = NetworkIdFromCommandLine();
-    if (network == CBaseChainParams::MAX_NETWORK_TYPES)
-        return false;
-
-    SelectParams(network);
-    return true;
+    SelectBaseParams(chain);
+    globalChainParams = CreateChainParams(gArgs, chain);
 }
