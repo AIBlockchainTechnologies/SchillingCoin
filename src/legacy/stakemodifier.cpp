@@ -61,7 +61,7 @@ static bool SelectBlockFromCandidates(std::vector<std::pair<int64_t, uint256> >&
 
         CDataStream ss(SER_GETHASH, 0);
         ss << hashProof << nStakeModifierPrev;
-        uint256 hashSelection = Hash(ss.begin(), ss.end());
+        uint256 hashSelection = Hash(ss);
 
         // the selection hash is divided by 2**32 so that proof-of-stake block
         // is always favored over proof-of-work block. this is to preserve

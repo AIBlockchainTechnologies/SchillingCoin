@@ -1,9 +1,10 @@
-// Copyright (c) 2023-present The Bitcoin Core developers
+// Copyright (c) 2023-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_COMMON_ARGS_H
-#define BITCOIN_COMMON_ARGS_H
+#ifndef SCHILLINGCOIN_COMMON_ARGS_H
+#define SCHILLINGCOIN_COMMON_ARGS_H
 
 #include <common/settings.h>
 #include <sync.h>
@@ -53,6 +54,9 @@ inline bool IsSwitchChar(char c)
 enum class OptionsCategory {
     OPTIONS,
     CONNECTION,
+    INDEXING,
+    MASTERNODE,
+    STATSD,
     WALLET,
     WALLET_DEBUG_TEST,
     ZMQ,
@@ -514,4 +518,4 @@ std::string HelpMessageGroup(const std::string& message);
  */
 std::string HelpMessageOpt(std::string_view option, std::string_view help_param, std::string_view message, bool subopt = false);
 
-#endif // BITCOIN_COMMON_ARGS_H
+#endif // SCHILLINGCOIN_COMMON_ARGS_H

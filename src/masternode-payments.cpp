@@ -44,7 +44,7 @@ bool CMasternodePaymentDB::Write(const CMasternodePayments& objToSave)
     ssObj << strMagicMessage;                   // masternode cache file specific magic message
     ssObj << FLATDATA(Params().MessageStart()); // network specific magic number
     ssObj << objToSave;
-    uint256 hash = Hash(ssObj.begin(), ssObj.end());
+    uint256 hash = Hash(ssObj);
     ssObj << hash;
 
     // open output file, and associate with CAutoFile
@@ -100,13 +100,13 @@ CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments&
     CDataStream ssObj(vchData, SER_DISK, CLIENT_VERSION);
 
     // verify stored checksum matches input data
-    uint256 hashTmp = Hash(ssObj.begin(), ssObj.end());
+    uint256 hashTmp = Hash(ssObj);
     if (hashIn != hashTmp) {
         error("%s : Checksum mismatch, data corrupted", __func__);
         return IncorrectHash;
     }
 
-    unsigned char pchMsgTmp[4];
+    MessageStartChars pchMsgTmp;
     std::string strMagicMessageTmp;
     try {
         // de-serialize file header (masternode cache file specific magic message) and ..
@@ -120,10 +120,10 @@ CMasternodePaymentDB::ReadResult CMasternodePaymentDB::Read(CMasternodePayments&
 
 
         // de-serialize file header (network specific magic number) and ..
-        ssObj >> FLATDATA(pchMsgTmp);
+        ssObj >> pchMsgTmp;
 
         // ... verify the network matches ours
-        if (memcmp(pchMsgTmp, Params().MessageStart(), sizeof(pchMsgTmp))) {
+        if (pchMsgTmp != Params().MessageStart()) {
             error("%s : Invalid network magic number", __func__);
             return IncorrectMagicNumber;
         }

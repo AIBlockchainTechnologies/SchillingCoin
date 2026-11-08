@@ -96,6 +96,10 @@
 #include <validationinterface.h>
 #include <walletinitinterface.h>
 
+#ifdef ENABLE_WALLET
+#include <wallet/wallet.h>
+#endif
+
 #include <active/context.h>
 #include <active/masternode.h>
 #include <bls/bls.h>
@@ -633,7 +637,7 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-allowprivatenet", strprintf("Allow RFC1918 addresses to be relayed and connected to (default: %u)", DEFAULT_ALLOWPRIVATENET), ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
     argsman.AddArg("-bantime=<n>", strprintf("Default duration (in seconds) of manually configured bans (default: %u)", DEFAULT_MISBEHAVING_BANTIME), ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
     argsman.AddArg("-bind=<addr>[:<port>][=onion]", strprintf("Bind to given address and always listen on it (default: 0.0.0.0). Use [host]:port notation for IPv6. Append =onion to tag any incoming connections to that address and port as incoming Tor connections (default: 127.0.0.1:%u=onion, testnet: 127.0.0.1:%u=onion, regtest: 127.0.0.1:%u=onion). "
-                                                      "The default onion bind is added only when no -bind is specified. When -listenonion is enabled and -bind is specified, a non-wildcard =onion bind is required, and wildcard =onion binds are rejected.", defaultBaseParams->OnionServiceTargetPort(), testnetBaseParams->OnionServiceTargetPort(), regtestBaseParams->OnionServiceTargetPort()), ArgsManager::ALLOW_ANY | ArgsManager::NETWORK_ONLY, OptionsCategory::CONNECTION);
+                                                      "The default onion bind is added only when no -bind is specified. When -listenonion is enabled and -bind is specified, a non-wildcard =onion bind is required, and wildcard =onion binds are rejected.", defaultChainParams->GetDefaultPort() + 1, testnetChainParams->GetDefaultPort() + 1, regtestChainParams->GetDefaultPort() + 1), ArgsManager::ALLOW_ANY | ArgsManager::NETWORK_ONLY, OptionsCategory::CONNECTION);
     argsman.AddArg("-cjdnsreachable", "If set, then this host is configured for CJDNS (connecting to fc00::/8 addresses would lead us to the CJDNS network, see doc/cjdns.md) (default: 0)", ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
     argsman.AddArg("-connect=<ip>", "Connect only to the specified node; -noconnect disables automatic connections (the rules for this peer are the same as for -addnode). This option can be specified multiple times to connect to multiple nodes.", ArgsManager::ALLOW_ANY | ArgsManager::NETWORK_ONLY, OptionsCategory::CONNECTION);
     argsman.AddArg("-discover", "Discover own IP addresses (default: 1 when listening and no -externalip or -proxy)", ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
@@ -968,9 +972,9 @@ static bool AppInitServers(NodeContext& node)
         return false;
     StartRPC();
     node.rpc_interruption_point = RpcInterruptionPoint;
-    if (!StartHTTPRPC(node))
+    if (!StartHTTPRPC(&node))
         return false;
-    if (args.GetBoolArg("-rest", DEFAULT_REST_ENABLE)) StartREST(node);
+    if (args.GetBoolArg("-rest", DEFAULT_REST_ENABLE)) StartREST(&node);
     StartHTTPServer();
     return true;
 }
@@ -1404,8 +1408,8 @@ bool AppInitParameterInteraction(const ArgsManager& args)
                                           "-maxuploadtarget=0"));
         }
         kernel::MemPoolOptions mempool_opts{};
-        if (const auto error{ApplyArgsManOptions(args, chainparams, mempool_opts)}) {
-            return InitError(*error);
+        if (const auto result{ApplyArgsManOptions(args, chainparams, mempool_opts)}; !result) {
+            return InitError(util::ErrorString(result));
         }
         // Regression tests deliberately give individual masternodes a stricter policy to create
         // mempool inconsistencies (see feature_llmq_is_retroactive.py).
@@ -1687,11 +1691,12 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         ::g_stats_client = std::move(*stats_client);
     }
 
+    FastRandomContext rng;
     assert(!node.banman);
     node.banman = std::make_unique<BanMan>(gArgs.GetDataDirNet() / "banlist", &uiInterface, args.GetIntArg("-bantime", DEFAULT_MISBEHAVING_BANTIME));
     assert(!node.connman);
-    node.connman = std::make_unique<CConnman>(GetRand<uint64_t>(),
-                                              GetRand<uint64_t>(),
+    node.connman = std::make_unique<CConnman>(rng.rand64(),
+                                              rng.rand64(),
                                               *node.addrman, *node.netgroupman, args.GetBoolArg("-networkactive", true));
 
     assert(!node.fee_estimator);
@@ -1984,8 +1989,8 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         .estimator = node.fee_estimator.get(),
         .check_ratio = chainparams.DefaultConsistencyChecks() ? 1 : 0,
     };
-    if (const auto err{ApplyArgsManOptions(args, chainparams, mempool_opts)}) {
-        return InitError(*err);
+    if (const auto result{ApplyArgsManOptions(args, chainparams, mempool_opts)}; !result) {
+        return InitError(util::ErrorString(result));
     }
     mempool_opts.check_ratio = std::clamp<int>(mempool_opts.check_ratio, 0, 1'000'000);
 
@@ -2574,6 +2579,8 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     const uint16_t default_bind_port =
         static_cast<uint16_t>(args.GetIntArg("-port", chainman.GetParams().GetDefaultPort()));
 
+    const uint16_t default_bind_port_onion = default_bind_port + 1;
+
     const auto BadPortWarning = [](const char* prefix, uint16_t port) {
         return strprintf(_("%s request to listen on port %u. This port is considered \"bad\" and "
                            "thus it is unlikely that any peer will connect to it. See "
@@ -2598,7 +2605,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             const std::string network_type = bind_arg.substr(index + 1);
             if (network_type == "onion") {
                 const std::string truncated_bind_arg = bind_arg.substr(0, index);
-                bind_addr = Lookup(truncated_bind_arg, BaseParams().OnionServiceTargetPort(), false);
+                bind_addr = Lookup(truncated_bind_arg, default_bind_port_onion, false);
                 if (bind_addr.has_value()) {
                     connOptions.onion_binds.push_back(bind_addr.value());
                     continue;
@@ -2629,7 +2636,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     }
 
     if (connOptions.onion_binds.empty() && connOptions.vBinds.empty()) {
-        connOptions.onion_binds.push_back(DefaultOnionServiceTarget());
+        connOptions.onion_binds.push_back(DefaultOnionServiceTarget(default_bind_port_onion));
     }
 
     if (args.GetBoolArg("-listenonion", DEFAULT_LISTEN_ONION)) {

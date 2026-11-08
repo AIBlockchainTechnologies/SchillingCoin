@@ -1002,3 +1002,19 @@ void CBlockPolicyEstimator::FlushUnconfirmed() {
     int64_t endclear = GetTimeMicros();
     LogPrint(BCLog::ESTIMATEFEE, "Recorded %u unconfirmed txs from mempool in %ld micros\n", num_entries, endclear - startclear);
 }
+
+void CBlockPolicyEstimator::Flush()
+{
+    FlushUnconfirmed();
+    FlushFeeEstimates();
+}
+
+void CBlockPolicyEstimator::FlushFeeEstimates()
+{
+    AutoFile est_file{fsbridge::fopen(m_estimation_filepath, "wb")};
+    if (est_file.IsNull() || !Write(est_file)) {
+        LogPrintf("Failed to write fee estimates to %s. Continue anyway.\n", fs::PathToString(m_estimation_filepath));
+    } else {
+        LogPrintf("Flushed fee estimates to %s.\n", fs::PathToString(m_estimation_filepath.filename()));
+    }
+}

@@ -150,8 +150,12 @@ struct Params {
     int64_t nTargetTimespan;
     int64_t nTargetTimespanV2;
     int64_t nTargetSpacing;
-
     int nTimeSlotLength;
+
+    std::chrono::seconds PowTargetSpacing() const
+    {
+        return std::chrono::seconds{nTargetSpacing};
+    }
 
     /*
      * Historical SCH activation heights.

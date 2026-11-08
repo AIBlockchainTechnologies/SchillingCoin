@@ -147,7 +147,7 @@ public:
     std::vector<std::string> listCommands() const;
 };
 
-extern const CRPCTable tableRPC;
+extern CRPCTable tableRPC;
 
 /**
  * Utilities: convert hex-encoded Values
@@ -187,8 +187,6 @@ extern UniValue importaddress(const JSONRPCRequest& request);
 extern UniValue dumphdinfo(const JSONRPCRequest& request);
 extern UniValue dumpwallet(const JSONRPCRequest& request);
 extern UniValue importwallet(const JSONRPCRequest& request);
-extern UniValue bip38encrypt(const JSONRPCRequest& request);
-extern UniValue bip38decrypt(const JSONRPCRequest& request);
 
 extern UniValue getgenerate(const JSONRPCRequest& request); // in rpc/mining.cpp
 extern UniValue setgenerate(const JSONRPCRequest& request);
@@ -315,6 +313,6 @@ bool StartRPC();
 void InterruptRPC();
 void StopRPC();
 std::string JSONRPCExecBatch(const UniValue& vReq);
-void RPCNotifyBlockChange(bool fInitialDownload, const CBlockIndex* pindex);
+void RPCNotifyBlockChange(const CBlockIndex* pindex);
 
 #endif // SCHILLINGCOIN_RPCSERVER_H

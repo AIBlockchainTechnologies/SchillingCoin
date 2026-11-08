@@ -1,9 +1,10 @@
 // Copyright (c) 2020-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UTIL_SOCK_H
-#define BITCOIN_UTIL_SOCK_H
+#ifndef SCHILLINGCOIN_UTIL_SOCK_H
+#define SCHILLINGCOIN_UTIL_SOCK_H
 
 #include <compat/compat.h>
 #include <util/threadinterrupt.h>
@@ -252,26 +253,26 @@ public:
     /**
      * If passed to `Wait()`, then it will wait for readiness to read from the socket.
      */
-    static constexpr Event RECV = 0b001;
+    static constexpr Event RecvEvent = 0b001;
 
     /**
      * If passed to `Wait()`, then it will wait for readiness to send to the socket.
      */
-    static constexpr Event SEND = 0b010;
+    static constexpr Event SendEvent = 0b010;
 
     /**
      * Ignored if passed to `Wait()`, but could be set in the occurred events if an
      * exceptional condition has occurred on the socket or if it has been disconnected.
      */
-    static constexpr Event ERR = 0b100;
+    static constexpr Event ErrorEvent = 0b100;
 
     /**
      * Wait for readiness for input (recv) or output (send).
      * @param[in] timeout Wait this much for at least one of the requested events to occur.
-     * @param[in] requested Wait for those events, bitwise-or of `RECV` and `SEND`.
+     * @param[in] requested Wait for those events, bitwise-or of `RecvEvent` and `SendEvent`.
      * @param[in] event_params Wait using the API specified.
      * @param[out] occurred If not nullptr and the function returns `true`, then this
-     * indicates which of the requested events occurred (`ERR` will be added, even if
+     * indicates which of the requested events occurred (`ErrorEvent` will be added, even if
      * not requested, if an exceptional event occurs on the socket).
      * A timeout is indicated by return value of `true` and `occurred` being set to 0.
      * @return true on success (or timeout, if `occurred` of 0 is returned), false otherwise
@@ -409,4 +410,4 @@ std::string NetworkErrorString(int err);
 
 extern SocketEventsMode g_socket_events_mode;
 
-#endif // BITCOIN_UTIL_SOCK_H
+#endif // SCHILLINGCOIN_UTIL_SOCK_H

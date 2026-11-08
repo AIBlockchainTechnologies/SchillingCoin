@@ -1,9 +1,10 @@
 // Copyright (c) 2017-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_SIMPLIFIEDMNS_H
-#define BITCOIN_EVO_SIMPLIFIEDMNS_H
+#ifndef SCHILLINGCOIN_EVO_SIMPLIFIEDMNS_H
+#define SCHILLINGCOIN_EVO_SIMPLIFIEDMNS_H
 
 #include <bls/bls.h>
 #include <evo/dmn_types.h>
@@ -40,7 +41,7 @@ public:
     CollateralShares shares; // mem-only
     CScript scriptOperatorPayout; // mem-only
     uint16_t nVersion{ProTxVersion::LegacyBLS};
-    MnType nType{MnType::Regular};
+    MnType nType{MnType::Level1};
 
     CSimplifiedMNListEntry() = default;
     CSimplifiedMNListEntry(const uint256& proreg_tx_hash, const uint256& confirmed_hash,
@@ -89,14 +90,6 @@ public:
         if (obj.nVersion >= ProTxVersion::BasicBLS) {
             READWRITE(
                 obj.nType);
-            if (obj.nType == MnType::Evo) {
-                if (obj.nVersion < ProTxVersion::ExtAddr) {
-                READWRITE(
-                obj.platformHTTPPort);
-                }
-                READWRITE(
-                obj.platformNodeID);
-            }
         }
     }
 
@@ -124,4 +117,4 @@ public:
 bool CalcCbTxMerkleRootMNList(uint256& merkleRootRet, gsl::not_null<std::shared_ptr<const CSimplifiedMNList>> sml,
                               BlockValidationState& state);
 
-#endif // BITCOIN_EVO_SIMPLIFIEDMNS_H
+#endif // SCHILLINGCOIN_EVO_SIMPLIFIEDMNS_H

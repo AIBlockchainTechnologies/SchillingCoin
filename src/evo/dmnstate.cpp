@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -112,57 +113,12 @@ UniValue CDeterministicMNStateDiff::ToJson(MnType nType) const
     if (fields & Field_pubKeyOperator) {
         obj.pushKV("pubKeyOperator", state.pubKeyOperator.ToString());
     }
-    if (nType == MnType::Evo) {
-        if (fields & Field_platformNodeID) {
-            obj.pushKV("platformNodeID", state.platformNodeID.ToString());
-        }
-        if (IsServiceDeprecatedRPCEnabled()) {
-            // platformP2PPort/platformHTTPPort are deprecated scalar duplicates of netInfo's
-            // Platform entries. From ExtAddr onwards the scalar fields are unused (always 0), so
-            // when the diff carries an ExtAddr netInfo report the live port from it to stay
-            // consistent with the "addresses" output below.
-            const bool has_ext_netinfo = (fields & Field_netInfo) && state.netInfo->CanStorePlatform();
-            if (fields & Field_platformP2PPort) {
-                obj.pushKV("platformP2PPort",
-                           has_ext_netinfo && state.netInfo->HasEntries(NetInfoPurpose::PLATFORM_P2P)
-                               ? state.netInfo->GetEntries(NetInfoPurpose::PLATFORM_P2P)[0].GetPort()
-                               : state.platformP2PPort);
-            }
-            if (fields & Field_platformHTTPPort) {
-                obj.pushKV("platformHTTPPort",
-                           has_ext_netinfo && state.netInfo->HasEntries(NetInfoPurpose::PLATFORM_HTTPS)
-                               ? state.netInfo->GetEntries(NetInfoPurpose::PLATFORM_HTTPS)[0].GetPort()
-                               : state.platformHTTPPort);
-            }
-        }
-    }
     {
         const bool has_netinfo = (fields & Field_netInfo);
 
         UniValue netInfoObj(UniValue::VOBJ);
         if (has_netinfo) {
             netInfoObj = state.netInfo->ToJson();
-        }
-        if (nType == MnType::Evo && (!has_netinfo || !state.netInfo->CanStorePlatform())) {
-            auto unknownAddr = [](uint16_t port) -> UniValue {
-                UniValue obj(UniValue::VARR);
-                // We don't know what the address is because it wasn't changed in the
-                // diff but we still need to report the port number in addr:port format
-                obj.push_back(strprintf("255.255.255.255:%d", port));
-                return obj;
-            };
-            if (fields & Field_platformP2PPort) {
-                netInfoObj.pushKV(PurposeToString(NetInfoPurpose::PLATFORM_P2P).data(),
-                                  (has_netinfo)
-                                      ? ArrFromService(CService(state.netInfo->GetPrimary(), state.platformP2PPort))
-                                      : unknownAddr(state.platformP2PPort));
-            }
-            if (fields & Field_platformHTTPPort) {
-                netInfoObj.pushKV(PurposeToString(NetInfoPurpose::PLATFORM_HTTPS).data(),
-                                  (has_netinfo)
-                                      ? ArrFromService(CService(state.netInfo->GetPrimary(), state.platformHTTPPort))
-                                      : unknownAddr(state.platformHTTPPort));
-            }
         }
         if (!netInfoObj.empty()) {
             obj.pushKV("addresses", netInfoObj);

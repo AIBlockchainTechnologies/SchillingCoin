@@ -36,6 +36,8 @@ struct Params;
 
 //! -dbcache default (MiB)
 static const int64_t nDefaultDbCache = 100;
+//! -dbbatchsize default (bytes)
+static const int64_t nDefaultDbBatchSize = 16 << 20;
 //! max. -dbcache in (MiB)
 static const int64_t nMaxDbCache = sizeof(void*) > 4 ? 4096 : 1024;
 //! min. -dbcache in (MiB)
@@ -65,8 +67,6 @@ public:
 
     bool GetKey(COutPoint& key) const override;
     bool GetValue(Coin& coin) const override;
-    unsigned int GetValueSize() const override;
-
     bool Valid() const override;
     void Next() override;
 

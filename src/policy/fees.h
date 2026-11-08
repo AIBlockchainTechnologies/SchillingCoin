@@ -211,6 +211,14 @@ public:
     void FlushUnconfirmed()
         EXCLUSIVE_LOCKS_REQUIRED(!m_cs_fee_estimator);
 
+    /** Record unconfirmed transactions and persist fee estimates. */
+    void Flush()
+        EXCLUSIVE_LOCKS_REQUIRED(!m_cs_fee_estimator);
+
+    /** Persist current fee estimates. */
+    void FlushFeeEstimates()
+        EXCLUSIVE_LOCKS_REQUIRED(!m_cs_fee_estimator);
+
     /** Return the highest confirmation target tracked by a horizon. */
     unsigned int HighestTargetTracked(FeeEstimateHorizon horizon) const
         EXCLUSIVE_LOCKS_REQUIRED(!m_cs_fee_estimator);

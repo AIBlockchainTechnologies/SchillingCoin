@@ -283,17 +283,18 @@ set(SERVER_SOURCES
         ./src/blocksignature.cpp
         ./src/chain.cpp
         ./src/legacy/stakemodifier.cpp
-        ./src/checkpoints.cpp
         ./src/dbwrapper.cpp
         ./src/deploymentstatus.cpp
         ./src/httprpc.cpp
         ./src/httpserver.cpp
         ./src/init/common.cpp
         ./src/init.cpp
+        ./src/kernel/mempool_removal_reason.cpp
         ./src/merkleblock.cpp
         ./src/net.cpp
         ./src/node/context.cpp
         ./src/node/miner.cpp
+        ./src/node/warnings.cpp
         ./src/noui.cpp
         ./src/policy/fees.cpp
         ./src/policy/packages.cpp
@@ -317,6 +318,7 @@ set(SERVER_SOURCES
         ./src/timedata.cpp
         ./src/torcontrol.cpp
         ./src/txdb.cpp
+        ./src/txgraph.cpp
         ./src/txmempool.cpp
         ./src/validation.cpp
         ./src/validationinterface.cpp
@@ -347,7 +349,6 @@ if(ZMQ_FOUND)
 endif()
 
 set(WALLET_SOURCES
-        ./src/bip38.cpp
         ./src/addressbook.cpp
         ./src/crypter.cpp
         ./src/masternode.cpp
@@ -478,7 +479,6 @@ set(COMMON_SOURCES
         ./src/allocators.cpp
         ./src/base58.cpp
         ./src/bech32.cpp
-        ./src/bip38.cpp
         ./src/chainparams.cpp
         ./src/coins.cpp
         ./src/common/args.cpp

@@ -154,6 +154,7 @@ void BlockAssembler::resetBlock()
 }
 
 static bool SolveProofOfStake(
+    Chainstate& chainstate,
     CBlock* pblock,
     const CBlockIndex* pindexPrev,
     CWallet* pwallet,
@@ -180,6 +181,7 @@ static bool SolveProofOfStake(
     int64_t nTxNewTime = 0;
 
     if (!pwallet->CreateCoinStake(
+            chainstate,
             pindexPrev,
             pblock->nBits,
             txCoinStake,
@@ -304,7 +306,7 @@ CBlockTemplate* CreateNewBlock(const CScript& scriptPubKeyIn, CWallet* pwallet, 
     pblocktemplate->vTxFees.push_back(-1);   // updated at end
     pblocktemplate->vTxSigOps.push_back(-1); // updated at end
 
-    if (fProofOfStake && !SolveProofOfStake(pblock, pindexPrev, pwallet, consensus)) {
+    if (fProofOfStake && !SolveProofOfStake(m_chainstate, pblock, pindexPrev, pwallet, consensus)) {
         return nullptr;
     }
 

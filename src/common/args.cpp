@@ -742,6 +742,15 @@ std::string ArgsManager::GetHelpMessage() const
             case OptionsCategory::CONNECTION:
                 usage += HelpMessageGroup("Connection options:");
                 break;
+            case OptionsCategory::INDEXING:
+                usage += HelpMessageGroup("Indexing options:");
+                break;
+            case OptionsCategory::MASTERNODE:
+                usage += HelpMessageGroup("Masternode options:");
+                break;
+            case OptionsCategory::STATSD:
+                usage += HelpMessageGroup("Statsd options:");
+                break;
             case OptionsCategory::ZMQ:
                 usage += HelpMessageGroup("ZeroMQ notification options:");
                 break;

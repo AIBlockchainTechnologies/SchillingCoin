@@ -297,7 +297,7 @@ bool InitHTTPServer()
 
     if (gArgs.GetBoolArg("-rpcssl", false)) {
         uiInterface.ThreadSafeMessageBox(
-            "SSL mode for RPC (-rpcssl) is no longer supported.",
+            Untranslated("SSL mode for RPC (-rpcssl) is no longer supported."),
             "",
             CClientUIInterface::MSG_ERROR);
         return false;

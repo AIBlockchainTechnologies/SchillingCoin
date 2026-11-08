@@ -19,11 +19,24 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+using MapCheckpoints = std::map<int, uint256>;
+
+struct CCheckpointData {
+    MapCheckpoints mapCheckpoints;
+
+    int GetHeight() const
+    {
+        const auto& final_checkpoint = mapCheckpoints.rbegin();
+        return final_checkpoint->first /* height */;
+    }
+};
 
 struct AssumeutxoHash : public BaseHash<uint256> {
     explicit AssumeutxoHash(const uint256& hash) : BaseHash(hash) {}
@@ -85,7 +98,7 @@ public:
         SECRET_KEY,
         EXT_PUBLIC_KEY,
         EXT_SECRET_KEY,
-
+        STAKING_ADDRESS,
         MAX_BASE58_TYPES
     };
 
@@ -122,22 +135,42 @@ public:
     /** Whether it is possible to mine blocks on demand (no retargeting) */
     bool MineBlocksOnDemand() const { return consensus.fPowNoRetargeting; }
 
+    /** Make miner wait to have peers outside regtest. */
+    bool MiningRequiresPeers() const { return !IsRegTestNet(); }
+
+    /** Require addresses specified with "-externalip" to be routable. */
+    bool RequireRoutableExternalIP() const { return fRequireRoutableExternalIP; }
+
     /** Allow multiple addresses to be selected from the same network group. */
     bool AllowMultipleAddressesFromGroup() const { return fAllowMultipleAddressesFromGroup; }
 
     /** How long to wait before retrying an LLMQ connection. */
     int LLMQConnectionRetryTimeout() const { return nLLMQConnectionRetryTimeout; }
 
+    /** Return the lifetime of fulfilled requests. */
+    int FulfilledRequestExpireTime() const { return nFulfilledRequestExpireTime; }
+
     /** Return the chain type string */
     std::string GetChainTypeString() const { return ChainTypeToString(m_chain_type); }
+
+    /** Compatibility network string for active SCH callers. */
+    std::string NetworkIDString() const { return GetChainTypeString(); }
+
     /** Return the chain type */
     ChainType GetChainType() const { return m_chain_type; }
+
+    bool IsRegTestNet() const { return m_chain_type == ChainType::REGTEST; }
+
     /** Return the list of hostnames to look up for DNS seeds */
     const std::vector<std::string>& DNSSeeds() const { return vSeeds; }
     const std::vector<unsigned char>& Base58Prefix(Base58Type type) const { return base58Prefixes[type]; }
     const std::string& Bech32HRP() const { return bech32_hrp; }
+    int ExtCoinType() const { return nExtCoinType; }
     const std::vector<uint8_t>& FixedSeeds() const { return vFixedSeeds; }
+    const CCheckpointData& Checkpoints() const { return checkpointData; }
     const HeadersSyncParams& HeadersSync() const { return m_headers_sync_params; }
+
+    [[nodiscard]] std::optional<Consensus::LLMQParams> GetLLMQ(Consensus::LLMQType llmqType) const;
 
     std::optional<AssumeutxoData> AssumeutxoForHeight(int height) const
     {
@@ -213,17 +246,22 @@ protected:
     std::vector<std::string> vSeeds;
     std::vector<unsigned char> base58Prefixes[MAX_BASE58_TYPES];
     std::string bech32_hrp;
+    int nExtCoinType{0};
     ChainType m_chain_type;
     CBlock genesis;
     std::vector<uint8_t> vFixedSeeds;
     bool fDefaultConsistencyChecks;
     bool m_is_mockable_chain;
+    bool fRequireRoutableExternalIP{true};
     bool fAllowMultipleAddressesFromGroup{false};
     int nLLMQConnectionRetryTimeout{60};
+    int nFulfilledRequestExpireTime{60 * 60};
+    CCheckpointData checkpointData;
     std::vector<AssumeutxoData> m_assumeutxo_data;
     ChainTxData chainTxData;
     HeadersSyncParams m_headers_sync_params;
 
+    void AddLLMQ(Consensus::LLMQType llmqType);
     void ApplyDeploymentOptions(const DeploymentOptions& opts);
 };
 

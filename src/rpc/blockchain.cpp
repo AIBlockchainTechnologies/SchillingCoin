@@ -6,20 +6,29 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "checkpoints.h"
+#include "chainparams.h"
 #include "clientversion.h"
+#include "deploymentinfo.h"
+#include "deploymentstatus.h"
+#include "evo/chainhelper.h"
+#include "evo/mnhftx.h"
 #include "hash.h"
 #include "init.h"
 #include "kernel.h"
 #include "key_io.h"
 #include "policy/feerate.h"
+#include "rpc/blockchain.h"
 #include "rpc/server.h"
+#include "rpc/server_util.h"
+#include "rpc/util.h"
 #include "sync.h"
 #include "txdb.h"
 #include "util.h"
+#include "util/check.h"
 #include "util/system.h"
 #include "utilmoneystr.h"
 #include "validation.h"
+#include "versionbits.h"
 #include "wallet/wallet.h"
 
 #include <boost/thread/thread.hpp>
@@ -174,10 +183,10 @@ UniValue getbestblockhash(const JSONRPCRequest& request)
     return chainActive.Tip()->GetBlockHash().GetHex();
 }
 
-void RPCNotifyBlockChange(bool fInitialDownload, const CBlockIndex* pindex)
+void RPCNotifyBlockChange(const CBlockIndex* pindex)
 {
     if(pindex) {
-        std::lock_guard<std::mutex> lock(cs_blockchange);
+        LOCK(cs_blockchange);
         latestblock.hash = pindex->GetBlockHash();
         latestblock.height = pindex->nHeight;
     }
@@ -973,7 +982,7 @@ UniValue getblockchaininfo(const JSONRPCRequest& request)
     obj.push_back(Pair("headers", pindexBestHeader ? pindexBestHeader->nHeight : -1));
     obj.push_back(Pair("bestblockhash", chainActive.Tip()->GetBlockHash().GetHex()));
     obj.push_back(Pair("difficulty", (double)GetDifficulty(chainActive.Tip())));
-    obj.push_back(Pair("verificationprogress", Checkpoints::GuessVerificationProgress(chainActive.Tip())));
+    obj.push_back(Pair("verificationprogress", GuessVerificationProgress(Params().TxData(), chainActive.Tip())));
     obj.push_back(Pair("chainwork", chainActive.Tip()->nChainWork.GetHex()));
     CBlockIndex* tip = chainActive.Tip();
     UniValue softforks(UniValue::VARR);

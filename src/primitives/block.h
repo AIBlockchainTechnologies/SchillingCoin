@@ -13,6 +13,10 @@
 #include "serialize.h"
 #include "uint256.h"
 
+#include <cstddef>
+#include <list>
+#include <type_traits>
+
 /** Nodes collect new transactions into a block, hash them into a hash tree,
  * and scan through nonce values to make the block's hash satisfy proof-of-work
  * requirements.  When they solve the proof-of-work, they broadcast the block
@@ -75,6 +79,153 @@ public:
     {
         return (int64_t)nTime;
     }
+};
+
+class CompressedHeaderBitField
+{
+    std::byte bit_field{0};
+
+public:
+    enum class Flag : std::underlying_type_t<std::byte> {
+        VERSION_BIT_0 = (1 << 0),
+        VERSION_BIT_1 = (1 << 1),
+        VERSION_BIT_2 = (1 << 2),
+        PREV_BLOCK_HASH = (1 << 3),
+        TIMESTAMP = (1 << 4),
+        NBITS = (1 << 5),
+    };
+
+    bool IsCompressed(Flag flag) const
+    {
+        return (bit_field & ToByte(flag)) == ToByte(0);
+    }
+
+    void MarkAsUncompressed(Flag flag)
+    {
+        bit_field |= ToByte(flag);
+    }
+
+    void MarkAsCompressed(Flag flag)
+    {
+        bit_field &= ~ToByte(flag);
+    }
+
+    bool IsVersionCompressed() const
+    {
+        return GetVersionOffset() != 0;
+    }
+
+    void SetVersionOffset(uint8_t version)
+    {
+        bit_field &= ~VERSION_BIT_MASK;
+        bit_field |= ToByte(version) & VERSION_BIT_MASK;
+    }
+
+    uint8_t GetVersionOffset() const
+    {
+        return ToUint8(bit_field & VERSION_BIT_MASK);
+    }
+
+    template <typename Stream>
+    void Serialize(Stream& stream) const
+    {
+        ::Serialize(stream, ToUint8(bit_field));
+    }
+
+    template <typename Stream>
+    void Unserialize(Stream& stream)
+    {
+        uint8_t new_bit_field_value;
+        ::Unserialize(stream, new_bit_field_value);
+        bit_field = ToByte(new_bit_field_value);
+    }
+
+private:
+    static constexpr uint8_t ToUint8(const std::byte value)
+    {
+        return std::to_integer<uint8_t>(value);
+    }
+
+    static constexpr std::byte ToByte(const uint8_t value)
+    {
+        return std::byte{value};
+    }
+
+    static constexpr std::byte ToByte(const Flag flag)
+    {
+        return static_cast<std::byte>(flag);
+    }
+
+    static constexpr std::byte VERSION_BIT_MASK =
+        static_cast<std::byte>(Flag::VERSION_BIT_0) |
+        static_cast<std::byte>(Flag::VERSION_BIT_1) |
+        static_cast<std::byte>(Flag::VERSION_BIT_2);
+};
+
+struct CompressibleBlockHeader : CBlockHeader
+{
+    CompressedHeaderBitField bit_field;
+    int16_t time_offset{0};
+
+    CompressibleBlockHeader() = default;
+
+    explicit CompressibleBlockHeader(CBlockHeader&& block_header)
+    {
+        static_assert(
+            std::is_trivially_copyable_v<CBlockHeader>,
+            "CBlockHeader must remain trivially copyable");
+        *static_cast<CBlockHeader*>(this) = block_header;
+
+        bit_field.SetVersionOffset(0);
+        bit_field.MarkAsUncompressed(
+            CompressedHeaderBitField::Flag::PREV_BLOCK_HASH);
+        bit_field.MarkAsUncompressed(
+            CompressedHeaderBitField::Flag::TIMESTAMP);
+        bit_field.MarkAsUncompressed(
+            CompressedHeaderBitField::Flag::NBITS);
+    }
+
+    SERIALIZE_METHODS(CompressibleBlockHeader, obj)
+    {
+        READWRITE(obj.bit_field);
+
+        if (!obj.bit_field.IsVersionCompressed()) {
+            READWRITE(obj.nVersion);
+        }
+
+        if (!obj.bit_field.IsCompressed(
+                CompressedHeaderBitField::Flag::PREV_BLOCK_HASH)) {
+            READWRITE(obj.hashPrevBlock);
+        }
+
+        READWRITE(obj.hashMerkleRoot);
+
+        if (!obj.bit_field.IsCompressed(
+                CompressedHeaderBitField::Flag::TIMESTAMP)) {
+            READWRITE(obj.nTime);
+        } else {
+            READWRITE(obj.time_offset);
+        }
+
+        if (!obj.bit_field.IsCompressed(
+                CompressedHeaderBitField::Flag::NBITS)) {
+            READWRITE(obj.nBits);
+        }
+
+        READWRITE(obj.nNonce);
+
+        if (obj.nVersion == 4) {
+            READWRITE(obj.nAccumulatorCheckpoint);
+        }
+    }
+
+    void Compress(
+        const std::vector<CompressibleBlockHeader>& previous_blocks,
+        std::list<int32_t>& last_unique_versions);
+
+    void Uncompress(
+        const std::vector<CBlockHeader>& previous_blocks,
+        std::list<int32_t>& last_unique_versions);
 };
 
 class CBlock : public CBlockHeader
@@ -188,7 +339,7 @@ struct CBlockLocator
         vHave.clear();
     }
 
-    bool IsNull()
+    bool IsNull() const
     {
         return vHave.empty();
     }

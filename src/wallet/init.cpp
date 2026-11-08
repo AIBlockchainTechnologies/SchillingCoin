@@ -19,7 +19,7 @@ std::string GetWalletHelpString(bool showDebug)
     std::string strUsage = HelpMessageGroup("Wallet options:");
     strUsage += HelpMessageOpt("-backuppath=<dir|file>", "Specify custom backup path to add a copy of any wallet backup. If set as dir, every backup generates a timestamped file. If set as file, will rewrite to that file every backup.");
     strUsage += HelpMessageOpt("-createwalletbackups=<n>", strprintf("Number of automatic wallet backups (default: %d)", DEFAULT_CREATEWALLETBACKUPS));
-    strUsage += HelpMessageOpt("-disablewallet", strprintf("Do not load the wallet and disable wallet RPC calls (default: %u)", DEFAULT_DISABLE_WALLET));
+    strUsage += HelpMessageOpt("-disablewallet", strprintf("Do not load the wallet and disable wallet RPC calls (default: %u)", wallet::DEFAULT_DISABLE_WALLET));
     strUsage += HelpMessageOpt("-disablesystemnotifications", "Disable OS notifications for incoming transactions");
     strUsage += HelpMessageOpt("-hdseed", "User defined seed for HD wallet (should be in hex). Only has effect during wallet creation/first start (default: randomly generated)");
     strUsage += HelpMessageOpt("-keypool=<n>", strprintf("Set key pool size to <n> (default: %u)", DEFAULT_KEYPOOL_SIZE));
@@ -66,7 +66,7 @@ std::string GetWalletHelpString(bool showDebug)
 
 bool WalletParameterInteraction()
 {
-    if (gArgs.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET)) {
+    if (gArgs.GetBoolArg("-disablewallet", wallet::DEFAULT_DISABLE_WALLET)) {
         return true;
     }
 
@@ -206,7 +206,7 @@ bool WalletParameterInteraction()
 
 bool WalletVerify()
 {
-    if (gArgs.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET)) {
+    if (gArgs.GetBoolArg("-disablewallet", wallet::DEFAULT_DISABLE_WALLET)) {
         return true;
     }
 
@@ -271,7 +271,7 @@ bool WalletVerify()
 
 bool InitLoadWallet(const std::vector<std::string>& words)
 {
-    if (gArgs.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET)) {
+    if (gArgs.GetBoolArg("-disablewallet", wallet::DEFAULT_DISABLE_WALLET)) {
         pwalletMain = nullptr;
         LogPrintf("Wallet disabled!\n");
         return true;

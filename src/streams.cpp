@@ -1,4 +1,5 @@
 // Copyright (c) 2009-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://opensource.org/license/mit/.
 
@@ -18,6 +19,16 @@ std::size_t AutoFile::detail_fread(Span<std::byte> dst)
         std::size_t ret{std::fread(dst.data(), 1, dst.size(), m_file)};
         util::Xor(dst.subspan(0, ret), m_xor, init_pos);
         return ret;
+    }
+}
+
+void AutoFile::seek(int64_t offset, int origin)
+{
+    if (IsNull()) {
+        throw std::ios_base::failure("AutoFile::seek: file handle is nullptr");
+    }
+    if (std::fseek(m_file, offset, origin) != 0) {
+        throw std::ios_base::failure(feof() ? "AutoFile::seek: end of file" : "AutoFile::seek: fseek failed");
     }
 }
 

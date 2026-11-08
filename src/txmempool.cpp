@@ -16,6 +16,7 @@
 #include <policy/fees.h>
 #include <policy/policy.h>
 #include <policy/settings.h>
+#include <random.h>
 #include <util/check.h>
 #include <util/moneystr.h>
 #include <util/overflow.h>
@@ -26,7 +27,6 @@
 #include <validationinterface.h>
 
 #include <evo/specialtx.h>
-#include <evo/assetlocktx.h>
 #include <evo/providertx.h>
 #include <evo/deterministicmns.h>
 #include <instantsend/instantsend.h>
@@ -1154,7 +1154,7 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
         }
         removeConflicts(*tx);
         removeProTxConflicts(*tx);
-        ClearPrioritisation(t*->GetHash());
+        ClearPrioritisation(tx->GetHash());
     }
     lastRollingFeeUpdate = GetTime();
     blockSinceLastRollingFeeBump = true;
@@ -1164,7 +1164,7 @@ void CTxMemPool::check(const CCoinsViewCache& active_coins_tip, int64_t spendhei
 {
     if (m_check_ratio == 0) return;
 
-    if (GetRand(m_check_ratio) >= 1) return;
+    if (FastRandomContext().randrange(m_check_ratio) >= 1) return;
 
     AssertLockHeld(::cs_main);
     LOCK(cs);

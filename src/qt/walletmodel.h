@@ -10,17 +10,14 @@
 
 #include "askpassphrasedialog.h"
 #include "walletmodeltransaction.h"
-
-#include "allocators.h"
 #include "operationresult.h"
+#include "support/allocators/secure.h"
 #include "support/allocators/zeroafterfree.h"
 #include "wallet/wallet.h"
 
 #include <map>
 #include <vector>
-
 #include <QObject>
-
 #include <boost/signals2/connection.hpp>
 
 class AddressTableModel;

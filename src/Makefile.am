@@ -117,7 +117,6 @@ BITCOIN_CORE_H = \
   base58.h \
   bech32.h \
   blob_uint256.h \
-  bip38.h \
   bip324.h \
   bloom.h \
   blocksignature.h \
@@ -127,9 +126,9 @@ BITCOIN_CORE_H = \
   cachemap.h \
   cachemultimap.h \
   chainparamsseeds.h \
-  checkpoints.h \
   checkqueue.h \
   clientversion.h \
+  cluster_linearize.h \
   coins.h \
   common/args.h \
   common/bloom.h \
@@ -204,6 +203,7 @@ BITCOIN_CORE_H = \
   kernel/mempool_limits.h \
   kernel/mempool_options.h \
   kernel/mempool_persist.h \
+  kernel/mempool_removal_reason.h \
   kernel/messagestartchars.h \
   key.h \
   key/crypter.h \
@@ -212,6 +212,7 @@ BITCOIN_CORE_H = \
   key/stealth.h \
   key/types.h \
   key_io.h \
+  kernel/warning.h \
   keystore.h \
   legacy/stakemodifier.h \
   limitedmap.h \
@@ -235,6 +236,7 @@ BITCOIN_CORE_H = \
   node/coin.h \
   node/context.h \
   node/miner.h \
+  node/warnings.h \
   node/minisketchwrapper.h \
   node/psbt.h \
   node/sync_manager.h \
@@ -253,6 +255,7 @@ BITCOIN_CORE_H = \
   prevector.h \
   primitives/block.h \
   primitives/transaction.h \
+  primitives/transaction_identifier.h \
   protocol.h \
   psbt.h \
   pubkey.h \
@@ -296,6 +299,7 @@ BITCOIN_CORE_H = \
   tinyformat.h \
   torcontrol.h \
   txdb.h \
+  txgraph.h \
   txmempool.h \
   util/threadinterrupt.h \
   guiinterface.h \
@@ -312,6 +316,7 @@ BITCOIN_CORE_H = \
   util/edge.h \
   util/exception.h \
   util/fastrange.h \
+  util/feefrac.h \
   util/fees.h \
   util/fs.h \
   util/macros.h \
@@ -399,7 +404,6 @@ libbitcoin_node_a_SOURCES = \
   chainlock/clsig.cpp \
   chainlock/handler.cpp \
   chainlock/signing.cpp \
-  checkpoints.cpp \
   consensus/tx_verify.cpp \
   dbwrapper.cpp \
   deploymentstatus.cpp \
@@ -445,6 +449,7 @@ libbitcoin_node_a_SOURCES = \
   kernel/context.cpp \
   kernel/cs_main.cpp \
   kernel/mempool_persist.cpp \
+  kernel/mempool_removal_reason.cpp \
   llmq/blockprocessor.cpp \
   llmq/commitment.cpp \
   llmq/context.cpp \
@@ -484,6 +489,7 @@ libbitcoin_node_a_SOURCES = \
   node/context.cpp \
   node/eviction.cpp \
   node/interface_ui.cpp \
+  node/warnings.cpp \
   node/interfaces.cpp \
   node/mempool_args.cpp \
   node/mempool_persist_args.cpp \
@@ -525,6 +531,7 @@ libbitcoin_node_a_SOURCES = \
   timedata.cpp \
   torcontrol.cpp \
   txdb.cpp \
+  txgraph.cpp \
   txmempool.cpp \
   txorphanage.cpp \
   txrequest.cpp \
@@ -599,7 +606,6 @@ endif
 libbitcoin_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(SQLITE_CFLAGS)
 libbitcoin_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 libbitcoin_wallet_a_SOURCES = \
-  bip38.cpp \
   addressbook.cpp \
   wallet/crypter.cpp \
   masternode-payments.cpp \
@@ -785,7 +791,6 @@ libbitcoin_common_a_SOURCES = \
   base58.cpp \
   bech32.cpp \
   wallet/bip39.cpp \
-  bip38.cpp \
   chainparams.cpp \
   coins.cpp \
   common/args.cpp \
@@ -993,7 +998,6 @@ schillingcoind_LDADD = \
   $(LIBBITCOIN_CRYPTO) \
   $(LIBDASHBLS) \
   $(LIBLEVELDB) \
-  $(LIBLEVELDB_SSE42) \
   $(LIBMEMENV) \
   $(LIBSECP256K1)
 
@@ -1138,9 +1142,8 @@ if HARDEN
 	$(AM_V_at) READELF=$(READELF) OBJDUMP=$(OBJDUMP) $(PYTHON) $(top_srcdir)/contrib/devtools/security-check.py < $(bin_PROGRAMS)
 endif
 
-if EMBEDDED_LEVELDB
+include Makefile.crc32c.include
 include Makefile.leveldb.include
-endif
 
 if ENABLE_TESTS
 include Makefile.test.include

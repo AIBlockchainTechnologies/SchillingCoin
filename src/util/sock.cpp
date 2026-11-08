@@ -1,4 +1,5 @@
 // Copyright (c) 2020-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -439,7 +440,7 @@ void Sock::SendComplete(const std::string& data,
         // Wait for a short while (or the socket to become ready for sending) before retrying
         // if nothing was sent.
         const auto wait_time = std::min(deadline - now, std::chrono::milliseconds{MAX_WAIT_FOR_IO});
-        (void)Wait(wait_time, SEND, SocketEventsParams{::g_socket_events_mode});
+        (void)Wait(wait_time, SendEvent, SocketEventsParams{::g_socket_events_mode});
     }
 }
 
@@ -522,7 +523,7 @@ std::string Sock::RecvUntilTerminator(uint8_t terminator,
 
         // Wait for a short while (or the socket to become ready for reading) before retrying.
         const auto wait_time = std::min(deadline - now, std::chrono::milliseconds{MAX_WAIT_FOR_IO});
-        (void)Wait(wait_time, RECV, SocketEventsParams{::g_socket_events_mode});
+        (void)Wait(wait_time, RecvEvent, SocketEventsParams{::g_socket_events_mode});
     }
 }
 

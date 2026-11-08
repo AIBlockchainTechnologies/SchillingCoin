@@ -1,9 +1,10 @@
 // Copyright (c) 2014-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_FLAT_DATABASE_H
-#define BITCOIN_FLAT_DATABASE_H
+#ifndef SCHILLINGCOIN_FLAT_DATABASE_H
+#define SCHILLINGCOIN_FLAT_DATABASE_H
 
 #include <clientversion.h>
 #include <chainparams.h>
@@ -119,7 +120,7 @@ private:
 
 
         try {
-            unsigned char pchMsgTmp[4];
+            MessageStartChars pchMsgTmp;
             std::string strMagicMessageTmp;
             // de-serialize file header (file specific magic message) and ..
             ssObj >> strMagicMessageTmp;
@@ -136,7 +137,7 @@ private:
             ssObj >> pchMsgTmp;
 
             // ... verify the network matches ours
-            if (memcmp(pchMsgTmp, Params().MessageStart(), sizeof(pchMsgTmp)))
+            if (pchMsgTmp != Params().MessageStart())
             {
                 LogError("%s: Invalid network magic number\n", __func__);
                 return ReadResult::IncorrectMagicNumber;
@@ -206,4 +207,4 @@ public:
 };
 
 
-#endif // BITCOIN_FLAT_DATABASE_H
+#endif // SCHILLINGCOIN_FLAT_DATABASE_H

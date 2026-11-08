@@ -59,7 +59,6 @@ QT_FORMS_UI = \
   qt/schillingcoin/forms/coldstakingwidget.ui \
   qt/schillingcoin/settings/forms/settingsbackupwallet.ui \
   qt/schillingcoin/settings/forms/settingsexportcsv.ui \
-  qt/schillingcoin/settings/forms/settingsbittoolwidget.ui \
   qt/schillingcoin/settings/forms/settingsconsolewidget.ui \
   qt/schillingcoin/settings/forms/settingsdisplayoptionswidget.ui \
   qt/schillingcoin/settings/forms/settingsfaqwidget.ui \
@@ -154,7 +153,6 @@ QT_MOC_CPP = \
   qt/schillingcoin/moc_coldstakingwidget.cpp \
   qt/schillingcoin/settings/moc_settingsbackupwallet.cpp \
   qt/schillingcoin/settings/moc_settingsexportcsv.cpp \
-  qt/schillingcoin/settings/moc_settingsbittoolwidget.cpp \
   qt/schillingcoin/settings/moc_settingsconsolewidget.cpp \
   qt/schillingcoin/settings/moc_settingsdisplayoptionswidget.cpp \
   qt/schillingcoin/settings/moc_settingsfaqwidget.cpp \
@@ -277,7 +275,6 @@ BITCOIN_QT_H = \
   qt/schillingcoin/coldstakingwidget.h \
   qt/schillingcoin/settings/settingsbackupwallet.h \
   qt/schillingcoin/settings/settingsexportcsv.h \
-  qt/schillingcoin/settings/settingsbittoolwidget.h \
   qt/schillingcoin/settings/settingsconsolewidget.h \
   qt/schillingcoin/settings/settingsdisplayoptionswidget.h \
   qt/schillingcoin/settings/settingsfaqwidget.h \
@@ -592,7 +589,6 @@ BITCOIN_QT_WALLET_CPP = \
   qt/schillingcoin/coldstakingwidget.cpp \
   qt/schillingcoin/settings/settingsbackupwallet.cpp \
   qt/schillingcoin/settings/settingsexportcsv.cpp \
-  qt/schillingcoin/settings/settingsbittoolwidget.cpp \
   qt/schillingcoin/settings/settingsconsolewidget.cpp \
   qt/schillingcoin/settings/settingsdisplayoptionswidget.cpp \
   qt/schillingcoin/settings/settingsfaqwidget.cpp \

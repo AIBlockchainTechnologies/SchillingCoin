@@ -115,7 +115,7 @@ SecureVector CHDChain::GetSeed() const
 
 uint256 CHDChain::GetSeedHash()
 {
-    return Hash(vchSeed.begin(), vchSeed.end());
+    return Hash(vchSeed);
 }
 
 void CHDChain::DeriveChildExtKey(uint32_t nAccountIndex, bool fInternal, uint32_t nChildIndex, CExtKey& extKeyRet, KeyOriginInfo& keyOrigin)

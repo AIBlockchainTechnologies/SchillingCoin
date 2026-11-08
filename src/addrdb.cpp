@@ -56,7 +56,7 @@ template <typename Data>
 bool SerializeFileDB(const std::string& prefix, const fs::path& path, const Data& data, int version)
 {
     // Generate random temporary filename
-    const uint16_t randv{GetRand<uint16_t>()};
+    const uint16_t randv{FastRandomContext().rand<uint16_t>()};
     std::string tmpfn = strprintf("%s.%04x", prefix, randv);
 
     // open temp output file, and associate with CAutoFile
@@ -99,16 +99,14 @@ void DeserializeDB(Stream& stream, Data& data, bool fCheckSum = true)
 {
     CHashVerifier<Stream> verifier(&stream);
     // de-serialize file header (network specific magic number) and ..
-    unsigned char pchMsgTmp[4];
+    MessageStartChars pchMsgTmp;
     verifier >> pchMsgTmp;
     // ... verify the network matches ours
-    if (memcmp(pchMsgTmp, Params().MessageStart(), sizeof(pchMsgTmp))) {
+    if (pchMsgTmp != Params().MessageStart()) {
         throw std::runtime_error{"Invalid network magic number"};
     }
-
     // de-serialize data
     verifier >> data;
-
     // verify checksum
     if (fCheckSum) {
         uint256 hashTmp;

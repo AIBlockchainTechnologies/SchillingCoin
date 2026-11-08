@@ -1,4 +1,5 @@
 // Copyright (c) 2017-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,8 +12,7 @@
 #include <util/system.h>
 #include <util/moneystr.h>
 
-#include <coinjoin/common.h>
-
+#include <algorithm>
 #include <numeric>
 #include <optional>
 #include <queue>
@@ -273,20 +273,19 @@ util::Result<SelectionResult> SelectCoinsSRD(const std::vector<OutputGroup>& utx
  */
 static void ApproximateBestSubset(FastRandomContext& insecure_rand, const std::vector<OutputGroup>& groups,
                                   const CAmount& nTotalLower, const CAmount& nTargetValue,
-                                  std::vector<char>& vfBest, CAmount& nBest, int iterations = 1000)
+                                  std::vector<char>& vfBest, CAmount& nBest, int max_selection_weight, int iterations = 1000)
 {
     std::vector<char> vfIncluded;
 
     // Worst case "best" approximation is just all of the groups.
     vfBest.assign(groups.size(), true);
     nBest = nTotalLower;
-    int nBestInputCount = 0;
 
     for (int nRep = 0; nRep < iterations && nBest != nTargetValue; nRep++)
     {
         vfIncluded.assign(groups.size(), false);
         CAmount nTotal = 0;
-        int nTotalInputCount = 0;
+        int selected_coins_weight{0};
         bool fReachedTarget = false;
         for (int nPass = 0; nPass < 2 && !fReachedTarget; nPass++)
         {
@@ -301,21 +300,19 @@ static void ApproximateBestSubset(FastRandomContext& insecure_rand, const std::v
                 if (nPass == 0 ? insecure_rand.randbool() : !vfIncluded[i])
                 {
                     nTotal += groups[i].GetSelectionAmount();
-                    ++nTotalInputCount;
+                    selected_coins_weight += GetSelectionWeight(groups[i]);
                     vfIncluded[i] = true;
-                    if (nTotal >= nTargetValue)
-                    {
+                    if (nTotal >= nTargetValue && selected_coins_weight <= max_selection_weight) {
                         fReachedTarget = true;
                         // If the total is between nTargetValue and nBest, it's our new best
                         // approximation.
-                        if (nTotal < nBest || (nTotal == nBest && nTotalInputCount < nBestInputCount))
+                        if (nTotal < nBest)
                         {
                             nBest = nTotal;
-                            nBestInputCount = nTotalInputCount;
                             vfBest = vfIncluded;
                         }
                         nTotal -= groups[i].GetSelectionAmount();
-                        --nTotalInputCount;
+                        selected_coins_weight -= GetSelectionWeight(groups[i]);
                         vfIncluded[i] = false;
                     }
                 }
@@ -324,36 +321,14 @@ static void ApproximateBestSubset(FastRandomContext& insecure_rand, const std::v
     }
 }
 
-struct CompareByPriority
-{
-    bool operator()(const OutputGroup& group1,
-                    const OutputGroup& group2) const
-    {
-        return CoinJoin::CalculateAmountPriority(group1.m_value) > CoinJoin::CalculateAmountPriority(group2.m_value);
-    }
-};
-
-// move denoms down
-bool less_then_denom (const OutputGroup& group1, const OutputGroup& group2)
-{
-    bool found1 = false;
-    bool found2 = false;
-    for (const auto& d : CoinJoin::GetStandardDenominations()) // loop through predefined denoms
-    {
-        if(group1.m_value == d) found1 = true;
-        if(group2.m_value == d) found2 = true;
-    }
-    return (!found1 && found2);
-}
-
 util::Result<SelectionResult> KnapsackSolver(std::vector<OutputGroup>& groups, const CAmount& nTargetValue,
-                                             CAmount change_target, FastRandomContext& rng, int max_weight, bool fFullyMixedOnly,
-                                             CAmount maxTxFee)
+                                             CAmount change_target, FastRandomContext& rng, int max_selection_weight)
 {
     if (groups.empty()) return util::Error();
 
     SelectionResult result(nTargetValue, SelectionAlgorithm::KNAPSACK);
 
+    bool max_weight_exceeded{false};
     // List of values less than target
     std::optional<OutputGroup> lowest_larger;
     // Groups with selection amount smaller than the target and any change we might produce.
@@ -361,73 +336,42 @@ util::Result<SelectionResult> KnapsackSolver(std::vector<OutputGroup>& groups, c
     std::vector<OutputGroup> applicable_groups;
     CAmount nTotalLower = 0;
 
-    Shuffle(groups.begin(), groups.end(), rng);
+    std::shuffle(groups.begin(), groups.end(), rng);
 
-    int tryDenomStart = 0;
-
-    if (fFullyMixedOnly) {
-        // larger denoms first
-        std::sort(groups.rbegin(), groups.rend(), CompareByPriority());
-        // we actually want denoms only, so let's skip "non-denom only" step
-        tryDenomStart = 1;
-        // no change is allowed
-        change_target = 0;
-    } else {
-        // move denoms down on the list
-        // try not to use denominated coins when not needed, save denoms for coinjoin
-        std::sort(groups.begin(), groups.end(), less_then_denom);
+    for (const OutputGroup& group : groups) {
+        if (GetSelectionWeight(group) > max_selection_weight) {
+            max_weight_exceeded = true;
+            continue;
+        }
+        if (group.GetSelectionAmount() == nTargetValue) {
+            result.AddInput(group);
+            return result;
+        } else if (group.GetSelectionAmount() < nTargetValue + change_target) {
+            applicable_groups.push_back(group);
+            nTotalLower += group.GetSelectionAmount();
+        } else if (!lowest_larger || group.GetSelectionAmount() < lowest_larger->GetSelectionAmount()) {
+            lowest_larger = group;
+        }
     }
 
-    // try to find nondenom first to prevent unneeded spending of mixed coins
-    for (unsigned int tryDenom = tryDenomStart; tryDenom < 2; tryDenom++) {
-        LogPrint(BCLog::SELECTCOINS, "tryDenom: %d\n", tryDenom);
-        applicable_groups.clear();
-        nTotalLower = 0;
-        for (const OutputGroup& group : groups) {
-            if (tryDenom == 0 && CoinJoin::IsDenominatedAmount(group.m_value)) {
-                continue; // we don't want denom values on first run
-            }
-            if (group.GetSelectionAmount() == nTargetValue) {
-                result.AddInput(group);
-                return result;
-            } else if (group.GetSelectionAmount() < nTargetValue + change_target) {
-                applicable_groups.push_back(group);
-                nTotalLower += group.GetSelectionAmount();
-            } else if (!lowest_larger || group.GetSelectionAmount() < lowest_larger->GetSelectionAmount()) {
-                lowest_larger = group;
-            }
+    if (nTotalLower == nTargetValue) {
+        for (const auto& group : applicable_groups) {
+            result.AddInput(group);
         }
+        if (GetSelectionWeight(result) <= max_selection_weight) return result;
+        max_weight_exceeded = true;
 
-        if (nTotalLower == nTargetValue) {
-            for (const auto& group : applicable_groups) {
-                result.AddInput(group);
-            }
-            if (GetSelectionWeight(result) <= max_weight) return result;
+        // Try something else
+        result.Clear();
+    }
 
-            // Try something else
-            result.Clear();
-        }
-
-        if (nTotalLower < nTargetValue) {
-            if (!lowest_larger) { // there is no input larger than nTargetValue
-                if (tryDenom == 0)
-                    // we didn't look at denom yet, let's do it
-                    continue;
-                else
-                    // we looked at everything possible and didn't find anything, no luck
-                    return util::Error();
-            }
-            result.AddInput(*lowest_larger);
-            // There is no change in PS, so we know the fee beforehand,
-            // can see if we exceeded the max fee and thus fail quickly.
-            if (!fFullyMixedOnly || (result.GetSelectedValue() - nTargetValue <= maxTxFee)) {
-                return result;
-            }
+    if (nTotalLower < nTargetValue) {
+        if (!lowest_larger) {
+            if (max_weight_exceeded) return ErrorMaxWeightExceeded();
             return util::Error();
         }
-
-        // nTotalLower > nTargetValue
-        break;
+        result.AddInput(*lowest_larger);
+        return result;
     }
 
     // Solve subset sum by stochastic approximation
@@ -435,9 +379,9 @@ util::Result<SelectionResult> KnapsackSolver(std::vector<OutputGroup>& groups, c
     std::vector<char> vfBest;
     CAmount nBest;
 
-    ApproximateBestSubset(rng, applicable_groups, nTotalLower, nTargetValue, vfBest, nBest);
-    if (nBest != nTargetValue && change_target != 0 && nTotalLower >= nTargetValue + change_target) {
-        ApproximateBestSubset(rng, applicable_groups, nTotalLower, nTargetValue + change_target, vfBest, nBest);
+    ApproximateBestSubset(rng, applicable_groups, nTotalLower, nTargetValue, vfBest, nBest, max_selection_weight);
+    if (nBest != nTargetValue && nTotalLower >= nTargetValue + change_target) {
+        ApproximateBestSubset(rng, applicable_groups, nTotalLower, nTargetValue + change_target, vfBest, nBest, max_selection_weight);
     }
 
     // If we have a bigger coin and (either the stochastic approximation didn't find a good solution,
@@ -446,37 +390,42 @@ util::Result<SelectionResult> KnapsackSolver(std::vector<OutputGroup>& groups, c
         ((nBest != nTargetValue && nBest < nTargetValue + change_target) || lowest_larger->GetSelectionAmount() <= nBest)) {
         result.AddInput(*lowest_larger);
     } else {
-        std::string log_message{"Coin selection best subset: "};
         for (unsigned int i = 0; i < applicable_groups.size(); i++) {
             if (vfBest[i]) {
                 result.AddInput(applicable_groups[i]);
-                log_message += strprintf("%s ", FormatMoney(applicable_groups[i].m_value));
             }
         }
 
-        if (GetSelectionWeight(result) > max_weight) {
+        // If the result exceeds the maximum allowed size, return closest UTXO above the target
+        if (GetSelectionWeight(result) > max_selection_weight) {
+            // No coin above target, nothing to do.
             if (!lowest_larger) return ErrorMaxWeightExceeded();
 
+            // Return closest UTXO above target
             result.Clear();
             result.AddInput(*lowest_larger);
         }
 
-        LogPrint(BCLog::SELECTCOINS, "%stotal %s\n", log_message, FormatMoney(nBest));
+        if (LogInstance().WillLogCategory(BCLog::SELECTCOINS)) {
+            std::string log_message{"Coin selection best subset: "};
+            for (unsigned int i = 0; i < applicable_groups.size(); i++) {
+                if (vfBest[i]) {
+                    log_message += strprintf("%s ", FormatMoney(applicable_groups[i].m_value));
+                }
+            }
+            LogPrint(BCLog::SELECTCOINS, "%stotal %s\n", log_message, FormatMoney(nBest));
+        }
     }
 
-    // There is no change in PS, so we know the fee beforehand,
-    // can see if we exceeded the max fee and thus fail quickly.
-    if (!fFullyMixedOnly || (result.GetSelectedValue() - nTargetValue <= maxTxFee)) {
-        return result;
-    }
-    return util::Error();
+    Assume(GetSelectionWeight(result) <= max_selection_weight);
+    return result;
 }
 
-/******************************************************************************
+/****************************************************************************************
 
  OutputGroup
 
- ******************************************************************************/
+ ****************************************************************************************/
 
 void OutputGroup::Insert(const COutput& output, size_t ancestors, size_t descendants, bool positive_only) {
     // Filter for positive only here before adding the coin

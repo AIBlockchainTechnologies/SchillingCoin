@@ -59,6 +59,8 @@ struct ObserverContext;
 } // namespace llmq
 
 namespace node {
+class Warnings;
+
 //! NodeContext struct containing references to chain state and connection
 //! state.
 //!
@@ -92,7 +94,9 @@ struct NodeContext {
     std::unique_ptr<CScheduler> scheduler;
     std::function<void()> rpc_interruption_point = [] {};
     std::atomic<int> exit_status{EXIT_SUCCESS};
-    //! Dash managers
+    //! Manages all node warnings.
+    std::unique_ptr<node::Warnings> warnings;
+    //! SchillingCoin managers
     std::unique_ptr<CEvoDB> evodb;
     std::unique_ptr<CChainstateHelper> chain_helper;
     std::unique_ptr<CDeterministicMNManager> dmnman;

@@ -1,10 +1,9 @@
 // Copyright (c) 2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <evo/specialtx_filter.h>
-
-#include <evo/assetlocktx.h>
 #include <evo/providertx.h>
 #include <evo/specialtx.h>
 #include <primitives/transaction.h>
@@ -146,26 +145,11 @@ void ExtractSpecialTxFilterElements(const CTransaction& tx, const std::function<
         }
         break;
     }
-    case TRANSACTION_ASSET_LOCK: {
-        // Asset Lock transactions have special outputs (creditOutputs) that should be included
-        if (const auto opt_assetlockTx = GetTxPayload<CAssetLockPayload>(tx)) {
-            const auto& extraOuts = opt_assetlockTx->getCreditOutputs();
-            for (const CTxOut& txout : extraOuts) {
-                const CScript& script = txout.scriptPubKey;
-                // Exclude OP_RETURN outputs as they are not spendable
-                if (!script.empty() && script[0] != OP_RETURN) {
-                    AddScriptElement(script, addElement);
-                }
-            }
-        }
-        break;
-    }
-    case TRANSACTION_ASSET_UNLOCK:
     case TRANSACTION_COINBASE:
     case TRANSACTION_QUORUM_COMMITMENT:
     case TRANSACTION_MNHF_SIGNAL:
-        // No additional special fields needed for these transaction types
-        // Their standard outputs are already included in the base filter
+        // No additional special fields are needed for these transaction types.
+        // Their standard outputs are already included in the base filter.
         break;
     } // no default case, so the compiler can warn about missing cases
 }

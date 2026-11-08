@@ -1,8 +1,9 @@
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 #include <string>
 #include <vector>
-
-#include <boost/filesystem.hpp>
-#include <boost/filesystem/fstream.hpp>
 
 class CForge;
 extern CForge forgeMain;

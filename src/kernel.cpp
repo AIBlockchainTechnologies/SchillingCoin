@@ -56,7 +56,7 @@ uint256 CStakeKernel::GetHash() const
 {
     CDataStream ss(stakeModifier);
     ss << nTimeBlockFrom << stakeUniqueness << nTime;
-    return Hash(ss.begin(), ss.end());
+    return Hash(ss);
 }
 
 // Check that the kernel hash meets the target required
@@ -73,7 +73,7 @@ bool CStakeKernel::CheckKernelHash(bool fSkipLog) const
     const bool res = hashProofOfStake < bnTarget;
 
     if (!fSkipLog || res) {
-        LogPrint(BCLog::STAKING, "%s : Proof Of Stake:"
+        LogPrint(BCLog::POS, "%s : Proof Of Stake:"
                             "\nssUniqueID=%s"
                             "\nnTimeTx=%d"
                             "\nhashProofOfStake=%s"
@@ -151,7 +151,7 @@ static bool LoadStakeInput(const CBlock& block, const CBlockIndex* pindexPrev, c
  * @param[in]   nTimeTx         new blocktime
  * @return      bool            true if stake kernel hash meets target protocol
  */
-bool Stake(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int64_t& nTimeTx)
+bool Stake(Chainstate& chainstate, const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int nBits, int64_t& nTimeTx)
 {
     if (!stakeInput)
         return false;
@@ -191,8 +191,11 @@ bool Stake(const CBlockIndex* pindexPrev, CStakeInput* stakeInput, unsigned int 
 
     while (nTryTime < maxTime) {
         // A new block arrived, so stop searching on the previous tip.
-        if (chainActive.Height() != pindexPrev->nHeight)
-            break;
+        {
+            LOCK(cs_main);
+            if (chainstate.m_chain.Tip() != pindexPrev)
+                break;
+        }
 
         ++nTryTime;
 

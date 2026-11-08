@@ -13,7 +13,6 @@
 #include "consensus/amount.h"
 #include "consensus/tx_verify.h"
 #include "crypter.h"
-#include "guiinterface.h"
 #include "kernel.h"
 #include "key.h"
 #include "key_io.h"
@@ -24,7 +23,9 @@
 #include "primitives/transaction.h"
 #include "util.h"
 #include "util/memory.h"
+#include "util/strencodings.h"
 #include "util/string.h"
+#include "util/ui_change_type.h"
 #include "validation.h"
 #include "validationinterface.h"
 #include "wallet/scriptpubkeyman.h"
@@ -101,8 +102,10 @@ static const bool DEFAULT_COLDSTAKING = true;
 static const bool DEFAULT_GENERATE = false;
 static const unsigned int DEFAULT_GENERATE_PROCLIMIT = 1;
 
+namespace wallet {
 //! Default for -disablewallet
 static const bool DEFAULT_DISABLE_WALLET = false;
+} // namespace wallet
 
 //! Default for -flushwallet
 static const bool DEFAULT_FLUSHWALLET = true;
@@ -116,6 +119,7 @@ class CReserveKey;
 class CScript;
 class CStakeableOutput;
 class CWalletTx;
+class Chainstate;
 class WalletRescanReserver;
 
 /** (client) version numbers for particular wallet features */
@@ -562,7 +566,7 @@ public:
     bool CreateTransaction(CScript scriptPubKey, const CAmount& nValue, CWalletTx& wtxNew, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl = NULL, AvailableCoinsType coin_type = ALL_COINS, bool useIX = false, CAmount nFeePay = 0, bool fIncludeDelegated = false);
     bool CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, std::string strCommand = "tx");
     bool AddAccountingEntry(const CAccountingEntry&, WalletBatch& batch);
-    bool CreateCoinStake(const CBlockIndex* pindexPrev, unsigned int nBits, CMutableTransaction& txNew, int64_t& nTxNewTime, std::vector<CStakeableOutput>* availableCoins, bool stopOnNewBlock);
+    bool CreateCoinStake(Chainstate& chainstate, const CBlockIndex* pindexPrev, unsigned int nBits, CMutableTransaction& txNew, int64_t& nTxNewTime, std::vector<CStakeableOutput>* availableCoins, bool stopOnNewBlock);
     bool SignCoinStake(CMutableTransaction& txNew) const;
     bool MultiSend();
     void AutoCombineDust();
@@ -727,7 +731,7 @@ static void ReadOrderPos(int64_t& nOrderPos, mapValue_t& mapValue)
         nOrderPos = -1; // TODO: calculate elsewhere
         return;
     }
-    nOrderPos = atoi64(mapValue["n"].c_str());
+    nOrderPos = LocaleIndependentAtoi<int64_t>(mapValue["n"]);
 }
 
 
@@ -735,7 +739,7 @@ static void WriteOrderPos(const int64_t& nOrderPos, mapValue_t& mapValue)
 {
     if (nOrderPos == -1)
         return;
-    mapValue["n"] = i64tostr(nOrderPos);
+    mapValue["n"] = ToString(nOrderPos);
 }
 
 struct COutputEntry {
@@ -913,7 +917,7 @@ public:
 
             obj.nTimeSmart =
                 mapValue.count("timesmart")
-                    ? (unsigned int)atoi64(mapValue["timesmart"])
+                    ? static_cast<unsigned int>(LocaleIndependentAtoi<int64_t>(mapValue["timesmart"]))
                     : 0;
         );
 

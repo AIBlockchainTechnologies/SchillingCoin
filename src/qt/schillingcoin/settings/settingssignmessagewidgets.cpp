@@ -12,6 +12,7 @@
 #include "guiutil.h"
 #include "init.h"
 #include "key_io.h"
+#include "messagesigner.h"
 #include "walletmodel.h"
 #include "wallet/wallet.h"
 
@@ -197,12 +198,10 @@ void SettingsSignMessageWidgets::onSignMessageButtonSMClicked(){
         return;
     }
 
-    CDataStream ss(SER_GETHASH, 0);
-    ss << strMessageMagic;
-    ss << ui->messageIn_SM->document()->toPlainText().toStdString();
+    const std::string message = ui->messageIn_SM->document()->toPlainText().toStdString();
 
     std::vector<unsigned char> vchSig;
-    if (!key.SignCompact(Hash(ss.begin(), ss.end()), vchSig)) {
+    if (!key.SignCompact(CMessageSigner::GetMessageHash(message), vchSig)) {
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(QString("<nobr>") + tr("Message signing failed.") + QString("</nobr>"));
         return;
@@ -250,12 +249,10 @@ void SettingsSignMessageWidgets::onVerifyMessage(){
         return;
     }
 
-    CDataStream ss(SER_GETHASH, 0);
-    ss << strMessageMagic;
-    ss << ui->messageIn_SM->document()->toPlainText().toStdString();
+    const std::string message = ui->messageIn_SM->document()->toPlainText().toStdString();
 
     CPubKey pubkey;
-    if (!pubkey.RecoverCompact(Hash(ss.begin(), ss.end()), vchSig)) {
+    if (!pubkey.RecoverCompact(CMessageSigner::GetMessageHash(message), vchSig)) {
         //ui->signatureOut_SM->setValid(false);
         ui->statusLabel_SM->setStyleSheet("QLabel { color: red; }");
         ui->statusLabel_SM->setText(tr("The signature did not match the message digest.") + QString(" ") + tr("Please check the signature and try again."));

@@ -780,7 +780,10 @@ public:
     explicit NodeImpl(NodeContext& context) { setContext(&context); }
     void initLogging() override { InitLogging(*Assert(m_context->args)); }
     void initParameterInteraction() override { InitParameterInteraction(*Assert(m_context->args)); }
-    bilingual_str getWarnings() override { return GetWarnings(true); }
+    bilingual_str getWarnings() override
+    {
+        return Join(Assert(m_context->warnings)->GetMessages(), Untranslated("<hr />"));
+    }
     int getExitStatus() override { return Assert(m_context)->exit_status.load(); }
     uint64_t getLogCategories() override { return LogInstance().GetCategoryMask(); }
     bool baseInitialize() override
@@ -788,6 +791,7 @@ public:
         if (!AppInitBasicSetup(gArgs, Assert(m_context)->exit_status)) return false;
         if (!AppInitParameterInteraction(gArgs)) return false;
 
+        m_context->warnings = std::make_unique<node::Warnings>();
         m_context->kernel = std::make_unique<kernel::Context>();
         if (!AppInitSanityChecks(*m_context->kernel)) return false;
 

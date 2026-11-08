@@ -9,6 +9,7 @@
 #include "guiinterfaceutil.h"
 #include "masternode-payments.h"
 #include "net.h"
+#include "node/interface_ui.h"
 #include "optional.h"
 #include "policy/policy.h"
 #include "script/sign.h"
@@ -2088,12 +2089,12 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, CBlock
 
         if (pindex) {
             dProgressStart =
-                Checkpoints::GuessVerificationProgress(pindex, false);
+                GuessVerificationProgress(Params().TxData(), pindex);
         }
 
         if (tip) {
             dProgressTip =
-                Checkpoints::GuessVerificationProgress(tip, false);
+                GuessVerificationProgress(Params().TxData(), tip);
         }
     }
 
@@ -2109,7 +2110,7 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, CBlock
             }
 
             progress =
-                Checkpoints::GuessVerificationProgress(pindex, false);
+                GuessVerificationProgress(Params().TxData(), pindex);
         }
 
         if (pindex->nHeight % 100 == 0 &&
@@ -2172,9 +2173,7 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, CBlock
 
                 if (tip) {
                     dProgressTip =
-                        Checkpoints::GuessVerificationProgress(
-                            tip,
-                            false);
+                        GuessVerificationProgress(Params().TxData(), tip);
                 }
             }
         }
@@ -2186,7 +2185,7 @@ CBlockIndex* CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, CBlock
         {
             LOCK(cs_main);
             progress =
-                Checkpoints::GuessVerificationProgress(pindex, false);
+                GuessVerificationProgress(Params().TxData(), pindex);
         }
 
         LogPrintf(
@@ -3076,7 +3075,7 @@ bool CWallet::CreateTransaction(CScript scriptPubKey, const CAmount& nValue, CWa
 }
 
 // Create SCH coinstake transaction
-bool CWallet::CreateCoinStake(const CBlockIndex* pindexPrev, unsigned int nBits, CMutableTransaction& txNew, int64_t& nTxNewTime, std::vector<CStakeableOutput>* availableCoins, bool stopOnNewBlock)
+bool CWallet::CreateCoinStake(Chainstate& chainstate, const CBlockIndex* pindexPrev, unsigned int nBits, CMutableTransaction& txNew, int64_t& nTxNewTime, std::vector<CStakeableOutput>* availableCoins, bool stopOnNewBlock)
 {
     if (!pindexPrev)
         return false;
@@ -3146,7 +3145,7 @@ bool CWallet::CreateCoinStake(const CBlockIndex* pindexPrev, unsigned int nBits,
         // Stop searching if a new block replaced the candidate parent
         if (stopOnNewBlock) {
             LOCK(cs_main);
-            if (chainActive.Tip() != pindexPrev)
+            if (chainstate.m_chain.Tip() != pindexPrev)
                 return false;
         }
 
@@ -3157,7 +3156,7 @@ bool CWallet::CreateCoinStake(const CBlockIndex* pindexPrev, unsigned int nBits,
         nCredit = 0;
 
         nAttempts++;
-        fKernelFound = Stake(pindexPrev, stakeInput.get(), nBits, nTxNewTime);
+        fKernelFound = Stake(chainstate, pindexPrev, stakeInput.get(), nBits, nTxNewTime);
 
         // Update staker status
         if (pStakerStatus) {

@@ -1,4 +1,5 @@
 // Copyright (c) 2016-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,7 +9,6 @@
 #include <chainparams.h>
 #include <crypto/sha256.h>
 #include <crypto/siphash.h>
-#include <random.h>
 #include <streams.h>
 #include <txmempool.h>
 #include <validation.h>
@@ -18,11 +18,14 @@
 
 #define MIN_TRANSACTION_SIZE (::GetSerializeSize(CMutableTransaction(), PROTOCOL_VERSION))
 
-CBlockHeaderAndShortTxIDs::CBlockHeaderAndShortTxIDs(const CBlock& block) :
-        nonce(GetRand<uint64_t>()),
-        shorttxids(block.vtx.size() - 1), prefilledtxn(1), header(block) {
+CBlockHeaderAndShortTxIDs::CBlockHeaderAndShortTxIDs(const CBlock& block, uint64_t nonce)
+    : nonce(nonce),
+      shorttxids(block.vtx.size() - 1),
+      prefilledtxn(1),
+      header(block)
+{
     FillShortTxIDSelector();
-    //TODO: Use our mempool prior to block acceptance to predictively fill more than just the coinbase
+    // TODO: Use our mempool prior to block acceptance to predictively fill more than just the coinbase
     prefilledtxn[0] = {0, block.vtx[0]};
     for (size_t i = 1; i < block.vtx.size(); i++) {
         const CTransaction& tx = *block.vtx[i];

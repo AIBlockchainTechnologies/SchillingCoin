@@ -1,16 +1,18 @@
 // Copyright (c) 2014 The Bitcoin developers
 // Copyright (c) 2019 The PIVX developers
-// Copyright (c) 2020 The SchillingCoin developers
+// Copyright (c) 2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TIMEDATA_H
-#define BITCOIN_TIMEDATA_H
+#ifndef SCHILLINGCOIN_TIMEDATA_H
+#define SCHILLINGCOIN_TIMEDATA_H
 
 #include <algorithm>
 #include <assert.h>
 #include <stdint.h>
 #include <vector>
+
+static const int64_t DEFAULT_MAX_TIME_ADJUSTMENT = 70 * 60;
 
 class CNetAddr;
 
@@ -80,4 +82,4 @@ void AddTimeData(const CNetAddr& ip, int64_t nTime, int nOffsetLimit);
 int64_t GetTimeSlot(const int64_t nTime);
 int64_t GetCurrentTimeSlot();
 
-#endif // BITCOIN_TIMEDATA_H
+#endif // SCHILLINGCOIN_TIMEDATA_H

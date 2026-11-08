@@ -8,7 +8,6 @@
 #include "askpassphrasedialog.h"
 #include "bitcoinunits.h"
 #include "chainparams.h"
-#include "checkpoints.h"
 #include "clientmodel.h"
 #include "guiinterface.h"
 #include "optionsmodel.h"
@@ -617,7 +616,7 @@ void TopBar::setNumBlocks(int count) {
 
         // Now to calculate the human-readable time-til-synced
         // Reduced to 70% to display more 'optimistic' syncing times
-        long millisecsUntilSynced = (blocksPerSec * (Checkpoints::GetTotalBlocksEstimate() - count)) * 0.7;
+        long millisecsUntilSynced = (blocksPerSec * (Params().Checkpoints().GetHeight() - count)) * 0.7;
         // 3600000 milliseconds in an hour
         long hr = millisecsUntilSynced / 3600000;
         millisecsUntilSynced = millisecsUntilSynced - 3600000 * hr;

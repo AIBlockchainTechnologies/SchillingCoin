@@ -152,7 +152,6 @@ SET(QT_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/schillingcoin/privacywidget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/schillingcoin/coldstakingwidget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/schillingcoin/settings/settingsbackupwallet.cpp
-        ${CMAKE_CURRENT_SOURCE_DIR}/schillingcoin/settings/settingsbittoolwidget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/schillingcoin/settings/settingsconsolewidget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/schillingcoin/settings/settingsdisplayoptionswidget.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/schillingcoin/settings/settingsfaqwidget.cpp

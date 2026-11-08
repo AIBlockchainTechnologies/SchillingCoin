@@ -1,4 +1,5 @@
 // Copyright (c) 2020 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -111,15 +112,13 @@ class PriorityComputer {
     const uint64_t m_k0, m_k1;
 public:
     explicit PriorityComputer(bool deterministic) :
-        m_k0{deterministic ? 0 : GetRand(0xFFFFFFFFFFFFFFFF)},
-        m_k1{deterministic ? 0 : GetRand(0xFFFFFFFFFFFFFFFF)} {}
-
+        m_k0{deterministic ? 0 : FastRandomContext().rand64()},
+        m_k1{deterministic ? 0 : FastRandomContext().rand64()} {}
     Priority operator()(const CInv& inv, NodeId peer, bool preferred) const
     {
         uint64_t low_bits = CSipHasher(m_k0, m_k1).Write(inv.hash.begin(), inv.hash.size()).Write(inv.type).Write(peer).Finalize() >> 1;
         return low_bits | uint64_t{preferred} << 63;
     }
-
     Priority operator()(const Announcement& ann) const
     {
         return operator()(ann.m_inv, ann.m_peer, ann.m_preferred);

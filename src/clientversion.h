@@ -1,11 +1,11 @@
 // Copyright (c) 2009-2017 The Bitcoin Core developers
 // Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CLIENTVERSION_H
-#define BITCOIN_CLIENTVERSION_H
+#ifndef SCHILLINGCOIN_CLIENTVERSION_H
+#define SCHILLINGCOIN_CLIENTVERSION_H
 
 #if defined(HAVE_CONFIG_H)
 #include "config/schillingcoin-config.h"
@@ -47,12 +47,12 @@ extern const std::string CLIENT_NAME;
 extern const std::string CLIENT_BUILD;
 extern const std::string CLIENT_DATE;
 
-
 std::string FormatFullVersion();
 std::string FormatFullVersionWithCodename();
 std::string FormatSubVersion(const std::string& name, int nClientVersion, const std::vector<std::string>& comments);
 
+/** Returns licensing information for -version. */
+std::string LicenseInfo();
 
 #endif // WINDRES_PREPROC
-
-#endif // BITCOIN_CLIENTVERSION_H
+#endif // SCHILLINGCOIN_CLIENTVERSION_H

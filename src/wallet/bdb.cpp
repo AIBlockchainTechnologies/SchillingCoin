@@ -12,13 +12,14 @@
 #include "hash.h"
 #include "logging.h"
 #include "protocol.h"
-#include "util/system.h"
+#include "util/strencodings.h"
 #include "util/string.h"
-#include "utilstrencodings.h"
-#include "utiltime.h"
+#include "util/system.h"
+#include "util/time.h"
 #include "wallet/walletutil.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -1155,7 +1156,7 @@ bool BerkeleyBatch::Rewrite(BerkeleyDatabase& database, const char* pszSkip)
             }
         }
 
-        MilliSleep(100);
+        UninterruptibleSleep(std::chrono::milliseconds{100});
     }
 }
 
@@ -1394,7 +1395,7 @@ bool BerkeleyDatabase::Backup(const std::string& strDest)
             }
         }
 
-        MilliSleep(100);
+        UninterruptibleSleep(std::chrono::milliseconds{100});
     }
 }
 

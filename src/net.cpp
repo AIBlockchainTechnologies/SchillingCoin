@@ -206,6 +206,28 @@ uint16_t GetListenPort()
     return addr;
 }
 
+//! Convert the serialized seeds into usable address objects.
+static std::vector<CAddress> ConvertSeeds(const std::vector<uint8_t> &vSeedsIn)
+{
+    // It'll only connect to one or two seed nodes because once it connects,
+    // it'll get a pile of addresses with newer timestamps.
+    // Seed nodes are given a random 'last seen time' of between one and two
+    // weeks ago.
+    const auto one_week{7 * 24h};
+    std::vector<CAddress> vSeedsOut;
+    FastRandomContext rng;
+    CDataStream s(vSeedsIn, SER_NETWORK, PROTOCOL_VERSION | ADDRV2_FORMAT);
+    while (!s.eof()) {
+        CService endpoint;
+        s >> endpoint;
+        CAddress addr{endpoint, GetDesirableServiceFlags(NODE_NONE)};
+        addr.nTime = rng.rand_uniform_delay(Now<NodeSeconds>() - one_week, -one_week);
+        LogPrint(BCLog::NET, "Added hardcoded seed: %s\n", addr.ToStringAddrPort());
+        vSeedsOut.push_back(addr);
+    }
+    return vSeedsOut;
+}
+
 // Determine the "best" local address for a particular peer.
 // If none, return the unroutable 0.0.0.0 but filled in with
 // the normal parameters, since the IP may be changed to a useful
@@ -385,7 +407,8 @@ CNode* CConnman::ConnectNode(CAddress addrConnect, const char *pszDest, bool fCo
     if (pszDest) {
         std::vector<CService> resolved{Lookup(pszDest, default_port, fNameLookup && !HaveNameProxy(), 256)};
         if (!resolved.empty()) {
-            Shuffle(resolved.begin(), resolved.end(), FastRandomContext());
+            FastRandomContext rng;
+            std::shuffle(resolved.begin(), resolved.end(), rng);
             // If the connection is made by name, it can be the case that the name resolves to more than one address.
             // We don't want to connect any more of them if we are already connected to one
             for (const auto& r : resolved) {
@@ -2318,7 +2341,7 @@ Sock::EventsPerSock CConnman::GenerateWaitSockets(Span<CNode* const> nodes)
     Sock::EventsPerSock events_per_sock;
 
     for (const ListenSocket& hListenSocket : vhListenSocket) {
-        events_per_sock.emplace(hListenSocket.sock->Get(), Sock::Events{Sock::RECV});
+        events_per_sock.emplace(hListenSocket.sock->Get(), Sock::Events{Sock::RecvEvent});
     }
 
     for (CNode* pnode : nodes) {
@@ -2333,10 +2356,10 @@ Sock::EventsPerSock CConnman::GenerateWaitSockets(Span<CNode* const> nodes)
 
         Sock::Event requested{0};
         if (select_send) {
-            requested |= Sock::SEND;
+            requested |= Sock::SendEvent;
         }
         if (select_recv) {
-            requested |= Sock::RECV;
+            requested |= Sock::RecvEvent;
         }
 
         events_per_sock.emplace(pnode->m_sock->Get(), Sock::Events{requested});
@@ -2348,7 +2371,7 @@ Sock::EventsPerSock CConnman::GenerateWaitSockets(Span<CNode* const> nodes)
         // This is currently only implemented for POSIX compliant systems. This means that Windows will fall back to
         // timing out after 50ms and then trying to send. This is ok as we assume that heavy-load daemons are usually
         // run on Linux and friends.
-        events_per_sock.emplace(m_wakeup_pipe->m_pipe[0], Sock::Events{Sock::RECV});
+        events_per_sock.emplace(m_wakeup_pipe->m_pipe[0], Sock::Events{Sock::RecvEvent});
     }
 
     return events_per_sock;
@@ -2434,18 +2457,18 @@ void CConnman::SocketHandlerConnected(const Sock::EventsPerSock& events_per_sock
         for (const auto& [sock, events] : events_per_sock) {
             auto it = mapSocketToNode.find(sock);
             if (it == mapSocketToNode.end()) continue;
-            if (events.occurred & Sock::ERR) {
+            if (events.occurred & Sock::ErrorEvent) {
                 it->second->AddRef();
                 node_err_set.emplace(it->second);
             }
-            if (events.occurred & Sock::RECV) {
-                if (events.occurred & Sock::ERR) continue;
+            if (events.occurred & Sock::RecvEvent) {
+                if (events.occurred & Sock::ErrorEvent) continue;
                 LOCK(cs_sendable_receivable_nodes);
                 auto jt = mapReceivableNodes.emplace(it->second->GetId(), it->second);
                 assert(jt.first->second == it->second);
                 it->second->fHasRecvData = true;
             }
-            if (events.occurred & Sock::SEND) {
+            if (events.occurred & Sock::SendEvent) {
                 LOCK(cs_sendable_receivable_nodes);
                 auto jt = mapSendableNodes.emplace(it->second->GetId(), it->second);
                 assert(jt.first->second == it->second);
@@ -2564,7 +2587,7 @@ void CConnman::SocketHandlerListening(const Sock::EventsPerSock& events_per_sock
             return;
         }
         const auto it = events_per_sock.find(listen_socket.sock->Get());
-        if (it != events_per_sock.end() && (it->second.occurred & Sock::RECV)) {
+        if (it != events_per_sock.end() && (it->second.occurred & Sock::RecvEvent)) {
             AcceptConnection(listen_socket, mn_sync);
         }
     }
@@ -2661,8 +2684,8 @@ void CConnman::WakeMessageHandler()
 void CConnman::ThreadDNSAddressSeed()
 {
     FastRandomContext rng;
-    std::vector<CDNSSeedData> seeds = Params().DNSSeeds();
-    Shuffle(seeds.begin(), seeds.end(), rng);
+    std::vector<std::string> seeds = Params().DNSSeeds();
+    std::shuffle(seeds.begin(), seeds.end(), rng);
     int seeds_right_now = 0; // Number of seeds left before testing if we have enough connections
     int found = 0;
 
@@ -2735,14 +2758,15 @@ void CConnman::ThreadDNSAddressSeed()
             } while (!fNetworkActive);
         }
 
-        LogPrintf("Loading addresses from DNS seed %s\n", seed.host);
-        // If -proxy is in use, make an ADDR_FETCH connection to the base DNS seed.
+        LogPrintf("Loading addresses from DNS seed %s\n", seed);
+        // If -proxy is in use, we make an ADDR_FETCH connection to the DNS resolved peer address
+        // for the base dns seed domain in chainparams
         if (HaveNameProxy()) {
-            AddAddrFetch(seed.host);
+            AddAddrFetch(seed);
         } else {
             std::vector<CAddress> vAdd;
             ServiceFlags requiredServiceBits = GetDesirableServiceFlags(NODE_NONE);
-            const std::string host = seed.getHost(requiredServiceBits);
+            const std::string host = strprintf("x%x.%s", requiredServiceBits, seed);
             CNetAddr resolveSource;
             if (!resolveSource.SetInternal(host)) {
                 continue;
@@ -2765,7 +2789,7 @@ void CConnman::ThreadDNSAddressSeed()
                 // If the seed does not support a subdomain with our desired service bits,
                 // we make an ADDR_FETCH connection to the DNS resolved peer address for the
                 // base dns seed domain in chainparams
-                AddAddrFetch(seed.host);
+                AddAddrFetch(seed);
             }
         }
         --seeds_right_now;
@@ -2881,7 +2905,8 @@ bool CConnman::MultipleManualOrFullOutboundConns(Network net) const
 bool CConnman::MaybePickPreferredNetwork(std::optional<Network>& network)
 {
     std::array<Network, 5> nets{NET_IPV4, NET_IPV6, NET_ONION, NET_I2P, NET_CJDNS};
-    Shuffle(nets.begin(), nets.end(), FastRandomContext());
+    FastRandomContext rng;
+    std::shuffle(nets.begin(), nets.end(), rng);
 
     READ_LOCK(m_nodes_mutex);
     for (const auto net : nets) {
@@ -2927,9 +2952,9 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
     auto start = GetTime<std::chrono::microseconds>();
 
     // Minimum time before next feeler connection (in microseconds).
-    auto next_feeler = GetExponentialRand(start, FEELER_INTERVAL);
-    auto next_extra_block_relay = GetExponentialRand(start, EXTRA_BLOCK_RELAY_ONLY_PEER_INTERVAL);
-    auto next_extra_network_peer{GetExponentialRand(start, EXTRA_NETWORK_PEER_INTERVAL)};
+    auto next_feeler = start + rng.rand_exp_duration(FEELER_INTERVAL);
+    auto next_extra_block_relay = start + rng.rand_exp_duration(EXTRA_BLOCK_RELAY_ONLY_PEER_INTERVAL);
+    auto next_extra_network_peer{start + rng.rand_exp_duration(EXTRA_NETWORK_PEER_INTERVAL)};
     const bool dnsseed = gArgs.GetBoolArg("-dnsseed", DEFAULT_DNSSEED);
     bool add_fixed_seeds = gArgs.GetBoolArg("-fixedseeds", DEFAULT_FIXEDSEEDS);
     const bool use_seednodes{gArgs.IsArgSet("-seednode")};
@@ -2974,7 +2999,7 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
             }
 
             if (add_fixed_seeds_now) {
-                std::vector<CAddress> seed_addrs{Params().FixedSeeds()};
+                std::vector<CAddress> seed_addrs{ConvertSeeds(Params().FixedSeeds())};
                 // We will not make outgoing connections to peers that are unreachable
                 // (e.g. because of -onlynet configuration).
                 // Therefore, we do not add them to addrman in the first place.
@@ -3103,10 +3128,10 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
             // Because we can promote these connections to block-relay-only
             // connections, they do not get their own ConnectionType enum
             // (similar to how we deal with extra outbound peers).
-            next_extra_block_relay = GetExponentialRand(now, EXTRA_BLOCK_RELAY_ONLY_PEER_INTERVAL);
+            next_extra_block_relay = now + rng.rand_exp_duration(EXTRA_BLOCK_RELAY_ONLY_PEER_INTERVAL);
             conn_type = ConnectionType::BLOCK_RELAY;
         } else if (now > next_feeler) {
-            next_feeler = GetExponentialRand(now, FEELER_INTERVAL);
+            next_feeler = now + rng.rand_exp_duration(FEELER_INTERVAL);
             conn_type = ConnectionType::FEELER;
             fFeeler = true;
         } else if (nOutboundFullRelay == m_max_outbound_full_relay &&
@@ -3119,7 +3144,7 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect, CDe
             // This is not attempted if the user changed -maxconnections to a value
             // so low that less than MAX_OUTBOUND_FULL_RELAY_CONNECTIONS are made,
             // to prevent interactions with otherwise protected outbound peers.
-            next_extra_network_peer = GetExponentialRand(now, EXTRA_NETWORK_PEER_INTERVAL);
+            next_extra_network_peer = now + rng.rand_exp_duration(EXTRA_NETWORK_PEER_INTERVAL);
         } else if (nOutboundOnionRelay < m_max_outbound_onion && g_reachable_nets.Contains(Network::NET_ONION)) {
             onion_only = true;
         } else {
@@ -3374,9 +3399,9 @@ void CConnman::ThreadOpenAddedConnections()
     }
 }
 
-void CConnman::ThreadOpenMasternodeConnections(CDeterministicMNManager& dmnman, CMasternodeMetaMan& mn_metaman,
-                                               CMasternodeSync& mn_sync)
+void CConnman::ThreadOpenMasternodeConnections(CDeterministicMNManager& dmnman, CMasternodeMetaMan& mn_metaman, CMasternodeSync& mn_sync)
 {
+    FastRandomContext rng;
     // Connecting to specific addresses, no masternode connections available
     if (gArgs.IsArgSet("-connect") && gArgs.GetArgs("-connect").size() > 0)
         return;
@@ -3516,7 +3541,7 @@ void CConnman::ThreadOpenMasternodeConnections(CDeterministicMNManager& dmnman, 
 
             if (const auto pending = getPendingQuorumNodes(); !pending.empty()) {
                 // not-null
-                auto dmn = pending[GetRand(pending.size())];
+                auto dmn = pending[rng.randrange(pending.size())];
                 LogPrint(BCLog::NET_NETCONN, "CConnman::%s -- opening quorum connection to %s, service=%s\n",
                          _func_, dmn->proTxHash.ToString(), dmn->pdmnState->netInfo->GetPrimary().ToStringAddrPort());
                 return dmn;
@@ -3524,7 +3549,7 @@ void CConnman::ThreadOpenMasternodeConnections(CDeterministicMNManager& dmnman, 
 
             if (const auto pending = getPendingProbes(); !pending.empty()) {
                 // not-null
-                auto dmn = pending[GetRand(pending.size())];
+                auto dmn = pending[rng.randrange(pending.size())];
                 masternodePendingProbes.erase(dmn->proTxHash);
                 isProbe = MasternodeProbeConn::IsConnection;
 
@@ -4281,7 +4306,8 @@ std::vector<CAddress> CConnman::GetAddresses(CNode& requestor, size_t max_addres
         // nodes to be "terrible" (see IsTerrible()) if the timestamps are older than 30 days,
         // max. 24 hours of "penalty" due to cache shouldn't make any meaningful difference
         // in terms of the freshness of the response.
-        cache_entry.m_cache_entry_expiration = current_time + std::chrono::hours(21) + GetRandMillis(std::chrono::hours(6));
+        cache_entry.m_cache_entry_expiration = current_time +
+            21h + FastRandomContext().randrange<std::chrono::microseconds>(6h);
     }
     return cache_entry.m_addrs_response_cache;
 }
@@ -4934,7 +4960,7 @@ CConnman::NodesSnapshot::NodesSnapshot(const CConnman& connman, std::function<bo
         }
     }
     if (shuffle) {
-        Shuffle(m_nodes_copy.begin(), m_nodes_copy.end(), FastRandomContext{});
+        std::shuffle(m_nodes_copy.begin(), m_nodes_copy.end(), FastRandomContext{});
     }
 }
 

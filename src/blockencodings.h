@@ -105,9 +105,12 @@ public:
     CBlockHeader header;
 
     // Dummy for deserialization
-    CBlockHeaderAndShortTxIDs() {}
+    CBlockHeaderAndShortTxIDs() = default;
 
-    CBlockHeaderAndShortTxIDs(const CBlock& block);
+    /**
+     * @param[in] nonce This should be randomly generated, and is used for the SipHash secret key.
+     */
+    CBlockHeaderAndShortTxIDs(const CBlock& block, uint64_t nonce);
 
     uint64_t GetShortID(const uint256& txhash) const;
 

@@ -1,4 +1,5 @@
 // Copyright (c) 2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -48,13 +49,26 @@ uint64_t GetBogoSize(const CScript& script_pub_key)
            script_pub_key.size() /* scriptPubKey */;
 }
 
-DataStream TxOutSer(const COutPoint& outpoint, const Coin& coin)
+template <typename T>
+static void TxOutSer(T& ss, const COutPoint& outpoint, const Coin& coin)
 {
-    DataStream ss{};
     ss << outpoint;
     ss << static_cast<uint32_t>(coin.nHeight * 2 + coin.fCoinBase);
     ss << coin.out;
-    return ss;
+}
+
+void ApplyCoinHash(MuHash3072& muhash, const COutPoint& outpoint, const Coin& coin)
+{
+    DataStream ss{};
+    TxOutSer(ss, outpoint, coin);
+    muhash.Insert(MakeUCharSpan(ss));
+}
+
+void RemoveCoinHash(MuHash3072& muhash, const COutPoint& outpoint, const Coin& coin)
+{
+    DataStream ss{};
+    TxOutSer(ss, outpoint, coin);
+    muhash.Remove(MakeUCharSpan(ss));
 }
 
 //! Warning: be very careful when changing this! assumeutxo and UTXO snapshot
@@ -94,7 +108,7 @@ static void ApplyHash(MuHash3072& muhash, const uint256& hash, const std::map<ui
     for (auto it = outputs.begin(); it != outputs.end(); ++it) {
         COutPoint outpoint = COutPoint(hash, it->first);
         Coin coin = it->second;
-        muhash.Insert(MakeUCharSpan(TxOutSer(outpoint, coin)));
+        ApplyCoinHash(muhash, outpoint, coin);
     }
 }
 

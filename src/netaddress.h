@@ -1,9 +1,10 @@
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NETADDRESS_H
-#define BITCOIN_NETADDRESS_H
+#ifndef SCHILLINGCOIN_NETADDRESS_H
+#define SCHILLINGCOIN_NETADDRESS_H
 
 #include <compat/compat.h>
 #include <crypto/siphash.h>
@@ -574,8 +575,8 @@ class CServiceHash
 {
 public:
     CServiceHash()
-        : m_salt_k0{GetRand<uint64_t>()},
-          m_salt_k1{GetRand<uint64_t>()}
+        : m_salt_k0{FastRandomContext().rand64()},
+          m_salt_k1{FastRandomContext().rand64()}
     {
     }
 
@@ -595,4 +596,4 @@ private:
     const uint64_t m_salt_k1;
 };
 
-#endif // BITCOIN_NETADDRESS_H
+#endif // SCHILLINGCOIN_NETADDRESS_H

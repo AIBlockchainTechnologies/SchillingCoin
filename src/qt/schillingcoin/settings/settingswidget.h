@@ -6,11 +6,9 @@
 #ifndef SETTINGSWIDGET_H
 #define SETTINGSWIDGET_H
 
-#include <QWidget>
 #include "qt/schillingcoin/pwidget.h"
 #include "qt/schillingcoin/settings/settingsbackupwallet.h"
 #include "qt/schillingcoin/settings/settingsexportcsv.h"
-#include "qt/schillingcoin/settings/settingsbittoolwidget.h"
 #include "qt/schillingcoin/settings/settingssignmessagewidgets.h"
 #include "qt/schillingcoin/settings/settingswalletrepairwidget.h"
 #include "qt/schillingcoin/settings/settingswalletoptionswidget.h"
@@ -57,7 +55,6 @@ private Q_SLOTS:
 
     // Wallet Configuration
     void onConfigurationClicked();
-    void onBipToolClicked();
     void onMultisendClicked();
     void onExportCSVClicked();
 
@@ -87,7 +84,6 @@ private:
 
     SettingsBackupWallet *settingsBackupWallet;
     SettingsExportCSV *settingsExportCsvWidget;
-    SettingsBitToolWidget *settingsBitToolWidget;
     SettingsSignMessageWidgets *settingsSingMessageWidgets;
     SettingsWalletRepairWidget *settingsWalletRepairWidget;
     SettingsWalletOptionsWidget *settingsWalletOptionsWidget;

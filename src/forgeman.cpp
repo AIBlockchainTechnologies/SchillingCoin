@@ -3,10 +3,18 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "forgeman.h"
+
+#include "guiinterface.h"
 #include "util.h"
 #include "util/system.h"
-#include "guiinterface.h"
+#include "util/translation.h"
+
 #include <base58.h>
+
+#include <cstdio>
+#include <cstring>
+#include <fstream>
+#include <sstream>
 
 CForge forgeMain;
 
@@ -32,11 +40,11 @@ void CForge::remove(std::string txHash) {
 bool CForge::readForgeConfig(std::string& strErr)
 {
     int linenumber = 1;
-    boost::filesystem::path pathForgeConfigFile = GetForgeConfigFile();
-    boost::filesystem::ifstream streamConfig(pathForgeConfigFile);
+    const fs::path pathForgeConfigFile = GetForgeConfigFile();
+    std::ifstream streamConfig(pathForgeConfigFile);
 
     if (!streamConfig.good()) {
-        FILE* configFile = fopen(pathForgeConfigFile.string().c_str(), "a");
+        FILE* configFile = fsbridge::fopen(pathForgeConfigFile, "a");
         if (configFile != NULL) {
             std::string strHeader = "# Forge config file\n"
                                     "# Format: item_name item_output_txid item_output_index\n"

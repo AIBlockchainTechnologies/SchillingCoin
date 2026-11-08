@@ -1,13 +1,17 @@
 // Copyright (c) 2012-2017 The Bitcoin Core developers
 // Copyright (c) 2016-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+#if defined(HAVE_CONFIG_H)
+#include <config/schillingcoin-config.h>
+#endif
 
 #include "clientversion.h"
 
 #include "tinyformat.h"
-
+#include <util/translation.h>
 
 /**
  * Name of client reported in the 'version' message. Report the same name
@@ -20,7 +24,6 @@ const std::string CLIENT_NAME("Schilling Coin");
  * Client version number
  */
 #define CLIENT_VERSION_SUFFIX ""
-
 
 /**
  * The following part of the code determines the CLIENT_BUILD variable.
@@ -99,6 +102,27 @@ std::string FormatFullVersion()
 std::string FormatFullVersionWithCodename()
 {
 	return FormatVersion(CLIENT_VERSION);
+}
+
+std::string LicenseInfo()
+{
+    const std::string URL_SOURCE_CODE = "<https://gitlab.com/schillingcoin/SCH>";
+
+    return strprintf(_("Copyright (C) 2009-%i The Bitcoin Core Developers").translated, COPYRIGHT_YEAR) + "\n" +
+           strprintf(_("Copyright (C) 2014-%i The Dash Core Developers").translated, COPYRIGHT_YEAR) + "\n" +
+           strprintf(_("Copyright (C) 2015-%i The Schilling Coin Developers").translated, COPYRIGHT_YEAR) + "\n" +
+           "\n" +
+           strprintf(_("Please contribute if you find %s useful. "
+                       "Visit %s for further information about the software.").translated,
+                     PACKAGE_NAME, "<" PACKAGE_URL ">") +
+           "\n" +
+           strprintf(_("The source code is available from %s.").translated, URL_SOURCE_CODE) +
+           "\n" +
+           "\n" +
+           _("This is experimental software.").translated + "\n" +
+           strprintf(_("Distributed under the MIT software license, see the accompanying file %s or %s").translated,
+                     "COPYING", "<https://opensource.org/licenses/MIT>") +
+           "\n";
 }
 
 /** 

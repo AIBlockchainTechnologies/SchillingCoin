@@ -7,8 +7,8 @@
 /**
  * Functionality for communicating with Tor.
  */
-#ifndef BITCOIN_TORCONTROL_H
-#define BITCOIN_TORCONTROL_H
+#ifndef SCHILLINGCOIN_TORCONTROL_H
+#define SCHILLINGCOIN_TORCONTROL_H
 
 #include <string>
 
@@ -16,6 +16,7 @@
 #include <boost/chrono/chrono.hpp>
 #include <boost/thread.hpp>
 
+constexpr int DEFAULT_TOR_CONTROL_PORT = 9051;
 extern const std::string DEFAULT_TOR_CONTROL;
 static const bool DEFAULT_LISTEN_ONION = true;
 
@@ -24,4 +25,4 @@ void StartTorControl();
 void InterruptTorControl();
 void StopTorControl();
 
-#endif /* BITCOIN_TORCONTROL_H */
+#endif // SCHILLINGCOIN_TORCONTROL_H

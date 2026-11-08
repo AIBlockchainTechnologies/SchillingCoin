@@ -6,7 +6,6 @@
 #include "qt/schillingcoin/settings/settingswidget.h"
 #include "qt/schillingcoin/settings/forms/ui_settingswidget.h"
 #include "qt/schillingcoin/settings/settingsbackupwallet.h"
-#include "qt/schillingcoin/settings/settingsbittoolwidget.h"
 #include "qt/schillingcoin/settings/settingswalletrepairwidget.h"
 #include "qt/schillingcoin/settings/settingswalletoptionswidget.h"
 #include "qt/schillingcoin/settings/settingsmainoptionswidget.h"
@@ -55,7 +54,6 @@ SettingsWidget::SettingsWidget(SchillingCoinGUI* parent) :
     setCssProperty(ui->pushButtonExportCsv, "btn-settings-options");
 
     setCssProperty(ui->pushButtonConfiguration, "btn-settings-check");
-    setCssProperty(ui->pushButtonConfiguration3, "btn-settings-options");
     setCssProperty(ui->pushButtonConfiguration4, "btn-settings-options");
 
     setCssProperty(ui->pushButtonOptions, "btn-settings-check");
@@ -79,7 +77,6 @@ SettingsWidget::SettingsWidget(SchillingCoinGUI* parent) :
         ui->pushButtonOptions1,
         ui->pushButtonOptions2,
         ui->pushButtonOptions5,
-        ui->pushButtonConfiguration3,
         ui->pushButtonConfiguration4,
         ui->pushButtonHelp2,
         ui->pushButtonTools1,
@@ -95,7 +92,6 @@ SettingsWidget::SettingsWidget(SchillingCoinGUI* parent) :
 
     settingsBackupWallet = new SettingsBackupWallet(window, this);
     settingsExportCsvWidget = new SettingsExportCSV(window, this);
-    settingsBitToolWidget = new SettingsBitToolWidget(window, this);
     settingsSingMessageWidgets = new SettingsSignMessageWidgets(window, this);
     settingsWalletRepairWidget = new SettingsWalletRepairWidget(window, this);
     settingsWalletOptionsWidget = new SettingsWalletOptionsWidget(window, this);
@@ -107,7 +103,6 @@ SettingsWidget::SettingsWidget(SchillingCoinGUI* parent) :
 
     ui->stackedWidgetContainer->addWidget(settingsBackupWallet);
     ui->stackedWidgetContainer->addWidget(settingsExportCsvWidget);
-    ui->stackedWidgetContainer->addWidget(settingsBitToolWidget);
     ui->stackedWidgetContainer->addWidget(settingsSingMessageWidgets);
     ui->stackedWidgetContainer->addWidget(settingsWalletRepairWidget);
     ui->stackedWidgetContainer->addWidget(settingsWalletOptionsWidget);
@@ -132,7 +127,6 @@ SettingsWidget::SettingsWidget(SchillingCoinGUI* parent) :
 
     // Configuration
     connect(ui->pushButtonConfiguration, SIGNAL(clicked()), this, SLOT(onConfigurationClicked()));
-    connect(ui->pushButtonConfiguration3, SIGNAL(clicked()), this, SLOT(onBipToolClicked()));
     connect(ui->pushButtonConfiguration4, SIGNAL(clicked()), this, SLOT(onSignMessageClicked()));
 
     // Tools
@@ -209,7 +203,6 @@ void SettingsWidget::loadWalletModel(){
     this->settingsBackupWallet->setWalletModel(this->walletModel);
     this->settingsExportCsvWidget->setWalletModel(this->walletModel);
     this->settingsSingMessageWidgets->setWalletModel(this->walletModel);
-    this->settingsBitToolWidget->setWalletModel(this->walletModel);
     this->settingsMultisendWidget->setWalletModel(this->walletModel);
     this->settingsDisplayOptionsWidget->setWalletModel(this->walletModel);
     this->settingsWalletRepairWidget->setWalletModel(this->walletModel);
@@ -292,11 +285,6 @@ void SettingsWidget::onSignMessageClicked() {
 
 void SettingsWidget::onConfigurationClicked() {
     selectMenu(ui->pushButtonConfiguration);
-}
-
-void SettingsWidget::onBipToolClicked() {
-    ui->stackedWidgetContainer->setCurrentWidget(settingsBitToolWidget);
-    selectOption(ui->pushButtonConfiguration3);
 }
 
 void SettingsWidget::onMultisendClicked() {

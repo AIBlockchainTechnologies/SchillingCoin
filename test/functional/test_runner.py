@@ -88,7 +88,6 @@ BASE_SCRIPTS= [
     'wallet_keypool.py',                        # ~ 88 sec
     'wallet_dump.py',                           # ~ 83 sec
     'rpc_net.py',                               # ~ 83 sec
-    'rpc_bip38.py',                             # ~ 82 sec
     'interface_bitcoin_cli.py',                 # ~ 80 sec
 
     # vv Tests less than 60s vv

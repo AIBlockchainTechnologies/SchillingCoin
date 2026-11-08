@@ -8,7 +8,7 @@
 #ifndef SCHILLINGCOIN_MERKLEBLOCK_H
 #define SCHILLINGCOIN_MERKLEBLOCK_H
 
-#include "bloom.h"
+#include <common/bloom.h>
 #include "primitives/block.h"
 #include "serialize.h"
 #include "uint256.h"

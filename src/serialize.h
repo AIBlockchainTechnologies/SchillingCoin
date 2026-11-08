@@ -11,6 +11,7 @@
 #include <config/schillingcoin-config.h>
 #endif
 
+#include <attributes.h>
 #include <compat/endian.h>
 
 #include <algorithm>

@@ -1,9 +1,10 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developersS
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NODE_BLOCKSTORAGE_H
-#define BITCOIN_NODE_BLOCKSTORAGE_H
+#ifndef SCHILLINGCOIN_NODE_BLOCKSTORAGE_H
+#define SCHILLINGCOIN_NODE_BLOCKSTORAGE_H
 
 #include <attributes.h>
 #include <chain.h>
@@ -13,11 +14,14 @@
 #include <protocol.h>
 #include <sync.h>
 #include <txdb.h>
+#include <util/expected.h>
 #include <util/fs.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 class ArgsManager;
@@ -69,6 +73,11 @@ struct CBlockIndexHeightOnlyComparator {
 
 struct PruneLockInfo {
     int height_first{std::numeric_limits<int>::max()}; //! Height of earliest block that should be kept and not pruned
+};
+
+enum class ReadRawError {
+    IO,
+    BadPartRange,
 };
 
 /**
@@ -158,6 +167,7 @@ private:
 
 public:
     using Options = kernel::BlockManagerOpts;
+    using ReadRawBlockResult = util::Expected<std::vector<std::byte>, ReadRawError>;
 
     explicit BlockManager(Options opts) : m_opts{opts} {}
 
@@ -233,6 +243,11 @@ public:
 
     //! Create or update a prune lock identified by its name
     void UpdatePruneLock(const std::string& name, const PruneLockInfo& lock_info) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+
+    /** Read raw serialized block data or a requested byte range directly from block storage. */
+    ReadRawBlockResult ReadRawBlock(
+        const FlatFilePos& pos,
+        std::optional<std::pair<size_t, size_t>> block_part = std::nullopt) const;
 };
 
 void CleanupBlockRevFiles();
@@ -256,4 +271,4 @@ bool UndoReadFromDisk(CBlockUndo& blockundo, const CBlockIndex* pindex);
 void ThreadImport(ChainstateManager& chainman, std::vector<fs::path> vImportFiles, const ArgsManager& args, const fs::path& mempool_path);
 } // namespace node
 
-#endif // BITCOIN_NODE_BLOCKSTORAGE_H
+#endif // SCHILLINGCOIN_NODE_BLOCKSTORAGE_H

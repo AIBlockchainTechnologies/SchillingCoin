@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchilingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_SPAN_H
-#define BITCOIN_SPAN_H
+#ifndef SCHILLINGCOIN_SPAN_H
+#define SCHILLINGCOIN_SPAN_H
 
 #include <algorithm>
 #include <cassert>
@@ -257,14 +258,14 @@ Span<std::byte> AsWritableBytes(Span<T> s) noexcept
 }
 
 template <typename V>
-Span<const std::byte> MakeByteSpan(V&& v) noexcept
+auto MakeByteSpan(const V& v) noexcept
 {
-    return AsBytes(Span{std::forward<V>(v)});
+    return std::as_bytes(std::span{v});
 }
 template <typename V>
-Span<std::byte> MakeWritableByteSpan(V&& v) noexcept
+auto MakeWritableByteSpan(V&& v) noexcept
 {
-    return AsWritableBytes(Span{std::forward<V>(v)});
+    return std::as_writable_bytes(std::span{std::forward<V>(v)});
 }
 
 // Helper functions to safely cast basic byte pointers to unsigned char pointers.
@@ -296,4 +297,4 @@ template<typename C>
     return span.end();
 }
 
-#endif // BITCOIN_SPAN_H
+#endif // SCHILLINGCOIN_SPAN_H

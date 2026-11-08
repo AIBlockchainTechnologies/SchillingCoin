@@ -1,10 +1,11 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_STREAMS_H
-#define BITCOIN_STREAMS_H
+#ifndef SCHILLINGCOIN_STREAMS_H
+#define SCHILLINGCOIN_STREAMS_H
 
 #include <serialize.h>
 #include <span.h>
@@ -393,6 +394,20 @@ public:
     }
 };
 
+// Require empty scratch streams on entry and reset them on exit.
+class ScopedDataStreamUsage
+{
+    DataStream& m_stream;
+
+public:
+    explicit ScopedDataStreamUsage(DataStream& stream) : m_stream{stream} { assert(m_stream.empty()); }
+
+    ScopedDataStreamUsage(const ScopedDataStreamUsage&) = delete;
+    ScopedDataStreamUsage& operator=(const ScopedDataStreamUsage&) = delete;
+
+    ~ScopedDataStreamUsage() { m_stream.clear(); }
+};
+
 template <typename IStream>
 class BitStreamReader
 {
@@ -545,6 +560,9 @@ public:
 
     /** Implementation detail, only used internally. */
     std::size_t detail_fread(Span<std::byte> dst);
+
+    /** Wrapper around fseek(). Will throw if seeking is not possible. */
+    void seek(int64_t offset, int origin);
 
     //
     // Stream subset
@@ -765,4 +783,4 @@ public:
     }
 };
 
-#endif // BITCOIN_STREAMS_H
+#endif // SCHILLINGCOIN_STREAMS_H

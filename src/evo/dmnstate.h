@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_DMNSTATE_H
-#define BITCOIN_EVO_DMNSTATE_H
+#ifndef SCHILLINGCOIN_EVO_DMNSTATE_H
+#define SCHILLINGCOIN_EVO_DMNSTATE_H
 
 #include <bls/bls.h>
 #include <crypto/sha256.h>
@@ -65,10 +66,6 @@ public:
     CAmount nEarlyPenalty{0};
     CScript scriptOperatorPayout;
 
-    uint160 platformNodeID{};
-    uint16_t platformP2PPort{0};
-    uint16_t platformHTTPPort{0};
-
 public:
     CDeterministicMNState() = default;
     explicit CDeterministicMNState(const CProRegTx& proTx) :
@@ -81,10 +78,7 @@ public:
         payouts(proTx.payouts),
         shares(proTx.shares),
         nEarlyPeriodBlocks(proTx.nEarlyPeriodBlocks),
-        nEarlyPenalty(proTx.nEarlyPenalty),
-        platformNodeID(proTx.platformNodeID),
-        platformP2PPort(proTx.platformP2PPort),
-        platformHTTPPort(proTx.platformHTTPPort)
+        nEarlyPenalty(proTx.nEarlyPenalty)
     {
     }
     template <typename Stream>
@@ -114,14 +108,7 @@ public:
         } else {
             READWRITE(obj.scriptPayout);
         }
-        READWRITE(
-            obj.scriptOperatorPayout,
-            obj.platformNodeID);
-        if (obj.nVersion < ProTxVersion::ExtAddr) {
-            READWRITE(
-            obj.platformP2PPort,
-            obj.platformHTTPPort);
-        }
+        READWRITE(obj.scriptOperatorPayout);
     }
 
     void ResetOperatorFields()
@@ -131,7 +118,6 @@ public:
         netInfo = NetInfoInterface::MakeNetInfo(nVersion);
         scriptOperatorPayout = CScript();
         nRevocationReason = CProUpRevTx::REASON_NOT_SPECIFIED;
-        platformNodeID = uint160();
     }
     void BanIfNotBanned(int height)
     {
@@ -194,9 +180,6 @@ public:
         Field_scriptPayout = 0x2000,
         Field_scriptOperatorPayout = 0x4000,
         Field_nConsecutivePayments = 0x8000,
-        Field_platformNodeID = 0x10000,
-        Field_platformP2PPort = 0x20000,
-        Field_platformHTTPPort = 0x40000,
         Field_payouts = 0x80000,
         Field_shares = 0x100000,
         Field_nEarlyPeriodBlocks = 0x200000,
@@ -233,10 +216,7 @@ private:
         DMN_STATE_MEMBER(nEarlyPeriodBlocks),
         DMN_STATE_MEMBER(nEarlyPenalty),
         DMN_STATE_MEMBER(scriptOperatorPayout),
-        DMN_STATE_MEMBER(nConsecutivePayments),
-        DMN_STATE_MEMBER(platformNodeID),
-        DMN_STATE_MEMBER(platformP2PPort),
-        DMN_STATE_MEMBER(platformHTTPPort)
+        DMN_STATE_MEMBER(nConsecutivePayments)
     );
 #undef DMN_STATE_MEMBER
 
@@ -344,9 +324,6 @@ private:
         LegacyField_scriptPayout = 0x1000,
         LegacyField_scriptOperatorPayout = 0x2000,
         LegacyField_nConsecutivePayments = 0x4000,
-        LegacyField_platformNodeID = 0x8000,
-        LegacyField_platformP2PPort = 0x10000,
-        LegacyField_platformHTTPPort = 0x20000,
         LegacyField_nVersion = 0x40000,
     };
 
@@ -376,9 +353,6 @@ private:
         LEGACY_DMN_STATE_MEMBER(scriptPayout),
         LEGACY_DMN_STATE_MEMBER(scriptOperatorPayout),
         LEGACY_DMN_STATE_MEMBER(nConsecutivePayments),
-        LEGACY_DMN_STATE_MEMBER(platformNodeID),
-        LEGACY_DMN_STATE_MEMBER(platformP2PPort),
-        LEGACY_DMN_STATE_MEMBER(platformHTTPPort),
         LEGACY_DMN_STATE_MEMBER(nVersion)
     );
 #undef LEGACY_DMN_STATE_MEMBER
@@ -473,13 +447,10 @@ public:
         LEGACY_DMN_STATE_BITS(scriptPayout)
         LEGACY_DMN_STATE_BITS(scriptOperatorPayout)
         LEGACY_DMN_STATE_BITS(nConsecutivePayments)
-        LEGACY_DMN_STATE_BITS(platformNodeID)
-        LEGACY_DMN_STATE_BITS(platformP2PPort)
-        LEGACY_DMN_STATE_BITS(platformHTTPPort)
 #undef LEGACY_DMN_STATE_BITS
 
         return newDiff;
     }
 };
 
-#endif // BITCOIN_EVO_DMNSTATE_H
+#endif // SCHILLINGCOIN_EVO_DMNSTATE_H

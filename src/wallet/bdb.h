@@ -77,7 +77,7 @@ public:
 
     fs::path Directory() const
     {
-        return strPath;
+        return fs::PathFromString(strPath);
     }
 
     enum VerifyResult {
@@ -186,7 +186,7 @@ public:
             return fs::path();
         }
 
-        return env->Directory() / strFile;
+        return env->Directory() / fs::PathFromString(strFile);
     }
 
     std::string Filename() const override

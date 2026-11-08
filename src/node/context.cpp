@@ -13,6 +13,7 @@
 #include <netfulfilledman.h>
 #include <net_processing.h>
 #include <netgroup.h>
+#include <node/warnings.h>
 #include <policy/fees.h>
 #include <scheduler.h>
 #include <txmempool.h>

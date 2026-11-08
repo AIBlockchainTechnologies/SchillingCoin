@@ -85,12 +85,14 @@ void AddTimeData(const CNetAddr& ip, int64_t nOffsetSample, int nOffsetLimit)
             LogPrintf("*** %s\n", strMessage.original);
             uiInterface.ThreadSafeMessageBox(strMessage, "", CClientUIInterface::MSG_ERROR);
         }
-        if (fDebug) {
-            for (int64_t n : vSorted)
-                LogPrintf("%+d  ", n);
-            LogPrintf("|  ");
+        if (LogAcceptCategory(BCLog::NET, BCLog::Level::Debug)) {
+            std::string log_message{"time data samples: "};
+            for (const int64_t n : vSorted) {
+                log_message += strprintf("%+d  ", n);
+            }
+            log_message += strprintf("|  median offset = %+d  (%+d minutes)", nTimeOffset, nTimeOffset / 60);
+            LogPrint(BCLog::NET, "%s\n", log_message);
         }
-        LogPrintf("nTimeOffset = %+d\n", nTimeOffset);
     }
 }
 

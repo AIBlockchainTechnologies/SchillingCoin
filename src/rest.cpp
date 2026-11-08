@@ -56,7 +56,6 @@
 
 using node::GetTransaction;
 using node::NodeContext;
-using util::SplitString;
 
 static const size_t MAX_GETUTXOS_OUTPOINTS = 15; //allow a max of 15 outpoints to be queried at once
 static constexpr unsigned int MAX_REST_HEADERS_RESULTS = 2000;
@@ -476,7 +475,9 @@ static bool rest_block(const std::any& context,
     case RESTResponseFormat::BINARY: {
         req->WriteHeader("Cache-Control", REST_CACHE_IMMUTABLE);
         req->WriteHeader("Content-Type", "application/octet-stream");
-        req->WriteReply(HTTP_OK, *block_data);
+        req->WriteReply(HTTP_OK, std::string{
+                reinterpret_cast<const char*>(block_data->data()),
+                block_data->size()});
         return true;
     }
 
@@ -780,12 +781,10 @@ static bool rest_chaininfo(const std::any& context, HTTPRequest* req, const std:
         return false;
     std::string param;
     const RESTResponseFormat rf = ParseDataFormat(param, uri_part);
-
     switch (rf) {
     case RESTResponseFormat::JSON: {
         NodeContext* const node = GetNodeContext(context, req);
         if (!node) return false;
-
         JSONRPCRequest jsonRequest;
         jsonRequest.context = std::ref(*node);
         jsonRequest.params = UniValue(UniValue::VARR);
@@ -794,6 +793,44 @@ static bool rest_chaininfo(const std::any& context, HTTPRequest* req, const std:
         req->WriteHeader("Cache-Control", REST_CACHE_NO_STORE);
         req->WriteHeader("Content-Type", "application/json");
         req->WriteReply(HTTP_OK, strJSON);
+        return true;
+    }
+    default: {
+        return RESTERR(req, HTTP_NOT_FOUND, "output format not found (available: json)");
+    }
+    }
+}
+
+RPCHelpMan getdeploymentinfo();
+
+static bool rest_deploymentinfo(const std::any& context, HTTPRequest* req, const std::string& str_uri_part)
+{
+    if (!CheckWarmup(req)) return false;
+    std::string hash_str;
+    const RESTResponseFormat rf = ParseDataFormat(hash_str, str_uri_part);
+    const bool current_tip{hash_str.empty()};
+    switch (rf) {
+    case RESTResponseFormat::JSON: {
+        NodeContext* const node = GetNodeContext(context, req);
+        if (!node) return false;
+        JSONRPCRequest jsonRequest;
+        jsonRequest.context = std::ref(*node);
+        jsonRequest.params = UniValue(UniValue::VARR);
+        if (!current_tip) {
+            auto hash{uint256::FromHex(hash_str)};
+            if (!hash) {
+                return RESTERR(req, HTTP_BAD_REQUEST, "Invalid hash: " + hash_str);
+            }
+            const ChainstateManager* chainman = GetChainman(context, req);
+            if (!chainman) return false;
+            if (!WITH_LOCK(::cs_main, return chainman->m_blockman.LookupBlockIndex(*hash))) {
+                return RESTERR(req, HTTP_BAD_REQUEST, "Block not found");
+            }
+            jsonRequest.params.push_back(hash_str);
+        }
+        req->WriteHeader("Cache-Control", current_tip ? REST_CACHE_NO_STORE : REST_CACHE_IMMUTABLE);
+        req->WriteHeader("Content-Type", "application/json");
+        req->WriteReply(HTTP_OK, getdeploymentinfo().HandleRequest(jsonRequest).write() + "\n");
         return true;
     }
     default: {

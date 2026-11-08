@@ -7,7 +7,6 @@
 
 #include "bantablemodel.h"
 #include "chainparams.h"
-#include "checkpoints.h"
 #include "clientmodel.h"
 #include "clientversion.h"
 #include "guiconstants.h"
@@ -148,7 +147,7 @@ QString ClientModel::getLastBlockHash() const
 
 double ClientModel::getVerificationProgress() const
 {
-    return Checkpoints::GuessVerificationProgress(cacheTip);
+    return GuessVerificationProgress(Params().TxData(), cacheTip);
 }
 
 void ClientModel::updateTimer()

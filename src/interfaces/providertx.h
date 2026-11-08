@@ -1,9 +1,10 @@
 // Copyright (c) 2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INTERFACES_PROVIDERTX_H
-#define BITCOIN_INTERFACES_PROVIDERTX_H
+#ifndef SCHILLINGCOIN_INTERFACES_PROVIDERTX_H
+#define SCHILLINGCOIN_INTERFACES_PROVIDERTX_H
 
 #include <bls/bls.h>
 #include <consensus/amount.h>
@@ -94,7 +95,7 @@ struct ExistingProviderCollateral {
 using ProviderCollateral = std::variant<FundProviderCollateral, ExistingProviderCollateral>;
 
 struct ProviderRegistrationRequest {
-    MnType type{MnType::Regular};
+    MnType type{MnType::Level1};
     ProviderCollateral collateral;
     ProviderNetInfo net_info;
     CKeyID owner_key;
@@ -111,7 +112,7 @@ struct ProviderRegistrationRequest {
 };
 
 struct ProviderUpdateServiceRequest {
-    MnType type{MnType::Regular};
+    MnType type{MnType::Level1};
     uint256 pro_tx_hash;
     ProviderNetInfo net_info;
     CBLSSecretKey operator_key;
@@ -153,7 +154,7 @@ struct SharedShareSpec {
 //! Turns a funding transaction that already holds every participant's inputs and change
 //! into an unsigned shared ProRegTx. Needs no wallet: nothing is funded or signed.
 struct SharedRegistrationRequest {
-    MnType type{MnType::Regular};
+    MnType type{MnType::Level1};
     CMutableTransaction funding_tx;
     std::vector<SharedShareSpec> shares;
     ProviderNetInfo net_info;
@@ -248,4 +249,4 @@ struct SharedRegistrarUpdatePrepareRequest {
 
 } // namespace interfaces
 
-#endif // BITCOIN_INTERFACES_PROVIDERTX_H
+#endif // SCHILLINGCOIN_INTERFACES_PROVIDERTX_H

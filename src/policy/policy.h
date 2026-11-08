@@ -24,6 +24,9 @@ static constexpr unsigned int DEFAULT_BLOCK_MIN_SIZE{0};
 /** Default for -blockprioritysize, maximum space for zero/low-fee transactions. */
 static constexpr unsigned int DEFAULT_BLOCK_PRIORITY_SIZE{50000};
 
+/** Default for -blockmintxfee, which sets the minimum feerate for transactions created by mining code. */
+static constexpr unsigned int DEFAULT_BLOCK_MIN_TX_FEE{1000};
+
 /** The maximum serialized size for transactions SCH is willing to relay or mine. */
 static constexpr unsigned int MAX_STANDARD_TX_SIZE{100000};
 
@@ -33,8 +36,17 @@ static constexpr unsigned int MAX_P2SH_SIGOPS{15};
 /** Default for -incrementalrelayfee. */
 static constexpr unsigned int DEFAULT_INCREMENTAL_RELAY_FEE{1000};
 
+/** Default for -bytespersigop. */
+static constexpr unsigned int DEFAULT_BYTES_PER_SIGOP{20};
+
 /** Default for -minrelaytxfee. */
 static constexpr unsigned int DEFAULT_MIN_RELAY_TX_FEE{1000};
+
+/** Maximum number of transactions per cluster. */
+static constexpr unsigned int DEFAULT_CLUSTER_LIMIT{64};
+
+/** Maximum size of a cluster in virtual kilobytes. */
+static constexpr unsigned int DEFAULT_CLUSTER_SIZE_LIMIT_KVB{101};
 
 /** Default for -limitancestorcount. */
 static constexpr unsigned int DEFAULT_ANCESTOR_LIMIT{25};

@@ -19,6 +19,7 @@
 
 #include <util/strencodings.h>
 #include <util/string.h>
+#include <util/translation.h>
 
 #include <boost/algorithm/string.hpp>
 
@@ -123,7 +124,7 @@ static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string&)
     JSONRPCRequest jreq;
     if (!RPCAuthorized(authHeader.second, jreq.authUser)) {
         LogPrintf("ThreadRPCServer incorrect password attempt from %s\n",
-            req->GetPeer().ToString());
+            req->GetPeer().ToStringAddrPort());
 
         /* Deter brute-forcing
            If this results in a DoS the user really
@@ -183,9 +184,6 @@ static bool InitRPCAuthentication()
     {
         LogPrintf("No rpcpassword set - using random cookie authentication\n");
         if (!GenerateAuthCookie(&strRPCUserColonPass)) {
-            uiInterface.ThreadSafeMessageBox(
-                _("Error: A fatal internal error occurred, see debug.log for details"), // Same message as AbortNode
-                "", CClientUIInterface::MSG_ERROR);
             return false;
         }
     } else {

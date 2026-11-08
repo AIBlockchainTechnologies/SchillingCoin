@@ -159,14 +159,6 @@ bool CCoinsViewDBCursor::GetValue(Coin& coin) const
     return pcursor->GetValue(coin);
 }
 
-unsigned int CCoinsViewDBCursor::GetValueSize() const
-{
-    if (!Valid())
-        return 0;
-
-    return pcursor->GetValueSize();
-}
-
 bool CCoinsViewDBCursor::Valid() const
 {
     return pcursor->Valid() &&

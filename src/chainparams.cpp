@@ -22,14 +22,6 @@
 
 #include "chainparamsseeds.h"
 
-std::string CDNSSeedData::getHost(uint64_t requiredServiceBits) const {
-    // Use default host for non-filter-capable seeds or if we use the default service bits (NODE_NETWORK)
-    if (!supportsServiceBitsFiltering || requiredServiceBits == NODE_NETWORK)
-        return host;
-
-    return strprintf("x%x.%s", requiredServiceBits, host);
-}
-
 static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     CMutableTransaction txNew;
@@ -94,29 +86,13 @@ std::optional<Consensus::LLMQParams> CChainParams::GetLLMQ(Consensus::LLMQType l
 /**
  * Main Schilling Coin (SCH) Network
  */
-//! Convert the pnSeeds6 array into usable address objects.
-static void convertSeed6(std::vector<CAddress>& vSeedsOut, const SeedSpec6* data, unsigned int count)
-{
-    // It'll only connect to one or two seed nodes because once it connects,
-    // it'll get a pile of addresses with newer timestamps.
-    // Seed nodes are given a random 'last seen time' of between one and two
-    // weeks ago.
-    const int64_t nOneWeek = 7 * 24 * 60 * 60;
-    for (unsigned int i = 0; i < count; i++) {
-        struct in6_addr ip;
-        memcpy(&ip, data[i].addr, sizeof(ip));
-        CAddress addr(CService(ip, data[i].port));
-        addr.nTime = GetTime() - GetRand(nOneWeek) - nOneWeek;
-        vSeedsOut.push_back(addr);
-    }
-}
 
 //   What makes a good checkpoint block?
 // + Is surrounded by blocks with reasonable timestamps
 //   (no blocks before with a timestamp after, none after with
 //   timestamp before).
 // + Contains no strange transactions, at all.
-static Checkpoints::MapCheckpoints mapCheckpoints =
+static MapCheckpoints mapCheckpoints =
     boost::assign::map_list_of
 	(0, uint256("0x00000f18d3e3a5bf9abee0cb36483706e8392a3f1b0f23d6df5a8fdc30303e74"))
 	(2140, uint256("0xa52d5be17db090d372ca8e179bd241d025e326839e73da7292dcdf19e8eeb3dd"))
@@ -203,31 +179,13 @@ static Checkpoints::MapCheckpoints mapCheckpoints =
 	(3677807, uint256("0x88f70f08bc8239cc3606ae7e7b79557793622a7d30c072254dc59cb3d372710d"))
 	(3721007, uint256("0xcb4789ae77c3d362df198436f3100829afb7dce475d58fc8cfa8c4cf1c588a6d"))
 	;
-static const Checkpoints::CCheckpointData data = {
-    &mapCheckpoints,
-	1784637585, // * UNIX timestamp of last checkpoint block
-	7538573,    // * total number of transactions between genesis and last checkpoint
-                //   (the tx=... number in the SetBestChain debug.log lines)
-    1440        // * estimated number of transactions per day after checkpoint
-};
 
-static Checkpoints::MapCheckpoints mapCheckpointsTestnet =
+static MapCheckpoints mapCheckpointsTestnet =
     boost::assign::map_list_of
     (0, uint256S("0x001"))
     ; //!< First v7 block
-static const Checkpoints::CCheckpointData dataTestnet = {
-    &mapCheckpointsTestnet,
-    1575145155,
-    2971390,
-    250};
-
-static Checkpoints::MapCheckpoints mapCheckpointsRegtest =
+static MapCheckpoints mapCheckpointsRegtest =
     boost::assign::map_list_of(0, uint256S("0x001"));
-static const Checkpoints::CCheckpointData dataRegtest = {
-    &mapCheckpointsRegtest,
-    1454124731,
-    0,
-    100};
 
 class CMainParams : public CChainParams
 {
@@ -307,6 +265,8 @@ public:
 		pchMessageStart[2] = 0x49;
 		pchMessageStart[3] = 0x56;
         nDefaultPort = 9070;
+        fRequireRoutableExternalIP = true;
+        nFulfilledRequestExpireTime = 60*60; // fulfilled requests expire in 1 hour
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 63);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 2);
@@ -316,15 +276,18 @@ public:
         base58Prefixes[EXT_SECRET_KEY] = boost::assign::list_of(0x02)(0x21)(0x31)(0x2B).convert_to_container<std::vector<unsigned char> >();
         // BIP44 coin type is from https://github.com/satoshilabs/slips/blob/master/slip-0044.md
         nExtCoinType = 188;
+        vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_main), std::end(chainparams_seed_main));
 
-        convertSeed6(vFixedSeeds, pnSeed6_main, ARRAYLEN(pnSeed6_main));
+        checkpointData = {
+            mapCheckpoints,
+        };
+
+        chainTxData = ChainTxData{
+            1784637585,
+            7538573,
+            1440 / 86400.0,
+        };
     }
-
-    const Checkpoints::CCheckpointData& Checkpoints() const
-    {
-        return data;
-    }
-
 };
 
 /**
@@ -410,9 +373,9 @@ public:
         vFixedSeeds.clear();
         vSeeds.clear();
         // nodes with support for servicebits filtering should be at the top
-        vSeeds.push_back(CDNSSeedData("fuzzbawls.pw", "schillingcoin-testnet.seed.fuzzbawls.pw", true));
-        vSeeds.push_back(CDNSSeedData("fuzzbawls.pw", "schillingcoin-testnet.seed2.fuzzbawls.pw", true));
-        vSeeds.push_back(CDNSSeedData("warrows.dev", "testnet.dnsseed.schillingcoin.warrows.dev"));
+        vSeeds.emplace_back("schillingcoin-testnet.seed.fuzzbawls.pw");
+        vSeeds.emplace_back("schillingcoin-testnet.seed2.fuzzbawls.pw");
+        vSeeds.emplace_back("testnet.dnsseed.schillingcoin.warrows.dev");
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1, 139); // Testnet SchillingCoin addresses start with 'x' or 'y'
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1, 19);  // Testnet SchillingCoin script addresses start with '8' or '9'
@@ -424,13 +387,17 @@ public:
         base58Prefixes[EXT_SECRET_KEY] = boost::assign::list_of(0x3a)(0x80)(0x58)(0x37).convert_to_container<std::vector<unsigned char> >();
         // Testnet SchillingCoin BIP44 coin type is '1' (All coin's testnet default)
         nExtCoinType = 1;
+        vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_test), std::end(chainparams_seed_test));
 
-        convertSeed6(vFixedSeeds, pnSeed6_test, ARRAYLEN(pnSeed6_test));
-    }
+        checkpointData = {
+            mapCheckpointsTestnet,
+        };
 
-    const Checkpoints::CCheckpointData& Checkpoints() const
-    {
-        return dataTestnet;
+        chainTxData = ChainTxData{
+            1575145155,
+            2971390,
+            250 / 86400.0,
+        };
     }
 };
 
@@ -518,14 +485,18 @@ public:
         nDefaultPort = 51476;
         fAllowMultipleAddressesFromGroup = true;
         nLLMQConnectionRetryTimeout = 1;
-
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear(); //! Testnet mode doesn't have any DNS seeds.
-    }
 
-    const Checkpoints::CCheckpointData& Checkpoints() const
-    {
-        return dataRegtest;
+        checkpointData = {
+            mapCheckpointsRegtest,
+        };
+
+        chainTxData = ChainTxData{
+            1454124731,
+            0,
+            100 / 86400.0,
+        };
     }
 };
 

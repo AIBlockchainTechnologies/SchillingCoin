@@ -1,10 +1,11 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UTIL_TIME_H
-#define BITCOIN_UTIL_TIME_H
+#ifndef SCHILLINGCOIN_UTIL_TIME_H
+#define SCHILLINGCOIN_UTIL_TIME_H
 
 #include <compat/compat.h>
 
@@ -105,6 +106,9 @@ using MillisecondsDouble = std::chrono::duration<double, std::chrono::millisecon
  */
 int64_t GetTime();
 
+/** Returns the system time in milliseconds (not mockable) */
+int64_t GetTimeMillis();
+
 /** Returns the system time (not mockable) */
 int64_t GetTimeMicros();
 /**
@@ -157,4 +161,4 @@ struct timespec MillisToTimespec(int64_t nTimeout);
 struct timeval MillisToTimeval(std::chrono::milliseconds ms);
 struct timespec MillisToTimespec(std::chrono::milliseconds ms);
 
-#endif // BITCOIN_UTIL_TIME_H
+#endif // SCHILLINGCOIN_UTIL_TIME_H
