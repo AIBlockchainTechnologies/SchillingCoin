@@ -7,7 +7,7 @@
 #ifndef SCHILLINGCOIN_COMMON_SYSTEM_H
 #define SCHILLINGCOIN_COMMON_SYSTEM_H
 
-#include <schillingcoin-build-config.h> // IWYU pragma: keep
+#include <config/schillingcoin-config.h> // IWYU pragma: keep
 
 #include <util/time.h>
 

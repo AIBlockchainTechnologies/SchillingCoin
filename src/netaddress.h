@@ -444,7 +444,7 @@ public:
 
         if (SetNetFromBIP155Network(bip155_net, address_size)) {
             m_addr.resize(address_size);
-            s >> Span{m_addr};
+            s >> std::span{m_addr};
 
             if (m_net != NET_IPV6) {
                 return;
@@ -587,7 +587,7 @@ public:
         CSipHasher hasher(m_salt_k0, m_salt_k1);
         hasher.Write(a.m_net);
         hasher.Write(a.port);
-        hasher.Write(a.m_addr.data(), a.m_addr.size());
+        hasher.Write(a.m_addr);
         return static_cast<size_t>(hasher.Finalize());
     }
 

@@ -140,7 +140,7 @@ public:
     uint16_t nVersion{ProTxVersion::LegacyBLS}; // message version
     MnType nType{MnType::Level1};
     uint16_t nMode{0};                                     // only 0 supported for now
-    COutPoint collateralOutpoint{uint256(), static_cast<uint32_t>(-1)}; // if hash is null, we refer to a ProRegTx output
+    COutPoint collateralOutpoint{}; // if hash is null, we refer to a ProRegTx output
     std::shared_ptr<NetInfoInterface> netInfo{nullptr};
     CKeyID keyIDOwner;
     CBLSLazyPublicKey pubKeyOperator;

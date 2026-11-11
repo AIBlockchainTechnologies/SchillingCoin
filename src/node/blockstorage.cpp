@@ -1,4 +1,5 @@
 // Copyright (c) 2011-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -15,6 +16,8 @@
 #include <streams.h>
 #include <undo.h>
 #include <util/fs.h>
+#include <util/overflow.h>
+#include <util/strencodings.h>
 #include <util/system.h>
 #include <validation.h>
 #include <walletinitinterface.h>
@@ -802,6 +805,95 @@ bool BlockManager::WriteUndoDataForBlock(const CBlockUndo& blockundo, BlockValid
     return true;
 }
 
+bool BlockManager::ReadBlock(CBlock& block, const FlatFilePos& pos, const std::optional<uint256>& expected_hash) const
+{
+    block.SetNull();
+
+    const auto block_data{ReadRawBlock(pos)};
+    if (!block_data) {
+        return false;
+    }
+
+    try {
+        SpanReader{SER_DISK, CLIENT_VERSION, MakeUCharSpan(*block_data)} >> TX_WITH_WITNESS(block);
+    } catch (const std::exception& e) {
+        LogError("Deserialize or I/O error - %s at %s while reading block", e.what(), pos.ToString());
+        return false;
+    }
+
+    const uint256 block_hash{block.GetHash()};
+
+    if (block.IsProofOfWork() && !CheckProofOfWork(block_hash, block.nBits, GetConsensus())) {
+        LogError("Errors in proof-of-work block header at %s while reading block", pos.ToString());
+        return false;
+    }
+
+    if (expected_hash && block_hash != *expected_hash) {
+        LogError("GetHash() doesn't match index at %s while reading block (%s != %s)",
+                 pos.ToString(), block_hash.ToString(), expected_hash->ToString());
+        return false;
+    }
+
+    return true;
+}
+
+bool BlockManager::ReadBlock(CBlock& block, const CBlockIndex& index) const
+{
+    const FlatFilePos block_pos{WITH_LOCK(cs_main, return index.GetBlockPos())};
+    return ReadBlock(block, block_pos, index.GetBlockHash());
+}
+
+BlockManager::ReadRawBlockResult BlockManager::ReadRawBlock(
+    const FlatFilePos& pos,
+    std::optional<std::pair<size_t, size_t>> block_part) const
+{
+    if (pos.nPos < STORAGE_HEADER_BYTES) {
+        LogError("Failed for %s while reading raw block storage header", pos.ToString());
+        return util::Unexpected{ReadRawError::IO};
+    }
+
+    AutoFile filein{OpenBlockFile({pos.nFile, pos.nPos - STORAGE_HEADER_BYTES}, /*fReadOnly=*/true)};
+    if (filein.IsNull()) {
+        LogError("OpenBlockFile failed for %s while reading raw block", pos.ToString());
+        return util::Unexpected{ReadRawError::IO};
+    }
+
+    try {
+        MessageStartChars block_start{};
+        unsigned int block_size{0};
+
+        filein >> block_start >> block_size;
+
+        if (block_start != GetParams().MessageStart()) {
+            LogError("Block magic mismatch for %s: %s versus expected %s while reading raw block",
+                     pos.ToString(), HexStr(block_start), HexStr(GetParams().MessageStart()));
+            return util::Unexpected{ReadRawError::IO};
+        }
+
+        if (block_size > MAX_SIZE) {
+            LogError("Block data is larger than maximum deserialization size for %s: %s versus %s while reading raw block",
+                     pos.ToString(), block_size, MAX_SIZE);
+            return util::Unexpected{ReadRawError::IO};
+        }
+
+        if (block_part) {
+            const auto [offset, size]{*block_part};
+            if (size == 0 || SaturatingAdd(offset, size) > block_size) {
+                return util::Unexpected{ReadRawError::BadPartRange};
+            }
+            filein.seek(static_cast<int64_t>(offset), SEEK_CUR);
+            block_size = static_cast<unsigned int>(size);
+        }
+
+        std::vector<std::byte> data(block_size);
+        filein.read(MakeWritableByteSpan(data));
+        return data;
+    } catch (const std::exception& e) {
+        LogError("Read from block file failed: %s for %s while reading raw block", e.what(), pos.ToString());
+        return util::Unexpected{ReadRawError::IO};
+    }
+}
+
 std::optional<uint256> ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::Params& consensusParams)
 {
     block.SetNull();
@@ -855,10 +947,10 @@ FlatFilePos BlockManager::SaveBlockToDisk(const CBlock& block, int nHeight, cons
     if (position_known) {
         blockPos = *dbp;
     } else {
-        // when known, blockPos.nPos points at the offset of the block data in the blk file. that already accounts for
-        // the serialization header present in the file (the 4 magic message start bytes + the 4 length bytes = 8 bytes = BLOCK_SERIALIZATION_HEADER_SIZE).
-        // we add BLOCK_SERIALIZATION_HEADER_SIZE only for new blocks since they will have the serialization header added when written to disk.
-        nBlockSize += static_cast<unsigned int>(BLOCK_SERIALIZATION_HEADER_SIZE);
+        // When known, blockPos.nPos points at the offset of the block data in the blk file. This already accounts for
+        // the serialization header present in the file.
+        // Add STORAGE_HEADER_BYTES only for new blocks because the header will be written with the block.
+        nBlockSize += STORAGE_HEADER_BYTES;
     }
     if (!FindBlockPos(blockPos, nBlockSize, nHeight, block.GetBlockTime(), position_known)) {
         LogError("%s: FindBlockPos failed\n", __func__);

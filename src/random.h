@@ -1,10 +1,11 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-present The Bitcoin Core developers
+// Copyright (c) 2009-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RANDOM_H
-#define BITCOIN_RANDOM_H
+#ifndef SCHILLINGCOIN_RANDOM_H
+#define SCHILLINGCOIN_RANDOM_H
 
 #include <crypto/chacha20.h>
 #include <crypto/common.h>
@@ -413,6 +414,29 @@ public:
     void fillrand(std::span<std::byte> output) noexcept;
 };
 
+/** More efficient than using std::shuffle on a FastRandomContext.
+ *
+ * This is more efficient as std::shuffle will consume entropy in groups of
+ * 64 bits at the time and throw away most.
+ *
+ * This also works around a bug in libstdc++ std::shuffle that may cause
+ * type::operator=(type&&) to be invoked on itself, which the library's
+ * debug mode detects and panics on. This is a known issue, see
+ * https://stackoverflow.com/questions/22915325/avoiding-self-assignment-in-stdshuffle
+ */
+template <typename I, typename R>
+void Shuffle(I first, I last, R&& rng)
+{
+    while (first != last) {
+        size_t j = rng.randrange(last - first);
+        if (j) {
+            using std::swap;
+            swap(*first, *(first + j));
+        }
+        ++first;
+    }
+}
+
 /** xoroshiro128++ PRNG. Extremely fast, not appropriate for cryptographic purposes.
  *
  * Memory footprint is very small, period is 2^128 - 1.
@@ -474,4 +498,4 @@ inline uint256 GetRandHash() noexcept
  */
 bool Random_SanityCheck();
 
-#endif // BITCOIN_RANDOM_H
+#endif // SCHILLINGCOIN_RANDOM_H

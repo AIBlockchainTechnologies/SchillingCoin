@@ -202,7 +202,7 @@ bool CZMQPublishRawTransactionNotifier::NotifyTransaction(const CTransaction &tr
     uint256 hash = transaction.GetHash();
     LogPrint(BCLog::ZMQ, "zmq: Publish rawtx %s\n", hash.GetHex());
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-    ss << transaction;
+    ss << TX_WITH_WITNESS(transaction);
     return SendMessage(MSG_RAWTX, &(*ss.begin()), ss.size());
 }
 
@@ -211,6 +211,6 @@ bool CZMQPublishRawTransactionLockNotifier::NotifyTransactionLock(const CTransac
     uint256 hash = transaction.GetHash();
     LogPrint(BCLog::ZMQ, "zmq: Publish rawtxlock %s\n", hash.GetHex());
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-    ss << transaction;
+    ss << TX_WITH_WITNESS(transaction);
     return SendMessage(MSG_RAWTXLOCK, &(*ss.begin()), ss.size());
 }

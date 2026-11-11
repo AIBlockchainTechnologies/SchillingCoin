@@ -1,4 +1,5 @@
 // Copyright (c) 2021-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,13 +17,13 @@ static constexpr int64_t ORPHAN_TX_EXPIRE_TIME = 20 * 60;
 /** Minimum time between orphan transactions expire time checks in seconds */
 static constexpr int64_t ORPHAN_TX_EXPIRE_INTERVAL = 5 * 60;
 
-
 bool TxOrphanage::AddTx(const CTransactionRef& tx, NodeId peer)
 {
     LOCK(m_mutex);
 
-    const uint256& hash = tx->GetHash();
-    if (m_orphans.count(hash))
+    const Txid& txid = tx->GetHash();
+    const Wtxid& wtxid = tx->GetWitnessHash();
+    if (m_orphans.count(wtxid))
         return false;
 
     // Ignore big transactions, to avoid a
@@ -32,14 +33,23 @@ bool TxOrphanage::AddTx(const CTransactionRef& tx, NodeId peer)
     // have been mined or received.
     // 100 orphans, each of which is at most 99,999 bytes big is
     // at most 10 megabytes of orphans and somewhat more byprev index (in the worst case):
-    unsigned int sz = GetSerializeSize(*tx, CTransaction::CURRENT_VERSION);
+    const unsigned int sz = GetSerializeSize(TX_WITH_WITNESS(*tx));
     if (sz > MAX_STANDARD_TX_SIZE)
     {
-        LogPrint(BCLog::MEMPOOL, "ignoring large orphan tx (size: %u, hash: %s)\n", sz, hash.ToString());
+        LogPrint(BCLog::MEMPOOL,
+                 "ignoring large orphan tx (size: %u, txid: %s, wtxid: %s)\n",
+                 sz, txid.ToString(), wtxid.ToString());
         return false;
     }
 
-    auto ret = m_orphans.emplace(hash, OrphanTx{tx, peer, GetTime() + ORPHAN_TX_EXPIRE_TIME, m_orphan_list.size(), sz});
+    auto ret = m_orphans.emplace(
+        wtxid,
+        OrphanTx{
+            tx,
+            peer,
+            GetTime() + ORPHAN_TX_EXPIRE_TIME,
+            m_orphan_list.size(),
+            sz});
     assert(ret.second);
     m_orphan_list.push_back(ret.first);
     for (const CTxIn& txin : tx->vin) {
@@ -48,24 +58,28 @@ bool TxOrphanage::AddTx(const CTransactionRef& tx, NodeId peer)
 
     m_orphan_tx_size += sz;
 
-    LogPrint(BCLog::MEMPOOL, "stored orphan tx %s (mapsz %u outsz %u)\n", hash.ToString(),
-             m_orphans.size(), m_outpoint_to_orphan_it.size());
+    LogPrint(BCLog::MEMPOOL,
+             "stored orphan tx %s (wtxid=%s, mapsz %u outsz %u)\n",
+             txid.ToString(),
+             wtxid.ToString(),
+             m_orphans.size(),
+             m_outpoint_to_orphan_it.size());
     ::g_stats_client->inc("transactions.orphans.add", 1.0f);
     ::g_stats_client->gauge("transactions.orphans", m_orphans.size());
 
     return true;
 }
 
-int TxOrphanage::EraseTx(const uint256& txid)
+int TxOrphanage::EraseTx(const Wtxid& wtxid)
 {
     LOCK(m_mutex);
-    return EraseTxNoLock(txid);
+    return EraseTxNoLock(wtxid);
 }
 
-int TxOrphanage::EraseTxNoLock(const uint256& txid)
+int TxOrphanage::EraseTxNoLock(const Wtxid& wtxid)
 {
     AssertLockHeld(m_mutex);
-    std::map<uint256, OrphanTx>::iterator it = m_orphans.find(txid);
+    std::map<Wtxid, OrphanTx>::iterator it = m_orphans.find(wtxid);
     if (it == m_orphans.end())
         return 0;
     for (const CTxIn& txin : it->second.tx->vin)
@@ -77,7 +91,6 @@ int TxOrphanage::EraseTxNoLock(const uint256& txid)
         if (itPrev->second.empty())
             m_outpoint_to_orphan_it.erase(itPrev);
     }
-
     size_t old_pos = it->second.list_pos;
     assert(m_orphan_list[old_pos] == it);
     if (old_pos + 1 != m_orphan_list.size()) {
@@ -100,17 +113,15 @@ int TxOrphanage::EraseTxNoLock(const uint256& txid)
 void TxOrphanage::EraseForPeer(NodeId peer)
 {
     LOCK(m_mutex);
-
     m_peer_work_set.erase(peer);
-
     int nErased = 0;
-    std::map<uint256, OrphanTx>::iterator iter = m_orphans.begin();
+    std::map<Wtxid, OrphanTx>::iterator iter = m_orphans.begin();
     while (iter != m_orphans.end())
     {
-        std::map<uint256, OrphanTx>::iterator maybeErase = iter++; // increment to avoid iterator becoming invalid
+        std::map<Wtxid, OrphanTx>::iterator maybeErase = iter++; // increment to avoid iterator becoming invalid
         if (maybeErase->second.fromPeer == peer)
         {
-            nErased += EraseTxNoLock(maybeErase->second.tx->GetHash());
+            nErased += EraseTxNoLock(maybeErase->first);
         }
     }
     if (nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx from peer=%d\n", nErased, peer);
@@ -119,7 +130,6 @@ void TxOrphanage::EraseForPeer(NodeId peer)
 void TxOrphanage::LimitOrphans(unsigned int max_orphans_size)
 {
     LOCK(m_mutex);
-
     unsigned int nEvicted = 0;
     static int64_t nNextSweep;
     int64_t nNow = GetTime();
@@ -127,12 +137,12 @@ void TxOrphanage::LimitOrphans(unsigned int max_orphans_size)
         // Sweep out expired orphan pool entries:
         int nErased = 0;
         int64_t nMinExpTime = nNow + ORPHAN_TX_EXPIRE_TIME - ORPHAN_TX_EXPIRE_INTERVAL;
-        std::map<uint256, OrphanTx>::iterator iter = m_orphans.begin();
+        std::map<Wtxid, OrphanTx>::iterator iter = m_orphans.begin();
         while (iter != m_orphans.end())
         {
-            std::map<uint256, OrphanTx>::iterator maybeErase = iter++;
+            std::map<Wtxid, OrphanTx>::iterator maybeErase = iter++;
             if (maybeErase->second.nTimeExpire <= nNow) {
-                nErased += EraseTxNoLock(maybeErase->second.tx->GetHash());
+                nErased += EraseTxNoLock(maybeErase->first);
             } else {
                 nMinExpTime = std::min(maybeErase->second.nTimeExpire, nMinExpTime);
             }
@@ -155,40 +165,36 @@ void TxOrphanage::LimitOrphans(unsigned int max_orphans_size)
 void TxOrphanage::AddChildrenToWorkSet(const CTransaction& tx)
 {
     LOCK(m_mutex);
-
-
     for (unsigned int i = 0; i < tx.vout.size(); i++) {
         const auto it_by_prev = m_outpoint_to_orphan_it.find(COutPoint(tx.GetHash(), i));
         if (it_by_prev != m_outpoint_to_orphan_it.end()) {
             for (const auto& elem : it_by_prev->second) {
                 // Get this source peer's work set, emplacing an empty set if it didn't exist
                 // (note: if this peer wasn't still connected, we would have removed the orphan tx already)
-                std::set<uint256>& orphan_work_set = m_peer_work_set.try_emplace(elem->second.fromPeer).first->second;
-                // Add this tx to the work set
+                std::set<Wtxid>& orphan_work_set = m_peer_work_set.try_emplace(elem->second.fromPeer).first->second;
+                // Add this orphan's wtxid to the work set
                 orphan_work_set.insert(elem->first);
             }
         }
     }
 }
 
-bool TxOrphanage::HaveTx(const uint256& txid) const
+bool TxOrphanage::HaveTx(const Wtxid& wtxid) const
 {
     LOCK(m_mutex);
-    return m_orphans.count(txid);
+    return m_orphans.count(wtxid);
 }
 
 CTransactionRef TxOrphanage::GetTxToReconsider(NodeId peer)
 {
     LOCK(m_mutex);
-
     auto work_set_it = m_peer_work_set.find(peer);
     if (work_set_it != m_peer_work_set.end()) {
         auto& work_set = work_set_it->second;
         while (!work_set.empty()) {
-            uint256 txid = *work_set.begin();
+            const Wtxid wtxid = *work_set.begin();
             work_set.erase(work_set.begin());
-
-            const auto orphan_it = m_orphans.find(txid);
+            const auto orphan_it = m_orphans.find(wtxid);
             if (orphan_it != m_orphans.end()) {
                 return orphan_it->second.tx;
             }
@@ -235,28 +241,23 @@ bool TxOrphanage::HaveTxToReconsider(NodeId peer)
 void TxOrphanage::EraseForBlock(const CBlock& block)
 {
     LOCK(m_mutex);
-
-    std::vector<uint256> vOrphanErase;
-
+    std::vector<Wtxid> vOrphanErase;
     for (const CTransactionRef& ptx : block.vtx) {
         const CTransaction& tx = *ptx;
-
         // Which orphan pool entries must we evict?
         for (const auto& txin : tx.vin) {
             auto itByPrev = m_outpoint_to_orphan_it.find(txin.prevout);
             if (itByPrev == m_outpoint_to_orphan_it.end()) continue;
             for (auto mi = itByPrev->second.begin(); mi != itByPrev->second.end(); ++mi) {
                 const CTransaction& orphanTx = *(*mi)->second.tx;
-                const uint256& orphanHash = orphanTx.GetHash();
-                vOrphanErase.push_back(orphanHash);
+                vOrphanErase.push_back(orphanTx.GetWitnessHash());
             }
         }
     }
-
     // Erase orphan transactions included or precluded by this block
     if (vOrphanErase.size()) {
         int nErased = 0;
-        for (const uint256& orphanHash : vOrphanErase) {
+        for (const Wtxid& orphanHash : vOrphanErase) {
             nErased += EraseTxNoLock(orphanHash);
         }
         LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);

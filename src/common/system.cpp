@@ -4,7 +4,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <schillingcoin-build-config.h> // IWYU pragma: keep
+#include <config/schillingcoin-config.h> // IWYU pragma: keep
 
 #include <common/system.h>
 

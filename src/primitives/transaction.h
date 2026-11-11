@@ -10,12 +10,14 @@
 
 #include "consensus/amount.h"
 #include "optional.h"
+#include "primitives/transaction_identifier.h" // IWYU pragma: export
 #include "script/script.h"
 #include "serialize.h"
 #include "uint256.h"
 
 #include <list>
 #include <memory>
+#include <tuple>
 #include <utility>
 
 class CTransaction;
@@ -24,70 +26,33 @@ class CTransaction;
 class COutPoint
 {
 public:
-    uint256 hash;
+    Txid hash;
     uint32_t n;
 
-    COutPoint() { SetNull(); }
-    COutPoint(uint256 hashIn, uint32_t nIn) { hash = hashIn; n = nIn; }
+    static constexpr uint32_t NULL_INDEX = std::numeric_limits<uint32_t>::max();
 
-    // Copy constructor
-    COutPoint(const COutPoint& other)
-        : hash(other.hash), n(other.n)
-    {}
+    COutPoint() : n(NULL_INDEX) {}
+    COutPoint(const Txid& hashIn, uint32_t nIn): hash(hashIn), n(nIn) { }
 
-    // Move constructor
-    COutPoint(COutPoint&& other) noexcept
-        : hash(std::move(other.hash)), n(other.n)
-    {}
+    SERIALIZE_METHODS(COutPoint, obj) { READWRITE(obj.hash, obj.n); }
 
-    // Copy assignment
-    COutPoint& operator=(const COutPoint& other)
-    {
-        if (this != &other) {
-            hash = other.hash;
-            n    = other.n;
-        }
-        return *this;
-    }
+    void SetNull() { hash.SetNull(); n = NULL_INDEX; }
+    bool IsNull() const { return hash.IsNull() && n == NULL_INDEX; }
 
-    // Move assignment
-    COutPoint& operator=(COutPoint&& other) noexcept
-    {
-        if (this != &other) {
-            hash = std::move(other.hash);
-            n    = other.n;
-        }
-        return *this;
-    }
-
-    SERIALIZE_METHODS(COutPoint, obj)
-    {
-        READWRITE(obj.hash, obj.n);
-    }
-
-    void SetNull() { hash.SetNull(); n = (uint32_t) -1; }
-    bool IsNull() const { return (hash.IsNull() && n == (uint32_t) -1); }
     bool IsMasternodeReward(const CTransaction* tx) const;
 
     friend bool operator<(const COutPoint& a, const COutPoint& b)
     {
-        return (a.hash < b.hash || (a.hash == b.hash && a.n < b.n));
+        return std::tie(a.hash, a.n) < std::tie(b.hash, b.n);
     }
 
     friend bool operator==(const COutPoint& a, const COutPoint& b)
     {
-        return (a.hash == b.hash && a.n == b.n);
-    }
-
-    friend bool operator!=(const COutPoint& a, const COutPoint& b)
-    {
-        return !(a == b);
+        return a.hash == b.hash && a.n == b.n;
     }
 
     std::string ToString() const;
     std::string ToStringShort() const;
-
-    uint256 GetHash();
 };
 
 /** An input of a transaction.  It contains the location of the previous
@@ -100,6 +65,7 @@ public:
     COutPoint prevout;
     CScript scriptSig;
     uint32_t nSequence;
+    CScriptWitness scriptWitness; //!< Only serialized through CTransaction
     CScript prevPubKey;
 
     CTxIn()
@@ -108,13 +74,14 @@ public:
     }
 
     explicit CTxIn(COutPoint prevoutIn, CScript scriptSigIn=CScript(), uint32_t nSequenceIn=std::numeric_limits<unsigned int>::max());
-    CTxIn(uint256 hashPrevTx, uint32_t nOut, CScript scriptSigIn=CScript(), uint32_t nSequenceIn=std::numeric_limits<uint32_t>::max());
+    CTxIn(Txid hashPrevTx, uint32_t nOut, CScript scriptSigIn=CScript(), uint32_t nSequenceIn=std::numeric_limits<uint32_t>::max());
 
     // Copy constructor
     CTxIn(const CTxIn& other)
         : prevout(other.prevout),
           scriptSig(other.scriptSig),
           nSequence(other.nSequence),
+          scriptWitness(other.scriptWitness),
           prevPubKey(other.prevPubKey)
     {}
 
@@ -123,6 +90,7 @@ public:
         : prevout(std::move(other.prevout)),
           scriptSig(std::move(other.scriptSig)),
           nSequence(other.nSequence),
+          scriptWitness(std::move(other.scriptWitness)),
           prevPubKey(std::move(other.prevPubKey))
     {}
 
@@ -130,10 +98,11 @@ public:
     CTxIn& operator=(const CTxIn& other)
     {
         if (this != &other) {
-            prevout    = other.prevout;
-            scriptSig  = other.scriptSig;
-            nSequence  = other.nSequence;
-            prevPubKey = other.prevPubKey;
+            prevout      = other.prevout;
+            scriptSig    = other.scriptSig;
+            nSequence    = other.nSequence;
+            scriptWitness = other.scriptWitness;
+            prevPubKey   = other.prevPubKey;
         }
         return *this;
     }
@@ -142,10 +111,11 @@ public:
     CTxIn& operator=(CTxIn&& other) noexcept
     {
         if (this != &other) {
-            prevout    = std::move(other.prevout);
-            scriptSig  = std::move(other.scriptSig);
-            nSequence  = other.nSequence;
-            prevPubKey = std::move(other.prevPubKey);
+            prevout      = std::move(other.prevout);
+            scriptSig    = std::move(other.scriptSig);
+            nSequence    = other.nSequence;
+            scriptWitness = std::move(other.scriptWitness);
+            prevPubKey   = std::move(other.prevPubKey);
         }
         return *this;
     }
@@ -300,16 +270,104 @@ enum TransactionType : uint16_t
 
 struct CMutableTransaction;
 
+struct TransactionSerParams {
+    const bool allow_witness;
+    SER_PARAMS_OPFUNC
+};
+
+inline constexpr TransactionSerParams TX_WITH_WITNESS{.allow_witness = true};
+inline constexpr TransactionSerParams TX_NO_WITNESS{.allow_witness = false};
+
+template<typename Stream, typename TxType>
+void UnserializeTransaction(TxType& tx, Stream& s, const TransactionSerParams& params)
+{
+    const bool allow_witness = params.allow_witness;
+
+    uint32_t n32bitVersion;
+    s >> n32bitVersion;
+    tx.nVersion = static_cast<int32_t>(n32bitVersion & 0xffff);
+    tx.nType = static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff);
+
+    unsigned char flags = 0;
+    tx.vin.clear();
+    tx.vout.clear();
+
+    s >> tx.vin;
+    if (tx.vin.empty() && allow_witness) {
+        s >> flags;
+        if (flags != 0) {
+            s >> tx.vin;
+            s >> tx.vout;
+        }
+    } else {
+        s >> tx.vout;
+    }
+
+    if ((flags & 1) && allow_witness) {
+        flags ^= 1;
+        for (auto& input : tx.vin) {
+            s >> input.scriptWitness.stack;
+        }
+        if (!tx.HasWitness()) {
+            throw std::ios_base::failure("Superfluous witness record");
+        }
+    }
+
+    if (flags) {
+        throw std::ios_base::failure("Unknown transaction optional data");
+    }
+
+    s >> tx.nLockTime;
+
+    if (tx.HasExtraPayloadField()) {
+        s >> tx.vExtraPayload;
+    } else {
+        tx.vExtraPayload.clear();
+    }
+}
+
+template<typename Stream, typename TxType>
+void SerializeTransaction(const TxType& tx, Stream& s, const TransactionSerParams& params)
+{
+    const bool allow_witness = params.allow_witness;
+
+    const uint32_t n32bitVersion =
+        static_cast<uint16_t>(tx.nVersion) |
+        (static_cast<uint32_t>(tx.nType) << 16);
+    s << n32bitVersion;
+
+    unsigned char flags = 0;
+    if (allow_witness && tx.HasWitness()) {
+        flags |= 1;
+    }
+
+    if (flags) {
+        const std::vector<CTxIn> vin_dummy;
+        s << vin_dummy;
+        s << flags;
+    }
+
+    s << tx.vin;
+    s << tx.vout;
+
+    if (flags & 1) {
+        for (const auto& input : tx.vin) {
+            s << input.scriptWitness.stack;
+        }
+    }
+
+    s << tx.nLockTime;
+
+    if (tx.HasExtraPayloadField()) {
+        s << tx.vExtraPayload;
+    }
+}
+
 /** The basic transaction that is broadcasted on the network and contained in
  * blocks.  A transaction can contain multiple inputs and outputs.
  */
 class CTransaction
 {
-private:
-    /** Memory only. */
-    const uint256 hash;
-    void UpdateHash() const;
-
 public:
     static const int32_t CURRENT_VERSION = 1;
     static const int32_t SPECIAL_VERSION = 3;
@@ -321,13 +379,36 @@ public:
     const uint32_t nLockTime;
     std::vector<uint8_t> vExtraPayload;
 
+private:
+    /** Memory only. */
+    const bool m_has_witness;
+    const Txid hash;
+    const Wtxid m_witness_hash;
+
+    bool ComputeHasWitness() const;
+    Txid ComputeHash() const;
+    Wtxid ComputeWitnessHash() const;
+
+public:
     CTransaction();
     CTransaction(const CMutableTransaction& tx);
+
+    template <typename Stream>
+    void Serialize(Stream& s) const
+    {
+        SerializeTransaction(*this, s, s.template GetParams<TransactionSerParams>());
+    }
 
     /**
      * This deserializing constructor is provided instead of an Unserialize
      * method. Unserialize is not possible without overwriting const fields.
      */
+    template <typename Stream>
+    CTransaction(deserialize_type, const TransactionSerParams& params, Stream& s)
+        : CTransaction(CMutableTransaction(deserialize, params, s))
+    {
+    }
+
     template <typename Stream>
     CTransaction(deserialize_type, Stream& s)
         : CTransaction(CMutableTransaction(deserialize, s))
@@ -336,64 +417,16 @@ public:
 
     // Explicit copy constructor to avoid deprecated implicit copy.
     CTransaction(const CTransaction& tx) :
-        hash(tx.hash),
         nVersion(tx.nVersion),
         nType(tx.nType),
         vin(tx.vin),
         vout(tx.vout),
         nLockTime(tx.nLockTime),
-        vExtraPayload(tx.vExtraPayload)
+        vExtraPayload(tx.vExtraPayload),
+        m_has_witness(tx.m_has_witness),
+        hash(tx.hash),
+        m_witness_hash(tx.m_witness_hash)
     {
-    }
-
-    // Explicit copy assignment operator.
-    CTransaction& operator=(const CTransaction& tx)
-    {
-        if (this != &tx) {
-            // Const members are updated through the existing complete-object
-            // assignment compatibility path.
-            *const_cast<int32_t*>(&nVersion)   = tx.nVersion;
-            *const_cast<uint16_t*>(&nType)     = tx.nType;
-            vin                                = tx.vin;
-            vout                               = tx.vout;
-            *const_cast<uint32_t*>(&nLockTime) = tx.nLockTime;
-            vExtraPayload                      = tx.vExtraPayload;
-            *const_cast<uint256*>(&hash)       = tx.hash;
-        }
-        return *this;
-    }
-
-    SERIALIZE_METHODS(CTransaction, obj)
-    {
-        uint32_t n32bitVersion;
-
-        SER_WRITE(
-            obj,
-            n32bitVersion =
-                static_cast<uint16_t>(obj.nVersion) |
-                (static_cast<uint32_t>(obj.nType) << 16););
-
-        READWRITE(n32bitVersion);
-
-        SER_READ(
-            obj,
-            *const_cast<int32_t*>(&obj.nVersion) =
-                static_cast<int32_t>(n32bitVersion & 0xffff);
-            *const_cast<uint16_t*>(&obj.nType) =
-                static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff););
-
-        READWRITE(
-            obj.vin,
-            obj.vout,
-            *const_cast<uint32_t*>(&obj.nLockTime));
-
-        if (obj.HasExtraPayloadField()) {
-            READWRITE(obj.vExtraPayload);
-        } else {
-            SER_READ(obj, obj.vExtraPayload.clear(););
-        }
-
-        SER_READ(obj, obj.UpdateHash(););
     }
 
     bool IsSpecialTxVersion() const
@@ -411,9 +444,19 @@ public:
         return vin.empty() && vout.empty();
     }
 
-    const uint256& GetHash() const
+    const Txid& GetHash() const
     {
         return hash;
+    }
+
+    const Wtxid& GetWitnessHash() const
+    {
+        return m_witness_hash;
+    }
+
+    bool HasWitness() const
+    {
+        return m_has_witness;
     }
 
     CAmount GetValueOut() const;
@@ -473,32 +516,22 @@ struct CMutableTransaction
     CMutableTransaction();
     CMutableTransaction(const CTransaction& tx);
 
-    SERIALIZE_METHODS(CMutableTransaction, obj)
+    template <typename Stream>
+    void Serialize(Stream& s) const
     {
-        uint32_t n32bitVersion;
+        SerializeTransaction(*this, s, s.template GetParams<TransactionSerParams>());
+    }
 
-        SER_WRITE(
-            obj,
-            n32bitVersion =
-                static_cast<uint16_t>(obj.nVersion) |
-                (static_cast<uint32_t>(obj.nType) << 16););
+    template <typename Stream>
+    void Unserialize(Stream& s)
+    {
+        UnserializeTransaction(*this, s, s.template GetParams<TransactionSerParams>());
+    }
 
-        READWRITE(n32bitVersion);
-
-        SER_READ(
-            obj,
-            obj.nVersion =
-                static_cast<int32_t>(n32bitVersion & 0xffff);
-            obj.nType =
-                static_cast<uint16_t>((n32bitVersion >> 16) & 0xffff););
-
-        READWRITE(obj.vin, obj.vout, obj.nLockTime);
-
-        if (obj.HasExtraPayloadField()) {
-            READWRITE(obj.vExtraPayload);
-        } else {
-            SER_READ(obj, obj.vExtraPayload.clear(););
-        }
+    template <typename Stream>
+    CMutableTransaction(deserialize_type, const TransactionSerParams& params, Stream& s)
+    {
+        UnserializeTransaction(*this, s, params);
     }
 
     template <typename Stream>
@@ -517,7 +550,18 @@ struct CMutableTransaction
         return IsSpecialTxVersion() && nType != TRANSACTION_NORMAL;
     }
 
-    uint256 GetHash() const;
+    Txid GetHash() const;
+
+    bool HasWitness() const
+    {
+        for (const auto& input : vin) {
+            if (!input.scriptWitness.IsNull()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     std::string ToString() const;
 };
 

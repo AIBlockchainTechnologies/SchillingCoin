@@ -254,7 +254,7 @@ public:
 
     SERIALIZE_METHODS(CBlock, obj)
     {
-        READWRITE(AsBase<CBlockHeader>(obj), obj.vtx);
+        READWRITE(AsBase<CBlockHeader>(obj), TX_WITH_WITNESS(obj.vtx));
         if (obj.vtx.size() > 1 && obj.vtx[1]->IsCoinStake()) {
             READWRITE(obj.vchBlockSig);
         }

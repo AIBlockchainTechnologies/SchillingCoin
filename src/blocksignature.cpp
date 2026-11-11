@@ -16,13 +16,13 @@ bool SignBlockWithKey(CBlock& block, const CKey& key)
 
 bool GetKeyIDFromUTXO(const CTxOut& txout, CKeyID& keyID)
 {
-    std::vector<valtype> vSolutions;
-    txnouttype whichType;
-    if (!Solver(txout.scriptPubKey, whichType, vSolutions))
-        return false;
-    if (whichType == TX_PUBKEY) {
+    std::vector<std::vector<unsigned char>> vSolutions;
+    const TxoutType whichType = Solver(txout.scriptPubKey, vSolutions);
+
+    if (whichType == TxoutType::PUBKEY) {
         keyID = CPubKey(vSolutions[0]).GetID();
-    } else if (whichType == TX_PUBKEYHASH || whichType == TX_COLDSTAKE) {
+    } else if (whichType == TxoutType::PUBKEYHASH ||
+               whichType == TxoutType::COLDSTAKE) {
         keyID = CKeyID(uint160(vSolutions[0]));
     } else {
         return false;
@@ -68,21 +68,37 @@ bool CheckBlockSignature(const CBlock& block)
      * The public key that signs must match the public key associated with the first utxo of the coinstake tx.
      */
     CPubKey pubkey;
-    txnouttype whichType;
-        std::vector<valtype> vSolutions;
-        const CTxOut& txout = block.vtx[1]->vout[1];
-        if (!Solver(txout.scriptPubKey, whichType, vSolutions))
+    std::vector<std::vector<unsigned char>> vSolutions;
+    const CTxOut& txout = block.vtx[1]->vout[1];
+    const TxoutType whichType = Solver(txout.scriptPubKey, vSolutions);
+
+    if (whichType == TxoutType::PUBKEY) {
+        pubkey = CPubKey(vSolutions[0]);
+    } else if (whichType == TxoutType::PUBKEYHASH) {
+        const CTxIn& txin = block.vtx[1]->vin[0];
+        if (txin.scriptSig.size() == 73)
             return false;
-        if (whichType == TX_PUBKEY || whichType == TX_PUBKEYHASH) {
-            valtype& vchPubKey = vSolutions[0];
-            pubkey = CPubKey(vchPubKey);
-        } else if (whichType == TX_COLDSTAKE) {
-            // pick the public key from the P2CS input
-            const CTxIn& txin = block.vtx[1]->vin[0];
-            int start = 1 + (int) *txin.scriptSig.begin(); // skip sig
-            start += 1 + (int) *(txin.scriptSig.begin()+start); // skip flag
-            pubkey = CPubKey(txin.scriptSig.begin()+start+1, txin.scriptSig.end());
-        }
+
+        unsigned int start = 1 + (unsigned int) *txin.scriptSig.begin(); // skip sig
+        if (start >= txin.scriptSig.size() - 1)
+            return false;
+
+        pubkey = CPubKey(txin.scriptSig.begin()+start+1, txin.scriptSig.end());
+    } else if (whichType == TxoutType::COLDSTAKE) {
+        // pick the public key from the P2CS input
+        const CTxIn& txin = block.vtx[1]->vin[0];
+        unsigned int start = 1 + (unsigned int) *txin.scriptSig.begin(); // skip sig
+        if (start >= txin.scriptSig.size() - 1)
+            return false;
+
+        start += 1 + (int) *(txin.scriptSig.begin()+start); // skip flag
+        if (start >= txin.scriptSig.size() - 1)
+            return false;
+
+        pubkey = CPubKey(txin.scriptSig.begin()+start+1, txin.scriptSig.end());
+    } else {
+        return false;
+    }
 
     if (!pubkey.IsValid())
         return error("%s: invalid pubkey %s", __func__, HexStr(pubkey));

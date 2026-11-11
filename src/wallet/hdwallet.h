@@ -1,9 +1,10 @@
 // Copyright (c) 2017-2025 The Particl Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef PARTICL_WALLET_HDWALLET_H
-#define PARTICL_WALLET_HDWALLET_H
+#ifndef SCHILLINGCOIN_WALLET_HDWALLET_H
+#define SCHILLINGCOIN_WALLET_HDWALLET_H
 
 #include <key/extkey.h>
 #include <key_io.h>
@@ -27,7 +28,7 @@ typedef std::map<CKeyID, CStealthKeyMetadata> StealthKeyMetaMap;
 typedef std::map<CKeyID, CExtKeyAccount*> ExtKeyAccountMap;
 typedef std::map<CKeyID, CStoredExtKey*> ExtKeyMap;
 
-typedef std::unordered_map<uint256, CWalletTx, SaltedTxidHasher> MapWallet_t;
+typedef std::unordered_map<uint256, CWalletTx, SaltedUint256Hasher> MapWallet_t;
 
 class UniValue;
 typedef struct secp256k1_scratch_space_struct secp256k1_scratch_space;
@@ -635,4 +636,4 @@ CHDWallet *GetParticlWallet(WalletStorage *win);
 const CHDWallet *GetParticlWallet(const WalletStorage *win);
 
 
-#endif // PARTICL_WALLET_HDWALLET_H
+#endif // SCHILLINGCOIN_WALLET_HDWALLET_H

@@ -95,20 +95,21 @@ CAmount GetDustThreshold(const CTxOut& txout, const CFeeRate& dustRelayFeeIn);
 CAmount GetDustThreshold(const CFeeRate& dustRelayFeeIn);
 bool IsDust(const CTxOut& txout, const CFeeRate& dustRelayFeeIn);
 
-bool IsStandard(const CScript& scriptPubKey, txnouttype& whichType);
+bool IsStandard(const CScript& scriptPubKey, TxoutType& whichType);
 bool IsStandardTx(const CTransaction& tx, std::string& reason);
 bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs);
 
-/** Compute the virtual transaction size (taking sigops into account). */
-int64_t GetVirtualTransactionSize(int64_t nSize, int64_t nSigOp, unsigned int bytes_per_sigop);
-int64_t GetVirtualTransactionSize(const CTransaction& tx, int64_t nSigOp, unsigned int bytes_per_sigop);
+/** Compute the virtual transaction size (weight reinterpreted as bytes). */
+int64_t GetVirtualTransactionSize(int64_t nWeight, int64_t nSigOpCost, unsigned int bytes_per_sigop);
+int64_t GetVirtualTransactionSize(const CTransaction& tx, int64_t nSigOpCost, unsigned int bytes_per_sigop);
 
 static inline int64_t GetVirtualTransactionSize(const CTransaction& tx)
 {
     return GetVirtualTransactionSize(tx, 0, 0);
 }
 
-extern CFeeRate dustRelayFee;
+int64_t GetSigOpsAdjustedWeight(int64_t weight, int64_t sigop_cost, unsigned int bytes_per_sigop);
 
+extern CFeeRate dustRelayFee;
 
 #endif // SCHILLINGCOIN_POLICY_POLICY_H

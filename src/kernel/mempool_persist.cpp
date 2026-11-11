@@ -1,4 +1,5 @@
 // Copyright (c) 2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -78,7 +79,7 @@ bool LoadMempool(CTxMemPool& pool, const fs::path& load_path, Chainstate& active
             CTransactionRef tx;
             int64_t nTime;
             int64_t nFeeDelta;
-            file >> tx;
+            file >> TX_WITH_WITNESS(tx);
             file >> nTime;
             file >> nFeeDelta;
 
@@ -167,7 +168,7 @@ bool DumpMempool(const CTxMemPool& pool, const fs::path& dump_path, FopenFn mock
 
         file << (uint64_t)vinfo.size();
         for (const auto& i : vinfo) {
-            file << *(i.tx);
+            file << TX_WITH_WITNESS(*(i.tx));
             file << int64_t{count_seconds(i.m_time)};
             file << int64_t{i.nFeeDelta};
             mapDeltas.erase(i.tx->GetHash());

@@ -1,9 +1,10 @@
 // Copyright (c) 2020 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TXREQUEST_H
-#define BITCOIN_TXREQUEST_H
+#ifndef SCHILLINGCOIN_TXREQUEST_H
+#define SCHILLINGCOIN_TXREQUEST_H
 
 #include <net_types.h> // For NodeId
 #include <protocol.h> // For CInv
@@ -42,9 +43,9 @@
  *   first by passing expiry, or a NOTFOUND or invalid transaction has to be received for it).
  *
  *   Rationale: to avoid wasting bandwidth on multiple copies of the same transaction. Note that this only works
- *              per inv, so if the same object is announced under two different inv types (e.g. MSG_TX and
- *              MSG_DSTX for the same txid), we have no means to prevent fetching both (the caller can however
- *              mitigate this by announcing only one type, or by delaying one, see further).
+ *              per inv, so if the same object is announced under two different inv types, we have no means to
+ *              prevent fetching both (the caller can however mitigate this by announcing only one type, or by
+ *              delaying one, see further).
  *
  * - The same transaction is never requested twice from the same peer, unless the announcement was forgotten in
  *   between, and re-announced. Announcements are forgotten only:
@@ -127,8 +128,8 @@ public:
      *
      * Does nothing if one already exists for that (inv, peer) combination (whether it's CANDIDATE, REQUESTED, or
      * COMPLETED). Note that the inv type participates in uniqueness, so announcements for the same hash under
-     * two different types (e.g. MSG_TX and MSG_DSTX) from the same peer are tracked separately. The new
-     * announcement is given the specified preferred and reqtime values.
+     * two different types from the same peer are tracked separately. The new announcement is given the specified
+     * preferred and reqtime values.
      */
     void ReceivedInv(NodeId peer, const CInv& gtxid, bool preferred,
         std::chrono::microseconds reqtime);
@@ -228,4 +229,4 @@ public:
     void PostGetRequestableSanityCheck(std::chrono::microseconds now) const;
 };
 
-#endif // BITCOIN_TXREQUEST_H
+#endif // SCHILLINGCOIN_TXREQUEST_H

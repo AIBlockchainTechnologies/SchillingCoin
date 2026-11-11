@@ -1,15 +1,17 @@
 // Copyright (c) 2017-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_COINSELECTION_H
-#define BITCOIN_WALLET_COINSELECTION_H
+#ifndef SCHILLINGCOIN_WALLET_COINSELECTION_H
+#define SCHILLINGCOIN_WALLET_COINSELECTION_H
 
 #include <consensus/amount.h>
 #include <policy/feerate.h>
 #include <primitives/transaction.h>
 #include <random.h>
 #include <util/check.h>
+#include <util/insert.h>
 #include <util/result.h>
 #include <util/system.h>
 
@@ -25,14 +27,10 @@ static constexpr CAmount CHANGE_UPPER{1000000};
 enum class CoinType : uint8_t
 {
     ALL_COINS,
-    ONLY_FULLY_MIXED,
-    ONLY_READY_TO_MIX,
-    ONLY_NONDENOMINATED,
     ONLY_MASTERNODE_COLLATERAL, // find masternode outputs including locked ones (use with caution)
-    ONLY_COINJOIN_COLLATERAL,
     // Attributes
     MIN_COIN_TYPE = ALL_COINS,
-    MAX_COIN_TYPE = ONLY_COINJOIN_COLLATERAL,
+    MAX_COIN_TYPE = ONLY_MASTERNODE_COLLATERAL,
 };
 
 /** A UTXO under consideration for use in funding a new transaction. */
@@ -396,19 +394,19 @@ util::Result<SelectionResult> SelectCoinsBnB(std::vector<OutputGroup>& utxo_pool
 /** Select coins by Single Random Draw. OutputGroups are selected randomly from the eligible
  * outputs until the target is satisfied
  *
- * @param[in]  utxo_pool    The positive effective value OutputGroups eligible for selection
+ * @param[in]  utxo_pool The positive effective value OutputGroups eligible for selection
  * @param[in]  target_value The target value to select for
+ * @param[in]  change_fee The cost of adding the change output to the transaction at the transaction's feerate
  * @param[in]  rng The randomness source to shuffle coins
- * @param[in]  max_weight The maximum allowed weight for a selection result to be valid
+ * @param[in]  max_selection_weight The maximum allowed weight for a selection result to be valid
  * @returns If successful, a valid SelectionResult, otherwise, util::Error
  */
-util::Result<SelectionResult> SelectCoinsSRD(const std::vector<OutputGroup>& utxo_pool, CAmount target_value, FastRandomContext& rng,
-                                             int max_weight, bool only_fully_mixed);
+util::Result<SelectionResult> SelectCoinsSRD(const std::vector<OutputGroup>& utxo_pool, CAmount target_value, CAmount change_fee, FastRandomContext& rng,
+                                             int max_selection_weight);
 
 // Original coin selection algorithm as a fallback
 util::Result<SelectionResult> KnapsackSolver(std::vector<OutputGroup>& groups, const CAmount& nTargetValue,
-                                             CAmount change_target, FastRandomContext& rng, int max_weight, bool fFullyMixedOnly,
-                                             CAmount maxTxFee);
+                                             CAmount change_target, FastRandomContext& rng, int max_selection_weight);
 } // namespace wallet
 
-#endif // BITCOIN_WALLET_COINSELECTION_H
+#endif // SCHILLINGCOIN_WALLET_COINSELECTION_H

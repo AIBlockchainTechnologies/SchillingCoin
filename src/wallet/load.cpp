@@ -1,12 +1,11 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <wallet/load.h>
 
-#include <coinjoin/client.h>
-#include <coinjoin/options.h>
 #include <net.h>
 #include <interfaces/chain.h>
 #include <scheduler.h>
@@ -160,11 +159,6 @@ void StartWallets(WalletContext& context, CScheduler& scheduler)
 void FlushWallets(WalletContext& context)
 {
     for (const std::shared_ptr<CWallet>& pwallet : GetWallets(context)) {
-        if (CCoinJoinClientOptions::IsEnabled()) {
-            assert(pwallet->coinjoin_available());
-            // Stop CoinJoin, release keys
-            pwallet->coinjoin_loader().FlushWallet(pwallet->GetName());
-        }
         pwallet->Flush();
     }
 }

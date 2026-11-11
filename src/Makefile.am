@@ -132,9 +132,11 @@ BITCOIN_CORE_H = \
   coins.h \
   common/args.h \
   common/bloom.h \
+  common/messages.h \
   common/run_command.h \
   common/settings.h \
   common/system.h \
+  common/types.h \
   compat.h \
   compat/byteswap.h \
   compat/compat.h \
@@ -159,7 +161,6 @@ BITCOIN_CORE_H = \
   deploymentstatus.h \
   evo/specialtx.h \
   external_signer.h \
-  forgeman.h \
   governance/common.h \
   governance/governance.h \
   governance/object.h \
@@ -241,6 +242,7 @@ BITCOIN_CORE_H = \
   node/psbt.h \
   node/sync_manager.h \
   node/transaction.h \
+  node/types.h \
   pos/kernel.h \
   pos/miner.h \
   node/utxo_snapshot.h \
@@ -319,6 +321,7 @@ BITCOIN_CORE_H = \
   util/feefrac.h \
   util/fees.h \
   util/fs.h \
+  util/insert.h \
   util/macros.h \
   util/memory.h \
   util/overflow.h \
@@ -349,6 +352,7 @@ BITCOIN_CORE_H = \
   wallet/coinselection.h \
   wallet/context.h \
   wallet/db.h \
+  wallet/export.h \
   wallet/external_signer_scriptpubkeyman.h \
   wallet/fees.h \
   wallet/hdchain.h \
@@ -365,6 +369,7 @@ BITCOIN_CORE_H = \
   wallet/spend.h \
   wallet/sqlite.h \
   wallet/transaction.h \
+  wallet/types.h \
   wallet/wallet.h \
   wallet/walletdb.h \
   wallet/walletutil.h \
@@ -423,6 +428,7 @@ libbitcoin_node_a_SOURCES = \
   evo/specialtx.cpp \
   evo/specialtx_filter.cpp \
   evo/specialtxman.cpp \
+  addresstype.cpp \
   flatfile.cpp \
   gsl/assert.cpp \
   httprpc.cpp \
@@ -519,7 +525,9 @@ libbitcoin_node_a_SOURCES = \
   rpc/mining.cpp \
   rpc/misc.cpp \
   rpc/net.cpp \
+  rpc/node.cpp \
   rpc/rawtransaction.cpp \
+  common/signmessage.cpp \
   rpc/server.cpp \
   rpc/server_util.cpp \
   rpc/signmessage.cpp \
@@ -609,7 +617,6 @@ libbitcoin_wallet_a_SOURCES = \
   addressbook.cpp \
   wallet/crypter.cpp \
   masternode-payments.cpp \
-  forgeman.cpp \
   messagesigner.cpp \
   kernel.cpp \
   wallet/bdb.cpp \
@@ -617,7 +624,9 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/coinselection.cpp \
   wallet/context.cpp \
   wallet/db.cpp \
+  wallet/export.cpp \
   wallet/external_signer_scriptpubkeyman.cpp \
+  wallet/feebumper.cpp \
   wallet/fees.cpp \
   wallet/hdchain.cpp \
   wallet/interfaces.cpp \
@@ -627,6 +636,7 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/init.cpp \
   wallet/load.cpp \
   wallet/receive.cpp \
+  wallet/rpc/coins.cpp \
   wallet/rpc/util.cpp \
   wallet/rpc/wallet.cpp \
   wallet/rpchdwallet.cpp \
@@ -799,6 +809,7 @@ libbitcoin_common_a_SOURCES = \
   common/config.cpp \
   common/init.cpp \
   common/interfaces.cpp \
+  common/messages.cpp \
   common/run_command.cpp \
   common/settings.cpp \
   common/system.cpp \
@@ -848,6 +859,7 @@ libbitcoin_common_a_SOURCES = \
   script/script.cpp \
   script/sign.cpp \
   script/signingprovider.cpp \
+  script/solver.cpp \
   script/standard.cpp \
   script/script_error.cpp \
   warnings.cpp \
@@ -899,6 +911,7 @@ libbitcoin_util_a_SOURCES = \
   util/message.cpp \
   util/moneystr.cpp \
   util/ranges_set.cpp \
+  util/rbf.cpp \
   util/readwritefile.cpp \
   util/serfloat.cpp \
   util/settings.cpp \

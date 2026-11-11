@@ -1,10 +1,9 @@
 // Copyright (c) 2021-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <coinjoin/options.h>
 #include <consensus/consensus.h>
-#include <wallet/coinjoin.h>
 #include <wallet/receive.h>
 #include <wallet/transaction.h>
 #include <wallet/wallet.h>
@@ -296,7 +295,6 @@ Balance GetBalance(const CWallet& wallet, const int min_depth, bool avoid_reuse,
 {
     Balance ret;
     isminefilter reuse_filter = avoid_reuse ? ISMINE_NO : ISMINE_USED;
-    const bool cj_enabled = CCoinJoinClientOptions::IsEnabled();
     {
         LOCK(wallet.cs_wallet);
         std::set<uint256> trusted_parents;
@@ -317,15 +315,6 @@ Balance GetBalance(const CWallet& wallet, const int min_depth, bool avoid_reuse,
             }
             ret.m_mine_immature += CachedTxGetImmatureCredit(wallet, wtx, ISMINE_SPENDABLE);
             ret.m_watchonly_immature += CachedTxGetImmatureCredit(wallet, wtx, ISMINE_WATCH_ONLY);
-            if (cj_enabled) {
-                const auto balance_anonymized = CachedTxGetAvailableCoinJoinCredits(wallet, wtx);
-                ret.m_anonymized += balance_anonymized.m_anonymized;
-                if (balance_anonymized.is_unconfirmed) {
-                    ret.m_denominated_untrusted_pending += balance_anonymized.m_denominated;
-                } else {
-                    ret.m_denominated_trusted += balance_anonymized.m_denominated;
-                }
-            }
         }
 
         // Coins locked via LockCoin() are counted in the trusted balances

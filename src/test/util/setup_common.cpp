@@ -69,8 +69,6 @@
 #include <walletinitinterface.h>
 
 #include <bls/bls.h>
-#include <coinjoin/coinjoin.h>
-#include <coinjoin/walletman.h>
 #include <evo/cbtx.h>
 #include <evo/chainhelper.h>
 #include <evo/deterministicmns.h>
@@ -89,7 +87,6 @@
 #include <stats/client.h>
 
 #ifdef ENABLE_WALLET
-#include <interfaces/coinjoin.h>
 #include <interfaces/wallet.h>
 #endif // ENABLE_WALLET
 
@@ -319,21 +316,18 @@ void ChainTestingSetup::LoadVerifyActivateChainstate()
 {
     auto& chainman{*Assert(m_node.chainman)};
 
-    // peerman and cj_walletman reference llmq_ctx, the mempool and the Dash
-    // managers recreated by the reload below. No test uses them across a
-    // reload: destroy them (clearing connman's raw m_msgproc pointer first)
-    // so future use after a reload fails on a null pointer instead of
-    // silently reading freed memory; such a test must rebuild them itself,
-    // as AppInitMain constructs them only after the chainstate is loaded.
+    // peerman references llmq_ctx, the mempool and the Dash managers recreated
+    // by the reload below. No test uses it across a reload: destroy it
+    // (clearing connman's raw m_msgproc pointer first) so future use after a
+    // reload fails on a null pointer instead of silently reading freed memory;
+    // such a test must rebuild it itself, as AppInitMain constructs it only
+    // after the chainstate is loaded.
     if (m_node.peerman) {
         CConnman::Options connman_options;
         connman_options.socketEventsMode = ::g_socket_events_mode;
         m_node.connman->Init(connman_options);
         m_node.peerman.reset();
     }
-#ifdef ENABLE_WALLET
-    m_node.cj_walletman.reset();
-#endif // ENABLE_WALLET
 
     node::ChainstateLoadOptions options{ChainstateLoadOptionsForTest()};
 
@@ -384,19 +378,11 @@ TestingSetup::TestingSetup(
     RegisterAllCoreRPCCommands(tableRPC);
     LoadVerifyActivateChainstate();
 
-    m_node.dstxman = std::make_unique<CDSTXManager>(*Assert(m_node.chainlocks));
 #ifdef ENABLE_WALLET
-    // The test suite doesn't use masternode mode, so we may initialize it
-    m_node.cj_walletman = CJWalletManager::make(*m_node.chainman, *m_node.dmnman, *m_node.mn_metaman, *m_node.mempool,
-                                                *m_node.mn_sync, *m_node.isman, /*relay_txes=*/true);
-    assert(m_node.cj_walletman);
-
     // WalletInit::Construct()-like logic needed for wallet tests that run on
     // TestingSetup and its children (e.g. TestChain100Setup) instead of
     // WalletTestingSetup
-    m_node.coinjoin_loader = interfaces::MakeCoinJoinLoader(m_node);
-
-    auto wallet_loader = interfaces::MakeWalletLoader(*m_node.chain, *m_node.args, m_node, *m_node.coinjoin_loader);
+    auto wallet_loader = interfaces::MakeWalletLoader(*m_node.chain, *m_node.args);
     m_node.wallet_loader = wallet_loader.get();
     m_node.chain_clients.emplace_back(std::move(wallet_loader));
 #endif // ENABLE_WALLET
@@ -422,10 +408,7 @@ TestingSetup::~TestingSetup()
         client.reset();
     }
     m_node.wallet_loader = nullptr;
-    m_node.coinjoin_loader.reset();
-    m_node.cj_walletman.reset();
 #endif // ENABLE_WALLET
-    m_node.dstxman.reset();
 
     // Interrupt() and PrepareShutdown() routines
     if (m_node.clhandler) {

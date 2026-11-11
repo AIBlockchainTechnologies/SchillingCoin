@@ -13,10 +13,12 @@
 #include <crypto/hex_base.h>
 #include <span.h>
 #include <util/strencodings.h>
+#include <util/string.h>
 
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <compare>
 #include <cstring>
 #include <optional>
 #include <stdint.h>
@@ -40,11 +42,13 @@ public:
     /* constructor for constants between 1 and 255 */
     constexpr explicit base_blob(uint8_t v) : m_data{v} {}
 
-    constexpr explicit base_blob(Span<const unsigned char> vch)
+    constexpr explicit base_blob(std::span<const unsigned char> vch)
     {
         assert(vch.size() == WIDTH);
         std::copy(vch.begin(), vch.end(), m_data.begin());
     }
+
+    consteval explicit base_blob(std::string_view hex_str);
 
     constexpr bool IsNull() const
     {
@@ -58,11 +62,13 @@ public:
         std::fill(m_data.begin(), m_data.end(), 0);
     }
 
-    constexpr int Compare(const base_blob& other) const { return std::memcmp(m_data.data(), other.m_data.data(), WIDTH); }
+    constexpr bool operator==(const base_blob&) const = default;
 
-    friend constexpr bool operator==(const base_blob& a, const base_blob& b) { return a.Compare(b) == 0; }
-    friend constexpr bool operator!=(const base_blob& a, const base_blob& b) { return a.Compare(b) != 0; }
-    friend constexpr bool operator<(const base_blob& a, const base_blob& b) { return a.Compare(b) < 0; }
+    /** Lexicographic ordering
+     * @note Does NOT match the ordering on the corresponding
+     *       base_uint::CompareTo, which starts comparing from the end.
+     */
+    constexpr std::strong_ordering operator<=>(const base_blob& other) const = default;
 
     std::string GetHex() const;
     void SetHex(const char* psz);
@@ -92,6 +98,17 @@ public:
         s.read(MakeWritableByteSpan(m_data));
     }
 };
+
+template <unsigned int BITS>
+consteval base_blob<BITS>::base_blob(std::string_view hex_str)
+{
+    if (hex_str.length() != m_data.size() * 2) throw "Hex string must fit exactly";
+    auto str_it = hex_str.rbegin();
+    for (auto& elem : m_data) {
+        auto lo = util::ConstevalHexDigit(*(str_it++));
+        elem = (util::ConstevalHexDigit(*(str_it++)) << 4) | lo;
+    }
+}
 
 namespace detail {
 
@@ -131,7 +148,7 @@ class uint160 : public base_blob<160> {
 public:
     static std::optional<uint160> FromHex(std::string_view str) { return detail::FromHex<uint160>(str); }
     constexpr uint160() = default;
-    constexpr explicit uint160(Span<const unsigned char> vch) : base_blob<160>(vch) {}
+    constexpr explicit uint160(std::span<const unsigned char> vch) : base_blob<160>(vch) {}
 };
 
 /** 256-bit opaque blob.
@@ -142,8 +159,9 @@ class uint256 : public base_blob<256> {
 public:
     static std::optional<uint256> FromHex(std::string_view str) { return detail::FromHex<uint256>(str); }
     constexpr uint256() = default;
+    consteval explicit uint256(std::string_view hex_str) : base_blob<256>(hex_str) {}
     constexpr explicit uint256(uint8_t v) : base_blob<256>(v) {}
-    constexpr explicit uint256(Span<const unsigned char> vch) : base_blob<256>(vch) {}
+    constexpr explicit uint256(std::span<const unsigned char> vch) : base_blob<256>(vch) {}
 
     uint64_t GetCheapHash() const { return ReadLE64(begin()); }
 
@@ -179,7 +197,7 @@ class uint512 : public base_blob<512> {
 public:
     constexpr uint512() = default;
     constexpr uint512(const base_blob<512>& b) : base_blob<512>(b) {}
-    constexpr explicit uint512(Span<unsigned char> vch) : base_blob<512>(vch) {}
+    constexpr explicit uint512(std::span<const unsigned char> vch) : base_blob<512>(vch) {}
 
     uint256 trim256() const
     {

@@ -1,26 +1,18 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin developers
-// Copyright (c) 2017-2019 The PIVX developers
-// Copyright (c) 2018-2020, 2026 The SchillingCoin developers
+// Copyright (c) 2009-2021 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "script.h"
-#include "tinyformat.h"
-#include "utilstrencodings.h"
+#include <script/script.h>
+#include <hash.h>
+#include <util/strencodings.h>
 
-namespace {
-inline std::string ValueString(const std::vector<unsigned char>& vch)
-{
-    if (vch.size() <= 4)
-        return strprintf("%d", CScriptNum(vch, false).getint());
-    else
-        return HexStr(vch);
-}
-} // anon namespace
+#include <string>
 
+CScriptID::CScriptID(const CScript& in) : BaseHash(Hash160(in)) {}
 
-const char* GetOpName(opcodetype opcode)
+std::string GetOpName(opcodetype opcode)
 {
     switch (opcode)
     {
@@ -140,30 +132,25 @@ const char* GetOpName(opcodetype opcode)
     case OP_CHECKMULTISIGVERIFY    : return "OP_CHECKMULTISIGVERIFY";
 
     // expansion
-    case OP_NOP1                   : return "OP_NOP1";                  // OP_NOP1
-    case OP_CHECKLOCKTIMEVERIFY    : return "OP_CHECKLOCKTIMEVERIFY";   // OP_NOP2
-    case OP_NOP3                   : return "OP_NOP3";                  // OP_NOP3
-    case OP_NOP4                   : return "OP_NOP4";                  // OP_NOP4
-    case OP_NOP5                   : return "OP_NOP5";                  // OP_NOP5
-    case OP_NOP6                   : return "OP_NOP6";                  // OP_NOP6
-    case OP_NOP7                   : return "OP_NOP7";                  // OP_NOP7
-    case OP_NOP8                   : return "OP_NOP8";                  // OP_NOP8
-    case OP_NOP9                   : return "OP_NOP9";                  // OP_NOP9
-    case OP_NOP10                  : return "OP_NOP10";                 // OP_NOP10
+    case OP_NOP1                   : return "OP_NOP1";
+    case OP_CHECKLOCKTIMEVERIFY    : return "OP_CHECKLOCKTIMEVERIFY";
+    case OP_CHECKSEQUENCEVERIFY    : return "OP_CHECKSEQUENCEVERIFY";
+    case OP_NOP4                   : return "OP_NOP4";
+    case OP_NOP5                   : return "OP_NOP5";
+    case OP_NOP6                   : return "OP_NOP6";
+    case OP_NOP7                   : return "OP_NOP7";
+    case OP_NOP8                   : return "OP_NOP8";
+    case OP_NOP9                   : return "OP_NOP9";
+    case OP_NOP10                  : return "OP_NOP10";
 
-    // zerocoin
+    case OP_CHECKDATASIG           : return "OP_CHECKDATASIG";
+    case OP_CHECKDATASIGVERIFY     : return "OP_CHECKDATASIGVERIFY";
+
     case OP_ZEROCOINMINT           : return "OP_ZEROCOINMINT";
     case OP_ZEROCOINSPEND          : return "OP_ZEROCOINSPEND";
-
-    // cold staking
     case OP_CHECKCOLDSTAKEVERIFY   : return "OP_CHECKCOLDSTAKEVERIFY";
 
     case OP_INVALIDOPCODE          : return "OP_INVALIDOPCODE";
-
-    // Note:
-    //  The template matching params OP_SMALLINTEGER/etc are defined in opcodetype enum
-    //  as kind of implementation hack, they are *NOT* real opcodes.  If found in real
-    //  Script, just let the default: case deal with them.
 
     default:
         return "OP_UNKNOWN";
@@ -187,7 +174,7 @@ unsigned int CScript::GetSigOpCount(bool fAccurate) const
             if (fAccurate && lastOpcode >= OP_1 && lastOpcode <= OP_16)
                 n += DecodeOP_N(lastOpcode);
             else
-                n += 20;
+                n += MAX_PUBKEYS_PER_MULTISIG;
         }
         lastOpcode = opcode;
     }
@@ -203,74 +190,110 @@ unsigned int CScript::GetSigOpCount(const CScript& scriptSig) const
     // get the last item that the scriptSig
     // pushes onto the stack:
     const_iterator pc = scriptSig.begin();
-    std::vector<unsigned char> data;
+    std::vector<unsigned char> vData;
     while (pc < scriptSig.end())
     {
         opcodetype opcode;
-        if (!scriptSig.GetOp(pc, opcode, data))
+        if (!scriptSig.GetOp(pc, opcode, vData))
             return 0;
         if (opcode > OP_16)
             return 0;
     }
 
     /// ... and return its opcount:
-    CScript subscript(data.begin(), data.end());
+    CScript subscript(vData.begin(), vData.end());
     return subscript.GetSigOpCount(true);
 }
 
-bool CScript::IsNormalPaymentScript() const
+bool CScript::IsPayToPublicKeyHash() const
 {
-    if(this->size() != 25) return false;
+    // Extra-fast test for pay-to-pubkey-hash CScripts:
+    return (this->size() == 25 &&
+            (*this)[0] == OP_DUP &&
+            (*this)[1] == OP_HASH160 &&
+            (*this)[2] == 0x14 &&
+            (*this)[23] == OP_EQUALVERIFY &&
+            (*this)[24] == OP_CHECKSIG);
+}
 
-    std::string str;
-    opcodetype opcode;
-    const_iterator pc = begin();
-    int i = 0;
-    while (pc < end())
-    {
-        GetOp(pc, opcode);
+bool CScript::IsPayToAnchor() const
+{
+    return (this->size() == 4 &&
+        (*this)[0] == OP_1 &&
+        (*this)[1] == 0x02 &&
+        (*this)[2] == 0x4e &&
+        (*this)[3] == 0x73);
+}
 
-        if(     i == 0 && opcode != OP_DUP) return false;
-        else if(i == 1 && opcode != OP_HASH160) return false;
-        else if(i == 3 && opcode != OP_EQUALVERIFY) return false;
-        else if(i == 4 && opcode != OP_CHECKSIG) return false;
-        else if(i == 5) return false;
-
-        i++;
-    }
-
-    return true;
+bool CScript::IsPayToAnchor(int version, const std::vector<unsigned char>& program)
+{
+    return version == 1 &&
+        program.size() == 2 &&
+        program[0] == 0x4e &&
+        program[1] == 0x73;
 }
 
 bool CScript::IsPayToScriptHash() const
 {
     // Extra-fast test for pay-to-script-hash CScripts:
     return (this->size() == 23 &&
-            this->at(0) == OP_HASH160 &&
-            this->at(1) == 0x14 &&
-            this->at(22) == OP_EQUAL);
+            (*this)[0] == OP_HASH160 &&
+            (*this)[1] == 0x14 &&
+            (*this)[22] == OP_EQUAL);
+}
+
+bool CScript::IsPayToWitnessScriptHash() const
+{
+    // Extra-fast test for pay-to-witness-script-hash CScripts:
+    return (this->size() == 34 &&
+            (*this)[0] == OP_0 &&
+            (*this)[1] == 0x20);
+}
+
+bool CScript::IsPayToTaproot() const
+{
+    return (this->size() == 34 &&
+            (*this)[0] == OP_1 &&
+            (*this)[1] == 0x20);
+}
+
+// A witness program is any valid CScript that consists of a 1-byte push opcode
+// followed by a data push between 2 and 40 bytes.
+bool CScript::IsWitnessProgram(int& version, std::vector<unsigned char>& program) const
+{
+    if (this->size() < 4 || this->size() > 42) {
+        return false;
+    }
+    if ((*this)[0] != OP_0 && ((*this)[0] < OP_1 || (*this)[0] > OP_16)) {
+        return false;
+    }
+    if ((size_t)((*this)[1] + 2) == this->size()) {
+        version = DecodeOP_N((opcodetype)(*this)[0]);
+        program = std::vector<unsigned char>(this->begin() + 2, this->end());
+        return true;
+    }
+    return false;
 }
 
 bool CScript::IsPayToColdStaking() const
 {
-    // Extra-fast test for pay-to-cold-staking CScripts:
-    return (this->size() == 51 &&
-            this->at(0) == OP_DUP &&
-            this->at(1) == OP_HASH160 &&
-            this->at(2) == OP_ROT &&
-            this->at(3) == OP_IF &&
-            this->at(4) == OP_CHECKCOLDSTAKEVERIFY &&
-            this->at(5) == 0x14 &&
-            this->at(26) == OP_ELSE &&
-            this->at(27) == 0x14 &&
-            this->at(48) == OP_ENDIF &&
-            this->at(49) == OP_EQUALVERIFY &&
-            this->at(50) == OP_CHECKSIG);
+    return size() == 51 &&
+           (*this)[0] == OP_DUP &&
+           (*this)[1] == OP_HASH160 &&
+           (*this)[2] == OP_ROT &&
+           (*this)[3] == OP_IF &&
+           (*this)[4] == OP_CHECKCOLDSTAKEVERIFY &&
+           (*this)[5] == 0x14 &&
+           (*this)[26] == OP_ELSE &&
+           (*this)[27] == 0x14 &&
+           (*this)[48] == OP_ENDIF &&
+           (*this)[49] == OP_EQUALVERIFY &&
+           (*this)[50] == OP_CHECKSIG;
 }
 
 bool CScript::StartsWithOpcode(const opcodetype opcode) const
 {
-    return (!this->empty() && this->at(0) == opcode);
+    return !empty() && front() == opcode;
 }
 
 bool CScript::IsZerocoinMint() const
@@ -281,6 +304,21 @@ bool CScript::IsZerocoinMint() const
 bool CScript::IsZerocoinSpend() const
 {
     return StartsWithOpcode(OP_ZEROCOINSPEND);
+}
+
+bool CScript::IsPayToPublicKey() const
+{
+    // Test for pay-to-pubkey CScript with both
+    // compressed or uncompressed pubkey
+    if (this->size() == 35) {
+        return ((*this)[1] == 0x02 || (*this)[1] == 0x03) &&
+                (*this)[34] == OP_CHECKSIG;
+    }
+    if (this->size() == 67) {
+        return (*this)[1] == 0x04 &&
+                (*this)[66] == OP_CHECKSIG;
+    }
+    return false;
 }
 
 bool CScript::IsPushOnly(const_iterator pc) const
@@ -305,36 +343,166 @@ bool CScript::IsPushOnly() const
     return this->IsPushOnly(begin());
 }
 
-size_t CScript::DynamicMemoryUsage() const
+std::string CScriptWitness::ToString() const
 {
-    return memusage::DynamicUsage(
-        static_cast<const std::vector<unsigned char>&>(*this));
+    std::string ret = "CScriptWitness(";
+    for (unsigned int i = 0; i < stack.size(); i++) {
+        if (i) {
+            ret += ", ";
+        }
+        ret += HexStr(stack[i]);
+    }
+    return ret + ")";
 }
 
-std::string CScript::ToString() const
+bool GetScriptOp(CScriptBase::const_iterator& pc, CScriptBase::const_iterator end, opcodetype& opcodeRet, std::vector<unsigned char>* pvchRet)
 {
-    std::string str;
-    opcodetype opcode;
-    std::vector<unsigned char> vch;
-    const_iterator pc = begin();
-    while (pc < end())
+    opcodeRet = OP_INVALIDOPCODE;
+    if (pvchRet)
+        pvchRet->clear();
+    if (pc >= end)
+        return false;
+
+    // Read instruction
+    if (end - pc < 1)
+        return false;
+    unsigned int opcode = *pc++;
+
+    // Immediate operand
+    if (opcode <= OP_PUSHDATA4)
     {
-        if (!str.empty())
-            str += " ";
-        if (!GetOp(pc, opcode, vch))
+        unsigned int nSize = 0;
+        if (opcode < OP_PUSHDATA1)
         {
-            str += "[error]";
-            return str;
+            nSize = opcode;
         }
-        if (0 <= opcode && opcode <= OP_PUSHDATA4) {
-            str += ValueString(vch);
-        } else {
-            str += GetOpName(opcode);
-            if (opcode == OP_ZEROCOINSPEND) {
-                //Zerocoinspend has no further op codes.
-                break;
+        else if (opcode == OP_PUSHDATA1)
+        {
+            if (end - pc < 1)
+                return false;
+            nSize = *pc++;
+        }
+        else if (opcode == OP_PUSHDATA2)
+        {
+            if (end - pc < 2)
+                return false;
+            nSize = ReadLE16(&pc[0]);
+            pc += 2;
+        }
+        else if (opcode == OP_PUSHDATA4)
+        {
+            if (end - pc < 4)
+                return false;
+            nSize = ReadLE32(&pc[0]);
+            pc += 4;
+        }
+        if (end - pc < 0 || (unsigned int)(end - pc) < nSize)
+            return false;
+        if (pvchRet)
+            CScriptBase::assign_to(pc, pc + nSize, *pvchRet);
+        pc += nSize;
+    }
+
+    opcodeRet = static_cast<opcodetype>(opcode);
+    return true;
+}
+
+bool CScriptNum::IsMinimallyEncoded(const std::vector<uint8_t>& vch, const size_t nMaxNumSize)
+{
+    if (vch.size() > nMaxNumSize) {
+        return false;
+    }
+
+    if (vch.size() > 0) {
+        // Check that the number is encoded with the minimum possible number
+        // of bytes.
+        //
+        // If the most-significant-byte - excluding the sign bit - is zero
+        // then we're not minimal. Note how this test also rejects the
+        // negative-zero encoding, 0x80.
+        if ((vch.back() & 0x7f) == 0) {
+            // One exception: if there's more than one byte and the most
+            // significant bit of the second-most-significant-byte is set it
+            // would conflict with the sign bit. An example of this case is
+            // +-255, which encode to 0xff00 and 0xff80 respectively.
+            // (big-endian).
+            if (vch.size() <= 1 || (vch[vch.size() - 2] & 0x80) == 0) {
+                return false;
             }
         }
     }
-    return str;
+
+    return true;
+}
+
+bool CScriptNum::MinimallyEncode(std::vector<uint8_t>& data)
+{
+    if (data.size() == 0) {
+        return false;
+    }
+
+    // If the last byte is not 0x00 or 0x80, we are minimally encoded.
+    uint8_t last = data.back();
+    if (last & 0x7f) {
+        return false;
+    }
+
+    // If the script is one byte long, then we have a zero, which encodes as an
+    // empty array.
+    if (data.size() == 1) {
+        data = {};
+        return true;
+    }
+
+    // If the next byte has its sign bit set, then we are minimally encoded.
+    if (data[data.size() - 2] & 0x80) {
+        return false;
+    }
+
+    // We are not minimally encoded, we need to figure out how much to trim.
+    for (size_t i = data.size() - 1; i > 0; i--) {
+        // We found a non zero byte, time to encode.
+        if (data[i - 1] != 0) {
+            if (data[i - 1] & 0x80) {
+                // We found a byte with its sign bit set so we need one more
+                // byte.
+                data[i++] = last;
+            } else {
+                // the sign bit is clear, we can use it.
+                data[i - 1] |= last;
+            }
+
+            data.resize(i);
+            return true;
+        }
+    }
+
+    // If the whole thing is zeros, then we have a zero (empty array).
+    data = {};
+    return true;
+}
+
+bool CheckMinimalPush(const std::vector<unsigned char>& data, opcodetype opcode) {
+    // Excludes OP_1NEGATE, OP_1-16 since they are by definition minimal
+    assert(0 <= opcode && opcode <= OP_PUSHDATA4);
+    if (data.size() == 0) {
+        // Should have used OP_0.
+        return opcode == OP_0;
+    } else if (data.size() == 1 && data[0] >= 1 && data[0] <= 16) {
+        // Should have used OP_1 .. OP_16.
+        return false;
+    } else if (data.size() == 1 && data[0] == 0x81) {
+        // Should have used OP_1NEGATE.
+        return false;
+    } else if (data.size() <= 75) {
+        // Must have used a direct push (opcode indicating number of bytes pushed + those bytes).
+        return opcode == data.size();
+    } else if (data.size() <= 255) {
+        // Must have used OP_PUSHDATA.
+        return opcode == OP_PUSHDATA1;
+    } else if (data.size() <= 65535) {
+        // Must have used OP_PUSHDATA2.
+        return opcode == OP_PUSHDATA2;
+    }
+    return true;
 }

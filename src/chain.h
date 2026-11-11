@@ -514,7 +514,7 @@ public:
     }
 
     /** Set/initialize a chain with a given tip. */
-    void SetTip(CBlockIndex* pindex);
+    void SetTip(CBlockIndex& block);
 
     /** Return a block locator beginning at this chain's current tip. */
     CBlockLocator GetLocator() const;

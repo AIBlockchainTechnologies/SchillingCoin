@@ -15,12 +15,9 @@
 /**
  * CChain implementation
  */
-void CChain::SetTip(CBlockIndex* pindex)
+void CChain::SetTip(CBlockIndex& block)
 {
-    if (pindex == NULL) {
-        vChain.clear();
-        return;
-    }
+    CBlockIndex* pindex = &block;
     vChain.resize(pindex->nHeight + 1);
     while (pindex && vChain[pindex->nHeight] != pindex) {
         vChain[pindex->nHeight] = pindex;
@@ -139,7 +136,7 @@ int64_t CBlockIndex::GetMedianTimePast() const
 
 unsigned int CBlockIndex::GetStakeEntropyBit() const
 {
-    unsigned int nEntropyBit = ((GetBlockHash().GetCheapHash()) & 1);
+    unsigned int nEntropyBit = (GetBlockHash().GetUint64(0) & 1);
     if (gArgs.GetBoolArg("-printstakemodifier", false))
         LogPrintf("GetStakeEntropyBit: nHeight=%u hashBlock=%s nEntropyBit=%u\n", nHeight, GetBlockHash().ToString().c_str(), nEntropyBit);
 

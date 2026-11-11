@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_QUORUMS_H
-#define BITCOIN_LLMQ_QUORUMS_H
+#ifndef SCHILLINGCOIN_LLMQ_QUORUMS_H
+#define SCHILLINGCOIN_LLMQ_QUORUMS_H
 
 #include <bls/bls_worker.h>
 #include <evo/types.h>
@@ -235,14 +236,18 @@ struct SaltedHasherImpl<llmq::CQuorumDataRequestKey>
     static std::size_t CalcHash(const llmq::CQuorumDataRequestKey& v, uint64_t k0, uint64_t k1)
     {
         CSipHasher c(k0, k1);
-        c.Write(reinterpret_cast<const unsigned char*>(&v.proRegTx), sizeof(v.proRegTx));
-        c.Write(reinterpret_cast<const unsigned char*>(&v.m_we_requested), sizeof(v.m_we_requested));
-        c.Write(reinterpret_cast<const unsigned char*>(&v.quorumHash), sizeof(v.quorumHash));
-        c.Write(reinterpret_cast<const unsigned char*>(&v.llmqType), sizeof(v.llmqType));
+        c.Write(MakeUCharSpan(v.proRegTx));
+        c.Write(std::span<const unsigned char>{
+            reinterpret_cast<const unsigned char*>(&v.m_we_requested),
+            sizeof(v.m_we_requested)});
+        c.Write(MakeUCharSpan(v.quorumHash));
+        c.Write(std::span<const unsigned char>{
+            reinterpret_cast<const unsigned char*>(&v.llmqType),
+            sizeof(v.llmqType)});
         return c.Finalize();
     }
 };
 
 template<> struct is_serializable_enum<llmq::CQuorumDataRequest::Errors> : std::true_type {};
 
-#endif // BITCOIN_LLMQ_QUORUMS_H
+#endif // SCHILLINGCOIN_LLMQ_QUORUMS_H

@@ -541,7 +541,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
         }
 
         CReserveKey* keyChange = transaction.getPossibleKeyChange();
-        if (!wallet->CommitTransaction(*newTx, *keyChange, (recipients[0].useSwiftTX) ? "ix" : "tx"))
+        if (!wallet->CommitTransaction(*newTx, *keyChange, "tx"))
             return TransactionCommitFailed;
 
         CTransaction* t = (CTransaction*)newTx;

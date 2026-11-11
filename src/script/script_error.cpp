@@ -1,13 +1,14 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2014 The Bitcoin developers
-// Copyright (c) 2018-2019 The PIVX developers
-// Copyright (c) 2018-2020 The SchillingCoin developers
+// Copyright (c) 2009-2020 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "script_error.h"
+#include <script/script_error.h>
 
-const char* ScriptErrorString(const ScriptError serror)
+#include <string>
+
+std::string ScriptErrorString(const ScriptError serror)
 {
     switch (serror)
     {
@@ -25,6 +26,8 @@ const char* ScriptErrorString(const ScriptError serror)
             return "Script failed an OP_CHECKMULTISIGVERIFY operation";
         case SCRIPT_ERR_CHECKSIGVERIFY:
             return "Script failed an OP_CHECKSIGVERIFY operation";
+        case SCRIPT_ERR_CHECKDATASIGVERIFY:
+            return "Script failed an OP_CHECKDATASIGVERIFY operation";
         case SCRIPT_ERR_NUMEQUALVERIFY:
             return "Script failed an OP_NUMEQUALVERIFY operation";
         case SCRIPT_ERR_SCRIPT_SIZE:
@@ -51,6 +54,19 @@ const char* ScriptErrorString(const ScriptError serror)
             return "OP_RETURN was encountered";
         case SCRIPT_ERR_UNBALANCED_CONDITIONAL:
             return "Invalid OP_IF construction";
+        case SCRIPT_ERR_INVALID_SPLIT_RANGE:
+            return "Invalid OP_SPLIT range";
+        case SCRIPT_ERR_INVALID_OPERAND_SIZE:
+            return "Invalid operand size";
+        case SCRIPT_ERR_INVALID_NUMBER_RANGE:
+            return "Given operand is not a number within the valid range "
+                   "[-2^31...2^31]";
+        case SCRIPT_ERR_IMPOSSIBLE_ENCODING:
+            return "The requested encoding is impossible to satisfy";
+        case SCRIPT_ERR_DIV_BY_ZERO:
+            return "Division by zero error";
+        case SCRIPT_ERR_MOD_BY_ZERO:
+            return "Modulo by zero error";
         case SCRIPT_ERR_NEGATIVE_LOCKTIME:
             return "Negative locktime";
         case SCRIPT_ERR_UNSATISFIED_LOCKTIME:
@@ -62,15 +78,23 @@ const char* ScriptErrorString(const ScriptError serror)
         case SCRIPT_ERR_MINIMALDATA:
             return "Data push larger than necessary";
         case SCRIPT_ERR_SIG_PUSHONLY:
-            return "Only non-push operators allowed in signatures";
+            return "Only push operators allowed in signatures";
         case SCRIPT_ERR_SIG_HIGH_S:
             return "Non-canonical signature: S value is unnecessarily high";
         case SCRIPT_ERR_SIG_NULLDUMMY:
             return "Dummy CHECKMULTISIG argument must be zero";
+        case SCRIPT_ERR_SIG_NULLFAIL:
+            return "Signature must be zero for failed CHECK(MULTI)SIG operation";
         case SCRIPT_ERR_DISCOURAGE_UPGRADABLE_NOPS:
             return "NOPx reserved for soft-fork upgrades";
         case SCRIPT_ERR_PUBKEYTYPE:
             return "Public key is neither compressed or uncompressed";
+        case SCRIPT_ERR_CLEANSTACK:
+            return "Stack size must be exactly one after execution";
+        case SCRIPT_ERR_OP_CODESEPARATOR:
+            return "Using OP_CODESEPARATOR";
+        case SCRIPT_ERR_SIG_FINDANDDELETE:
+            return "Signature is found in scriptCode";
         case SCRIPT_ERR_UNKNOWN_ERROR:
         case SCRIPT_ERR_ERROR_COUNT:
         default: break;

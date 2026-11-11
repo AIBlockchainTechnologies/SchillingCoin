@@ -31,8 +31,6 @@
 #include <wallet/wallet.h>
 #include <key_io.h>
 
-#include <coinjoin/client.h>
-#include <coinjoin/options.h>
 #include <wallet/walletutil.h>
 
 #include <optional>
@@ -56,68 +54,6 @@ bool HaveKey(const SigningProvider& wallet, const CKey& key)
     return wallet.HaveKey(key.GetPubKey().GetID()) || wallet.HaveKey(key2.GetPubKey().GetID());
 }
 
-static RPCHelpMan setcoinjoinrounds()
-{
-    return RPCHelpMan{"setcoinjoinrounds",
-        "\nSet the number of rounds for CoinJoin.\n",
-        {
-            {"rounds", RPCArg::Type::NUM, RPCArg::Optional::NO,
-                "The default number of rounds is " + ToString(DEFAULT_COINJOIN_ROUNDS) +
-                " Cannot be more than " + ToString(MAX_COINJOIN_ROUNDS) + " nor less than " + ToString(MIN_COINJOIN_ROUNDS)},
-        },
-        RPCResult{RPCResult::Type::NONE, "", ""},
-        RPCExamples{
-            HelpExampleCli("setcoinjoinrounds", "4")
-    + HelpExampleRpc("setcoinjoinrounds", "16")
-        },
-        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
-{
-    const std::shared_ptr<const CWallet> wallet = GetWalletForJSONRPCRequest(request);
-    if (!wallet) return UniValue::VNULL;
-
-    int nRounds = request.params[0].getInt<int>();
-
-    if (nRounds > MAX_COINJOIN_ROUNDS || nRounds < MIN_COINJOIN_ROUNDS)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid number of rounds");
-
-    CCoinJoinClientOptions::SetRounds(nRounds);
-
-    return UniValue::VNULL;
-},
-    };
-}
-
-static RPCHelpMan setcoinjoinamount()
-{
-    return RPCHelpMan{"setcoinjoinamount",
-        "\nSet the goal amount in " + CURRENCY_UNIT + " for CoinJoin.\n",
-        {
-            {"amount", RPCArg::Type::NUM, RPCArg::Optional::NO,
-                "The default amount is " + ToString(DEFAULT_COINJOIN_AMOUNT) +
-                " Cannot be more than " + ToString(MAX_COINJOIN_AMOUNT) + " nor less than " + ToString(MIN_COINJOIN_AMOUNT)},
-        },
-        RPCResult{RPCResult::Type::NONE, "", ""},
-        RPCExamples{
-            HelpExampleCli("setcoinjoinamount", "500")
-    + HelpExampleRpc("setcoinjoinamount", "208")
-        },
-        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
-{
-    const std::shared_ptr<const CWallet> wallet = GetWalletForJSONRPCRequest(request);
-    if (!wallet) return UniValue::VNULL;
-
-    int nAmount = request.params[0].getInt<int>();
-
-    if (nAmount > MAX_COINJOIN_AMOUNT || nAmount < MIN_COINJOIN_AMOUNT)
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid amount of " + CURRENCY_UNIT + " as mixing goal amount");
-
-    CCoinJoinClientOptions::SetAmount(nAmount);
-
-    return UniValue::VNULL;
-},
-    };
-}
-
 static RPCHelpMan getwalletinfo()
 {
     return RPCHelpMan{"getwalletinfo",
@@ -130,14 +66,13 @@ static RPCHelpMan getwalletinfo()
                         {RPCResult::Type::NUM, "walletversion", "the wallet version"},
                         {RPCResult::Type::STR, "format", "the database format (bdb or sqlite)"},
                         {RPCResult::Type::NUM, "balance", "DEPRECATED. Identical to getbalances().mine.trusted"},
-                        {RPCResult::Type::NUM, "coinjoin_balance", "DEPRECATED. Identical to getbalances().mine.coinjoin"},
                         {RPCResult::Type::NUM, "unconfirmed_balance", "DEPRECATED. Identical to getbalances().mine.untrusted_pending"},
                         {RPCResult::Type::NUM, "immature_balance", "DEPRECATED. Identical to getbalances().mine.immature"},
                         {RPCResult::Type::NUM, "txcount", "the total number of transactions in the wallet"},
                         {RPCResult::Type::NUM_TIME, "timefirstkey", /*optional=*/true, "the " + UNIX_EPOCH_TIME + " of the oldest known key in the wallet. Legacy wallets only"},
                         {RPCResult::Type::NUM_TIME, "keypoololdest", /*optional=*/true, "the " + UNIX_EPOCH_TIME + " of the oldest pre-generated key in the key pool. Legacy wallets only"},
                         {RPCResult::Type::NUM, "keypoolsize", "how many new keys are pre-generated (only counts external keys)"},
-                        {RPCResult::Type::NUM, "keypoolsize_hd_internal", "how many new keys are pre-generated for internal use (used for change outputs and mobile coinjoin)"},
+                        {RPCResult::Type::NUM, "keypoolsize_hd_internal", "how many new keys are pre-generated for internal use (used for change outputs)"},
                         {RPCResult::Type::NUM, "keys_left", "how many new keys are left since last automatic backup"},
                         {RPCResult::Type::NUM_TIME, "unlocked_until", /*optional=*/true, "the " + UNIX_EPOCH_TIME + " until which the wallet is unlocked for transfers, or 0 if the wallet is locked (only present for passphrase-encrypted wallets)"},
                         {RPCResult::Type::STR_AMOUNT, "paytxfee", "the transaction fee configuration, set in " + CURRENCY_UNIT + "/kB"},
@@ -190,7 +125,6 @@ static RPCHelpMan getwalletinfo()
     obj.pushKV("walletversion", pwallet->GetVersion());
     obj.pushKV("format", pwallet->GetDatabase().Format());
     obj.pushKV("balance", ValueFromAmount(bal.m_mine_trusted));
-    obj.pushKV("coinjoin_balance",       ValueFromAmount(bal.m_anonymized));
     obj.pushKV("unconfirmed_balance", ValueFromAmount(bal.m_mine_untrusted_pending));
     obj.pushKV("immature_balance", ValueFromAmount(bal.m_mine_immature));
     obj.pushKV("txcount",       (int)pwallet->mapWallet.size());
@@ -1306,8 +1240,6 @@ Span<const CRPCCommand> GetWalletRPCCommands()
         {"wallet", &sendmany},
         {"wallet", &sendtoaddress},
         {"wallet", &sethdseed},
-        {"wallet", &setcoinjoinrounds},
-        {"wallet", &setcoinjoinamount},
         {"wallet", &setlabel},
         {"wallet", &settxfee},
         {"wallet", &setwalletflag},

@@ -799,14 +799,12 @@ public:
      *  0  : in memory pool, waiting to be included in a block
      * >=1 : this many blocks deep in the main chain
      */
-    int GetDepthInMainChain(const CBlockIndex*& pindexRet, bool enableIX = true) const;
-    int GetDepthInMainChain(bool enableIX = true) const;
+    int GetDepthInMainChain(const CBlockIndex*& pindexRet) const;
+    int GetDepthInMainChain() const;
     bool IsInMainChain() const;
     bool IsInMainChainImmature() const;
     int GetBlocksToMaturity() const;
     bool AcceptToMemoryPool(bool fLimitFree = true, bool fRejectInsaneFee = true, bool ignoreFees = false);
-    int GetTransactionLockSignatures() const;
-    bool IsTransactionLockTimedOut() const;
     bool hashUnset() const { return (hashBlock.IsNull() || hashBlock == ABANDON_HASH); }
     bool isAbandoned() const { return (hashBlock == ABANDON_HASH); }
     void setAbandoned() { hashBlock = ABANDON_HASH; }
@@ -840,10 +838,6 @@ public:
     mutable bool fCreditCached;
     mutable bool fImmatureCreditCached;
     mutable bool fAvailableCreditCached;
-    mutable bool fAnonymizableCreditCached;
-    mutable bool fAnonymizedCreditCached;
-    mutable bool fDenomUnconfCreditCached;
-    mutable bool fDenomConfCreditCached;
     mutable bool fWatchDebitCached;
     mutable bool fWatchCreditCached;
     mutable bool fImmatureWatchCreditCached;
@@ -858,10 +852,6 @@ public:
     mutable CAmount nCreditCached;
     mutable CAmount nImmatureCreditCached;
     mutable CAmount nAvailableCreditCached;
-    mutable CAmount nAnonymizableCreditCached;
-    mutable CAmount nAnonymizedCreditCached;
-    mutable CAmount nDenomUnconfCreditCached;
-    mutable CAmount nDenomConfCreditCached;
     mutable CAmount nWatchDebitCached;
     mutable CAmount nWatchCreditCached;
     mutable CAmount nImmatureWatchCreditCached;
@@ -939,7 +929,7 @@ public:
     //! checks whether a tx has P2CS inputs or not
     bool HasP2CSInputs() const;
 
-    int GetDepthAndMempool(bool& fConflicted, bool enableIX = true) const;
+    int GetDepthAndMempool(bool& fConflicted) const;
 
     //! filter decides which addresses will count towards the debit
     CAmount GetDebit(const isminefilter& filter) const;

@@ -711,7 +711,7 @@ public:
     V2Transport(NodeId nodeid, bool initiating, int type_in, int version_in) noexcept;
 
     /** Construct a V2 transport with specified keys and garbage (test use only). */
-    V2Transport(NodeId nodeid, bool initiating, int type_in, int version_in, const CKey& key, Span<const std::byte> ent32, std::vector<uint8_t> garbage) noexcept;
+    V2Transport(NodeId nodeid, bool initiating, int type_in, int version_in, const CKey& key, std::span<const std::byte> ent32, std::vector<uint8_t> garbage) noexcept;
 
     // Receive side functions.
     bool ReceivedMessageComplete() const noexcept override EXCLUSIVE_LOCKS_REQUIRED(!m_recv_mutex);
@@ -994,9 +994,6 @@ public:
      * criterium in CConnman::AttemptToEvictConnection. */
     std::atomic<std::chrono::microseconds> m_min_ping_time{std::chrono::microseconds::max()};
 
-    // If true, we will send him CoinJoin queue messages
-    std::atomic<bool> fSendDSQueue{false};
-
     // If true, we will send him all quorum related messages, even if he is not a member of our quorums
     std::atomic<bool> qwatch{false};
 
@@ -1250,8 +1247,7 @@ public:
         SocketEventsMode socketEventsMode = SocketEventsMode::Select;
         bool m_i2p_accept_incoming;
         bool m_active_masternode = false;
-        //! Run the thread that opens connections to masternodes; only masternodes, quorum watchers and
-        //! CoinJoin mixing ever request them.
+        //! Run the thread that opens connections to masternodes for masternode and quorum functionality.
         bool m_masternode_connections = true;
     };
 

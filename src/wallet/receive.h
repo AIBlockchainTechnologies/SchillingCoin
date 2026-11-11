@@ -1,9 +1,10 @@
 // Copyright (c) 2021-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_RECEIVE_H
-#define BITCOIN_WALLET_RECEIVE_H
+#ifndef SCHILLINGCOIN_WALLET_RECEIVE_H
+#define SCHILLINGCOIN_WALLET_RECEIVE_H
 
 #include <consensus/amount.h>
 #include <wallet/ismine.h>
@@ -57,9 +58,6 @@ struct Balance {
     CAmount m_watchonly_untrusted_pending{0};
     CAmount m_watchonly_immature{0};
     CAmount m_watchonly_trusted_locked{0}; //!< Subset of m_watchonly_trusted locked via LockCoin
-    CAmount m_anonymized{0};
-    CAmount m_denominated_trusted{0};
-    CAmount m_denominated_untrusted_pending{0};
 };
 Balance GetBalance(const CWallet& wallet, int min_depth = 0, bool avoid_reuse = true, const bool fAddLocked = false);
 
@@ -67,4 +65,4 @@ std::map<CTxDestination, CAmount> GetAddressBalances(const CWallet& wallet);
 std::set<std::set<CTxDestination>> GetAddressGroupings(const CWallet& wallet) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
 } // namespace wallet
 
-#endif // BITCOIN_WALLET_RECEIVE_H
+#endif // SCHILLINGCOIN_WALLET_RECEIVE_H

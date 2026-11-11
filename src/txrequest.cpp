@@ -116,7 +116,7 @@ public:
         m_k1{deterministic ? 0 : FastRandomContext().rand64()} {}
     Priority operator()(const CInv& inv, NodeId peer, bool preferred) const
     {
-        uint64_t low_bits = CSipHasher(m_k0, m_k1).Write(inv.hash.begin(), inv.hash.size()).Write(inv.type).Write(peer).Finalize() >> 1;
+        uint64_t low_bits = CSipHasher(m_k0, m_k1).Write(inv.hash).Write(inv.type).Write(peer).Finalize() >> 1;
         return low_bits | uint64_t{preferred} << 63;
     }
     Priority operator()(const Announcement& ann) const

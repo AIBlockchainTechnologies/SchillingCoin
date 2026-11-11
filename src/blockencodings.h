@@ -1,10 +1,12 @@
 // Copyright (c) 2016-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_BLOCKENCODINGS_H
-#define BITCOIN_BLOCKENCODINGS_H
+#ifndef SCHILLINGCOIN_BLOCKENCODINGS_H
+#define SCHILLINGCOIN_BLOCKENCODINGS_H
 
+#include <crypto/siphash.h>
 #include <primitives/block.h>
 
 #include <functional>
@@ -59,13 +61,13 @@ public:
     uint256 blockhash;
     std::vector<CTransactionRef> txn;
 
-    BlockTransactions() {}
+    BlockTransactions() = default;
     explicit BlockTransactions(const BlockTransactionsRequest& req) :
         blockhash(req.blockhash), txn(req.indexes.size()) {}
 
     SERIALIZE_METHODS(BlockTransactions, obj)
     {
-        READWRITE(obj.blockhash, Using<VectorFormatter<TransactionCompression>>(obj.txn));
+        READWRITE(obj.blockhash, TX_WITH_WITNESS(Using<VectorFormatter<TransactionCompression>>(obj.txn)));
     }
 };
 
@@ -76,7 +78,7 @@ struct PrefilledTransaction {
     uint16_t index;
     CTransactionRef tx;
 
-    SERIALIZE_METHODS(PrefilledTransaction, obj) { READWRITE(COMPACTSIZE(obj.index), Using<TransactionCompression>(obj.tx)); }
+    SERIALIZE_METHODS(PrefilledTransaction, obj) { READWRITE(COMPACTSIZE(obj.index), TX_WITH_WITNESS(Using<TransactionCompression>(obj.tx))); }
 };
 
 typedef enum ReadStatus_t
@@ -87,8 +89,7 @@ typedef enum ReadStatus_t
 } ReadStatus;
 
 class CBlockHeaderAndShortTxIDs {
-private:
-    mutable uint64_t shorttxidk0, shorttxidk1;
+    mutable std::optional<PresaltedSipHasher> m_hasher;
     uint64_t nonce;
 
     void FillShortTxIDSelector() const;
@@ -112,7 +113,7 @@ public:
      */
     CBlockHeaderAndShortTxIDs(const CBlock& block, uint64_t nonce);
 
-    uint64_t GetShortID(const uint256& txhash) const;
+    uint64_t GetShortID(const Wtxid& wtxid) const;
 
     size_t BlockTxCount() const { return shorttxids.size() + prefilledtxn.size(); }
 
@@ -142,10 +143,10 @@ public:
 
     explicit PartiallyDownloadedBlock(CTxMemPool* poolIn) : pool(poolIn) {}
 
-    // extra_txn is a list of extra transactions to look at, in <hash, reference> form
-    ReadStatus InitData(const CBlockHeaderAndShortTxIDs& cmpctblock, const std::vector<std::pair<uint256, CTransactionRef>>& extra_txn);
+    // extra_txn is a list of extra transactions to look at, in <witness hash, reference> form
+    ReadStatus InitData(const CBlockHeaderAndShortTxIDs& cmpctblock, const std::vector<std::pair<Wtxid, CTransactionRef>>& extra_txn);
     bool IsTxAvailable(size_t index) const;
     ReadStatus FillBlock(CBlock& block, const std::vector<CTransactionRef>& vtx_missing);
 };
 
-#endif // BITCOIN_BLOCKENCODINGS_H
+#endif // SCHILLINGCOIN_BLOCKENCODINGS_H

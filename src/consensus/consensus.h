@@ -10,11 +10,17 @@
 
 #include "consensus/amount.h"
 
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
-/** The maximum allowed size for a block, in bytes (only for buffer size limits) */
-static const unsigned int MAX_BLOCK_SIZE_CURRENT = 2000000;
-static const unsigned int MAX_BLOCK_SIZE_LEGACY = 1000000;
+inline constexpr int WITNESS_SCALE_FACTOR = 4;
+
+/** The maximum allowed size for a serialized block, in bytes */
+inline constexpr unsigned int MAX_BLOCK_SIZE_CURRENT{2'000'000};
+inline constexpr unsigned int MAX_BLOCK_SIZE_LEGACY{1'000'000};
+
+/** The maximum allowed weight for a block after the block-size increase */
+inline constexpr unsigned int MAX_BLOCK_WEIGHT{MAX_BLOCK_SIZE_CURRENT * WITNESS_SCALE_FACTOR};
 
 constexpr unsigned int MaxBlockSize(bool fDIP0002Active = true)
 {
@@ -42,6 +48,9 @@ static const CAmount MIN_COLDSTAKING_AMOUNT = 1 * COIN;
 
 /** The default maximum reorganization depth **/
 static const int DEFAULT_MAX_REORG_DEPTH = 100;
+
+inline constexpr size_t MIN_TRANSACTION_WEIGHT = WITNESS_SCALE_FACTOR * 60; // 60 is the lower bound for the size of a valid serialized CTransaction
+inline constexpr size_t MIN_SERIALIZABLE_TRANSACTION_WEIGHT = WITNESS_SCALE_FACTOR * 10; // 10 is the lower bound for the size of a serialized CTransaction
 
 /** Flags for nSequence and nLockTime locks */
 enum {

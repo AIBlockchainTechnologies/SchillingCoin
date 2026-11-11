@@ -1,10 +1,9 @@
 // Copyright (c) 2021-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <algorithm>
-#include <coinjoin/common.h>
-#include <coinjoin/options.h>
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
 #include <evo/assetlocktx.h>
@@ -179,11 +178,6 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const
             input_bytes = CalculateMaximumSignedInputSize(txout, outpoint, &coin_control.m_external_provider, &coin_control);
         }
 
-        if (coin_control.nCoinType == CoinType::ONLY_FULLY_MIXED) {
-            // Make sure to include mixed preset inputs only,
-            // even if some non-mixed inputs were manually selected via CoinControl
-            if (!wallet.IsFullyMixed(outpoint)) continue;
-        }
         // If available, override calculated size with coin control specified size
         if (coin_control.HasInputWeight(outpoint)) {
             input_bytes = GetVirtualTransactionSize(coin_control.GetInputWeight(outpoint), 0, 0);
@@ -250,28 +244,8 @@ CoinsResult AvailableCoins(const CWallet& wallet,
 
             bool found = false;
             switch (nCoinType) {
-                case CoinType::ONLY_FULLY_MIXED: {
-                    found = CoinJoin::IsDenominatedAmount(output.nValue) &&
-                            wallet.IsFullyMixed(outpoint);
-                    break;
-                }
-                case CoinType::ONLY_READY_TO_MIX: {
-                    found = CoinJoin::IsDenominatedAmount(output.nValue) &&
-                            !wallet.IsFullyMixed(outpoint);
-                    break;
-                }
-                case CoinType::ONLY_NONDENOMINATED: {
-                    // NOTE: do not use collateral amounts
-                    found = !CoinJoin::IsCollateralAmount(output.nValue) &&
-                            !CoinJoin::IsDenominatedAmount(output.nValue);
-                    break;
-                }
                 case CoinType::ONLY_MASTERNODE_COLLATERAL: {
                     found = dmn_types::IsCollateralAmount(output.nValue);
-                    break;
-                }
-                case CoinType::ONLY_COINJOIN_COLLATERAL: {
-                    found = CoinJoin::IsCollateralAmount(output.nValue);
                     break;
                 }
                 case CoinType::ALL_COINS: {
@@ -540,7 +514,6 @@ util::Result<SelectionResult>  ChooseSelectionResult(const CWallet& wallet, cons
     int max_inputs_weight = MAX_STANDARD_TX_SIZE - coin_selection_params.tx_noinputs_size;
 
     std::vector<OutputGroup> positive_groups = GroupOutputs(wallet, available_coins, coin_selection_params, eligibility_filter, /*positive_only=*/true);
-    positive_groups.clear(); // Cleared to skip BnB and SRD as they're unaware of mixed coins
     if (auto bnb_result{SelectCoinsBnB(positive_groups, nTargetValue, coin_selection_params.m_cost_of_change, max_inputs_weight)}) {
         results.push_back(*bnb_result);
     } else append_error(bnb_result);
@@ -550,15 +523,13 @@ util::Result<SelectionResult>  ChooseSelectionResult(const CWallet& wallet, cons
     // The knapsack solver has some legacy behavior where it will spend dust outputs. We retain this behavior, so don't filter for positive only here.
     std::vector<OutputGroup> all_groups = GroupOutputs(wallet, available_coins, coin_selection_params, eligibility_filter, /*positive_only=*/false);
     if (auto knapsack_result{KnapsackSolver(all_groups, nTargetValue, coin_selection_params.m_min_change_target,
-                                            coin_selection_params.rng_fast, max_inputs_weight,
-                                            coin_selection_params.m_coin_type == CoinType::ONLY_FULLY_MIXED,
-                                            wallet.m_default_max_tx_fee)}) {
+                                            coin_selection_params.rng_fast, max_inputs_weight)}) {
         knapsack_result->ComputeAndSetWaste(coin_selection_params.min_viable_change, coin_selection_params.m_cost_of_change, coin_selection_params.m_change_fee);
         results.push_back(*knapsack_result);
     } else append_error(knapsack_result);
 
-    if (auto srd_result{SelectCoinsSRD(positive_groups, nTargetValue, coin_selection_params.rng_fast, max_inputs_weight,
-                                       coin_selection_params.m_coin_type == CoinType::ONLY_FULLY_MIXED)}) {
+    if (auto srd_result{SelectCoinsSRD(positive_groups, nTargetValue, coin_selection_params.m_change_fee,
+                                       coin_selection_params.rng_fast, max_inputs_weight)}) {
         srd_result->ComputeAndSetWaste(coin_selection_params.min_viable_change, coin_selection_params.m_cost_of_change, coin_selection_params.m_change_fee);
         results.push_back(*srd_result);
     } else append_error(srd_result);
@@ -578,7 +549,6 @@ util::Result<SelectionResult> SelectCoins(const CWallet& wallet, CoinsResult& av
                                           const CAmount& nTargetValue, const CCoinControl& coin_control,
                                           const CoinSelectionParams& coin_selection_params)
 {
-    // Note: this function should never be used for "always free" tx types like dstx
     // Deduct preset inputs amount from the search target
     CAmount selection_target = nTargetValue - pre_set_inputs.total_amount;
 
@@ -748,9 +718,8 @@ static void DiscourageFeeSniping(CMutableTransaction& tx, FastRandomContext& rng
         tx.nLockTime = block_height;
 
         // Secondly occasionally randomly pick a nLockTime even further back, so
-        // that transactions that are delayed after signing for whatever reason,
-        // e.g. high-latency mix networks and some CoinJoin implementations, have
-        // better privacy.
+        // that transactions that are delayed after signing for whatever reason
+        // have better privacy.
         if (rng_fast.randrange(10) == 0) {
             tx.nLockTime = std::max(0, int(tx.nLockTime) - int(rng_fast.randrange(100)));
         }
@@ -975,22 +944,12 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
         // 'SelectCoins' either returns a specific error message or, if empty, means a general "Insufficient funds".
         const bilingual_str& err = util::ErrorString(select_coins_res);
         if (!err.empty()) return util::Error{err};
-        if (coin_control.nCoinType == CoinType::ONLY_NONDENOMINATED) {
-            return util::Error{_("Unable to locate enough non-denominated funds for this transaction.")};
-        } else if (coin_control.nCoinType == CoinType::ONLY_FULLY_MIXED) {
-            return util::Error{_("Unable to locate enough mixed funds for this transaction.") +
-                               Untranslated(" ") + strprintf(_("%s uses exact denominated amounts to send funds, you might simply need to mix some more coins."), gCoinJoinName)};
-        }
         return util::Error{_("Insufficient funds.")};
     }
     const SelectionResult& result = *select_coins_res;
     TRACE5(coin_selection, selected_coins, wallet.GetName().c_str(), GetAlgorithmName(result.GetAlgo()).c_str(), result.GetTarget(), result.GetWaste(), result.GetSelectedValue());
 
-    // Fully mixed coins are spent in whole denominations, so no change is allowed there and
-    // whatever the solver selected above the target is paid as fees instead.
-    const CAmount change_amount = coin_control.nCoinType == CoinType::ONLY_FULLY_MIXED
-                                      ? 0
-                                      : result.GetChange(coin_selection_params.min_viable_change, coin_selection_params.m_change_fee);
+    const CAmount change_amount = result.GetChange(coin_selection_params.min_viable_change, coin_selection_params.m_change_fee);
     CTxOut newTxOut(change_amount, scriptChange);
     if (change_amount > 0) {
         if (nChangePosInOut == -1) {

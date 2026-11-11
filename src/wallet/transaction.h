@@ -1,9 +1,10 @@
 // Copyright (c) 2021-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_TRANSACTION_H
-#define BITCOIN_WALLET_TRANSACTION_H
+#ifndef SCHILLINGCOIN_WALLET_TRANSACTION_H
+#define SCHILLINGCOIN_WALLET_TRANSACTION_H
 
 #include <attributes.h>
 #include <consensus/amount.h>
@@ -198,7 +199,13 @@ public:
     std::multimap<int64_t, CWalletTx*>::const_iterator m_it_wtxOrdered;
 
     // memory only
-    enum AmountType { DEBIT, CREDIT, IMMATURE_CREDIT, AVAILABLE_CREDIT, ANON_CREDIT, DENOM_UCREDIT, DENOM_CREDIT, AMOUNTTYPE_ENUM_ELEMENTS };
+    enum AmountType {
+        DEBIT,
+        CREDIT,
+        IMMATURE_CREDIT,
+        AVAILABLE_CREDIT,
+        AMOUNTTYPE_ENUM_ELEMENTS
+    };
     mutable CachableAmount m_amounts[AMOUNTTYPE_ENUM_ELEMENTS];
     /**
      * This flag is true if all m_amounts caches are empty. This is particularly
@@ -290,9 +297,6 @@ public:
     {
         m_amounts[DEBIT].Reset();
         m_amounts[CREDIT].Reset();
-        m_amounts[ANON_CREDIT].Reset();
-        m_amounts[DENOM_CREDIT].Reset();
-        m_amounts[DENOM_UCREDIT].Reset();
         m_amounts[IMMATURE_CREDIT].Reset();
         m_amounts[AVAILABLE_CREDIT].Reset();
         fChangeCached = false;
@@ -332,4 +336,4 @@ struct WalletTxOrderComparator {
 };
 } // namespace wallet
 
-#endif // BITCOIN_WALLET_TRANSACTION_H
+#endif // SCHILLINGCOIN_WALLET_TRANSACTION_H

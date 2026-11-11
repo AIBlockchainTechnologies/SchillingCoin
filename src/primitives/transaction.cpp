@@ -23,11 +23,6 @@ std::string COutPoint::ToStringShort() const
     return strprintf("%s-%u", hash.ToString().substr(0,64), n);
 }
 
-uint256 COutPoint::GetHash()
-{
-    return Hash(BEGIN(hash), END(hash), BEGIN(n), END(n));
-}
-
 CTxIn::CTxIn(COutPoint prevoutIn, CScript scriptSigIn, uint32_t nSequenceIn)
 {
     prevout = prevoutIn;
@@ -35,7 +30,7 @@ CTxIn::CTxIn(COutPoint prevoutIn, CScript scriptSigIn, uint32_t nSequenceIn)
     nSequence = nSequenceIn;
 }
 
-CTxIn::CTxIn(uint256 hashPrevTx, uint32_t nOut, CScript scriptSigIn, uint32_t nSequenceIn)
+CTxIn::CTxIn(Txid hashPrevTx, uint32_t nOut, CScript scriptSigIn, uint32_t nSequenceIn)
 {
     prevout = COutPoint(hashPrevTx, nOut);
     scriptSig = scriptSigIn;
@@ -114,9 +109,9 @@ CMutableTransaction::CMutableTransaction(const CTransaction& tx) : nVersion(tx.n
 {
 }
 
-uint256 CMutableTransaction::GetHash() const
+Txid CMutableTransaction::GetHash() const
 {
-    return SerializeHash(*this);
+    return Txid::FromUint256((HashWriter{} << TX_NO_WITNESS(*this)).GetHash());
 }
 
 std::string CMutableTransaction::ToString() const
@@ -136,19 +131,50 @@ std::string CMutableTransaction::ToString() const
     return str;
 }
 
-void CTransaction::UpdateHash() const
+bool CTransaction::ComputeHasWitness() const
 {
-    *const_cast<uint256*>(&hash) = SerializeHash(*this);
+    return std::any_of(vin.begin(), vin.end(), [](const auto& input) {
+        return !input.scriptWitness.IsNull();
+    });
 }
 
-CTransaction::CTransaction() : nVersion(CTransaction::CURRENT_VERSION), nType(TRANSACTION_NORMAL), vin(), vout(), nLockTime(0), vExtraPayload()
+Txid CTransaction::ComputeHash() const
 {
-    UpdateHash();
+    return Txid::FromUint256((HashWriter{} << TX_NO_WITNESS(*this)).GetHash());
 }
 
-CTransaction::CTransaction(const CMutableTransaction &tx) : nVersion(tx.nVersion), nType(tx.nType), vin(tx.vin), vout(tx.vout), nLockTime(tx.nLockTime), vExtraPayload(tx.vExtraPayload)
+Wtxid CTransaction::ComputeWitnessHash() const
 {
-    UpdateHash();
+    if (!HasWitness()) {
+        return Wtxid::FromUint256(hash.ToUint256());
+    }
+    return Wtxid::FromUint256((HashWriter{} << TX_WITH_WITNESS(*this)).GetHash());
+}
+
+CTransaction::CTransaction()
+    : nVersion(CTransaction::CURRENT_VERSION),
+      nType(TRANSACTION_NORMAL),
+      vin(),
+      vout(),
+      nLockTime(0),
+      vExtraPayload(),
+      m_has_witness{ComputeHasWitness()},
+      hash{ComputeHash()},
+      m_witness_hash{ComputeWitnessHash()}
+{
+}
+
+CTransaction::CTransaction(const CMutableTransaction& tx)
+    : nVersion(tx.nVersion),
+      nType(tx.nType),
+      vin(tx.vin),
+      vout(tx.vout),
+      nLockTime(tx.nLockTime),
+      vExtraPayload(tx.vExtraPayload),
+      m_has_witness{ComputeHasWitness()},
+      hash{ComputeHash()},
+      m_witness_hash{ComputeWitnessHash()}
+{
 }
 
 bool CTransaction::HasZerocoinSpendInputs() const

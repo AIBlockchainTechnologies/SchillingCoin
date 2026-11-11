@@ -217,12 +217,17 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
     return true;
 }
 
-int64_t GetVirtualTransactionSize(int64_t nSize, int64_t nSigOp, unsigned int bytes_per_sigop)
+int64_t GetSigOpsAdjustedWeight(int64_t weight, int64_t sigop_cost, unsigned int bytes_per_sigop)
 {
-    return std::max(nSize, nSigOp * bytes_per_sigop);
+    return std::max(weight, sigop_cost * bytes_per_sigop);
 }
 
-int64_t GetVirtualTransactionSize(const CTransaction& tx, int64_t nSigOp, unsigned int bytes_per_sigop)
+int64_t GetVirtualTransactionSize(int64_t nWeight, int64_t nSigOpCost, unsigned int bytes_per_sigop)
 {
-    return GetVirtualTransactionSize(tx.GetTotalSize(), nSigOp, bytes_per_sigop);
+    return (GetSigOpsAdjustedWeight(nWeight, nSigOpCost, bytes_per_sigop) + WITNESS_SCALE_FACTOR - 1) / WITNESS_SCALE_FACTOR;
+}
+
+int64_t GetVirtualTransactionSize(const CTransaction& tx, int64_t nSigOpCost, unsigned int bytes_per_sigop)
+{
+    return GetVirtualTransactionSize(GetTransactionWeight(tx), nSigOpCost, bytes_per_sigop);
 }

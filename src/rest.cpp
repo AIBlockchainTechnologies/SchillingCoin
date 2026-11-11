@@ -937,7 +937,7 @@ static bool rest_tx(const std::any& context, HTTPRequest* req, const std::string
     switch (rf) {
     case RESTResponseFormat::BINARY: {
         DataStream tx_stream;
-        tx_stream << tx;
+        tx_stream << TX_WITH_WITNESS(tx);
 
         req->WriteHeader("Cache-Control", REST_CACHE_NO_STORE);
         req->WriteHeader("Content-Type", "application/octet-stream");
@@ -947,7 +947,7 @@ static bool rest_tx(const std::any& context, HTTPRequest* req, const std::string
 
     case RESTResponseFormat::HEX: {
         DataStream tx_stream;
-        tx_stream << tx;
+        tx_stream << TX_WITH_WITNESS(tx);
 
         const std::string tx_hex{HexStr(tx_stream) + "\n"};
 

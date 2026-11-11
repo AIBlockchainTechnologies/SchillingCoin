@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -28,7 +29,7 @@ static const std::map<BlockFilterType, std::string> g_filter_types = {
 uint64_t GCSFilter::HashToRange(const Element& element) const
 {
     uint64_t hash = CSipHasher(m_params.m_siphash_k0, m_params.m_siphash_k1)
-        .Write(element.data(), element.size())
+        .Write(element)
         .Finalize();
     return FastRange64(hash, m_F);
 }

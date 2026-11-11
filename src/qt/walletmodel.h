@@ -52,7 +52,6 @@ public:
     QString address;
     QString label;
     AvailableCoinsType inputType;
-    bool useSwiftTX = false;
 
     // Cold staking.
     bool isP2CS = false;
@@ -74,7 +73,6 @@ public:
         std::string sMessage = obj.message.toStdString();
 
         READWRITE(obj.nVersion);
-
         READWRITE(
             sAddress,
             sLabel,

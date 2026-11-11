@@ -207,8 +207,8 @@ public:
     }
 };
 
-util::Result<SelectionResult> SelectCoinsSRD(const std::vector<OutputGroup>& utxo_pool, CAmount target_value, FastRandomContext& rng,
-                                             int max_weight, bool only_fully_mixed)
+util::Result<SelectionResult> SelectCoinsSRD(const std::vector<OutputGroup>& utxo_pool, CAmount target_value, CAmount change_fee, FastRandomContext& rng,
+                                             int max_selection_weight)
 {
     if (utxo_pool.empty()) return util::Error();
 
@@ -219,9 +219,7 @@ util::Result<SelectionResult> SelectCoinsSRD(const std::vector<OutputGroup>& utx
     // barely meets the target. Just use the lower bound change target instead of the randomly
     // generated one, since SRD will result in a random change amount anyway; avoid making the
     // target needlessly large.
-    if (!only_fully_mixed) {
-        target_value += CHANGE_LOWER;
-    }
+    target_value += CHANGE_LOWER + change_fee;
 
     std::vector<size_t> indexes;
     indexes.resize(utxo_pool.size());
@@ -239,14 +237,14 @@ util::Result<SelectionResult> SelectCoinsSRD(const std::vector<OutputGroup>& utx
         selected_eff_value += group.GetSelectionAmount();
         weight += GetSelectionWeight(group);
 
-        if (weight > max_weight) {
+        if (weight > max_selection_weight) {
             max_tx_weight_exceeded = true;
             do {
                 const OutputGroup& to_remove_group = heap.top();
                 selected_eff_value -= to_remove_group.GetSelectionAmount();
                 weight -= GetSelectionWeight(to_remove_group);
                 heap.pop();
-            } while (!heap.empty() && weight > max_weight);
+            } while (!heap.empty() && weight > max_selection_weight);
         }
 
         if (selected_eff_value >= target_value) {

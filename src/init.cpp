@@ -22,6 +22,7 @@
 #include <blockfilter.h>
 #include <chain.h>
 #include <chainparams.h>
+#include <chainparamsbase.h>
 #include <context.h>
 #include <consensus/amount.h>
 #include <deploymentstatus.h>

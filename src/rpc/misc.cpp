@@ -19,7 +19,6 @@
 #include "validation.h"
 
 #ifdef ENABLE_WALLET
-#include "forgeman.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 #endif
@@ -140,69 +139,6 @@ UniValue getinfo(const JSONRPCRequest& request)
     obj.push_back(Pair("relayfee", ValueFromAmount(::minRelayTxFee.GetFeePerK())));
     obj.push_back(Pair("errors", GetWarnings("statusbar")));
     return obj;
-}
-
-UniValue mnsync(const JSONRPCRequest& request)
-{
-    std::string strMode;
-    if (request.params.size() == 1)
-        strMode = request.params[0].get_str();
-
-    if (request.fHelp || request.params.size() != 1 || (strMode != "status" && strMode != "reset")) {
-        throw std::runtime_error(
-            "mnsync \"status|reset\"\n"
-            "\nReturns the sync status or resets sync.\n"
-
-            "\nArguments:\n"
-            "1. \"mode\"    (string, required) either 'status' or 'reset'\n"
-
-            "\nResult ('status' mode):\n"
-            "{\n"
-            "  \"IsBlockchainSynced\": true|false,    (boolean) 'true' if blockchain is synced\n"
-            "  \"lastMasternodeList\": xxxx,        (numeric) Timestamp of last MN list message\n"
-            "  \"lastMasternodeWinner\": xxxx,      (numeric) Timestamp of last MN winner message\n"
-            "  \"lastFailure\": xxxx,           (numeric) Timestamp of last failed sync\n"
-            "  \"nCountFailures\": n,           (numeric) Number of failed syncs (total)\n"
-            "  \"sumMasternodeList\": n,        (numeric) Number of MN list messages (total)\n"
-            "  \"sumMasternodeWinner\": n,      (numeric) Number of MN winner messages (total)\n"
-            "  \"countMasternodeList\": n,      (numeric) Number of MN list messages (local)\n"
-            "  \"countMasternodeWinner\": n,    (numeric) Number of MN winner messages (local)\n"
-            "  \"RequestedMasternodeAssets\": n, (numeric) Status code of last sync phase\n"
-            "  \"RequestedMasternodeAttempt\": n, (numeric) Status code of last sync attempt\n"
-            "}\n"
-
-            "\nResult ('reset' mode):\n"
-            "\"success\"     (string) reset completed\n"
-
-            "\nExamples:\n" +
-            HelpExampleCli("mnsync", "\"status\"") +
-            HelpExampleRpc("mnsync", "\"status\""));
-    }
-
-    if (strMode == "status") {
-        UniValue obj(UniValue::VOBJ);
-
-        obj.push_back(Pair("IsBlockchainSynced", masternodeSync.IsBlockchainSynced()));
-        obj.push_back(Pair("lastMasternodeList", masternodeSync.lastMasternodeList));
-        obj.push_back(Pair("lastMasternodeWinner", masternodeSync.lastMasternodeWinner));
-        obj.push_back(Pair("lastFailure", masternodeSync.lastFailure));
-        obj.push_back(Pair("nCountFailures", masternodeSync.nCountFailures));
-        obj.push_back(Pair("sumMasternodeList", masternodeSync.sumMasternodeList));
-        obj.push_back(Pair("sumMasternodeWinner", masternodeSync.sumMasternodeWinner));
-        obj.push_back(Pair("countMasternodeList", masternodeSync.countMasternodeList));
-        obj.push_back(Pair("countMasternodeWinner", masternodeSync.countMasternodeWinner));
-        obj.push_back(Pair("RequestedMasternodeAssets", masternodeSync.RequestedMasternodeAssets));
-        obj.push_back(Pair("RequestedMasternodeAttempt", masternodeSync.RequestedMasternodeAttempt));
-
-        return obj;
-    }
-
-    if (strMode == "reset") {
-        masternodeSync.Reset();
-        return "success";
-    }
-
-    return "failure";
 }
 
 #ifdef ENABLE_WALLET
@@ -505,28 +441,6 @@ UniValue verifymessage(const JSONRPCRequest& request)
     return pubkey.GetID() == *keyID;
 }
 
-UniValue setmocktime(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 1)
-        throw std::runtime_error(
-            "setmocktime timestamp\n"
-            "\nSet the local time to given timestamp (-regtest only)\n"
-
-            "\nArguments:\n"
-            "1. timestamp  (integer, required) Unix seconds-since-epoch timestamp\n"
-            "   Pass 0 to go back to using the system time.");
-
-    if (!Params().IsRegTestNet())
-        throw std::runtime_error("setmocktime for regression testing (-regtest mode) only");
-
-    LOCK(cs_main);
-
-    RPCTypeCheck(request.params, boost::assign::list_of(UniValue::VNUM));
-    SetMockTime(request.params[0].get_int64());
-
-    return NullUniValue;
-}
-
 #ifdef ENABLE_WALLET
 UniValue getstakingstatus(const JSONRPCRequest& request)
 {
@@ -586,41 +500,4 @@ UniValue getstakingstatus(const JSONRPCRequest& request)
 
 }
 
-UniValue listforgeitems(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 0)
-        throw std::runtime_error(
-            "listforgeitems\n"
-            "\nReturns an array containing the list of owned ZFIs.\n"
-
-            "\nResult:\n"
-            "[\n"
-            "  {\n"
-            "    \"name\": xxx,                       (string) the plaintext name of the ZFI\n"
-            "    \"tx\": xxx,                         (hex string) the TX hash of the ZFI\n"
-            "    \"vout\": n,                         (numeric) the vout involving the TX of the ZFI\n"
-            "  } ...\n"
-            "]\n"
-
-            "\nExamples:\n" +
-            HelpExampleCli("listforgeitems", "") + HelpExampleRpc("listforgeitems", ""));
-
-
-    if (!pwalletMain)
-        throw JSONRPCError(RPC_IN_WARMUP, "Try again after active chain is loaded");
-    {
-        LOCK2(cs_main, &pwalletMain->cs_wallet);
-        UniValue results(UniValue::VARR);
-        for (const CForge::CForgeItem& item : forgeMain.getEntries()) {
-            UniValue obj(UniValue::VOBJ);
-            obj.push_back(Pair("name", item.getName()));
-            obj.push_back(Pair("tx", item.getTxHash()));
-            obj.push_back(Pair("vout", item.getOutputIndex()));
-            results.push_back(obj);
-        }
-        return results;
-    }
-
-
-}
 #endif // ENABLE_WALLET

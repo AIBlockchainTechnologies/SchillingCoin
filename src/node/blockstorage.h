@@ -48,7 +48,7 @@ static const unsigned int UNDOFILE_CHUNK_SIZE = 0x100000; // 1 MiB
 static const unsigned int MAX_BLOCKFILE_SIZE = 0x8000000; // 128 MiB
 
 /** Size of header written by WriteBlockToDisk before a serialized CBlock */
-static constexpr size_t BLOCK_SERIALIZATION_HEADER_SIZE = CMessageHeader::MESSAGE_START_SIZE + sizeof(unsigned int);
+inline constexpr uint32_t STORAGE_HEADER_BYTES{CMessageHeader::MESSAGE_START_SIZE + sizeof(unsigned int)};
 
 extern std::atomic_bool fImporting;
 extern std::atomic_bool fReindex;
@@ -243,6 +243,21 @@ public:
 
     //! Create or update a prune lock identified by its name
     void UpdatePruneLock(const std::string& name, const PruneLockInfo& lock_info) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+
+    /**
+     * Read and deserialize a block from disk.
+     *
+     * The expected hash is checked when provided. Proof-of-work is checked only
+     * for blocks classified as proof-of-work, preserving historical SCH
+     * proof-of-stake block compatibility.
+     */
+    bool ReadBlock(
+        CBlock& block,
+        const FlatFilePos& pos,
+        const std::optional<uint256>& expected_hash = std::nullopt) const;
+
+    /** Read and deserialize a block identified by its block-index entry. */
+    bool ReadBlock(CBlock& block, const CBlockIndex& index) const;
 
     /** Read raw serialized block data or a requested byte range directly from block storage. */
     ReadRawBlockResult ReadRawBlock(

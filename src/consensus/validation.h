@@ -1,12 +1,22 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CONSENSUS_VALIDATION_H
-#define BITCOIN_CONSENSUS_VALIDATION_H
+#ifndef SCHILLINGCOIN_CONSENSUS_VALIDATION_H
+#define SCHILLINGCOIN_CONSENSUS_VALIDATION_H
 
+#include <consensus/consensus.h>
+#include <primitives/block.h>
+#include <primitives/transaction.h>
+#include <script/script.h>
+#include <serialize.h>
+
+#include <cstddef>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 /** A "reason" why a transaction was invalid, suitable for determining whether the
   * provider of the transaction should be banned/ignored/disconnected/etc.
@@ -119,4 +129,13 @@ public:
 class TxValidationState : public ValidationState<TxValidationResult> {};
 class BlockValidationState : public ValidationState<BlockValidationResult> {};
 
-#endif // BITCOIN_CONSENSUS_VALIDATION_H
+// These implement the weight = (stripped_size * 4) + witness_size formula,
+// using only serialization with and without witness data. As witness_size
+// is equal to total_size - stripped_size, this formula is identical to:
+// weight = (stripped_size * 3) + total_size.
+static inline int32_t GetTransactionWeight(const CTransaction& tx)
+{
+    return ::GetSerializeSize(TX_NO_WITNESS(tx)) * (WITNESS_SCALE_FACTOR - 1) + ::GetSerializeSize(TX_WITH_WITNESS(tx));
+}
+
+#endif // SCHILLINGCOIN_CONSENSUS_VALIDATION_H

@@ -1,12 +1,12 @@
 // Copyright (c) 2021-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchilingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INTERFACES_INIT_H
-#define BITCOIN_INTERFACES_INIT_H
+#ifndef SCHILLINGCOIN_INTERFACES_INIT_H
+#define SCHILLINGCOIN_INTERFACES_INIT_H
 
 #include <interfaces/chain.h>
-#include <interfaces/coinjoin.h>
 #include <interfaces/echo.h>
 #include <interfaces/node.h>
 #include <interfaces/wallet.h>
@@ -33,8 +33,7 @@ public:
     virtual ~Init() = default;
     virtual std::unique_ptr<Node> makeNode() { return nullptr; }
     virtual std::unique_ptr<Chain> makeChain() { return nullptr; }
-    virtual std::unique_ptr<CoinJoin::Loader> makeCoinJoinLoader() { return nullptr; }
-    virtual std::unique_ptr<interfaces::WalletLoader> makeWalletLoader(interfaces::Chain&, CoinJoin::Loader&) { return nullptr; }
+    virtual std::unique_ptr<interfaces::WalletLoader> makeWalletLoader(interfaces::Chain&) { return nullptr; }
     virtual std::unique_ptr<Echo> makeEcho() { return nullptr; }
     virtual Ipc* ipc() { return nullptr; }
 };
@@ -54,4 +53,4 @@ std::unique_ptr<Init> MakeWalletInit(int argc, char* argv[], int& exit_status);
 std::unique_ptr<Init> MakeGuiInit(int argc, char* argv[]);
 } // namespace interfaces
 
-#endif // BITCOIN_INTERFACES_INIT_H
+#endif // SCHILLINGCOIN_INTERFACES_INIT_H

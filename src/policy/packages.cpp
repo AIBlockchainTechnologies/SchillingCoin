@@ -1,4 +1,5 @@
 // Copyright (c) 2021-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -34,7 +35,7 @@ bool CheckPackage(const Package& txns, PackageValidationState& state)
     // An unsorted package will fail anyway on missing-inputs, but it's better to quit earlier and
     // fail on something less ambiguous (missing-inputs could also be an orphan or trying to
     // spend nonexistent coins).
-    std::unordered_set<uint256, SaltedTxidHasher> later_txids;
+    std::unordered_set<Txid, SaltedTxidHasher> later_txids;
     std::transform(txns.cbegin(), txns.cend(), std::inserter(later_txids, later_txids.end()),
                    [](const auto& tx) { return tx->GetHash(); });
     for (const auto& tx : txns) {
@@ -72,7 +73,7 @@ bool IsChildWithParents(const Package& package)
 
     // The package is expected to be sorted, so the last transaction is the child.
     const auto& child = package.back();
-    std::unordered_set<uint256, SaltedTxidHasher> input_txids;
+    std::unordered_set<Txid, SaltedTxidHasher> input_txids;
     std::transform(child->vin.cbegin(), child->vin.cend(),
                    std::inserter(input_txids, input_txids.end()),
                    [](const auto& input) { return input.prevout.hash; });

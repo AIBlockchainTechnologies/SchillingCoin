@@ -939,15 +939,15 @@ const std::array<std::string, 33> V2_BITCOIN_IDS = {
 const std::array<std::string, 41> V2_DASH_IDS = {
     NetMsgType::SPORK,
     NetMsgType::GETSPORKS,
-    NetMsgType::SENDDSQUEUE,
-    NetMsgType::DSACCEPT,
-    NetMsgType::DSVIN,
-    NetMsgType::DSFINALTX,
-    NetMsgType::DSSIGNFINALTX,
-    NetMsgType::DSCOMPLETE,
-    NetMsgType::DSSTATUSUPDATE,
-    NetMsgType::DSTX,
-    NetMsgType::DSQUEUE,
+    "", // Reserved: legacy CoinJoin SENDDSQUEUE
+    "", // Reserved: legacy CoinJoin DSACCEPT
+    "", // Reserved: legacy CoinJoin DSVIN
+    "", // Reserved: legacy CoinJoin DSFINALTX
+    "", // Reserved: legacy CoinJoin DSSIGNFINALTX
+    "", // Reserved: legacy CoinJoin DSCOMPLETE
+    "", // Reserved: legacy CoinJoin DSSTATUSUPDATE
+    "", // Reserved: legacy DSTX
+    "", // Reserved: legacy CoinJoin DSQUEUE
     NetMsgType::SYNCSTATUSCOUNT,
     NetMsgType::MNGOVERNANCESYNC,
     NetMsgType::MNGOVERNANCEOBJECT,
@@ -1085,7 +1085,7 @@ void V2Transport::StartSendingHandshake() noexcept
     // We cannot wipe m_send_garbage as it will still be used as AAD later in the handshake.
 }
 
-V2Transport::V2Transport(NodeId nodeid, bool initiating, int type_in, int version_in, const CKey& key, Span<const std::byte> ent32, std::vector<uint8_t> garbage) noexcept :
+V2Transport::V2Transport(NodeId nodeid, bool initiating, int type_in, int version_in, const CKey& key, std::span<const std::byte> ent32, std::vector<uint8_t> garbage) noexcept :
     m_cipher{key, ent32}, m_initiating{initiating}, m_nodeid{nodeid},
     m_v1_fallback{nodeid, type_in, version_in}, m_recv_type{type_in}, m_recv_version{version_in},
     m_recv_state{initiating ? RecvState::KEY : RecvState::KEY_MAYBE_V1},
@@ -1268,7 +1268,7 @@ bool V2Transport::ProcessReceivedGarbageBytes() noexcept
     Assume(m_recv_state == RecvState::GARB_GARBTERM);
     Assume(m_recv_buffer.size() <= MAX_GARBAGE_LEN + BIP324Cipher::GARBAGE_TERMINATOR_LEN);
     if (m_recv_buffer.size() >= BIP324Cipher::GARBAGE_TERMINATOR_LEN) {
-        if (MakeByteSpan(m_recv_buffer).last(BIP324Cipher::GARBAGE_TERMINATOR_LEN) == m_cipher.GetReceiveGarbageTerminator()) {
+        if (std::ranges::equal(MakeByteSpan(m_recv_buffer).last(BIP324Cipher::GARBAGE_TERMINATOR_LEN), m_cipher.GetReceiveGarbageTerminator())) {
             // Garbage terminator received. Store garbage to authenticate it as AAD later.
             m_recv_aad = std::move(m_recv_buffer);
             m_recv_aad.resize(m_recv_aad.size() - BIP324Cipher::GARBAGE_TERMINATOR_LEN);
@@ -4272,7 +4272,7 @@ std::vector<CAddress> CConnman::GetAddresses(CNode& requestor, size_t max_addres
     auto local_socket_bytes = requestor.addrBind.GetAddrBytes();
     uint64_t cache_id = GetDeterministicRandomizer(RANDOMIZER_ID_ADDRCACHE)
         .Write(requestor.ConnectedThroughNetwork())
-        .Write(local_socket_bytes.data(), local_socket_bytes.size())
+        .Write(local_socket_bytes)
         // For outbound connections, the port of the bound address is randomly
         // assigned by the OS and would therefore not be useful for seeding.
         .Write(requestor.IsInboundConn() ? requestor.addrBind.GetPort() : 0)
@@ -4980,7 +4980,7 @@ uint64_t CConnman::CalculateKeyedNetGroup(const CAddress& address) const
 {
     std::vector<unsigned char> vchNetGroup(m_netgroupman.GetGroup(address));
 
-    return GetDeterministicRandomizer(RANDOMIZER_ID_NETGROUP).Write(vchNetGroup.data(), vchNetGroup.size()).Finalize();
+    return GetDeterministicRandomizer(RANDOMIZER_ID_NETGROUP).Write(vchNetGroup).Finalize();
 }
 
 void CConnman::PerformReconnections()

@@ -15,7 +15,7 @@
 #include "sync.h"
 #include "util.h"
 #include "util/system.h"
-#include "utilstrencodings.h"
+#include <util/strencodings.h>
 #include "validation.h"
 
 #include <boost/algorithm/string/case_conv.hpp> // for to_upper()
@@ -431,9 +431,6 @@ static const CRPCCommand vRPCCommands[] =
         {"wallet", "walletpassphrase", &walletpassphrase, true, false, true},
         {"wallet", "delegatoradd", &delegatoradd, true, false, true},
         {"wallet", "delegatorremove", &delegatorremove, true, false, true},
-
-        /* Forge */
-        {"forge", "listforgeitems", &listforgeitems, false, false, true},
 
 #endif // ENABLE_WALLET
 };

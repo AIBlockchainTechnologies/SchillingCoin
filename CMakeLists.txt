@@ -309,6 +309,7 @@ set(SERVER_SOURCES
         ./src/rpc/mining.cpp
         ./src/rpc/misc.cpp
         ./src/rpc/net.cpp
+        ./src/rpc/node.cpp
         ./src/rpc/rawtransaction.cpp
         ./src/rpc/server.cpp
         ./src/rpc/signmessage.cpp

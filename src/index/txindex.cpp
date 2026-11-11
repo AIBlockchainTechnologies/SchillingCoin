@@ -1,4 +1,5 @@
 // Copyright (c) 2017-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,7 +15,6 @@ using node::OpenBlockFile;
 constexpr uint8_t DB_TXINDEX{'t'};
 
 std::unique_ptr<TxIndex> g_txindex;
-
 
 /** Access to the txindex database (indexes/txindex/) */
 class TxIndex::DB : public BaseIndex::DB
@@ -65,7 +65,7 @@ bool TxIndex::CustomAppend(const interfaces::BlockInfo& block)
     vPos.reserve(block.data->vtx.size());
     for (const auto& tx : block.data->vtx) {
         vPos.emplace_back(tx->GetHash(), pos);
-        pos.nTxOffset += ::GetSerializeSize(*tx, CLIENT_VERSION);
+        pos.nTxOffset += ::GetSerializeSize(TX_WITH_WITNESS(*tx));
     }
     return m_db->WriteTxs(vPos);
 }
@@ -91,7 +91,7 @@ bool TxIndex::FindTx(const uint256& tx_hash, uint256& block_hash, CTransactionRe
             LogError("%s: fseek(...) failed\n", __func__);
             return false;
         }
-        file >> tx;
+        file >> TX_WITH_WITNESS(tx);
     } catch (const std::exception& e) {
         LogError("%s: Deserialize or I/O error - %s\n", __func__, e.what());
         return false;

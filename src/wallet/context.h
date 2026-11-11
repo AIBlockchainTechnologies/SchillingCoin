@@ -1,9 +1,10 @@
 // Copyright (c) 2020-2021 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_CONTEXT_H
-#define BITCOIN_WALLET_CONTEXT_H
+#ifndef SCHILLINGCOIN_WALLET_CONTEXT_H
+#define SCHILLINGCOIN_WALLET_CONTEXT_H
 
 #include <sync.h>
 
@@ -15,9 +16,6 @@
 class ArgsManager;
 namespace interfaces {
 class Chain;
-namespace CoinJoin {
-class Loader;
-} // namspace CoinJoin
 class Wallet;
 } // namespace interfaces
 namespace node {
@@ -48,7 +46,6 @@ struct WalletContext {
     std::vector<std::shared_ptr<CWallet>> wallets GUARDED_BY(wallets_mutex);
     std::list<LoadWalletFn> wallet_loading_fns GUARDED_BY(wallets_mutex);
     std::list<LoadWalletFn> wallet_load_fns GUARDED_BY(wallets_mutex);
-    interfaces::CoinJoin::Loader* coinjoin_loader{nullptr};
     // Some Dash RPCs rely on WalletContext yet access NodeContext members
     // even though wallet RPCs should refrain from accessing non-wallet
     // capabilities (even though it is a hard ask sometimes). We should get
@@ -64,4 +61,4 @@ struct WalletContext {
 };
 } // namespace wallet
 
-#endif // BITCOIN_WALLET_CONTEXT_H
+#endif // SCHILLINGCOIN_WALLET_CONTEXT_H

@@ -26,6 +26,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <string.h>
 #include <unordered_map>
@@ -65,75 +66,74 @@ constexpr deserialize_type deserialize {};
  */
 template<typename Stream> inline void ser_writedata8(Stream &s, uint8_t obj)
 {
-    s.write(AsBytes(Span{&obj, 1}));
+    s.write(std::as_bytes(std::span{&obj, 1}));
 }
 template<typename Stream> inline void ser_writedata16(Stream &s, uint16_t obj)
 {
     obj = htole16_internal(obj);
-    s.write(AsBytes(Span{&obj, 1}));
+    s.write(std::as_bytes(std::span{&obj, 1}));
 }
 template<typename Stream> inline void ser_writedata16be(Stream &s, uint16_t obj)
 {
     obj = htobe16_internal(obj);
-    s.write(AsBytes(Span{&obj, 1}));
+    s.write(std::as_bytes(std::span{&obj, 1}));
 }
 template<typename Stream> inline void ser_writedata32(Stream &s, uint32_t obj)
 {
     obj = htole32_internal(obj);
-    s.write(AsBytes(Span{&obj, 1}));
+    s.write(std::as_bytes(std::span{&obj, 1}));
 }
 template<typename Stream> inline void ser_writedata32be(Stream &s, uint32_t obj)
 {
     obj = htobe32_internal(obj);
-    s.write(AsBytes(Span{&obj, 1}));
+    s.write(std::as_bytes(std::span{&obj, 1}));
 }
 template<typename Stream> inline void ser_writedata64(Stream &s, uint64_t obj)
 {
     obj = htole64_internal(obj);
-    s.write(AsBytes(Span{&obj, 1}));
+    s.write(std::as_bytes(std::span{&obj, 1}));
 }
 template<typename Stream> inline uint8_t ser_readdata8(Stream &s)
 {
     uint8_t obj;
-    s.read(AsWritableBytes(Span{&obj, 1}));
+    s.read(std::as_writable_bytes(std::span{&obj, 1}));
     return obj;
 }
 template<typename Stream> inline uint16_t ser_readdata16(Stream &s)
 {
     uint16_t obj;
-    s.read(AsWritableBytes(Span{&obj, 1}));
+    s.read(std::as_writable_bytes(std::span{&obj, 1}));
     return le16toh_internal(obj);
 }
 template<typename Stream> inline uint16_t ser_readdata16be(Stream &s)
 {
     uint16_t obj;
-    s.read(AsWritableBytes(Span{&obj, 1}));
+    s.read(std::as_writable_bytes(std::span{&obj, 1}));
     return be16toh_internal(obj);
 }
 template<typename Stream> inline uint32_t ser_readdata32(Stream &s)
 {
     uint32_t obj;
-    s.read(AsWritableBytes(Span{&obj, 1}));
+    s.read(std::as_writable_bytes(std::span{&obj, 1}));
     return le32toh_internal(obj);
 }
 template<typename Stream> inline uint32_t ser_readdata32be(Stream &s)
 {
     uint32_t obj;
-    s.read(AsWritableBytes(Span{&obj, 1}));
+    s.read(std::as_writable_bytes(std::span{&obj, 1}));
     return be32toh_internal(obj);
 }
 template<typename Stream> inline uint64_t ser_readdata64(Stream &s)
 {
     uint64_t obj;
-    s.read(AsWritableBytes(Span{&obj, 1}));
+    s.read(std::as_writable_bytes(std::span{&obj, 1}));
     return le64toh_internal(obj);
 }
-
 
 /////////////////////////////////////////////////////////////////
 //
 // Templates for serializing to anything that looks like a stream,
-// i.e. anything that supports .read(Span<std::byte>) and .write(Span<const std::byte>)
+// i.e. anything that supports .read(std::span<std::byte>) and .write(std::span<const std::byte>)
 //
 
 class CSizeComputer;
@@ -239,7 +239,7 @@ template<typename Stream> inline void Serialize(Stream& s, int64_t a ) { ser_wri
 template<typename Stream> inline void Serialize(Stream& s, uint64_t a) { ser_writedata64(s, a); }
 template <typename Stream, BasicByte B, int N> void Serialize(Stream& s, const B (&a)[N]) { s.write(MakeByteSpan(a)); }
 template <typename Stream, BasicByte B, std::size_t N> void Serialize(Stream& s, const std::array<B, N>& a) { s.write(MakeByteSpan(a)); }
-template <typename Stream, BasicByte B> void Serialize(Stream& s, Span<B> span) { s.write(AsBytes(span)); }
+template <typename Stream, BasicByte B, std::size_t N> void Serialize(Stream& s, std::span<B, N> span) { s.write(std::as_bytes(span)); }
 
 template <typename Stream, CharNotInt8 V> void Unserialize(Stream&, V) = delete; // char serialization forbidden. Use uint8_t or int8_t
 template <typename Stream> void Unserialize(Stream& s, std::byte& a) { a = std::byte{ser_readdata8(s)}; }
@@ -253,12 +253,11 @@ template<typename Stream> inline void Unserialize(Stream& s, int64_t& a ) { a = 
 template<typename Stream> inline void Unserialize(Stream& s, uint64_t& a) { a = ser_readdata64(s); }
 template <typename Stream, BasicByte B, int N> void Unserialize(Stream& s, B (&a)[N]) { s.read(MakeWritableByteSpan(a)); }
 template <typename Stream, BasicByte B, std::size_t N> void Unserialize(Stream& s, std::array<B, N>& a) { s.read(MakeWritableByteSpan(a)); }
-template <typename Stream, BasicByte B> void Unserialize(Stream& s, Span<B> span) { s.read(AsWritableBytes(span)); }
+template <typename Stream, BasicByte B, std::size_t N> void Unserialize(Stream& s, std::span<B, N> span) { s.read(std::as_writable_bytes(span)); }
 
 template <typename Stream> inline void Serialize(Stream& s, bool a) { uint8_t f = a; ser_writedata8(s, f); }
 template <typename Stream> inline void Unserialize(Stream& s, bool& a) { uint8_t f = ser_readdata8(s); a = f; }
 // clang-format on
-
 
 /**
  * Compact Size
@@ -456,7 +455,7 @@ void WriteFixedBitSet(Stream& s, const std::vector<bool>& vec, size_t size)
     size_t ms = std::min(size, vec.size());
     for (size_t p = 0; p < ms; p++)
         vBytes[p / 8] |= vec[p] << (p % 8);
-    s.write(AsBytes(Span{vBytes}));
+    s.write(std::as_bytes(std::span{vBytes}));
 }
 
 /** A stream that can report how many bytes are still available to read.
@@ -484,7 +483,7 @@ void ReadFixedBitSet(Stream& s, std::vector<bool>& vec, size_t size)
     vec.resize(size);
 
     std::vector<uint8_t> vBytes(nbytes);
-    s.read(AsWritableBytes(Span{vBytes}));
+    s.read(std::as_writable_bytes(std::span{vBytes}));
     for (size_t p = 0; p < size; p++)
         vec[p] = (vBytes[p / 8] & (1 << (p % 8))) != 0;
     if (vBytes.size() * 8 != size) {
@@ -706,10 +705,10 @@ struct CustomUintFormatter
         if (v < 0 || v > MAX) throw std::ios_base::failure("CustomUintFormatter value out of range");
         if (BigEndian) {
             uint64_t raw = htobe64_internal(v);
-            s.write(AsBytes(Span{&raw, 1}).last(Bytes));
+            s.write(std::as_bytes(std::span{&raw, 1}).last(Bytes));
         } else {
             uint64_t raw = htole64_internal(v);
-            s.write(AsBytes(Span{&raw, 1}).first(Bytes));
+            s.write(std::as_bytes(std::span{&raw, 1}).first(Bytes));
         }
     }
 
@@ -719,10 +718,10 @@ struct CustomUintFormatter
         static_assert(std::numeric_limits<U>::max() >= MAX && std::numeric_limits<U>::min() <= 0, "Assigned type too small");
         uint64_t raw = 0;
         if (BigEndian) {
-            s.read(AsWritableBytes(Span{&raw, 1}).last(Bytes));
+            s.read(std::as_writable_bytes(std::span{&raw, 1}).last(Bytes));
             v = static_cast<I>(be64toh_internal(raw));
         } else {
-            s.read(AsWritableBytes(Span{&raw, 1}).first(Bytes));
+            s.read(std::as_writable_bytes(std::span{&raw, 1}).first(Bytes));
             v = static_cast<I>(le64toh_internal(raw));
         }
     }
@@ -870,7 +869,6 @@ struct VectorFormatter
         detail::UnserializeVectorContents<Formatter>(s, v, ReadCompactSize(s));
     };
 };
-
 
 /**
  * Forward declarations
@@ -1079,19 +1077,10 @@ template<typename Stream, typename C>
 void Serialize(Stream& os, const std::basic_string_view<C>& str)
 {
     WriteCompactSize(os, str.size());
-    if (!str.empty())
-        os.write(AsBytes(Span{str.data(), str.size() * sizeof(C)}));
+    if (!str.empty()) {
+        os.write(MakeByteSpan(str));
+    }
 }
-
-template<typename Stream, typename C>
-void Unserialize(Stream& is, std::basic_string_view<C>& str)
-{
-    unsigned int nSize = ReadCompactSize(is);
-    str.resize(nSize);
-    if (nSize != 0)
-        is.read(AsWritableBytes(Span{str.data(), nSize * sizeof(C)}));
-}
-
 
 /**
  * prevector
@@ -1107,7 +1096,6 @@ void Serialize(Stream& os, const prevector<N, T>& v)
     }
 }
 
-
 template <typename Stream, unsigned int N, typename T>
 void Unserialize(Stream& is, prevector<N, T>& v)
 {
@@ -1119,14 +1107,13 @@ void Unserialize(Stream& is, prevector<N, T>& v)
         while (i < nSize) {
             unsigned int blk = std::min(nSize - i, (unsigned int)(1 + 4999999 / sizeof(T)));
             v.resize_uninitialized(i + blk);
-            is.read(AsWritableBytes(Span{&v[i], blk}));
+            is.read(std::as_writable_bytes(std::span{&v[i], blk}));
             i += blk;
         }
     } else {
         Unserialize(is, Using<VectorFormatter<DefaultFormatter>>(v));
     }
 }
-
 
 /**
  * vector
@@ -1150,7 +1137,6 @@ void Serialize(Stream& os, const std::vector<T, A>& v)
     }
 }
 
-
 template <typename Stream, typename T, typename A>
 void Unserialize(Stream& is, std::vector<T, A>& v)
 {
@@ -1162,14 +1148,13 @@ void Unserialize(Stream& is, std::vector<T, A>& v)
         while (i < nSize) {
             unsigned int blk = std::min(nSize - i, (unsigned int)(1 + 4999999 / sizeof(T)));
             v.resize(i + blk);
-            is.read(AsWritableBytes(Span{&v[i], blk}));
+            is.read(std::as_writable_bytes(std::span{&v[i], blk}));
             i += blk;
         }
     } else {
         Unserialize(is, Using<VectorFormatter<DefaultFormatter>>(v));
     }
 }
-
 
 /**
  * pair
@@ -1221,7 +1206,6 @@ struct DeserializeTuple<Stream, 0, Ts...> {
     }
 };
 
-
 template<typename Stream, typename... Elements>
 void Serialize(Stream& os, const std::tuple<Elements...>& item)
 {
@@ -1235,7 +1219,6 @@ void Unserialize(Stream& is, std::tuple<Elements...>& item)
     const auto size = std::tuple_size<std::tuple<Elements...>>::value;
     DeserializeTuple<Stream, size - 1, Elements...>{}(is, item);
 }
-
 
 /**
  * map
@@ -1360,8 +1343,6 @@ void Unserialize(Stream& is, std::list<T, A>& l)
     }
 }
 
-
-
 /**
  * unique_ptr
  */
@@ -1377,8 +1358,6 @@ void Unserialize(Stream& is, std::unique_ptr<const T>& p)
     p.reset(new T(deserialize, is));
 }
 
-
-
 /**
  * shared_ptr
  */
@@ -1393,8 +1372,6 @@ void Unserialize(Stream& is, std::shared_ptr<T>& p)
 {
     p = std::make_shared<T>(deserialize, is);
 }
-
-
 
 /**
  * atomic
@@ -1413,8 +1390,6 @@ void Unserialize(Stream& is, std::atomic<T>& a)
     a.store(val);
 }
 
-
-
 /**
  * Support for SERIALIZE_METHODS and READWRITE macro.
  */
@@ -1426,13 +1401,6 @@ struct CSerActionUnserialize
 {
     constexpr bool ForRead() const { return true; }
 };
-
-
-
-
-
-
-
 
 /* ::GetSerializeSize implementations
  *
@@ -1454,7 +1422,7 @@ protected:
 public:
     explicit CSizeComputer(int nVersionIn) : nVersion(nVersionIn) {}
 
-    void write(Span<const std::byte> src)
+    void write(std::span<const std::byte> src)
     {
         this->nSize += src.size();
     }
@@ -1549,5 +1517,132 @@ size_t GetSerializeSizeMany(int nVersion, const T&... t)
     SerializeMany(sc, t...);
     return sc.size();
 }
+
+//! Check if type contains a stream by seeing if has a GetStream() method.
+template<typename T>
+concept ContainsStream = requires(T t) { t.GetStream(); };
+
+/** Wrapper that overrides the GetParams() function of a stream. */
+template <typename SubStream, typename Params>
+class ParamsStream
+{
+    const Params& m_params;
+
+    // If ParamsStream constructor is passed an lvalue argument, Substream will
+    // be a reference type, and m_substream will reference that argument.
+    // Otherwise m_substream will be a substream instance and move from the
+    // argument. Letting ParamsStream contain a substream instance instead of
+    // just a reference is useful to make the ParamsStream object self contained
+    // and let it do cleanup when destroyed, for example by closing files if
+    // SubStream is a file stream.
+    SubStream m_substream;
+
+public:
+    ParamsStream(SubStream&& substream, const Params& params LIFETIMEBOUND) : m_params{params}, m_substream{std::forward<SubStream>(substream)} {}
+
+    template <typename NestedSubstream, typename Params1, typename Params2, typename... NestedParams>
+    ParamsStream(NestedSubstream&& s, const Params1& params1 LIFETIMEBOUND, const Params2& params2 LIFETIMEBOUND, const NestedParams&... params LIFETIMEBOUND)
+        : ParamsStream{::ParamsStream{std::forward<NestedSubstream>(s), params2, params...}, params1} {}
+
+    template <typename U> ParamsStream& operator<<(const U& obj) { ::Serialize(*this, obj); return *this; }
+    template <typename U> ParamsStream& operator>>(U&& obj) { ::Unserialize(*this, obj); return *this; }
+    void write(std::span<const std::byte> src) { GetStream().write(src); }
+    void read(std::span<std::byte> dst) { GetStream().read(dst); }
+    void ignore(size_t num) { GetStream().ignore(num); }
+    bool empty() const { return GetStream().empty(); }
+    size_t size() const { return GetStream().size(); }
+
+    //! Get reference to stream parameters.
+    template <typename P>
+    const auto& GetParams() const
+    {
+        if constexpr (std::is_convertible_v<Params, P>) {
+            return m_params;
+        } else {
+            return m_substream.template GetParams<P>();
+        }
+    }
+
+    //! Get reference to underlying stream.
+    auto& GetStream()
+    {
+        if constexpr (ContainsStream<SubStream>) {
+            return m_substream.GetStream();
+        } else {
+            return m_substream;
+        }
+    }
+
+    const auto& GetStream() const
+    {
+        if constexpr (ContainsStream<SubStream>) {
+            return m_substream.GetStream();
+        } else {
+            return m_substream;
+        }
+    }
+};
+
+/**
+ * Explicit template deduction guide is required for single-parameter
+ * constructor so Substream&& is treated as a forwarding reference, and
+ * SubStream is deduced as reference type for lvalue arguments.
+ */
+template <typename Substream, typename Params>
+ParamsStream(Substream&&, const Params&) -> ParamsStream<Substream, Params>;
+
+/**
+ * Template deduction guide for multiple params arguments that creates a nested
+ * ParamsStream.
+ */
+template <typename Substream, typename Params1, typename Params2, typename... Params>
+ParamsStream(Substream&& s, const Params1& params1, const Params2& params2, const Params&... params) ->
+    ParamsStream<decltype(ParamsStream{std::forward<Substream>(s), params2, params...}), Params1>;
+
+/** Wrapper that serializes objects with the specified parameters. */
+template <typename Params, typename T>
+class ParamsWrapper
+{
+    const Params& m_params;
+    T& m_object;
+
+public:
+    explicit ParamsWrapper(const Params& params, T& obj) : m_params{params}, m_object{obj} {}
+
+    template <typename Stream>
+    void Serialize(Stream& s) const
+    {
+        ParamsStream ss{s, m_params};
+        ::Serialize(ss, m_object);
+    }
+
+    template <typename Stream>
+    void Unserialize(Stream& s)
+    {
+        ParamsStream ss{s, m_params};
+        ::Unserialize(ss, m_object);
+    }
+};
+
+/**
+ * Helper macro for SerParams structs
+ *
+ * Allows you define SerParams instances and then apply them directly
+ * to an object via function call syntax, eg:
+ *
+ *   constexpr SerParams FOO{....};
+ *   ss << FOO(obj);
+ */
+#define SER_PARAMS_OPFUNC                                                                \
+    /**                                                                                  \
+     * Return a wrapper around t that (de)serializes it with specified parameter params. \
+     *                                                                                   \
+     * See SER_PARAMS for more information on serialization parameters.                  \
+     */                                                                                  \
+    template <typename T>                                                                \
+    auto operator()(T&& t) const                                                         \
+    {                                                                                    \
+        return ParamsWrapper{*this, t};                                                  \
+    }
 
 #endif // SCHILLINGCOIN_SERIALIZE_H

@@ -4577,13 +4577,13 @@ void CMerkleTx::SetMerkleBranch(const CBlock& block)
     }
 }
 
-int CMerkleTx::GetDepthInMainChain(bool enableIX) const
+int CMerkleTx::GetDepthInMainChain() const
 {
     const CBlockIndex* pindexRet;
-    return GetDepthInMainChain(pindexRet, enableIX);
+    return GetDepthInMainChain(pindexRet);
 }
 
-int CMerkleTx::GetDepthInMainChain(const CBlockIndex*& pindexRet, bool enableIX) const
+int CMerkleTx::GetDepthInMainChain(const CBlockIndex*& pindexRet) const
 {
     if (hashUnset())
         return 0;
@@ -4606,7 +4606,6 @@ int CMerkleTx::GetDepthInMainChain(const CBlockIndex*& pindexRet, bool enableIX)
         }
     }
 
-    // SwiftTX removed — ignore enableIX entirely
     return nResult;
 }
 
@@ -4648,18 +4647,6 @@ bool CMerkleTx::AcceptToMemoryPool(bool fLimitFree, bool fRejectInsaneFee, bool 
         LogPrintf("%s : %s\n", __func__, state.GetRejectReason());
 
     return fAccepted;
-}
-
-int CMerkleTx::GetTransactionLockSignatures() const
-{
-    // SwiftTX removed
-    return 0;
-}
-
-bool CMerkleTx::IsTransactionLockTimedOut() const
-{
-    // SwiftTX removed
-    return false;
 }
 
 std::string CWallet::GetUniqueWalletBackupName() const
@@ -4874,10 +4861,6 @@ void CWalletTx::Init(const CWallet* pwalletIn)
     fCreditCached = false;
     fImmatureCreditCached = false;
     fAvailableCreditCached = false;
-    fAnonymizableCreditCached = false;
-    fAnonymizedCreditCached = false;
-    fDenomUnconfCreditCached = false;
-    fDenomConfCreditCached = false;
     fWatchDebitCached = false;
     fWatchCreditCached = false;
     fImmatureWatchCreditCached = false;
@@ -4892,10 +4875,6 @@ void CWalletTx::Init(const CWallet* pwalletIn)
     nCreditCached = 0;
     nImmatureCreditCached = 0;
     nAvailableCreditCached = 0;
-    nAnonymizableCreditCached = 0;
-    nAnonymizedCreditCached = 0;
-    nDenomUnconfCreditCached = 0;
-    nDenomConfCreditCached = 0;
     nWatchDebitCached = 0;
     nWatchCreditCached = 0;
     nAvailableWatchCreditCached = 0;
@@ -4945,9 +4924,9 @@ bool CWalletTx::IsTrusted(int& nDepth, bool& fConflicted) const
     return true;
 }
 
-int CWalletTx::GetDepthAndMempool(bool& fConflicted, bool enableIX) const
+int CWalletTx::GetDepthAndMempool(bool& fConflicted) const
 {
-    int ret = GetDepthInMainChain(enableIX);
+    int ret = GetDepthInMainChain();
     fConflicted = (ret == 0 && !InMempool());  // not in chain nor in mempool
     return ret;
 }
@@ -4965,10 +4944,6 @@ void CWalletTx::MarkDirty()
 {
     fCreditCached = false;
     fAvailableCreditCached = false;
-    fAnonymizableCreditCached = false;
-    fAnonymizedCreditCached = false;
-    fDenomUnconfCreditCached = false;
-    fDenomConfCreditCached = false;
     fWatchDebitCached = false;
     fWatchCreditCached = false;
     fAvailableWatchCreditCached = false;

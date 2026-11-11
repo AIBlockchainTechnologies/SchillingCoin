@@ -225,24 +225,24 @@ struct PackageMempoolAcceptResult
 {
     const PackageValidationState m_state;
     /**
-    * Map from txid to finished MempoolAcceptResults. The client is responsible
-    * for keeping track of the transaction objects themselves. If a result is not
-    * present, it means validation was unfinished for that transaction. If there
-    * was a package-wide error (see result in m_state), m_tx_results will be empty.
-    */
-    std::map<const uint256, const MempoolAcceptResult> m_tx_results;
+     * Map from txid to finished MempoolAcceptResults. The client is responsible
+     * for keeping track of the transaction objects themselves. If a result is not
+     * present, it means validation was unfinished for that transaction. If there
+     * was a package-wide error (see result in m_state), m_tx_results will be empty.
+     */
+    std::map<Txid, MempoolAcceptResult> m_tx_results;
 
     explicit PackageMempoolAcceptResult(PackageValidationState state,
-                                        std::map<const uint256, const MempoolAcceptResult>&& results)
+                                        std::map<Txid, MempoolAcceptResult>&& results)
         : m_state{state}, m_tx_results(std::move(results)) {}
 
     explicit PackageMempoolAcceptResult(PackageValidationState state, CFeeRate feerate,
-                                        std::map<const uint256, const MempoolAcceptResult>&& results)
+                                        std::map<Txid, MempoolAcceptResult>&& results)
         : m_state{state}, m_tx_results(std::move(results)) {}
 
     /** Constructor to create a PackageMempoolAcceptResult from a single MempoolAcceptResult */
-    explicit PackageMempoolAcceptResult(const uint256 &txid, const MempoolAcceptResult& result)
-        : m_tx_results{ {txid, result} } {}
+    explicit PackageMempoolAcceptResult(const Txid& txid, const MempoolAcceptResult& result)
+        : m_tx_results{{txid, result}} {}
 };
 
 /**

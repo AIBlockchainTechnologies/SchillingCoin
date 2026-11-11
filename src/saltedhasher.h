@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_SALTEDHASHER_H
-#define BITCOIN_SALTEDHASHER_H
+#ifndef SCHILLINGCOIN_SALTEDHASHER_H
+#define SCHILLINGCOIN_SALTEDHASHER_H
 
 #include <hash.h>
 #include <uint256.h>
@@ -21,7 +22,7 @@ struct SaltedHasherImpl<std::pair<uint256, N>>
 {
     static std::size_t CalcHash(const std::pair<uint256, N>& v, uint64_t k0, uint64_t k1)
     {
-        return SipHashUint256Extra(k0, k1, v.first, static_cast<uint32_t>(v.second));
+        return PresaltedSipHasher{k0, k1}(v.first, static_cast<uint32_t>(v.second));
     }
 };
 
@@ -30,7 +31,7 @@ struct SaltedHasherImpl<std::pair<N, uint256>>
 {
     static std::size_t CalcHash(const std::pair<N, uint256>& v, uint64_t k0, uint64_t k1)
     {
-        return SipHashUint256Extra(k0, k1, v.second, static_cast<uint32_t>(v.first));
+        return PresaltedSipHasher{k0, k1}(v.second, static_cast<uint32_t>(v.first));
     }
 };
 
@@ -48,7 +49,7 @@ struct SaltedHasherImpl<uint256>
 {
     static std::size_t CalcHash(const uint256& v, uint64_t k0, uint64_t k1)
     {
-        return SipHashUint256(k0, k1, v);
+        return PresaltedSipHasher{k0, k1}(v);
     }
 };
 
@@ -97,4 +98,4 @@ class unordered_lru_cache;
 template <typename T, size_t MaxSize = 0ul, size_t TruncateThreshold = 0ul>
 using Uint256LruHashMap = unordered_lru_cache<uint256, T, StaticSaltedHasher, MaxSize, TruncateThreshold>;
 
-#endif // BITCOIN_SALTEDHASHER_H
+#endif // SCHILLINGCOIN_SALTEDHASHER_H

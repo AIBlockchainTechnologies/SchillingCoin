@@ -8,6 +8,9 @@
 
 #include <util/result.h>
 
+#include <string>
+#include <vector>
+
 class ArgsManager;
 class CChainParams;
 struct bilingual_str;
@@ -24,5 +27,11 @@ struct MemPoolOptions;
  */
 [[nodiscard]] util::Result<void> ApplyArgsManOptions(const ArgsManager& argsman, const CChainParams& chainparams, kernel::MemPoolOptions& mempool_opts);
 
+/**
+ * Names of the relay policy options in \p mempool_opts that reject transactions the network
+ * default policy accepts. A masternode only signs InstantSend locks for transactions that enter
+ * its own mempool, so any of these makes it silently skip signing work.
+ */
+[[nodiscard]] std::vector<std::string> GetStricterThanDefaultRelayPolicy(const kernel::MemPoolOptions& mempool_opts);
 
 #endif // SCHILLINGCOIN_NODE_MEMPOOL_ARGS_H

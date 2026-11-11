@@ -57,15 +57,6 @@ MAKE_MSG(CFCHECKPT, "cfcheckpt");
 MAKE_MSG(SENDTXRCNCL, "sendtxrcncl");
 MAKE_MSG(SPORK, "spork");
 MAKE_MSG(GETSPORKS, "getsporks");
-MAKE_MSG(DSACCEPT, "dsa");
-MAKE_MSG(DSVIN, "dsi");
-MAKE_MSG(DSFINALTX, "dsf");
-MAKE_MSG(DSSIGNFINALTX, "dss");
-MAKE_MSG(DSCOMPLETE, "dsc");
-MAKE_MSG(DSSTATUSUPDATE, "dssu");
-MAKE_MSG(DSTX, "dstx");
-MAKE_MSG(DSQUEUE, "dsq");
-MAKE_MSG(SENDDSQUEUE, "senddsq");
 MAKE_MSG(SYNCSTATUSCOUNT, "ssc");
 MAKE_MSG(MNGOVERNANCESYNC, "govsync");
 MAKE_MSG(MNGOVERNANCEOBJECT, "govobj");
@@ -108,9 +99,7 @@ static const std::string allNetMessageTypes[] = {
     NetMsgType::FILTERCLEAR, NetMsgType::SENDHEADERS, NetMsgType::SENDCMPCT, NetMsgType::CMPCTBLOCK,
     NetMsgType::GETBLOCKTXN, NetMsgType::BLOCKTXN, NetMsgType::GETCFILTERS, NetMsgType::CFILTER,
     NetMsgType::GETCFHEADERS, NetMsgType::CFHEADERS, NetMsgType::GETCFCHECKPT, NetMsgType::CFCHECKPT,
-    NetMsgType::SENDTXRCNCL, NetMsgType::SPORK, NetMsgType::GETSPORKS, NetMsgType::SENDDSQUEUE,
-    NetMsgType::DSACCEPT, NetMsgType::DSVIN, NetMsgType::DSFINALTX, NetMsgType::DSSIGNFINALTX,
-    NetMsgType::DSCOMPLETE, NetMsgType::DSSTATUSUPDATE, NetMsgType::DSTX, NetMsgType::DSQUEUE,
+    NetMsgType::SENDTXRCNCL, NetMsgType::SPORK, NetMsgType::GETSPORKS,
     NetMsgType::SYNCSTATUSCOUNT, NetMsgType::MNGOVERNANCESYNC, NetMsgType::MNGOVERNANCEOBJECT,
     NetMsgType::MNGOVERNANCEOBJECTVOTE, NetMsgType::GETMNLISTDIFF, NetMsgType::MNLISTDIFF,
     NetMsgType::QSENDRECSIGS, NetMsgType::QFCOMMITMENT, NetMsgType::QCONTRIB,
@@ -125,8 +114,6 @@ static const std::string allNetMessageTypes[] = {
 
 static const std::vector<std::string> allNetMessageTypesVec(std::begin(allNetMessageTypes), std::end(allNetMessageTypes));
 static const std::string netMessageTypesViolateBlocksOnly[] = {
-    NetMsgType::DSACCEPT, NetMsgType::DSCOMPLETE, NetMsgType::DSFINALTX, NetMsgType::DSQUEUE,
-    NetMsgType::DSSIGNFINALTX, NetMsgType::DSSTATUSUPDATE, NetMsgType::DSTX, NetMsgType::DSVIN,
     NetMsgType::GETQUORUMROTATIONINFO, NetMsgType::PLATFORMBAN, NetMsgType::QBSIGSHARES,
     NetMsgType::QCOMPLAINT, NetMsgType::QCONTRIB, NetMsgType::QDATA, NetMsgType::QGETDATA,
     NetMsgType::QGETSIGSHARES, NetMsgType::QJUSTIFICATION, NetMsgType::QPCOMMITMENT,
@@ -211,7 +198,6 @@ const char* CInv::GetCommandInternal() const
     case MSG_MASTERNODE_WINNER: return "mnw";
     case MSG_MASTERNODE_ANNOUNCE: return "mnb";
     case MSG_MASTERNODE_PING: return "mnp";
-    case MSG_DSTX: return NetMsgType::DSTX;
     case MSG_GOVERNANCE_OBJECT: return NetMsgType::MNGOVERNANCEOBJECT;
     case MSG_GOVERNANCE_OBJECT_VOTE: return NetMsgType::MNGOVERNANCEOBJECTVOTE;
     case MSG_CMPCT_BLOCK: return NetMsgType::CMPCTBLOCK;
@@ -223,7 +209,6 @@ const char* CInv::GetCommandInternal() const
     case MSG_QUORUM_RECOVERED_SIG: return NetMsgType::QSIGREC;
     case MSG_CLSIG: return NetMsgType::CLSIG;
     case MSG_ISDLOCK: return NetMsgType::ISDLOCK;
-    case MSG_DSQ: return NetMsgType::DSQUEUE;
     case MSG_PLATFORM_BAN: return NetMsgType::PLATFORMBAN;
     case MSG_ASSET_UNLOCK: return NetMsgType::TX;
     default: return nullptr;

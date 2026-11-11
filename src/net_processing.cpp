@@ -313,7 +313,7 @@ struct Peer {
         /** Set of transaction ids we still have to announce. We use the
          *  mempool to sort transactions in dependency order before relay, so
          *  this does not have to be sorted. */
-        std::set<uint256> m_tx_inventory_to_send GUARDED_BY(m_tx_inventory_mutex);
+        std::set<Txid> m_tx_inventory_to_send GUARDED_BY(m_tx_inventory_mutex);
         /** List of non-tx/non-block inventory items */
         std::vector<CInv> vInventoryOtherToSend GUARDED_BY(m_tx_inventory_mutex);
         /** Whether the peer has requested us to send our complete mempool. Only
@@ -1104,7 +1104,7 @@ private:
     /** Orphan/conflicted/etc transactions that are kept for compact block reconstruction.
      *  The last -blockreconstructionextratxn/DEFAULT_BLOCK_RECONSTRUCTION_EXTRA_TXN of
      *  these are kept in a ring buffer */
-    std::vector<std::pair<uint256, CTransactionRef>> vExtraTxnForCompact GUARDED_BY(g_msgproc_mutex);
+    std::vector<std::pair<Wtxid, CTransactionRef>> vExtraTxnForCompact GUARDED_BY(g_msgproc_mutex);
     /** Offset into vExtraTxnForCompact to insert the next tx */
     size_t vExtraTxnForCompactIt GUARDED_BY(g_msgproc_mutex) = 0;
 
@@ -1228,7 +1228,7 @@ static void PushInv(Peer& peer, const CInv& inv)
     }
     LogPrint(BCLog::NET, "%s -- adding new inv: %s peer=%d\n", __func__, inv.ToString(), peer.m_id);
     if (inv.type == MSG_TX) {
-        inv_relay->m_tx_inventory_to_send.insert(inv.hash);
+        inv_relay->m_tx_inventory_to_send.insert(Txid::FromUint256(inv.hash));
         return;
     }
     inv_relay->vInventoryOtherToSend.push_back(inv);
@@ -1650,7 +1650,7 @@ void PeerManagerImpl::ForgetTx(const CTransaction& tx)
 {
     AssertLockHeld(cs_main);
     LOCK(m_object_request_mutex);
-    m_object_request.ForgetTxHash(CInv(MSG_TX, tx.GetHash()));
+    m_object_request.ForgetTxHash(CInv(MSG_TX, tx.GetHash().ToUint256()));
 }
 
 size_t PeerManagerImpl::GetRequestedObjectCount(NodeId nodeid) const
@@ -1732,14 +1732,14 @@ void PeerManagerImpl::InitializeNode(CNode& node, ServiceFlags our_services) {
 
 void PeerManagerImpl::ReattemptInitialBroadcast(CScheduler& scheduler)
 {
-    std::set<uint256> unbroadcast_txids = m_mempool.GetUnbroadcastTxs();
+    std::set<Txid> unbroadcast_txids = m_mempool.GetUnbroadcastTxs();
 
-    for (const uint256& txid : unbroadcast_txids) {
+    for (const Txid& txid : unbroadcast_txids) {
         CTransactionRef tx = m_mempool.get(txid);
 
         if (tx != nullptr) {
             LOCK(cs_main);
-            _RelayTransaction(txid);
+            _RelayTransaction(txid.ToUint256());
         } else {
             m_mempool.RemoveUnbroadcastTx(txid, true);
         }
@@ -1897,7 +1897,7 @@ void PeerManagerImpl::AddToCompactExtraTransactions(const CTransactionRef& tx)
         return;
     if (!vExtraTxnForCompact.size())
         vExtraTxnForCompact.resize(max_extra_txn);
-    vExtraTxnForCompact[vExtraTxnForCompactIt] = std::make_pair(tx->GetHash(), tx);
+    vExtraTxnForCompact[vExtraTxnForCompactIt] = std::make_pair(tx->GetWitnessHash(), tx);
     vExtraTxnForCompactIt = (vExtraTxnForCompactIt + 1) % max_extra_txn;
 }
 
@@ -2152,7 +2152,7 @@ void PeerManagerImpl::BlockConnected(const std::shared_ptr<const CBlock>& pblock
     {
         LOCK(m_recent_confirmed_transactions_mutex);
         for (const auto& ptx : pblock->vtx) {
-            m_recent_confirmed_transactions.insert(ptx->GetHash());
+            m_recent_confirmed_transactions.insert(ptx->GetHash().ToUint256());
         }
     }
 
@@ -2324,7 +2324,7 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
                 m_recent_rejects.reset();
             }
 
-            if (m_orphanage.HaveTx(inv.hash)) return true;
+            if (m_orphanage.HaveTx(Wtxid::FromUint256(inv.hash))) return true;
 
             {
                 LOCK(m_recent_confirmed_transactions_mutex);
@@ -2340,7 +2340,7 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
                                         m_isman.IsLocked(inv.hash);
 
             return (!fIgnoreRecentRejects && m_recent_rejects.contains(inv.hash)) ||
-                   m_mempool.exists(inv.hash) ||
+                   m_mempool.exists(Txid::FromUint256(inv.hash)) ||
                    (g_txindex != nullptr && g_txindex->HasTx(inv.hash));
         }
 
@@ -2796,7 +2796,7 @@ void PeerManagerImpl::ProcessGetBlockData(CNode& pfrom, Peer& peer, const CInv& 
 //! Determine whether or not a peer can request a transaction, and return it (or nullptr if not found or not allowed).
 CTransactionRef PeerManagerImpl::FindTxForGetData(const CNode* peer, const uint256& txid, const std::chrono::seconds mempool_req, const std::chrono::seconds now)
 {
-    auto txinfo = m_mempool.info(txid);
+    auto txinfo = m_mempool.info(Txid::FromUint256(txid));
     if (txinfo.tx) {
         // If a TX could have been INVed in reply to a MEMPOOL request,
         // or is older than UNCONDITIONAL_RELAY_DELAY, permit the request
@@ -2866,7 +2866,7 @@ void PeerManagerImpl::ProcessGetData(CNode& pfrom, Peer& peer, const std::atomic
         if (inv.IsGenTxMsg()) {
             CTransactionRef tx = FindTxForGetData(&pfrom, inv.hash, mempool_req, now);
             if (tx) {
-                m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::TX, *tx));
+                m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::TX, TX_WITH_WITNESS(*tx)));
                 m_mempool.RemoveUnbroadcastTx(tx->GetHash());
                 push = true;
 
@@ -3255,19 +3255,20 @@ bool PeerManagerImpl::ProcessOrphanTx(NodeId node_id)
     while (CTransactionRef porphanTx = m_orphanage.GetTxToReconsider(node_id)) {
         const MempoolAcceptResult result = m_chainman.ProcessTransaction(porphanTx);
         const TxValidationState& state = result.m_state;
-        const uint256& orphanHash = porphanTx->GetHash();
+        const Txid& orphanTxid = porphanTx->GetHash();
+        const Wtxid& orphanWtxid = porphanTx->GetWitnessHash();
 
         if (result.m_result_type == MempoolAcceptResult::ResultType::VALID) {
-            LogPrint(BCLog::MEMPOOL, "   accepted orphan tx %s\n", orphanHash.ToString());
-            _RelayTransaction(porphanTx->GetHash());
+            LogPrint(BCLog::MEMPOOL, "   accepted orphan tx %s\n", orphanTxid.ToString());
+            _RelayTransaction(orphanTxid.ToUint256());
             m_orphanage.AddChildrenToWorkSet(*porphanTx);
-            m_orphanage.EraseTx(orphanHash);
-            ForgetTx(orphanHash);
+            m_orphanage.EraseTx(orphanWtxid);
+            ForgetTx(orphanTxid.ToUint256());
             return true;
         } else if (state.GetResult() != TxValidationResult::TX_MISSING_INPUTS) {
             if (state.IsInvalid()) {
                 LogPrint(BCLog::MEMPOOL, "   invalid orphan tx %s from peer=%d. %s\n",
-                    orphanHash.ToString(),
+                    orphanTxid.ToString(),
                     node_id,
                     state.ToString());
                 // Maybe punish peer that gave us an invalid orphan tx
@@ -3275,10 +3276,10 @@ bool PeerManagerImpl::ProcessOrphanTx(NodeId node_id)
             }
             // Has inputs but not accepted to mempool
             // Probably non-standard or insufficient fee
-            LogPrint(BCLog::MEMPOOL, "   removed orphan tx %s\n", orphanHash.ToString());
-            m_recent_rejects.insert(orphanHash);
-            m_orphanage.EraseTx(orphanHash);
-            ForgetTx(orphanHash);
+            LogPrint(BCLog::MEMPOOL, "   removed orphan tx %s\n", orphanTxid.ToString());
+            m_recent_rejects.insert(orphanTxid.ToUint256());
+            m_orphanage.EraseTx(orphanWtxid);
+            ForgetTx(orphanTxid.ToUint256());
             return true;
         }
     }
@@ -4503,14 +4504,14 @@ void PeerManagerImpl::ProcessMessage(
         if (m_chainman.ActiveChainstate().IsInitialBlockDownload()) return;
 
         CTransactionRef ptx;
-        vRecv >> ptx;
+        vRecv >> TX_WITH_WITNESS(ptx);
 
         const CTransaction& tx = *ptx;
-        const uint256& txid = ptx->GetHash();
+        const Txid& txid = ptx->GetHash();
 
-        AddKnownInv(*peer, txid);
+        AddKnownInv(*peer, txid.ToUint256());
 
-        CInv inv(MSG_TX, txid);
+        CInv inv(MSG_TX, txid.ToUint256());
         {
             LOCK(cs_main);
             LOCK(m_object_request_mutex);
@@ -4529,7 +4530,7 @@ void PeerManagerImpl::ProcessMessage(
                     LogPrintf("Not relaying non-mempool transaction %s from forcerelay peer=%d\n", tx.GetHash().ToString(), pfrom.GetId());
                 } else {
                     LogPrintf("Force relaying tx %s from peer=%d\n", tx.GetHash().ToString(), pfrom.GetId());
-                    _RelayTransaction(tx.GetHash());
+                    _RelayTransaction(tx.GetHash().ToUint256());
                 }
             }
             return;
@@ -4540,8 +4541,9 @@ void PeerManagerImpl::ProcessMessage(
 
         if (result.m_result_type == MempoolAcceptResult::ResultType::VALID) {
             ForgetTx(tx);
-            _RelayTransaction(tx.GetHash());
+            _RelayTransaction(tx.GetHash().ToUint256());
             m_orphanage.AddChildrenToWorkSet(tx);
+            m_orphanage.EraseTx(tx.GetWitnessHash());
 
             pfrom.m_last_tx_time = GetTime<std::chrono::seconds>();
 
@@ -4556,7 +4558,7 @@ void PeerManagerImpl::ProcessMessage(
 
             // Deduplicate parent txids, so that we don't have to loop over
             // the same parent txid more than once down below.
-            std::vector<uint256> unique_parents;
+            std::vector<Txid> unique_parents;
             unique_parents.reserve(tx.vin.size());
             for (const CTxIn& txin : tx.vin) {
                 // We start with all parents, and then remove duplicates below.
@@ -4564,8 +4566,8 @@ void PeerManagerImpl::ProcessMessage(
             }
             std::sort(unique_parents.begin(), unique_parents.end());
             unique_parents.erase(std::unique(unique_parents.begin(), unique_parents.end()), unique_parents.end());
-            for (const uint256& parent_txid : unique_parents) {
-                if (m_recent_rejects.contains(parent_txid)) {
+            for (const Txid& parent_txid : unique_parents) {
+                if (m_recent_rejects.contains(parent_txid.ToUint256())) {
                     fRejectedParents = true;
                     break;
                 }
@@ -4573,8 +4575,8 @@ void PeerManagerImpl::ProcessMessage(
             if (!fRejectedParents) {
                 const auto current_time{GetTime<std::chrono::microseconds>()};
 
-                for (const uint256& parent_txid : unique_parents) {
-                    CInv _inv(MSG_TX, parent_txid);
+                for (const Txid& parent_txid : unique_parents) {
+                    CInv _inv(MSG_TX, parent_txid.ToUint256());
                     AddKnownInv(*peer, _inv.hash);
                     if (!AlreadyHave(_inv)) AddObjectAnnouncement(pfrom, _inv, current_time);
                 }
@@ -4584,7 +4586,7 @@ void PeerManagerImpl::ProcessMessage(
                 }
                 // Once added to the orphan pool, a tx is considered AlreadyHave, and we shouldn't
                 // request it anymore.
-                ForgetTx(tx.GetHash());
+                ForgetTx(tx.GetHash().ToUint256());
 
                 // DoS prevention: do not allow m_orphans to grow unbounded (see CVE-2012-3789)
                 const unsigned int nMaxOrphanTxSize = static_cast<unsigned int>(std::max<int64_t>( 0, gArgs.GetIntArg("-maxorphantxsize", DEFAULT_MAX_ORPHAN_TRANSACTIONS_SIZE))) * 1000000;
@@ -4593,13 +4595,14 @@ void PeerManagerImpl::ProcessMessage(
                 LogPrint(BCLog::MEMPOOL, "not keeping orphan with rejected parents %s\n",tx.GetHash().ToString());
                 // We will continue to reject this tx since it has rejected
                 // parents so avoid re-requesting it from other peers.
-                m_recent_rejects.insert(tx.GetHash());
-                ForgetTx(tx.GetHash());
+                m_recent_rejects.insert(tx.GetHash().ToUint256());
+                ForgetTx(tx.GetHash().ToUint256());
                 m_isman.TransactionIsRemoved(ptx);
             }
         } else {
-            m_recent_rejects.insert(txid);
+            m_recent_rejects.insert(txid.ToUint256());
             ForgetTx(tx);
+            m_orphanage.EraseTx(tx.GetWitnessHash());
             if (RecursiveDynamicUsage(*ptx) < 100000) {
                 AddToCompactExtraTransactions(ptx);
             }
@@ -5791,7 +5794,7 @@ public:
         mp = _mempool;
     }
 
-    bool operator()(std::set<uint256>::iterator a, std::set<uint256>::iterator b)
+    bool operator()(std::set<Txid>::iterator a, std::set<Txid>::iterator b)
     {
         /* As std::make_heap produces a max-heap, we want the entries with the
          * fewest ancestors/highest fee to sort later. */
@@ -6154,8 +6157,9 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
 
                 // Send invs for txes and corresponding IS-locks
                 for (const auto& txinfo : vtxinfo) {
-                    const uint256& hash = txinfo.tx->GetHash();
-                    tx_relay->m_tx_inventory_to_send.erase(hash);
+                    const Txid& txid = txinfo.tx->GetHash();
+                    const uint256& hash = txid.ToUint256();
+                    tx_relay->m_tx_inventory_to_send.erase(txid);
                     if (tx_relay->m_bloom_filter && !tx_relay->m_bloom_filter->IsRelevantAndUpdate(*txinfo.tx)) continue;
 
                     auto [nInvType, announce_hash] = GetTxAnnouncement(*txinfo.tx, pto->GetCommonVersion());
@@ -6186,9 +6190,9 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                 LOCK(tx_relay->m_bloom_filter_mutex);
 
                 // Produce a vector with all candidates for sending
-                std::vector<std::set<uint256>::iterator> vInvTx;
+                std::vector<std::set<Txid>::iterator> vInvTx;
                 vInvTx.reserve(tx_relay->m_tx_inventory_to_send.size());
-                for (std::set<uint256>::iterator it = tx_relay->m_tx_inventory_to_send.begin(); it != tx_relay->m_tx_inventory_to_send.end(); it++) {
+                for (std::set<Txid>::iterator it = tx_relay->m_tx_inventory_to_send.begin(); it != tx_relay->m_tx_inventory_to_send.end(); it++) {
                     vInvTx.push_back(it);
                 }
                 // Topologically and fee-rate sort the inventory we send for privacy and priority reasons.
@@ -6204,13 +6208,13 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                 while (!vInvTx.empty() && nRelayedTransactions < broadcast_max) {
                     // Fetch the top element from the heap
                     std::pop_heap(vInvTx.begin(), vInvTx.end(), compareInvMempoolOrder);
-                    std::set<uint256>::iterator it = vInvTx.back();
+                    std::set<Txid>::iterator it = vInvTx.back();
                     vInvTx.pop_back();
-                    uint256 hash = *it;
+                    const Txid txid = *it;
                     // Remove it from the to-be-sent set
                     tx_relay->m_tx_inventory_to_send.erase(it);
                     // Not in the mempool anymore? don't bother sending it.
-                    auto txinfo = m_mempool.info(hash);
+                    auto txinfo = m_mempool.info(txid);
                     if (!txinfo.tx) {
                         continue;
                     }

@@ -1,10 +1,11 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2021 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_LOAD_H
-#define BITCOIN_WALLET_LOAD_H
+#ifndef SCHILLINGCOIN_WALLET_LOAD_H
+#define SCHILLINGCOIN_WALLET_LOAD_H
 
 #include <string>
 #include <vector>
@@ -15,9 +16,6 @@ class CScheduler;
 
 namespace interfaces {
 class Chain;
-namespace CoinJoin {
-class Loader;
-} // namespace CoinJoin
 } // namespace interfaces
 
 namespace wallet {
@@ -42,4 +40,4 @@ void StopWallets(WalletContext& context);
 void UnloadWallets(WalletContext& context);
 } // namespace wallet
 
-#endif // BITCOIN_WALLET_LOAD_H
+#endif // SCHILLINGCOIN_WALLET_LOAD_H

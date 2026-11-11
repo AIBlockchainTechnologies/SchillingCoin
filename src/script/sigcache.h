@@ -25,8 +25,8 @@ private:
     bool store;
 
 public:
-    CachingTransactionSignatureChecker(const CTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn, bool storeIn, PrecomputedTransactionData& cachedHashesIn) :
-        TransactionSignatureChecker(txToIn, nInIn, amountIn, cachedHashesIn),
+    CachingTransactionSignatureChecker(const CTransaction* txToIn, unsigned int nInIn, const CAmount& amount, PrecomputedTransactionData& txdataIn, bool storeIn = true) :
+        TransactionSignatureChecker(txToIn, nInIn, amount, txdataIn, MissingDataBehavior::ASSERT_FAIL),
         store(storeIn)
     {
     }

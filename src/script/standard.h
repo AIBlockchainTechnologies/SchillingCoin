@@ -8,26 +8,13 @@
 #ifndef SCHILLINGCOIN_SCRIPT_STANDARD_H
 #define SCHILLINGCOIN_SCRIPT_STANDARD_H
 
+#include "addresstype.h"
 #include "script/interpreter.h"
-#include "uint256.h"
-#include "util/hash_type.h"
 
 #include <stdint.h>
-#include <variant>
 
 class CKeyID;
 class CScript;
-struct ScriptHash;
-
-/** A reference to a CScript: the Hash160 of its serialization (see script.h) */
-class CScriptID : public BaseHash<uint160>
-{
-public:
-    CScriptID() : BaseHash() {}
-    explicit CScriptID(const CScript& in);
-    explicit CScriptID(const uint160& in) : BaseHash(in) {}
-    explicit CScriptID(const ScriptHash& in);
-};
 
 static const unsigned int MAX_OP_RETURN_RELAY = 83;      //!< bytes (+1 for OP_RETURN, +2 for the pushdata opcodes)
 extern unsigned nMaxDatacarrierBytes;
@@ -43,70 +30,48 @@ extern unsigned nMaxDatacarrierBytes;
  */
 static const unsigned int MANDATORY_SCRIPT_VERIFY_FLAGS = SCRIPT_VERIFY_P2SH;
 
-enum txnouttype
+enum class TxoutType
 {
-    TX_NONSTANDARD,
+    NONSTANDARD,
     // 'standard' transaction types:
-    TX_PUBKEY,
-    TX_PUBKEYHASH,
-    TX_SCRIPTHASH,
-    TX_MULTISIG,
-    TX_NULL_DATA,
-    TX_ZEROCOINMINT,
-    TX_COLDSTAKE
+    PUBKEY,
+    PUBKEYHASH,
+    SCRIPTHASH,
+    MULTISIG,
+    NULL_DATA, //<! unspendable OP_RETURN script that carries data
+
+    // Historical SCH Zerocoin mint classification. Runtime Zerocoin remains
+    // retired; this type is retained for historical-chain interpretation.
+    ZEROCOINMINT,
+
+    // Historical SCH pay-to-cold-staking output.
+    COLDSTAKE,
 };
 
-class CNoDestination {
-public:
-    friend bool operator==(const CNoDestination& a, const CNoDestination& b) { return true; }
-    friend bool operator<(const CNoDestination& a, const CNoDestination& b) { return true; }
-};
+/** Get the name of a TxoutType. */
+std::string GetTxnOutputType(TxoutType type);
 
-struct PKHash : public BaseHash<uint160>
+constexpr bool IsPushdataOp(opcodetype opcode)
 {
-    PKHash() : BaseHash() {}
-    explicit PKHash(const uint160& hash) : BaseHash(hash) {}
-    explicit PKHash(const CPubKey& pubkey);
-    explicit PKHash(const CKeyID& pubkey_id);
-};
-
-CKeyID ToKeyID(const PKHash& key_hash);
-
-struct ScriptHash : public BaseHash<uint160>
-{
-    ScriptHash() : BaseHash() {}
-
-    // These do not do what callers usually expect. Construct the ScriptHash
-    // from the actual redeem script instead.
-    explicit ScriptHash(const PKHash& hash) = delete;
-
-    explicit ScriptHash(const uint160& hash) : BaseHash(hash) {}
-    explicit ScriptHash(const CScript& script);
-    explicit ScriptHash(const CScriptID& script);
-};
+    return opcode > OP_FALSE && opcode <= OP_PUSHDATA4;
+}
 
 /**
- * A transaction-output script destination.
- *
- * CNoDestination represents no destination.
- * PKHash represents a P2PKH destination.
- * ScriptHash represents a P2SH destination.
+ * Parse a scriptPubKey and identify its standard output type.
+ * TxoutType::NONSTANDARD represents a failed solve.
  */
-using CTxDestination = std::variant<CNoDestination, PKHash, ScriptHash>;
+TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned char>>& vSolutionsRet);
 
-/** Check whether a CTxDestination is a CNoDestination. */
-bool IsValidDestination(const CTxDestination& dest);
+int ScriptSigArgsExpected(TxoutType type, const std::vector<std::vector<unsigned char>>& vSolutions);
 
-const char* GetTxnOutputType(txnouttype t);
+bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet, bool fColdStake);
 
-bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::vector<unsigned char> >& vSolutionsRet);
-int ScriptSigArgsExpected(txnouttype t, const std::vector<std::vector<unsigned char> >& vSolutions);
-bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet, bool fColdStake = false);
-bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<CTxDestination>& addressRet, int& nRequiredRet);
+bool ExtractDestinations(const CScript& scriptPubKey, TxoutType& typeRet, std::vector<CTxDestination>& addressRet, int& nRequiredRet);
 
-CScript GetScriptForDestination(const CTxDestination& dest);
 CScript GetLockedScriptForDestination(const CTxDestination& dest, int nLockTime);
 CScript GetScriptForRawPubKey(const CPubKey& pubKey);
+CScript GetScriptForMultisig(int nRequired, const std::vector<CPubKey>& keys);
+CScript GetScriptForStakeDelegation(const CKeyID& stakingKey, const CKeyID& spendingKey);
 CScript GetScriptForMultisig(int nRequired, const std::vector<CPubKey>& keys);
 CScript GetScriptForStakeDelegation(const CKeyID& stakingKey, const CKeyID& spendingKey);
 

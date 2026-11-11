@@ -113,15 +113,6 @@ extern const char* SENDTXRCNCL;
  */
 extern const char* SPORK;
 extern const char* GETSPORKS;
-extern const char* DSACCEPT;
-extern const char* DSVIN;
-extern const char* DSFINALTX;
-extern const char* DSSIGNFINALTX;
-extern const char* DSCOMPLETE;
-extern const char* DSSTATUSUPDATE;
-extern const char* DSTX;
-extern const char* DSQUEUE;
-extern const char* SENDDSQUEUE;
 extern const char* SYNCSTATUSCOUNT;
 extern const char* MNGOVERNANCESYNC;
 extern const char* MNGOVERNANCEOBJECT;
@@ -346,7 +337,7 @@ enum GetDataMsg : uint32_t {
     // Values 8 through 13 were historical SCH masternode/budget inventory types.
     MSG_MASTERNODE_ANNOUNCE = 14,
     MSG_MASTERNODE_PING = 15,
-    MSG_DSTX = 16,
+    // Value 16 was historically used for DSTX.
 
     // Temporarily retained while the remaining governance owners are retired.
     MSG_GOVERNANCE_OBJECT = 17,
@@ -368,8 +359,9 @@ enum GetDataMsg : uint32_t {
     // Value 30 was used for legacy non-deterministic InstantSend locks.
     MSG_ISDLOCK = 31,
 
+    // Value 32 was historically used for the CoinJoin DSQ inventory type.
+
     // Temporary compiled owners to be removed with their excluded subsystems.
-    MSG_DSQ = 32,
     MSG_PLATFORM_BAN = 33,
     MSG_ASSET_UNLOCK = 34,
 };
@@ -399,14 +391,13 @@ public:
 
     bool IsMsgTx() const { return type == MSG_TX; }
     bool IsMsgBlk() const { return type == MSG_BLOCK; }
-    bool IsMsgDstx() const { return type == MSG_DSTX; }
     bool IsMsgAssetUnlock() const { return type == MSG_ASSET_UNLOCK; }
     bool IsMsgFilteredBlk() const { return type == MSG_FILTERED_BLOCK; }
     bool IsMsgCmpctBlk() const { return type == MSG_CMPCT_BLOCK; }
 
     bool IsGenTxMsg() const
     {
-        return type == MSG_TX || type == MSG_DSTX || type == MSG_ASSET_UNLOCK;
+        return type == MSG_TX || type == MSG_ASSET_UNLOCK;
     }
 
     bool IsGenBlkMsg() const

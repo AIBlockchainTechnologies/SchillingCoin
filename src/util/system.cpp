@@ -79,7 +79,6 @@
 
 const char* const SCHILLINGCOIN_CONF_FILENAME = "schillingcoin.conf";
 const char* const SCHILLINGCOIN_MASTERNODE_CONF_FILENAME = "masternode.conf";
-const char* const SCHILLINGCOIN_FORGE_CONF_FILENAME = "forge.conf";
 
 // SchillingCoin only features
 // Masternode
@@ -245,12 +244,6 @@ fs::path GetConfigFile(const std::string& confPath)
 fs::path GetMasternodeConfigFile()
 {
     fs::path pathConfigFile(gArgs.GetArg("-mnconf", SCHILLINGCOIN_MASTERNODE_CONF_FILENAME));
-    return AbsPathForConfigVal(pathConfigFile);
-}
-
-fs::path GetForgeConfigFile()
-{
-    fs::path pathConfigFile(gArgs.GetArg("-forgeconf", SCHILLINGCOIN_FORGE_CONF_FILENAME));
     return AbsPathForConfigVal(pathConfigFile);
 }
 
