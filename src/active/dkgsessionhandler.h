@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ACTIVE_DKGSESSIONHANDLER_H
-#define BITCOIN_ACTIVE_DKGSESSIONHANDLER_H
+#ifndef SCHILLINGCOIN_ACTIVE_DKGSESSIONHANDLER_H
+#define SCHILLINGCOIN_ACTIVE_DKGSESSIONHANDLER_H
 
 #include <llmq/dkgsessionhandler.h>
 
@@ -21,7 +22,6 @@ class CBlockIndex;
 class ChainstateManager;
 class CDeterministicMNManager;
 class CMasternodeMetaMan;
-class CSporkManager;
 namespace Consensus {
 struct LLMQParams;
 } // namespace Consensus
@@ -54,7 +54,6 @@ private:
     llmq::CQuorumSnapshotManager& m_qsnapman;
     const CActiveMasternodeManager& m_mn_activeman;
     const ChainstateManager& m_chainman;
-    const CSporkManager& m_sporkman;
     const bool m_quorums_watch{false};
     const int quorumIndex;
 
@@ -75,8 +74,7 @@ public:
                             llmq::CDKGDebugManager& dkgdbgman, llmq::CDKGSessionManager& qdkgsman,
                             llmq::CQuorumBlockProcessor& qblockman, llmq::CQuorumSnapshotManager& qsnapman,
                             const CActiveMasternodeManager& mn_activeman, const ChainstateManager& chainman,
-                            const CSporkManager& sporkman, const Consensus::LLMQParams& llmq_params, bool quorums_watch,
-                            int quorums_idx);
+                            const Consensus::LLMQParams& llmq_params, bool quorums_watch, int quorums_idx);
     ~ActiveDKGSessionHandler() override;
 
 public:
@@ -125,4 +123,4 @@ private:
 
 } // namespace llmq
 
-#endif // BITCOIN_ACTIVE_DKGSESSIONHANDLER_H
+#endif // SCHILLINGCOIN_ACTIVE_DKGSESSIONHANDLER_H

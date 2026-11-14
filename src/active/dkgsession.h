@@ -1,16 +1,16 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ACTIVE_DKGSESSION_H
-#define BITCOIN_ACTIVE_DKGSESSION_H
+#ifndef SCHILLINGCOIN_ACTIVE_DKGSESSION_H
+#define SCHILLINGCOIN_ACTIVE_DKGSESSION_H
 
 #include <llmq/dkgsession.h>
 
 #include <optional>
 
 class CActiveMasternodeManager;
-class CSporkManager;
 class CMasternodeMetaMan;
 
 namespace llmq {
@@ -19,7 +19,6 @@ class ActiveDKGSession final : public llmq::CDKGSession
 private:
     CMasternodeMetaMan& m_mn_metaman;
     const CActiveMasternodeManager& m_mn_activeman;
-    const CSporkManager& m_sporkman;
     const bool m_use_legacy_bls{false};
 
 public:
@@ -29,8 +28,7 @@ public:
     ActiveDKGSession(CBLSWorker& bls_worker, CDeterministicMNManager& dmnman, CDKGDebugManager& dkgdbgman,
                      CDKGSessionManager& qdkgsman, CMasternodeMetaMan& mn_metaman, CQuorumSnapshotManager& qsnapman,
                      const CActiveMasternodeManager& mn_activeman, const ChainstateManager& chainman,
-                     const CSporkManager& sporkman, const CBlockIndex* base_block_index,
-                     const Consensus::LLMQParams& params);
+                     const CBlockIndex* base_block_index, const Consensus::LLMQParams& params);
     ~ActiveDKGSession() override;
 
 public:
@@ -65,4 +63,4 @@ private:
 };
 } // namespace llmq
 
-#endif // BITCOIN_ACTIVE_DKGSESSION_H
+#endif // SCHILLINGCOIN_ACTIVE_DKGSESSION_H

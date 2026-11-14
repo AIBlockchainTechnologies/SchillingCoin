@@ -63,7 +63,7 @@ void NetSigning::ProcessMessage(CNode& pfrom, const std::string& msg_type, CData
 
     if (m_shares_manager == nullptr) return;
 
-    if (m_sporkman.IsSporkActive(SPORK_21_QUORUM_ALL_CONNECTED) && msg_type == NetMsgType::QSIGSHARE) {
+    if (msg_type == NetMsgType::QSIGSHARE) {
         std::vector<CSigShare> receivedSigShares;
         try {
             if (!UnserializeVectorWithMaxSize(vRecv, receivedSigShares, CSigSharesManager::MAX_MSGS_SIG_SHARES)) {

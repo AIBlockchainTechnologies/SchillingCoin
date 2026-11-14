@@ -21,6 +21,7 @@
 bool CCoinsView::GetCoin(const COutPoint& outpoint, Coin& coin) const { return false; }
 bool CCoinsView::HaveCoin(const COutPoint& outpoint) const { return false; }
 uint256 CCoinsView::GetBestBlock() const { return UINT256_ZERO; }
+std::vector<uint256> CCoinsView::GetHeadBlocks() const { return std::vector<uint256>(); }
 bool CCoinsView::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock) { return false; }
 CCoinsViewCursor* CCoinsView::Cursor() const { return nullptr; }
 
@@ -28,6 +29,7 @@ CCoinsViewBacked::CCoinsViewBacked(CCoinsView* viewIn) : base(viewIn) {}
 bool CCoinsViewBacked::GetCoin(const COutPoint& outpoint, Coin& coin) const { return base->GetCoin(outpoint, coin); }
 bool CCoinsViewBacked::HaveCoin(const COutPoint& outpoint) const { return base->HaveCoin(outpoint); }
 uint256 CCoinsViewBacked::GetBestBlock() const { return base->GetBestBlock(); }
+std::vector<uint256> CCoinsViewBacked::GetHeadBlocks() const { return base->GetHeadBlocks(); }
 void CCoinsViewBacked::SetBackend(CCoinsView& viewIn) { base = &viewIn; }
 bool CCoinsViewBacked::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock) { return base->BatchWrite(mapCoins, hashBlock); }
 CCoinsViewCursor* CCoinsViewBacked::Cursor() const { return base->Cursor(); }

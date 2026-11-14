@@ -17,11 +17,14 @@
 #include "util.h"
 #include "util/system.h"
 
+#include <util/log.h>
 #include <util/strencodings.h>
 #include <util/string.h>
 #include <util/translation.h>
 
 #include <boost/algorithm/string.hpp>
+
+using util::TrimStringView;
 
 /** Simple one-shot callback timer to be used by the RPC mechanism to e.g.
  * re-lock the wallet.
@@ -41,23 +44,19 @@ private:
     HTTPEvent ev;
 };
 
-/*
- * Match the RPCTimerInterface virtual signatures exactly.
- * The RPCTimerInterface in this tree declares NewTimer as:
- *   virtual RPCTimerBase* NewTimer(const boost::function<void(void)>& func, int64_t millis) = 0;
- * and Name() as a non-const virtual. Implement those exact signatures here.
- */
 class HTTPRPCTimerInterface : public RPCTimerInterface
 {
 public:
-    explicit HTTPRPCTimerInterface(struct event_base* base) : base(base) {}
+    explicit HTTPRPCTimerInterface(struct event_base* _base) : base(_base)
+    {
+    }
 
     const char* Name() override
     {
         return "HTTP";
     }
 
-    RPCTimerBase* NewTimer(const boost::function<void(void)>& func, int64_t millis) override
+    RPCTimerBase* NewTimer(std::function<void()>& func, int64_t millis) override
     {
         return new HTTPRPCTimer(base, func, millis);
     }
@@ -69,7 +68,7 @@ private:
 /* Pre-base64-encoded authentication token */
 static std::string strRPCUserColonPass;
 /* Stored RPC timer interface (for unregistration) */
-static HTTPRPCTimerInterface* httpRPCTimerInterface = nullptr;
+static std::unique_ptr<HTTPRPCTimerInterface> httpRPCTimerInterface;
 
 static void JSONErrorReply(HTTPRequest* req, const UniValue& objError, const UniValue& id)
 {
@@ -106,7 +105,7 @@ static bool RPCAuthorized(const std::string& strAuth, std::string& strAuthUserna
     return TimingResistantEqual(strUserPass, strRPCUserColonPass);
 }
 
-static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string&)
+static bool HTTPReq_JSONRPC(const CoreContext& context, HTTPRequest* req)
 {
     // JSONRPC handles only POST
     if (req->GetRequestMethod() != HTTPRequest::POST) {
@@ -122,8 +121,9 @@ static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string&)
     }
 
     JSONRPCRequest jreq;
+    jreq.context = context;
     if (!RPCAuthorized(authHeader.second, jreq.authUser)) {
-        LogPrintf("ThreadRPCServer incorrect password attempt from %s\n",
+        LogWarning("ThreadRPCServer incorrect password attempt from %s",
             req->GetPeer().ToStringAddrPort());
 
         /* Deter brute-forcing
@@ -157,7 +157,7 @@ static bool HTTPReq_JSONRPC(HTTPRequest* req, const std::string&)
 
         // Array of requests
         } else if (valRequest.isArray()) {
-            strReply = JSONRPCExecBatch(valRequest.get_array());
+            strReply = JSONRPCExecBatch(jreq, valRequest.get_array());
         } else {
             throw JSONRPCError(RPC_PARSE_ERROR, "Top-level object parse error");
         }
@@ -182,7 +182,7 @@ static bool InitRPCAuthentication()
 {
     if (gArgs.GetArg("-rpcpassword", "") == "")
     {
-        LogPrintf("No rpcpassword set - using random cookie authentication\n");
+        LogInfo("Using random cookie authentication.");
         if (!GenerateAuthCookie(&strRPCUserColonPass)) {
             return false;
         }
@@ -192,33 +192,35 @@ static bool InitRPCAuthentication()
     return true;
 }
 
-bool StartHTTPRPC()
+bool StartHTTPRPC(const CoreContext& context)
 {
-    LogPrint(BCLog::RPC, "Starting HTTP RPC server\n");
+    LogDebug(BCLog::RPC, "Starting HTTP RPC server\n");
     if (!InitRPCAuthentication())
         return false;
 
-    RegisterHTTPHandler("/", true, HTTPReq_JSONRPC);
+    auto handle_rpc = HTTPRequest* req, const std::string& {
+        return HTTPReq_JSONRPC(context, req);
+    };
+    RegisterHTTPHandler("/", true, handle_rpc);
 
     assert(EventBase());
     // Create and register the timer interface that matches RPCTimerInterface's virtual signatures
-    httpRPCTimerInterface = new HTTPRPCTimerInterface(EventBase());
-    RPCSetTimerInterface(httpRPCTimerInterface);
+    httpRPCTimerInterface = std::make_unique<HTTPRPCTimerInterface>(EventBase());
+    RPCSetTimerInterface(httpRPCTimerInterface.get());
     return true;
 }
 
 void InterruptHTTPRPC()
 {
-    LogPrint(BCLog::RPC, "Interrupting HTTP RPC server\n");
+    LogDebug(BCLog::RPC, "Interrupting HTTP RPC server\n");
 }
 
 void StopHTTPRPC()
 {
-    LogPrint(BCLog::RPC, "Stopping HTTP RPC server\n");
+    LogDebug(BCLog::RPC, "Stopping HTTP RPC server\n");
     UnregisterHTTPHandler("/", true);
     if (httpRPCTimerInterface) {
-        RPCUnsetTimerInterface(httpRPCTimerInterface);
-        delete httpRPCTimerInterface;
-        httpRPCTimerInterface = nullptr;
+        RPCUnsetTimerInterface(httpRPCTimerInterface.get());
+        httpRPCTimerInterface.reset();
     }
 }

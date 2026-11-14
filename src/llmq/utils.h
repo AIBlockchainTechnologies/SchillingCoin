@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_UTILS_H
-#define BITCOIN_LLMQ_UTILS_H
+#ifndef SCHILLINGCOIN_LLMQ_UTILS_H
+#define SCHILLINGCOIN_LLMQ_UTILS_H
 
 #include <bls/bls.h>
 #include <evo/types.h>
@@ -23,7 +24,6 @@
 class CBlockIndex;
 class CDeterministicMNManager;
 class ChainstateManager;
-class CSporkManager;
 namespace llmq {
 class CQuorumSnapshotManager;
 } // namespace llmq
@@ -76,12 +76,12 @@ std::optional<std::vector<CDeterministicMNCPtr>> ComputeQuorumMembersFromWorkBlo
     Consensus::LLMQType llmqType, const UtilParameters& util_params, gsl::not_null<const CBlockIndex*> pWorkBlockIndex,
     int quorumHeight);
 
-Uint256HashSet GetQuorumConnections(const Consensus::LLMQParams& llmqParams, const CSporkManager& sporkman,
-                                    const UtilParameters& util_params, const uint256& forMember, bool onlyOutbound);
+Uint256HashSet GetQuorumConnections(const Consensus::LLMQParams& llmqParams, const UtilParameters& util_params,
+                                    const uint256& forMember, bool onlyOutbound);
 
 Uint256HashSet GetQuorumRelayMembers(const Consensus::LLMQParams& llmqParams, const UtilParameters& util_params,
                                      const uint256& forMember, bool onlyOutbound);
 } // namespace utils
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_UTILS_H
+#endif // SCHILLINGCOIN_LLMQ_UTILS_H

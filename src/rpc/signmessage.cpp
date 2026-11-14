@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -86,7 +87,7 @@ static RPCHelpMan signmessagewithprivkey()
             std::string strPrivkey = request.params[0].get_str();
             std::string strMessage = request.params[1].get_str();
 
-            CKey key = DecodeSecret(strPrivkey);
+            CKey key = KeyIO::DecodeSecret(strPrivkey);
             if (!key.IsValid()) {
                 throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid private key");
             }

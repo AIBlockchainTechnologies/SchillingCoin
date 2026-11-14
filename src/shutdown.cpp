@@ -10,8 +10,8 @@
 #include <config/schillingcoin-config.h>
 #endif
 
-#include <logging.h>
 #include <util/check.h>
+#include <util/log.h>
 #include <util/tokenpipe.h>
 
 #include <node/interface_ui.h>
@@ -28,7 +28,7 @@ static std::atomic<int>* g_exit_status{nullptr};
 bool AbortNode(const std::string& strMessage, bilingual_str user_message)
 {
     SetMiscWarning(Untranslated(strMessage));
-    LogPrintf("*** %s\n", strMessage);
+    LogError("*** %s", strMessage);
     if (user_message.empty()) {
         user_message = _("A fatal internal error occurred, see debug.log for details");
     }
@@ -78,7 +78,7 @@ void StartShutdown()
         // Write an arbitrary byte to the write end of the shutdown pipe.
         int res = g_shutdown_w.TokenWrite('x');
         if (res != 0) {
-            LogPrintf("Sending shutdown token failed\n");
+            LogError("Sending shutdown token failed");
             assert(0);
         }
     }
@@ -118,7 +118,7 @@ void WaitForShutdown()
 #else
     int res = g_shutdown_r.TokenRead();
     if (res != 'x') {
-        LogPrintf("Reading shutdown token failed\n");
+        LogError("Reading shutdown token failed");
         assert(0);
     }
 #endif

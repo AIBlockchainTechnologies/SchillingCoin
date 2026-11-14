@@ -237,7 +237,7 @@ void ChainlockHandler::TransactionAddedToMempool(const CTransactionRef& tx, int6
     }
 
     LOCK(cs);
-    txFirstSeenTime.emplace(tx->GetHash(), nAcceptTime);
+    txFirstSeenTime.emplace(tx->GetHash().ToUint256(), nAcceptTime);
 }
 
 void ChainlockHandler::AcceptedBlockHeader(const CBlockIndex* pindexNew)
@@ -257,7 +257,7 @@ void ChainlockHandler::BlockConnected(const std::shared_ptr<const CBlock>& pbloc
         LOCK(cs);
         for (const auto& tx : pblock->vtx) {
             if (!tx->IsCoinBase() && !tx->vin.empty()) {
-                txFirstSeenTime.emplace(tx->GetHash(), curTime);
+                txFirstSeenTime.emplace(tx->GetHash().ToUint256(), curTime);
             }
         }
     }

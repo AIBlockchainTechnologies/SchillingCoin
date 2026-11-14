@@ -1,4 +1,5 @@
 // Copyright (c) 2017-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -80,7 +81,7 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
     auto [qcHashes, qcIndexedHashes] = retVal.value();
 
     int64_t nTime2 = GetTimeMicros(); nTimeMined += nTime2 - nTime1;
-    LogPrint(BCLog::BENCHMARK, "            - GetQcHashes: %.2fms [%.2fs]\n", 0.001 * (nTime2 - nTime1), nTimeMined * 0.000001);
+    LogPrint(BCLog::BENCH, "            - GetQcHashes: %.2fms [%.2fs]\n", 0.001 * (nTime2 - nTime1), nTimeMined * 0.000001);
 
     // now add the commitments from the current block, which are not returned by GetMinedAndActiveCommitmentsUntilBlock
     // due to the use of pindexPrev (we don't have the tip index here)
@@ -140,13 +141,13 @@ bool CalcCbTxMerkleRootQuorums(const CBlock& block, const CBlockIndex* pindexPre
     std::sort(vec_hashes_final.begin(), vec_hashes_final.end());
 
     int64_t nTime3 = GetTimeMicros(); nTimeLoop += nTime3 - nTime2;
-    LogPrint(BCLog::BENCHMARK, "            - Loop: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeLoop * 0.000001);
+    LogPrint(BCLog::BENCH, "            - Loop: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeLoop * 0.000001);
 
     bool mutated = false;
     merkleRootRet = ComputeMerkleRoot(vec_hashes_final, &mutated);
 
     int64_t nTime4 = GetTimeMicros(); nTimeMerkle += nTime4 - nTime3;
-    LogPrint(BCLog::BENCHMARK, "            - ComputeMerkleRoot: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeMerkle * 0.000001);
+    LogPrint(BCLog::BENCH, "            - ComputeMerkleRoot: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3), nTimeMerkle * 0.000001);
 
     if (mutated) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "mutated-calc-cbtx-quorummerkleroot");

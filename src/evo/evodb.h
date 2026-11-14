@@ -1,13 +1,15 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_EVODB_H
-#define BITCOIN_EVO_EVODB_H
+#ifndef SCHILLINGCOIN_EVO_EVODB_H
+#define SCHILLINGCOIN_EVO_EVODB_H
 
 #include <dbwrapper.h>
 #include <kernel/cs_main.h>
 #include <sync.h>
+#include <util/log.h>
 
 #include <algorithm>
 #include <map>
@@ -172,7 +174,7 @@ public:
             const bool matches = existing_stream.size() == value_stream.size() &&
                                  std::equal(existing_stream.begin(), existing_stream.end(), value_stream.begin());
             if (!matches) {
-                LogPrintf("ERROR: CEvoDB::WriteDerived: block-derived payload mismatch in EvoDB\n");
+                LogError("CEvoDB::WriteDerived: block-derived payload mismatch in EvoDB");
                 return false;
             }
             write = false;
@@ -195,7 +197,7 @@ public:
             const bool matches = pending_stream.size() == value_stream.size() &&
                                  std::equal(pending_stream.begin(), pending_stream.end(), value_stream.begin());
             if (!matches) {
-                LogPrintf("ERROR: CEvoDB::WriteDerived: cross-identity block-derived payload mismatch in EvoDB\n");
+                LogError("CEvoDB::WriteDerived: cross-identity block-derived payload mismatch in EvoDB");
                 return false;
             }
         }
@@ -284,4 +286,4 @@ private:
     void RollbackCurTransaction(EvoDbIdentity identity) EXCLUSIVE_LOCKS_REQUIRED(::cs_main, !cs);
 };
 
-#endif // BITCOIN_EVO_EVODB_H
+#endif // SCHILLINGCOIN_EVO_EVODB_H

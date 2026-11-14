@@ -292,7 +292,9 @@ set(SERVER_SOURCES
         ./src/kernel/mempool_removal_reason.cpp
         ./src/merkleblock.cpp
         ./src/net.cpp
+        ./src/node/abort.cpp
         ./src/node/context.cpp
+        ./src/node/kernel_notifications.cpp
         ./src/node/miner.cpp
         ./src/node/warnings.cpp
         ./src/noui.cpp
@@ -315,7 +317,6 @@ set(SERVER_SOURCES
         ./src/rpc/signmessage.cpp
         ./src/rpc/txoutproof.cpp
         ./src/script/sigcache.cpp
-        ./src/sporkdb.cpp
         ./src/timedata.cpp
         ./src/torcontrol.cpp
         ./src/txdb.cpp
@@ -521,8 +522,6 @@ set(COMMON_SOURCES
         ./src/script/script_error.cpp
         ./src/script/sign.cpp
         ./src/script/standard.cpp
-        ./src/spork.cpp
-        ./src/sporkdb.cpp
         ./src/zsch/deterministicmint.cpp
         ./src/zsch/zerocoin.cpp
         )

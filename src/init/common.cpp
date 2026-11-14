@@ -68,7 +68,7 @@ util::Result<void> SetLoggingLevel(const ArgsManager& args)
                 }
             } else {
                 // user passed a category-specific log level, i.e. -loglevel=<category>:<level>
-                const auto& toks = SplitString(level_str, ':');
+                const auto& toks = util::SplitString(level_str, ':');
                 if (!(toks.size() == 2 && LogInstance().SetCategoryLogLevel(toks[0], toks[1]))) {
                     return util::Error{strprintf(_("Unsupported category-specific logging level %1$s=%2$s. Expected %1$s=<category>:<loglevel>. Valid categories: %3$s. Valid loglevels: %4$s."), "-loglevel", level_str, LogInstance().LogCategoriesString(), LogInstance().LogLevelsString())};
                 }
@@ -113,25 +113,30 @@ bool StartLogging(const ArgsManager& args)
         }
     }
     if (!LogInstance().StartLogging()) {
-            return InitError(strprintf(Untranslated("Could not open debug log file %s"),
-                fs::PathToString(LogInstance().m_file_path)));
+        return InitError(Untranslated(strprintf("Could not open debug log file %s",
+            fs::PathToString(LogInstance().m_file_path))));
     }
 
-    if (!LogInstance().m_log_timestamps)
-        LogPrintf("Startup time: %s\n", FormatISO8601DateTime(GetTime()));
-    LogPrintf("Default data directory %s\n", fs::PathToString(GetDefaultDataDir()));
-    LogPrintf("Using data directory %s\n", fs::PathToString(gArgs.GetDataDirNet()));
+    if (!LogInstance().m_log_timestamps) {
+        LogInfo("Startup time: %s", FormatISO8601DateTime(GetTime()));
+    }
+    LogInfo("Default data directory %s", fs::PathToString(GetDefaultDataDir()));
+    LogInfo("Using data directory %s", fs::PathToString(gArgs.GetDataDirNet()));
 
     // Only log conf file usage message if conf file actually exists.
     fs::path config_file_path = args.GetConfigFilePath();
-    if (fs::exists(config_file_path)) {
-        LogPrintf("Config file: %s\n", fs::PathToString(config_file_path));
+    if (args.IsArgNegated("-conf")) {
+        LogInfo("Config file: <disabled>");
+    } else if (fs::is_directory(config_file_path)) {
+        LogWarning("Config file: %s (is directory, not file)", fs::PathToString(config_file_path));
+    } else if (fs::exists(config_file_path)) {
+        LogInfo("Config file: %s", fs::PathToString(config_file_path));
     } else if (args.IsArgSet("-conf")) {
-        // Warn if no conf file exists at path provided by user
+        // Warn if no config file exists at path provided by user.
         InitWarning(strprintf(_("The specified config file %s does not exist"), fs::PathToString(config_file_path)));
     } else {
-        // Not categorizing as "Warning" because it's the default behavior
-        LogPrintf("Config file: %s (not found, skipping)\n", fs::PathToString(config_file_path));
+        // Not categorizing as "Warning" because it is the default behavior.
+        LogInfo("Config file: %s (not found, skipping)", fs::PathToString(config_file_path));
     }
 
     // Log the config arguments to debug.log
@@ -148,6 +153,6 @@ void LogPackageVersion()
 #else
     version_string += " (release build)";
 #endif
-    LogPrintf(PACKAGE_NAME " version %s\n", version_string);
+    LogInfo("%s version %s", CLIENT_NAME, version_string);
 }
 } // namespace init

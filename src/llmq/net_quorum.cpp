@@ -1,4 +1,5 @@
 // Copyright (c) 2025-2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -32,9 +33,9 @@ namespace llmq {
 NetQuorum::NetQuorum(PeerManagerInternal* peer_manager, CBLSWorker& bls_worker,
                      CConnman& connman, CDeterministicMNManager& dmnman, CQuorumManager& qman,
                      CQuorumSnapshotManager& qsnapman, const ChainstateManager& chainman,
-                     const CMasternodeSync& mn_sync, const CSporkManager& sporkman,
-                     QuorumRole* quorum_role, CActiveMasternodeManager* nodeman,
-                     int16_t worker_count, const QvvecSyncModeMap& sync_map, bool quorums_recovery) :
+                     const CMasternodeSync& mn_sync, QuorumRole* quorum_role,
+                     CActiveMasternodeManager* nodeman, int16_t worker_count,
+                     const QvvecSyncModeMap& sync_map, bool quorums_recovery) :
     NetHandler(peer_manager),
     m_bls_worker{bls_worker},
     m_connman{connman},
@@ -43,7 +44,6 @@ NetQuorum::NetQuorum(PeerManagerInternal* peer_manager, CBLSWorker& bls_worker,
     m_qsnapman{qsnapman},
     m_chainman{chainman},
     m_mn_sync{mn_sync},
-    m_sporkman{sporkman},
     m_role{quorum_role},
     m_nodeman{nodeman},
     m_worker_count{worker_count},
@@ -446,7 +446,7 @@ void NetQuorum::CheckQuorumConnections(const Consensus::LLMQParams& llmqParams,
         std::ranges::any_of(lastQuorums, [&proTxHash](const auto& old_quorum) { return old_quorum->IsMember(proTxHash); });
 
     for (const auto& quorum : lastQuorums) {
-        if (EnsureQuorumConnections(llmqParams, m_connman, m_sporkman,
+        if (EnsureQuorumConnections(llmqParams, m_connman,
                                            {m_dmnman, m_qsnapman, m_chainman, quorum->m_quorum_base_block_index},
                                            m_dmnman.GetListAtChainTip(), proTxHash,
                                            /*is_masternode=*/is_masternode,
@@ -760,7 +760,7 @@ void NetQuorum::StartCleanupOldQuorumDataThread(gsl::not_null<const CBlockIndex*
     });
 }
 
-bool EnsureQuorumConnections(const Consensus::LLMQParams& llmqParams, CConnman& connman, const CSporkManager& sporkman,
+bool EnsureQuorumConnections(const Consensus::LLMQParams& llmqParams, CConnman& connman,
                              const UtilParameters& util_params, const CDeterministicMNList& tip_mn_list,
                              const uint256& myProTxHash, bool is_masternode, bool quorums_watch)
 {
@@ -786,12 +786,12 @@ bool EnsureQuorumConnections(const Consensus::LLMQParams& llmqParams, CConnman& 
     Uint256HashSet connections;
     Uint256HashSet relayMembers;
     if (isMember) {
-        connections = utils::GetQuorumConnections(llmqParams, sporkman, util_params, myProTxHash, /*onlyOutbound=*/true);
+        connections = utils::GetQuorumConnections(llmqParams, util_params, myProTxHash, /*onlyOutbound=*/true);
         // If all-members-connected is enabled for this quorum type, leverage the full-mesh
         // connections for low-latency recovered sig propagation by treating all members as
         // relay members (instead of the ring-based subset). This ensures peers will send
         // QSENDRECSIGS to each other across the full mesh and set m_wants_recsigs widely.
-        if (IsAllMembersConnectedEnabled(llmqParams.type, sporkman)) {
+        if (IsAllMembersConnectedEnabled(llmqParams.type)) {
             for (const auto& dmn : members) {
                 if (dmn->proTxHash != myProTxHash) {
                     relayMembers.emplace(dmn->proTxHash);

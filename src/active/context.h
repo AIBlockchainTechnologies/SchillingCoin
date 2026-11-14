@@ -22,7 +22,6 @@ class CConnman;
 class CGovernanceManager;
 class CMasternodeSync;
 class CMNHFManager;
-class CSporkManager;
 class CTxMemPool;
 class GovernanceSigner;
 namespace chainlock {
@@ -60,7 +59,7 @@ public:
     ActiveContext& operator=(const ActiveContext&) = delete;
     explicit ActiveContext(CBLSWorker& bls_worker, ChainstateManager& chainman, CConnman& connman,
                            CDeterministicMNManager& dmnman, CGovernanceManager& govman,
-                           governance::SuperblockManager& superblocks, CSporkManager& sporkman,
+                           governance::SuperblockManager& superblocks,
                            const chainlock::Chainlocks& chainlocks, CTxMemPool& mempool,
                            chainlock::ChainlockHandler& clhandler, llmq::CInstantSendManager& isman,
                            llmq::CQuorumManager& qman, llmq::CQuorumSnapshotManager& qsnapman,

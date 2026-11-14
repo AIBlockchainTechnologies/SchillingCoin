@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_NET_DKG_H
-#define BITCOIN_LLMQ_NET_DKG_H
+#ifndef SCHILLINGCOIN_LLMQ_NET_DKG_H
+#define SCHILLINGCOIN_LLMQ_NET_DKG_H
 
 #include <consensus/params.h>
 #include <llmq/cache.h>
@@ -23,7 +24,6 @@ class CConnman;
 class CDeterministicMNManager;
 class ChainstateManager;
 class CMasternodeMetaMan;
-class CSporkManager;
 namespace llmq {
 class ActiveDKGSessionHandler;
 class CDKGComplaint;
@@ -84,11 +84,11 @@ class NetDKG final : public NetHandler
 {
 public:
     //! Observer-mode constructor.
-    NetDKG(PeerManagerInternal* peer_manager, const CSporkManager& sporkman, CDKGSessionManager& qdkgsman,
+    NetDKG(PeerManagerInternal* peer_manager, CDKGSessionManager& qdkgsman,
            const ChainstateManager& chainman, CQuorumManager& qman, QuorumRole& role);
 
     //! Active-mode constructor: takes the masternode-only dep bundle as required references.
-    NetDKG(PeerManagerInternal* peer_manager, const CSporkManager& sporkman, CDKGSessionManager& qdkgsman,
+    NetDKG(PeerManagerInternal* peer_manager, CDKGSessionManager& qdkgsman,
            const ChainstateManager& chainman, bool quorums_watch, CQuorumManager& qman, QuorumRole& role,
            CBLSWorker& bls_worker, CDeterministicMNManager& dmnman, CMasternodeMetaMan& mn_metaman,
            CDKGDebugManager& dkgdbgman, CQuorumBlockProcessor& qblockman, CQuorumSnapshotManager& qsnapman,
@@ -125,7 +125,6 @@ private:
 
     CDKGSessionManager& m_qdkgsman;
     CQuorumManager& m_qman;
-    const CSporkManager& m_sporkman;
     const ChainstateManager& m_chainman;
     const std::unique_ptr<ActiveDKG> m_active; //!< null in observer mode, non-null in active mode
 
@@ -153,4 +152,4 @@ public:
 };
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_NET_DKG_H
+#endif // SCHILLINGCOIN_LLMQ_NET_DKG_H

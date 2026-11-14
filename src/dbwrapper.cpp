@@ -1,13 +1,13 @@
 // Copyright (c) 2012-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <dbwrapper.h>
 
-#include <logging.h>
-#include <random.h>
 #include <util/fs.h>
 #include <util/fs_helpers.h>
+#include <util/log.h>
 #include <util/strencodings.h>
 #include <util/system.h>
 
@@ -32,7 +32,7 @@ public:
     // This code is adapted from posix_logger.h, which is why it is using vsprintf.
     // Please do not do this in normal code
     void Logv(const char * format, va_list ap) override {
-            if (!LogAcceptCategory(BCLog::LEVELDB, BCLog::Level::Debug)) {
+            if (!util::log::ShouldDebugLog(BCLog::LEVELDB)) {
                 return;
             }
             char buffer[500];
@@ -76,7 +76,7 @@ public:
 
                 assert(p <= limit);
                 base[std::min(bufsize - 1, (int)(p - base))] = '\0';
-                LogPrintLevel(BCLog::LEVELDB, BCLog::Level::Debug, "%s", base);  /* Continued */
+                LogDebug(BCLog::LEVELDB, "%s\n", util::RemoveSuffixView(base, "\n"));
                 if (base != buffer) {
                     delete[] base;
                 }
@@ -106,7 +106,7 @@ static void SetMaxOpenFiles(leveldb::Options *options) {
         options->max_open_files = 64;
     }
 #endif
-    LogPrint(BCLog::LEVELDB, "LevelDB using max_open_files=%d (default=%d)\n",
+    LogDebug(BCLog::LEVELDB, "LevelDB using max_open_files=%d (default=%d)\n",
              options->max_open_files, default_open_files);
 }
 
@@ -127,7 +127,7 @@ static leveldb::Options GetOptions(size_t nCacheSize)
     return options;
 }
 
-CDBWrapper::CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory, bool fWipe, bool obfuscate)
+CDBWrapper::CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory, bool fWipe)
     : m_name{fs::PathToString(path.stem())}, m_path{path}, m_is_memory{fMemory}
 {
     penv = nullptr;
@@ -142,12 +142,12 @@ CDBWrapper::CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory, bo
         options.env = penv;
     } else {
         if (fWipe) {
-            LogPrintf("Wiping LevelDB in %s\n", fs::PathToString(path));
+            LogInfo("Wiping LevelDB in %s", fs::PathToString(path));
             leveldb::Status result = leveldb::DestroyDB(fs::PathToString(path), options);
             dbwrapper_private::HandleError(result);
         }
         TryCreateDirectories(path);
-        LogPrintf("Opening LevelDB in %s\n", fs::PathToString(path));
+        LogInfo("Opening LevelDB in %s", fs::PathToString(path));
     }
     // PathToString() return value is safe to pass to leveldb open function,
     // because on POSIX leveldb passes the byte string directly to ::open(), and
@@ -155,32 +155,13 @@ CDBWrapper::CDBWrapper(const fs::path& path, size_t nCacheSize, bool fMemory, bo
     // (see env_posix.cc and env_windows.cc).
     leveldb::Status status = leveldb::DB::Open(options, fs::PathToString(path), &pdb);
     dbwrapper_private::HandleError(status);
-    LogPrintf("Opened LevelDB successfully\n");
+    LogInfo("Opened LevelDB successfully");
 
     if (gArgs.GetBoolArg("-forcecompactdb", false)) {
-        LogPrintf("Starting database compaction of %s\n", fs::PathToString(path));
+        LogInfo("Starting database compaction of %s", fs::PathToString(path));
         pdb->CompactRange(nullptr, nullptr);
-        LogPrintf("Finished database compaction of %s\n", fs::PathToString(path));
+        LogInfo("Finished database compaction of %s", fs::PathToString(path));
     }
-
-    // The base-case obfuscation key, which is a noop.
-    obfuscate_key = std::vector<unsigned char>(OBFUSCATE_KEY_NUM_BYTES, '\000');
-
-    bool key_exists = Read(OBFUSCATE_KEY_KEY, obfuscate_key);
-
-    if (!key_exists && obfuscate && IsEmpty()) {
-        // Initialize non-degenerate obfuscation if it won't upset
-        // existing, non-obfuscated data.
-        std::vector<unsigned char> new_key = CreateObfuscateKey();
-
-        // Write `new_key` so we don't obfuscate the key with itself
-        Write(OBFUSCATE_KEY_KEY, new_key);
-        obfuscate_key = new_key;
-
-        LogPrintf("Wrote new obfuscate key for %s: %s\n", fs::PathToString(path), HexStr(obfuscate_key));
-    }
-
-    LogPrintf("Using obfuscation key for %s: %s\n", fs::PathToString(path), HexStr(obfuscate_key));
 }
 
 CDBWrapper::~CDBWrapper()
@@ -199,7 +180,7 @@ CDBWrapper::~CDBWrapper()
 
 bool CDBWrapper::WriteBatch(CDBBatch& batch, bool fSync)
 {
-    const bool log_memory = LogAcceptCategory(BCLog::LEVELDB, BCLog::Level::Debug);
+    const bool log_memory = util::log::ShouldDebugLog(BCLog::LEVELDB);
     double mem_before = 0;
     if (log_memory) {
         mem_before = DynamicMemoryUsage() / 1024.0 / 1024;
@@ -208,7 +189,7 @@ bool CDBWrapper::WriteBatch(CDBBatch& batch, bool fSync)
     dbwrapper_private::HandleError(status);
     if (log_memory) {
         double mem_after = DynamicMemoryUsage() / 1024.0 / 1024;
-        LogPrint(BCLog::LEVELDB, "WriteBatch memory usage: db=%s, before=%.1fMiB, after=%.1fMiB\n",
+        LogDebug(BCLog::LEVELDB, "WriteBatch memory usage: db=%s, before=%.1fMiB, after=%.1fMiB\n",
                  m_name, mem_before, mem_after);
     }
     return true;
@@ -219,29 +200,55 @@ size_t CDBWrapper::DynamicMemoryUsage() const
     std::string memory;
     std::optional<size_t> parsed;
     if (!pdb->GetProperty("leveldb.approximate-memory-usage", &memory) || !(parsed = ToIntegral<size_t>(memory))) {
-        LogPrint(BCLog::LEVELDB, "Failed to get approximate-memory-usage property\n");
+        LogDebug(BCLog::LEVELDB, "Failed to get approximate-memory-usage property\n");
         return 0;
     }
     return parsed.value();
 }
 
-// Prefixed with null character to avoid collisions with other keys
-//
-// We must use a string constructor which specifies length so that we copy
-// past the null-terminator.
-const std::string CDBWrapper::OBFUSCATE_KEY_KEY("\000obfuscate_key", 14);
-
-const unsigned int CDBWrapper::OBFUSCATE_KEY_NUM_BYTES = 8;
-
-/**
- * Returns a string (consisting of 8 random bytes) suitable for use as an
- * obfuscating XOR key.
- */
-std::vector<unsigned char> CDBWrapper::CreateObfuscateKey() const
+bool CDBWrapper::ReadDataStream(const DataStream& ssKey, CDataStream& ssValue) const
 {
-    std::vector<uint8_t> ret(OBFUSCATE_KEY_NUM_BYTES);
-    GetRandBytes(ret);
-    return ret;
+    const leveldb::Slice slKey{CharCast(ssKey.data()), ssKey.size()};
+
+    std::string strValue;
+    const leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
+    if (!status.ok()) {
+        if (status.IsNotFound()) {
+            return false;
+        }
+        LogError("LevelDB read failure: %s", status.ToString());
+        dbwrapper_private::HandleError(status);
+    }
+
+    CDataStream ssValueTmp{MakeByteSpan(strValue), SER_DISK, CLIENT_VERSION};
+    ssValue = std::move(ssValueTmp);
+    return true;
+}
+
+bool CDBWrapper::Exists(const DataStream& key) const
+{
+    const leveldb::Slice slKey{CharCast(key.data()), key.size()};
+
+    std::string strValue;
+    const leveldb::Status status = pdb->Get(readoptions, slKey, &strValue);
+    if (!status.ok()) {
+        if (status.IsNotFound()) {
+            return false;
+        }
+        LogError("LevelDB read failure: %s", status.ToString());
+        dbwrapper_private::HandleError(status);
+    }
+    return true;
+}
+
+size_t CDBWrapper::EstimateSize(const DataStream& key_begin, const DataStream& key_end) const
+{
+    const leveldb::Slice slKey1{CharCast(key_begin.data()), key_begin.size()};
+    const leveldb::Slice slKey2{CharCast(key_end.data()), key_end.size()};
+    uint64_t size{0};
+    const leveldb::Range range{slKey1, slKey2};
+    pdb->GetApproximateSizes(&range, 1, &size);
+    return size;
 }
 
 bool CDBWrapper::IsEmpty()
@@ -260,17 +267,13 @@ namespace dbwrapper_private {
 
 void HandleError(const leveldb::Status& status)
 {
-    if (status.ok())
+    if (status.ok()) {
         return;
+    }
     const std::string errmsg = "Fatal LevelDB error: " + status.ToString();
-    LogPrintf("%s\n", errmsg);
-    LogPrintf("You can use -debug=leveldb to get more complete diagnostic messages\n");
+    LogError("%s", errmsg);
+    LogInfo("You can use -debug=leveldb to get more complete diagnostic messages");
     throw dbwrapper_error(errmsg);
-}
-
-const std::vector<unsigned char>& GetObfuscateKey(const CDBWrapper &w)
-{
-    return w.obfuscate_key;
 }
 
 } // namespace dbwrapper_private

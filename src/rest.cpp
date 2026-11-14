@@ -1015,7 +1015,7 @@ static bool rest_getutxos(const std::any& context, HTTPRequest* req, const std::
                 return RESTERR(req, HTTP_BAD_REQUEST, "Parse error");
             }
 
-            const auto txid{uint256::FromHex(txid_and_output.at(0))};
+            const auto txid{Txid::FromHex(txid_and_output.at(0))};
             const auto output{ToIntegral<uint32_t>(txid_and_output.at(1))};
             if (!txid || !output) {
                 return RESTERR(req, HTTP_BAD_REQUEST, "Parse error");

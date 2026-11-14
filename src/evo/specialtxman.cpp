@@ -839,7 +839,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
 
         int64_t nTime2 = GetTimeMicros();
         nTimePayload += nTime2 - nTime1;
-        LogPrint(BCLog::BENCHMARK, "      - GetTxPayload: %.2fms [%.2fs]\n", 0.001 * (nTime2 - nTime1),
+        LogPrint(BCLog::BENCH, "      - GetTxPayload: %.2fms [%.2fs]\n", 0.001 * (nTime2 - nTime1),
                  nTimePayload * 0.000001);
 
         CRangesSet indexes;
@@ -876,7 +876,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
 
         int64_t nTime3 = GetTimeMicros();
         nTimeLoop += nTime3 - nTime2;
-        LogPrint(BCLog::BENCHMARK, "      - Loop: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeLoop * 0.000001);
+        LogPrint(BCLog::BENCH, "      - Loop: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeLoop * 0.000001);
 
         if (opt_cbTx.has_value()) {
             if (!CheckCreditPoolDiffForBlock(block, pindex, *opt_cbTx, blockSubsidy, state)) {
@@ -888,7 +888,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
 
         int64_t nTime4 = GetTimeMicros();
         nTimeCreditPool += nTime4 - nTime3;
-        LogPrint(BCLog::BENCHMARK, "      - CheckCreditPoolDiffForBlock: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3),
+        LogPrint(BCLog::BENCH, "      - CheckCreditPoolDiffForBlock: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3),
                  nTimeCreditPool * 0.000001);
 
         if (!m_qblockman.ProcessBlock(chainstate, block, pindex, state, fJustCheck, fCheckCbTxMerkleRoots)) {
@@ -898,7 +898,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
 
         int64_t nTime5 = GetTimeMicros();
         nTimeQuorum += nTime5 - nTime4;
-        LogPrint(BCLog::BENCHMARK, "      - m_qblockman.ProcessBlock: %.2fms [%.2fs]\n", 0.001 * (nTime5 - nTime4),
+        LogPrint(BCLog::BENCH, "      - m_qblockman.ProcessBlock: %.2fms [%.2fs]\n", 0.001 * (nTime5 - nTime4),
                  nTimeQuorum * 0.000001);
 
         CDeterministicMNList mn_list;
@@ -917,7 +917,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
 
         int64_t nTime6 = GetTimeMicros();
         nTimeDMN += nTime6 - nTime5;
-        LogPrint(BCLog::BENCHMARK, "      - m_dmnman.ProcessBlock: %.2fms [%.2fs]\n", 0.001 * (nTime6 - nTime5),
+        LogPrint(BCLog::BENCH, "      - m_dmnman.ProcessBlock: %.2fms [%.2fs]\n", 0.001 * (nTime6 - nTime5),
                  nTimeDMN * 0.000001);
 
         if (opt_cbTx.has_value()) {
@@ -936,7 +936,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
 
             int64_t nTime6_1 = GetTimeMicros();
             nTimeMerkleMNL += nTime6_1 - nTime6;
-            LogPrint(BCLog::BENCHMARK, "      - CalcCbTxMerkleRootMNList: %.2fms [%.2fs]\n",
+            LogPrint(BCLog::BENCH, "      - CalcCbTxMerkleRootMNList: %.2fms [%.2fs]\n",
                      0.001 * (nTime6_1 - nTime6), nTimeMerkleMNL * 0.000001);
 
             if (opt_cbTx->nVersion >= CCbTx::Version::MERKLE_ROOT_QUORUMS) {
@@ -953,7 +953,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
             int64_t nTime6_2 = GetTimeMicros();
             nTimeMerkleQuorums += nTime6_2 - nTime6_1;
 
-            LogPrint(BCLog::BENCHMARK, "      - CalcCbTxMerkleRootQuorums: %.2fms [%.2fs]\n",
+            LogPrint(BCLog::BENCH, "      - CalcCbTxMerkleRootQuorums: %.2fms [%.2fs]\n",
                      0.001 * (nTime6_2 - nTime6_1), nTimeMerkleQuorums * 0.000001);
 
             if (!CheckCbTxBestChainlock(*opt_cbTx, pindex, m_consensus_params, chain, m_qman, m_chainlocks, state)) {
@@ -963,7 +963,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
 
             int64_t nTime6_3 = GetTimeMicros();
             nTimeCbTxCL += nTime6_3 - nTime6_2;
-            LogPrint(BCLog::BENCHMARK, "      - CheckCbTxBestChainlock: %.2fms [%.2fs]\n",
+            LogPrint(BCLog::BENCH, "      - CheckCbTxBestChainlock: %.2fms [%.2fs]\n",
                      0.001 * (nTime6_3 - nTime6_2), nTimeCbTxCL * 0.000001);
         }
 
@@ -976,7 +976,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
 
         int64_t nTime8 = GetTimeMicros();
         nTimeMnehf += nTime8 - nTime7;
-        LogPrint(BCLog::BENCHMARK, "      - m_mnhfman.ProcessBlock: %.2fms [%.2fs]\n", 0.001 * (nTime8 - nTime7),
+        LogPrint(BCLog::BENCH, "      - m_mnhfman.ProcessBlock: %.2fms [%.2fs]\n", 0.001 * (nTime8 - nTime7),
                  nTimeMnehf * 0.000001);
 
         if (DeploymentActiveAfter(pindex, m_consensus_params, Consensus::DEPLOYMENT_V19) && bls::bls_legacy_scheme.load()) {

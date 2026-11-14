@@ -1,9 +1,10 @@
 // Copyright (c) 2025-2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_NET_QUORUM_H
-#define BITCOIN_LLMQ_NET_QUORUM_H
+#ifndef SCHILLINGCOIN_LLMQ_NET_QUORUM_H
+#define SCHILLINGCOIN_LLMQ_NET_QUORUM_H
 
 #include <llmq/cache.h>
 #include <llmq/options.h>
@@ -24,7 +25,6 @@ class CBLSWorker;
 class CConnman;
 class CDeterministicMNManager;
 class CMasternodeSync;
-class CSporkManager;
 namespace Consensus {
 struct LLMQParams;
 } // namespace Consensus
@@ -52,9 +52,9 @@ public:
     NetQuorum(PeerManagerInternal* peer_manager, CBLSWorker& bls_worker,
               CConnman& connman, CDeterministicMNManager& dmnman, CQuorumManager& qman,
               CQuorumSnapshotManager& qsnapman, const ChainstateManager& chainman,
-              const CMasternodeSync& mn_sync, const CSporkManager& sporkman,
-              QuorumRole* quorum_role, CActiveMasternodeManager* nodeman,
-              int16_t worker_count, const QvvecSyncModeMap& sync_map, bool quorums_recovery);
+              const CMasternodeSync& mn_sync, QuorumRole* quorum_role,
+              CActiveMasternodeManager* nodeman, int16_t worker_count,
+              const QvvecSyncModeMap& sync_map, bool quorums_recovery);
 
     // NetHandler
     void ProcessMessage(CNode& pfrom, const std::string& msg_type, CDataStream& vRecv) override;
@@ -107,7 +107,6 @@ private:
     CQuorumSnapshotManager& m_qsnapman;
     const ChainstateManager& m_chainman;
     const CMasternodeSync& m_mn_sync;
-    const CSporkManager& m_sporkman;
     //! Non-null only when masternode or observer mode is active
     QuorumRole* const m_role;
     //! Non-null only in masternode mode
@@ -125,10 +124,10 @@ private:
     mutable CThreadInterrupt quorumThreadInterrupt;
 };
 
-bool EnsureQuorumConnections(const Consensus::LLMQParams& llmqParams, CConnman& connman, const CSporkManager& sporkman,
+bool EnsureQuorumConnections(const Consensus::LLMQParams& llmqParams, CConnman& connman,
                              const UtilParameters& util_params, const CDeterministicMNList& tip_mn_list,
                              const uint256& myProTxHash, bool is_masternode, bool quorums_watch);
 
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_NET_QUORUM_H
+#endif // SCHILLINGCOIN_LLMQ_NET_QUORUM_H

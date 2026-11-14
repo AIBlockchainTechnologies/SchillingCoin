@@ -191,6 +191,7 @@ BITCOIN_CORE_H = \
   interfaces/init.h \
   interfaces/node.h \
   interfaces/providertx.h \
+  interfaces/types.h \
   interfaces/wallet.h \
   kernel.h \
   kernel/blockmanager_opts.h \
@@ -206,6 +207,7 @@ BITCOIN_CORE_H = \
   kernel/mempool_persist.h \
   kernel/mempool_removal_reason.h \
   kernel/messagestartchars.h \
+  kernel/notifications_interface.h \
   key.h \
   key/crypter.h \
   key/extkey.h \
@@ -231,11 +233,13 @@ BITCOIN_CORE_H = \
   netaddress.h\
   netbase.h \
   netgroup.h \
+  node/abort.h \
   node/blockstorage.h \
   node/chainstate.h \
   node/chainstatemanager_args.h \
   node/coin.h \
   node/context.h \
+  node/kernel_notifications.h \
   node/miner.h \
   node/warnings.h \
   node/minisketchwrapper.h \
@@ -336,6 +340,7 @@ BITCOIN_CORE_H = \
   util/system.h \
   util/thread.h \
   util/threadnames.h \
+  util/threadpool.h \
   util/tokenpipe.h \
   util/chaintype.h \
   util/types.h \
@@ -486,6 +491,7 @@ libbitcoin_node_a_SOURCES = \
   net_processing.cpp \
   netfulfilledman.cpp \
   netgroup.cpp \
+  node/abort.cpp \
   node/blockstorage.cpp \
   node/caches.cpp \
   node/chainstate.cpp \
@@ -497,6 +503,7 @@ libbitcoin_node_a_SOURCES = \
   node/interface_ui.cpp \
   node/warnings.cpp \
   node/interfaces.cpp \
+  node/kernel_notifications.cpp \
   node/mempool_args.cpp \
   node/mempool_persist_args.cpp \
   node/miner.cpp \

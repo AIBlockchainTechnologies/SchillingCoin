@@ -312,6 +312,14 @@ public:
         virtual void notifyTransactionLock(const CTransactionRef &tx, const std::shared_ptr<const instantsend::InstantSendLock>& islock) {}
     };
 
+    //! Options controlling what block data is provided with notifications.
+    struct NotifyOptions
+    {
+        bool connect_undo_data{false};
+        bool disconnect_data{false};
+        bool disconnect_undo_data{false};
+    };
+
     //! Register handler for notifications.
     virtual std::unique_ptr<Handler> handleNotifications(std::shared_ptr<Notifications> notifications) = 0;
 

@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -751,10 +752,10 @@ uint256 DeterministicOutboundConnection(const uint256& proTxHash1, const uint256
     return proTxHash2;
 }
 
-Uint256HashSet GetQuorumConnections(const Consensus::LLMQParams& llmqParams, const CSporkManager& sporkman,
-                                    const UtilParameters& util_params, const uint256& forMember, bool onlyOutbound)
+Uint256HashSet GetQuorumConnections(const Consensus::LLMQParams& llmqParams, const UtilParameters& util_params,
+                                    const uint256& forMember, bool onlyOutbound)
 {
-    if (IsAllMembersConnectedEnabled(llmqParams.type, sporkman)) {
+    if (IsAllMembersConnectedEnabled(llmqParams.type)) {
         auto mns = GetAllQuorumMembers(llmqParams.type, util_params);
         Uint256HashSet result;
 

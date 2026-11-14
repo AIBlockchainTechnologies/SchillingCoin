@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -21,7 +22,7 @@ ActiveDKGSessionHandler::ActiveDKGSessionHandler(
     CBLSWorker& bls_worker, CDeterministicMNManager& dmnman, CMasternodeMetaMan& mn_metaman,
     llmq::CDKGDebugManager& dkgdbgman, llmq::CDKGSessionManager& qdkgsman, llmq::CQuorumBlockProcessor& qblockman,
     llmq::CQuorumSnapshotManager& qsnapman, const CActiveMasternodeManager& mn_activeman, const ChainstateManager& chainman,
-    const CSporkManager& sporkman, const Consensus::LLMQParams& llmq_params, bool quorums_watch, int quorums_idx) :
+    const Consensus::LLMQParams& llmq_params, bool quorums_watch, int quorums_idx) :
     llmq::CDKGSessionHandler(llmq_params),
     m_bls_worker{bls_worker},
     m_dmnman{dmnman},
@@ -32,7 +33,6 @@ ActiveDKGSessionHandler::ActiveDKGSessionHandler(
     m_qsnapman{qsnapman},
     m_mn_activeman{mn_activeman},
     m_chainman{chainman},
-    m_sporkman{sporkman},
     m_quorums_watch{quorums_watch},
     quorumIndex{quorums_idx}
 {
@@ -88,7 +88,7 @@ bool ActiveDKGSessionHandler::InitNewQuorum(gsl::not_null<const CBlockIndex*> pQ
     }
 
     curSession = std::make_unique<ActiveDKGSession>(m_bls_worker, m_dmnman, m_dkgdbgman, m_qdkgsman, m_mn_metaman,
-                                                    m_qsnapman, m_mn_activeman, m_chainman, m_sporkman,
+                                                    m_qsnapman, m_mn_activeman, m_chainman,
                                                     pQuorumBaseBlockIndex, params);
 
     if (!curSession->Init(m_mn_activeman.GetProTxHash(), quorumIndex)) {

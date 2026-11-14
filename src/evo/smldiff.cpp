@@ -1,4 +1,5 @@
 // Copyright (c) 2017-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -238,7 +239,7 @@ bool BuildSimplifiedMNListDiff(CDeterministicMNManager& dmnman, const Chainstate
     vHashes.reserve(block.vtx.size());
     std::vector<bool> vMatch(block.vtx.size(), false);
     for (const auto& tx : block.vtx) {
-        vHashes.emplace_back(tx->GetHash());
+        vHashes.emplace_back(tx->GetHash().ToUint256());
     }
     vMatch[0] = true; // only coinbase matches
     mnListDiffRet.cbTxMerkleTree = CPartialMerkleTree(vHashes, vMatch);

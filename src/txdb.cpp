@@ -19,6 +19,7 @@ static constexpr uint8_t DB_COIN{'C'};
 static constexpr uint8_t DB_BLOCK_FILES{'f'};
 static constexpr uint8_t DB_BLOCK_INDEX{'b'};
 static constexpr uint8_t DB_BEST_BLOCK{'B'};
+static constexpr uint8_t DB_HEAD_BLOCKS{'H'};
 static constexpr uint8_t DB_FLAG{'F'};
 static constexpr uint8_t DB_INT{'I'};
 static constexpr uint8_t DB_REINDEX_FLAG{'R'};
@@ -80,6 +81,16 @@ uint256 CCoinsViewDB::GetBestBlock() const
         return UINT256_ZERO;
 
     return hashBestChain;
+}
+
+std::vector<uint256> CCoinsViewDB::GetHeadBlocks() const
+{
+    std::vector<uint256> vhashHeadBlocks;
+
+    if (!db.Read(DB_HEAD_BLOCKS, vhashHeadBlocks))
+        return std::vector<uint256>();
+
+    return vhashHeadBlocks;
 }
 
 bool CCoinsViewDB::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock)

@@ -321,7 +321,7 @@ public:
     }
 };
 
-#define REVERSE_LOCK(g) typename std::decay<decltype(g)>::type::reverse_lock UNIQUE_NAME(revlock)(g, #g, __FILE__, __LINE__)
+#define REVERSE_LOCK(g) typename std::decay<decltype(g)>::type::reverse_lock BITCOIN_UNIQUE_NAME(revlock)(g, #g, __FILE__, __LINE__)
 
 template<typename MutexArg>
 using ReadLock = SharedLock<typename std::remove_reference<typename std::remove_pointer<MutexArg>::type>::type>;
@@ -338,8 +338,8 @@ inline MutexType& MaybeCheckNotHeld(MutexType& m) LOCKS_EXCLUDED(m) LOCK_RETURNE
 template <typename MutexType>
 inline MutexType* MaybeCheckNotHeld(MutexType* m) LOCKS_EXCLUDED(m) LOCK_RETURNED(m) { return m; }
 
-#define LOCK(cs) UniqueLock UNIQUE_NAME(criticalblock)(MaybeCheckNotHeld(cs), #cs, __FILE__, __LINE__)
-#define READ_LOCK(cs) ReadLock<decltype(cs)> UNIQUE_NAME(criticalblock)(MaybeCheckNotHeld(cs), #cs, __FILE__, __LINE__)
+#define LOCK(cs) UniqueLock BITCOIN_UNIQUE_NAME(criticalblock)(MaybeCheckNotHeld(cs), #cs, __FILE__, __LINE__)
+#define READ_LOCK(cs) ReadLock<decltype(cs)> BITCOIN_UNIQUE_NAME(criticalblock)(MaybeCheckNotHeld(cs), #cs, __FILE__, __LINE__)
 #define LOCK2(cs1, cs2)                                               \
     UniqueLock criticalblock1(MaybeCheckNotHeld(cs1), #cs1, __FILE__, __LINE__); \
     UniqueLock criticalblock2(MaybeCheckNotHeld(cs2), #cs2, __FILE__, __LINE__)

@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,10 +9,10 @@
 #include <netaddress.h>
 #include <node/interface_ui.h>
 #include <sync.h>
+#include <util/log.h>
 #include <util/system.h>
 #include <util/time.h>
 #include <util/translation.h>
-
 
 BanMan::BanMan(fs::path ban_file, CClientUIInterface* client_interface, int64_t default_ban_time)
     : m_client_interface(client_interface), m_ban_db(std::move(ban_file)), m_default_ban_time(default_ban_time)
@@ -29,16 +30,16 @@ void BanMan::LoadBanlist()
 {
     LOCK(m_banned_mutex);
 
-    if (m_client_interface) m_client_interface->InitMessage(_("Loading banlist…").translated);
+    if (m_client_interface) m_client_interface->InitMessage(_("Loading banlist…"));
 
     const auto start{SteadyClock::now()};
     if (m_ban_db.Read(m_banned)) {
         SweepBanned(); // sweep out unused entries
 
-        LogPrint(BCLog::NET, "Loaded %d banned node addresses/subnets  %dms\n", m_banned.size(),
+        LogDebug(BCLog::NET, "Loaded %d banned node addresses/subnets %dms", m_banned.size(),
                  Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
     } else {
-        LogPrintf("Recreating the banlist database\n");
+        LogInfo("Recreating the banlist database");
         m_banned = {};
         m_is_dirty = true;
     }
@@ -64,7 +65,7 @@ void BanMan::DumpBanlist()
         m_is_dirty = true;
     }
 
-    LogPrint(BCLog::NET, "Flushed %d banned node addresses/subnets to disk  %dms\n", banmap.size(),
+    LogDebug(BCLog::NET, "Flushed %d banned node addresses/subnets to disk %dms", banmap.size(),
              Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
 }
 
@@ -202,7 +203,7 @@ void BanMan::SweepBanned()
             m_banned.erase(it++);
             m_is_dirty = true;
             notify_ui = true;
-            LogPrint(BCLog::NET, "Removed banned node address/subnet: %s\n", sub_net.ToString());
+            LogDebug(BCLog::NET, "Removed banned node address/subnet: %s\n", sub_net.ToString());
         } else {
             ++it;
         }

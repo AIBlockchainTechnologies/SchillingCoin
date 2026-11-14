@@ -1,9 +1,10 @@
 // Copyright (c) 2017-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INDEX_BASE_H
-#define BITCOIN_INDEX_BASE_H
+#ifndef SCHILLINGCOIN_INDEX_BASE_H
+#define SCHILLINGCOIN_INDEX_BASE_H
 
 #include <dbwrapper.h>
 #include <interfaces/chain.h>
@@ -46,7 +47,7 @@ protected:
     {
     public:
         DB(const fs::path& path, size_t n_cache_size,
-           bool f_memory = false, bool f_wipe = false, bool f_obfuscate = false);
+           bool f_memory = false, bool f_wipe = false);
 
         /// Read block locator of the chain that the index is in sync with.
         bool ReadBestBlock(CBlockLocator& locator) const;
@@ -163,4 +164,4 @@ public:
     IndexSummary GetSummary() const;
 };
 
-#endif // BITCOIN_INDEX_BASE_H
+#endif // SCHILLINGCOIN_INDEX_BASE_H

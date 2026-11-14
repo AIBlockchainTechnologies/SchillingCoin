@@ -1,19 +1,19 @@
 // Copyright (c) 2015 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_HTTPRPC_H
-#define BITCOIN_HTTPRPC_H
+#ifndef SCHILLINGCOIN_HTTPRPC_H
+#define SCHILLINGCOIN_HTTPRPC_H
 
-#include <string>
-#include <map>
+#include <context.h>
 
-class HTTPRequest;
+#include <any>
 
 /** Start HTTP RPC subsystem.
  * Precondition; HTTP and RPC has been started.
  */
-bool StartHTTPRPC();
+bool StartHTTPRPC(const CoreContext& context);
 /** Interrupt HTTP RPC subsystem.
  */
 void InterruptHTTPRPC();
@@ -25,7 +25,7 @@ void StopHTTPRPC();
 /** Start HTTP REST subsystem.
  * Precondition; HTTP and RPC has been started.
  */
-bool StartREST();
+void StartREST(const std::any& context);
 /** Interrupt RPC REST subsystem.
  */
 void InterruptREST();
@@ -34,4 +34,4 @@ void InterruptREST();
  */
 void StopREST();
 
-#endif
+#endif // SCHILLINGCOIN_HTTPRPC_H

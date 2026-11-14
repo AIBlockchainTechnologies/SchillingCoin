@@ -173,6 +173,12 @@ public:
     //! Retrieve the block hash whose state this CCoinsView currently represents
     virtual uint256 GetBestBlock() const;
 
+    //! Retrieve the range of blocks that may have been only partially written.
+    //! If the database is in a consistent state, the result is the empty vector.
+    //! Otherwise, a two-element vector is returned consisting of the new and
+    //! the old block hash, in that order.
+    virtual std::vector<uint256> GetHeadBlocks() const;
+
     //! Do a bulk modification (multiple Coin changes + BestBlock change).
     //! The passed mapCoins can be modified.
     virtual bool BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock);
@@ -187,7 +193,6 @@ public:
     virtual size_t EstimateSize() const { return 0; }
 };
 
-
 /** CCoinsView backed by another CCoinsView */
 class CCoinsViewBacked : public CCoinsView
 {
@@ -199,6 +204,7 @@ public:
     bool GetCoin(const COutPoint& outpoint, Coin& coin) const override;
     bool HaveCoin(const COutPoint& outpoint) const override;
     uint256 GetBestBlock() const override;
+    std::vector<uint256> GetHeadBlocks() const override;
     void SetBackend(CCoinsView& viewIn);
     bool BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock) override;
     CCoinsViewCursor* Cursor() const override;

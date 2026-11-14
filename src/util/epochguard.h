@@ -1,10 +1,11 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UTIL_EPOCHGUARD_H
-#define BITCOIN_UTIL_EPOCHGUARD_H
+#ifndef SCHILLINGCOIN_UTIL_EPOCHGUARD_H
+#define SCHILLINGCOIN_UTIL_EPOCHGUARD_H
 
 #include <threadsafety.h>
 #include <util/macros.h>
@@ -97,6 +98,6 @@ public:
     }
 };
 
-#define WITH_FRESH_EPOCH(epoch) const Epoch::Guard UNIQUE_NAME(epoch_guard_)(epoch)
+#define WITH_FRESH_EPOCH(epoch) const Epoch::Guard BITCOIN_UNIQUE_NAME(epoch_guard_)(epoch)
 
-#endif // BITCOIN_UTIL_EPOCHGUARD_H
+#endif // SCHILLINGCOIN_UTIL_EPOCHGUARD_H

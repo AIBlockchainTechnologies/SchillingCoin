@@ -205,10 +205,11 @@ void ChainLockSigner::BlockConnected(const std::shared_ptr<const CBlock>& block,
     auto& txids = *it->second;
     for (const auto& tx : block->vtx) {
         if (!tx->IsCoinBase() && !tx->vin.empty()) {
-            txids.emplace(tx->GetHash());
+            txids.emplace(tx->GetHash().ToUint256());
         }
     }
 }
+
 ChainLockSigner::BlockTxs::mapped_type ChainLockSigner::GetBlockTxs(const uint256& blockHash)
 {
     AssertLockNotHeld(cs_signer);
@@ -246,7 +247,7 @@ ChainLockSigner::BlockTxs::mapped_type ChainLockSigner::GetBlockTxs(const uint25
                 if (tx->IsCoinBase() || tx->vin.empty()) {
                     continue;
                 }
-                ret->emplace(tx->GetHash());
+                ret->emplace(tx->GetHash().ToUint256());
             }
 
             blockTime = block.nTime;

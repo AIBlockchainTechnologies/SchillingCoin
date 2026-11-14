@@ -404,7 +404,6 @@ void PrepareShutdown(NodeContext& node)
     node.active_ctx.reset();
     node.govman.reset();
     node.mn_sync.reset();
-    node.sporkman.reset();
     node.netfulfilledman.reset();
     node.mn_metaman.reset();
 
@@ -807,8 +806,6 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-mocktime=<n>", "Replace actual time with " + UNIX_EPOCH_TIME + " (default: 0)", ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-printpriority", strprintf("Log transaction fee per kB when mining blocks (default: %u)", DEFAULT_PRINTPRIORITY), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-pushversion", "Protocol version to report to other nodes", ArgsManager::ALLOW_ANY, OptionsCategory::DEBUG_TEST);
-    argsman.AddArg("-sporkaddr=<dashaddress>", "Override spork address. Only useful for regtest and devnet. Using this on mainnet or testnet will ban you.", ArgsManager::ALLOW_ANY, OptionsCategory::DEBUG_TEST);
-    argsman.AddArg("-sporkkey=<privatekey>", "Set the private key to be used for signing spork messages.", ArgsManager::ALLOW_ANY | ArgsManager::SENSITIVE, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-uacomment=<cmt>", "Append comment to the user agent string", ArgsManager::ALLOW_ANY, OptionsCategory::DEBUG_TEST);
 
     SetupChainParamsOptions(argsman);
@@ -1179,7 +1176,7 @@ bool AppInitParameterInteraction(const ArgsManager& args)
     const std::string network = args.GetChainTypeString();
     bilingual_str errors;
     for (const auto& arg : args.GetUnsuitableSectionOnlyArgs()) {
-        errors += strprintf(_("Config setting for %s only applied on %s network when in [%s] section.") + Untranslated("\n"), arg, network, network);
+        errors += strprintf(_("Config setting for %s only applied on %s network when in [%s] section."), arg, network, network) + Untranslated("\n");
     }
 
     if (!errors.empty()) {
@@ -1189,7 +1186,9 @@ bool AppInitParameterInteraction(const ArgsManager& args)
     // Warn if unrecognized section name are present in the config file.
     bilingual_str warnings;
     for (const auto& section : args.GetUnrecognizedSections()) {
-        warnings += strprintf(Untranslated("%s:%i ") + _("Section [%s] is not recognized.") + Untranslated("\n"), section.m_file, section.m_line, section.m_name);
+        warnings += Untranslated(strprintf("%s:%i ", section.m_file, section.m_line)) +
+                    strprintf(_("Section [%s] is not recognized."), section.m_name) +
+                    Untranslated("\n");
     }
 
     if (!warnings.empty()) {
@@ -1390,7 +1389,10 @@ bool AppInitParameterInteraction(const ArgsManager& args)
             return InitError(Untranslated("Masternode must have no pruning enabled, set -prune=0"));
         }
         if (args.GetIntArg("-maxconnections", DEFAULT_MAX_PEER_CONNECTIONS) < DEFAULT_MAX_PEER_CONNECTIONS) {
-            return InitError(strprintf(Untranslated("Masternode must be able to handle at least %d connections, set -maxconnections=%d"), DEFAULT_MAX_PEER_CONNECTIONS, DEFAULT_MAX_PEER_CONNECTIONS));
+            return InitError(Untranslated(strprintf(
+                "Masternode must be able to handle at least %d connections, set -maxconnections=%d",
+                DEFAULT_MAX_PEER_CONNECTIONS,
+                DEFAULT_MAX_PEER_CONNECTIONS)));
         }
         if (args.GetBoolArg("-disablegovernance", !DEFAULT_GOVERNANCE_ENABLE)) {
             return InitError(_("You can not disable governance validation on a masternode."));
@@ -1420,7 +1422,7 @@ bool AppInitParameterInteraction(const ArgsManager& args)
             return InitError(
                 strprintf(Untranslated("Masternode must not use a stricter transaction relay policy than the default, "
                                        "which would make it skip InstantSend signing. Remove or restore: %s"),
-                          Join(stricter, ", ")));
+                          util::Join(stricter, ", ")));
         }
     }
 
@@ -1589,21 +1591,6 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     for (const auto& client : node.chain_clients) {
         client->registerRpcs();
     }
-#ifdef ENABLE_WALLET
-    // Register non-core wallet-only RPC commands. These are commands that
-    // aren't a part of the wallet library but heavily rely on wallet logic.
-    // TODO: Move them to chain client interfaces so they can be called
-    //       with registerRpcs()
-    if (!args.GetBoolArg("-disablewallet", DEFAULT_DISABLE_WALLET)) {
-        for (const auto& commands : {
-            GetWalletEvoRPCCommands(),
-            GetWalletGovernanceRPCCommands(),
-            GetWalletMasternodeRPCCommands(),
-        }) {
-            node.wallet_loader->registerOtherRpcs(commands);
-        }
-    }
-#endif // ENABLE_WALLET
 
 #if ENABLE_ZMQ
     RegisterZMQRPCCommands(tableRPC);
@@ -1669,7 +1656,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
         // Initialize addrman
         assert(!node.addrman);
-        uiInterface.InitMessage(_("Loading P2P addresses…").translated);
+        uiInterface.InitMessage(_("Loading P2P addresses…"));
         auto addrman{LoadAddrman(*node.netgroupman, args)};
         if (!addrman) return InitError(util::ErrorString(addrman));
         node.addrman = std::move(*addrman);
@@ -1723,23 +1710,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
     const bool is_governance_enabled{!args.GetBoolArg("-disablegovernance", !DEFAULT_GOVERNANCE_ENABLE)};
 
-    assert(!node.sporkman);
-    node.sporkman = std::make_unique<CSporkManager>();
     node.chainlocks = std::make_unique<chainlock::Chainlocks>();
-
-    const std::string spork_address{args.GetArg("-sporkaddr", chainparams.SporkAddress())};
-    if (args.GetArgs("-sporkaddr").size() > 1) {
-        InitWarning(strprintf(_("More than one spork address is provided. Using %s."), spork_address));
-    }
-    if (!node.sporkman->SetSporkAddress(spork_address)) {
-        return InitError(_("Invalid spork address specified with -sporkaddr"));
-    }
-
-    if (args.IsArgSet("-sporkkey")) { // spork priv key
-        if (!node.sporkman->SetPrivKey(args.GetArg("-sporkkey", ""))) {
-            return InitError(_("Unable to sign spork message, wrong key?"));
-        }
-    }
 
     // Check port numbers
     for (const std::string port_option : {
@@ -1943,14 +1914,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     }
 #endif
 
-    // ********************************************************* Step 7a: Load sporks
-
-    if (!node.sporkman->LoadCache()) {
-        auto file_path = fs::PathToString(gArgs.GetDataDirNet() / "sporks.dat");
-        return InitError(strprintf(_("Failed to load sporks cache from %s"), file_path));
-    }
-
-    // ********************************************************* Step 7b: load block chain
+    // ********************************************************* Step 7a: load block chain
 
     fReindex = args.GetBoolArg("-reindex", false);
     bool fReindexChainState = args.GetBoolArg("-reindex-chainstate", false);
@@ -2069,7 +2033,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                 "", CClientUIInterface::MSG_ERROR);
         };
 
-        uiInterface.InitMessage(_("Loading block index…").translated);
+        uiInterface.InitMessage(_("Loading block index…"));
         const auto load_block_index_start_time{SteadyClock::now()};
         if (status == node::ChainstateLoadStatus::SUCCESS) {
             options.mempool = Assert(node.mempool.get());
@@ -2077,7 +2041,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             std::tie(status, error) = catch_exceptions([&]{ return LoadChainstate(chainman, cache_sizes, options, *node.evodb, *node.dmnman, node.llmq_ctx, node.chain_helper); });
         }
         if (status == node::ChainstateLoadStatus::SUCCESS) {
-            uiInterface.InitMessage(_("Verifying blocks…").translated);
+            uiInterface.InitMessage(_("Verifying blocks…"));
             if (chainman.m_blockman.m_have_pruned && options.check_blocks > MIN_BLOCKS_TO_KEEP) {
                 LogWarning("pruned datadir may not have more than %d blocks; only checking available blocks\n",
                            MIN_BLOCKS_TO_KEEP);
@@ -2131,7 +2095,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     assert(!node.govman);
     node.govman = std::make_unique<CGovernanceManager>(*node.mn_metaman, *node.chainman, *node.chain_helper->superblocks, *node.dmnman, *node.mn_sync);
 
-    // ********************************************************* Step 7c: Setup masternode mode or watch-only mode
+    // ********************************************************* Step 7b: Setup masternode mode or watch-only mode
     assert(!node.active_ctx);
     assert(!node.observer_ctx);
 
@@ -2147,13 +2111,13 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         // Will init later in ThreadImport
         node.active_ctx = std::make_unique<ActiveContext>(*node.llmq_ctx->bls_worker, chainman, *node.connman, *node.dmnman,
                                                           *node.govman, *node.chain_helper->superblocks,
-                                                          *node.sporkman, *node.chainlocks, *node.mempool, *node.clhandler, *node.isman,
+                                                          *node.chainlocks, *node.mempool, *node.clhandler, *node.isman,
                                                           *node.llmq_ctx->qman, *node.llmq_ctx->qsnapman, *node.llmq_ctx->sigman,
                                                           *node.mn_sync, operator_sk, dash_db_params, quorums_watch);
         RegisterValidationInterface(node.active_ctx.get());
     } else if (quorums_watch) {
         node.observer_ctx = std::make_unique<llmq::ObserverContext>(*node.dmnman, *node.llmq_ctx->qman, *node.llmq_ctx->qsnapman,
-                                                                    chainman, *node.sporkman, dash_db_params);
+                                                                    chainman, dash_db_params);
         RegisterValidationInterface(node.observer_ctx.get());
     }
 
@@ -2171,10 +2135,10 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     );
     RegisterValidationInterface(node.ds_notification_interface.get());
 
-    // ********************************************************* Step 7d: Setup other Dash services
+    // ********************************************************* Step 7c: Setup other Dash services
 
     node.peerman->AddExtraHandler(std::make_unique<NetInstantSend>(node.peerman.get(), *node.isman, node.active_ctx ? node.active_ctx->is_signer.get() : nullptr, *node.llmq_ctx->sigman, *node.llmq_ctx->qman, *node.chainlocks, chainman, *node.mempool, *node.mn_sync));
-    node.peerman->AddExtraHandler(std::make_unique<llmq::NetSigning>(node.peerman.get(), *node.llmq_ctx->sigman, node.active_ctx ? node.active_ctx->shareman.get() : nullptr, *node.sporkman));
+    node.peerman->AddExtraHandler(std::make_unique<llmq::NetSigning>(node.peerman.get(), *node.llmq_ctx->sigman, node.active_ctx ? node.active_ctx->shareman.get() : nullptr));
 
     {
         llmq::QuorumRole* quorum_role = node.active_ctx ? static_cast<llmq::QuorumRole*>(node.active_ctx.get())
@@ -2182,7 +2146,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         auto net_quorum = std::make_unique<llmq::NetQuorum>(
             node.peerman.get(), *node.llmq_ctx->bls_worker, *node.connman, *node.dmnman,
             *node.llmq_ctx->qman, *node.llmq_ctx->qsnapman, chainman,
-            *node.mn_sync, *node.sporkman, quorum_role,
+            *node.mn_sync, quorum_role,
             node.active_ctx ? node.active_ctx->nodeman.get() : nullptr,
             llmq::DEFAULT_WORKER_COUNT, sync_map, quorums_recovery);
         node.peerman->AddExtraHandler(std::move(net_quorum));
@@ -2190,14 +2154,14 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
     if (node.active_ctx) {
         node.peerman->AddExtraHandler(std::make_unique<llmq::NetDKG>(
-            node.peerman.get(), *node.sporkman, *node.active_ctx->qdkgsman, chainman, quorums_watch,
+            node.peerman.get(), *node.active_ctx->qdkgsman, chainman, quorums_watch,
             *node.llmq_ctx->qman, *node.active_ctx,
             *node.llmq_ctx->bls_worker, *node.dmnman, *node.mn_metaman,
             *node.active_ctx->dkgdbgman, *node.llmq_ctx->quorum_block_processor, *node.llmq_ctx->qsnapman,
             *node.active_ctx->nodeman, *node.connman));
     } else if (node.observer_ctx) {
         node.peerman->AddExtraHandler(std::make_unique<llmq::NetDKG>(
-            node.peerman.get(), *node.sporkman, *node.observer_ctx->qdkgsman, chainman,
+            node.peerman.get(), *node.observer_ctx->qdkgsman, chainman,
             *node.llmq_ctx->qman, *node.observer_ctx));
     } else {
         node.peerman->AddExtraHandler(std::make_unique<llmq::NetDKGStub>(node.peerman.get()));
@@ -2302,7 +2266,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         if (!fReindex) {
             LOCK(cs_main);
             for (Chainstate* chainstate : chainman.GetAll()) {
-                uiInterface.InitMessage(_("Pruning blockstore…").translated);
+                uiInterface.InitMessage(_("Pruning blockstore…"));
                 chainstate->PruneAndFlush();
             }
         }
@@ -2384,7 +2348,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         uiInterface.NotifyBlockTip_connect([block_notify](SynchronizationState sync_state, const CBlockIndex* pBlockIndex) {
             if (sync_state != SynchronizationState::POST_INIT || !pBlockIndex) return;
             std::string command = block_notify;
-            ReplaceAll(command, "%s", pBlockIndex->GetBlockHash().GetHex());
+            util::ReplaceAll(command, "%s", pBlockIndex->GetBlockHash().GetHex());
             std::thread t(runCommand, command);
             t.detach(); // thread runs free
         });
@@ -2393,7 +2357,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     if (!chainlock_notify.empty()) {
         uiInterface.NotifyChainLock_connect([chainlock_notify](const std::string& bestChainLockHash, int bestChainLockHeight) {
             std::string command = chainlock_notify;
-            ReplaceAll(command, "%s", bestChainLockHash);
+            util::ReplaceAll(command, "%s", bestChainLockHash);
             std::thread t(runCommand, command);
             t.detach(); // thread runs free
         });
@@ -2476,7 +2440,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                 auto result = node.dmnman->RecalculateAndRepairDiffs(start_index, stop_index, build_list_func, true);
 
                 if (!result.verification_errors.empty()) {
-                    LogPrintf("WARNING: Verification errors:\n%s\n", Join(result.verification_errors, "\n"));
+                    LogWarning("Verification errors:\n%s\n", util::Join(result.verification_errors, "\n"));
                 }
 
                 if (!result.repair_errors.empty()) {
@@ -2484,7 +2448,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                     LogPrintf("Failed to repair masternode list diffs. Database corruption detected. " /* Continued */
                               "Please restart with -reindex to rebuild the database.\n"
                               "Errors:\n%s\n",
-                              Join(result.repair_errors, "\n"));
+                              util::Join(result.repair_errors, "\n"));
                     StartShutdown();
                     return;
                 }
@@ -2722,7 +2686,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     RPCNotifyBlockChange(WITH_LOCK(chainman.GetMutex(), return chainman.ActiveTip()));
     SetRPCWarmupFinished();
 
-    uiInterface.InitMessage(_("Done loading").translated);
+    uiInterface.InitMessage(_("Done loading"));
 
     for (const auto& client : node.chain_clients) {
         client->start(*node.scheduler);

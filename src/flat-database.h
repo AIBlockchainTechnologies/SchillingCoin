@@ -11,6 +11,7 @@
 #include <hash.h>
 #include <streams.h>
 #include <util/fs.h>
+#include <util/log.h>
 #include <util/system.h>
 
 /**
@@ -68,8 +69,8 @@ private:
         }
         fileout.fclose();
 
-        LogPrintf("Written info to %s  %dms\n", strFilename, Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
-        LogPrintf("     %s\n", objToSave.ToString());
+        LogInfo("Written info to %s  %dms\n", strFilename, Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
+        LogInfo("     %s\n", objToSave.ToString());
 
         return true;
     }
@@ -152,8 +153,8 @@ private:
             return ReadResult::IncorrectFormat;
         }
 
-        LogPrintf("Loaded info from %s  %dms\n", strFilename, Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
-        LogPrintf("     %s\n", objToLoad.ToString());
+        LogInfo("Loaded info from %s  %dms\n", strFilename, Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
+        LogInfo("     %s\n", objToLoad.ToString());
 
         return ReadResult::Ok;
     }
@@ -161,14 +162,13 @@ private:
     [[nodiscard]] bool Read(T& objToLoad)
     {
         ReadResult readResult = CoreRead(objToLoad);
-        if (readResult == ReadResult::FileError)
-            LogPrintf("Missing file %s, will try to recreate\n", strFilename);
-        else if (readResult != ReadResult::Ok) {
-            LogPrintf("ERROR: CFlatDB::Read Error reading %s: ", strFilename);
+        if (readResult == ReadResult::FileError) {
+            LogInfo("Missing file %s, will try to recreate\n", strFilename);
+        } else if (readResult != ReadResult::Ok) {
             if (readResult == ReadResult::IncorrectFormat) {
-                LogPrintf("%s: Magic is ok but data has invalid format, will try to recreate\n", __func__);
+                LogWarning("%s: Error reading %s: Magic is ok but data has invalid format, will try to recreate\n", __func__, strFilename);
             } else {
-                LogPrintf("%s: File format is unknown or invalid, please fix it manually\n", __func__);
+                LogError("%s: Error reading %s: File format is unknown or invalid, please fix it manually\n", __func__, strFilename);
                 // program should exit with an error
                 return false;
             }
@@ -186,25 +186,24 @@ public:
 
     [[nodiscard]] bool Load(T& objToLoad)
     {
-        LogPrintf("Reading info from %s...\n", strFilename);
+        LogInfo("Reading info from %s...\n", strFilename);
         return Read(objToLoad);
     }
 
     bool Store(const T& objToSave)
     {
-        LogPrintf("Verifying %s format...\n", strFilename);
+        LogInfo("Verifying %s format...\n", strFilename);
         T tmpObjToLoad;
         if (!Read(tmpObjToLoad)) return false;
 
         const auto start{SteadyClock::now()};
 
-        LogPrintf("Writing info to %s...\n", strFilename);
+        LogInfo("Writing info to %s...\n", strFilename);
         const bool ret = CoreWrite(objToSave);
-        LogPrintf("%s dump finished  %dms\n", strFilename, Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
+        LogInfo("%s dump finished  %dms\n", strFilename, Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
 
         return ret;
     }
 };
-
 
 #endif // SCHILLINGCOIN_FLAT_DATABASE_H

@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -219,14 +220,12 @@ void CSigSharesNodeState::RemoveSession(const uint256& signHash)
 //////////////////////
 
 CSigSharesManager::CSigSharesManager(CConnman& connman, const ChainstateManager& chainman, CSigningManager& _sigman,
-                                     const CActiveMasternodeManager& mn_activeman, const CQuorumManager& _qman,
-                                     const CSporkManager& sporkman) :
+                                     const CActiveMasternodeManager& mn_activeman, const CQuorumManager& _qman) :
     m_connman{connman},
     m_chainman{chainman},
     sigman{_sigman},
     m_mn_activeman{mn_activeman},
-    qman{_qman},
-    m_sporkman{sporkman}
+    qman{_qman}
 {
 }
 
@@ -617,7 +616,7 @@ std::shared_ptr<CRecoveredSig> CSigSharesManager::ProcessSigShare(const CSigShar
 {
     auto llmqType = quorum->params.type;
 
-    const bool isAllMembersConnectedEnabled = IsAllMembersConnectedEnabled(llmqType, m_sporkman);
+    const bool isAllMembersConnectedEnabled = IsAllMembersConnectedEnabled(llmqType);
 
     // prepare node set for direct-push in case this is our sig share
     std::vector<NodeId> quorumNodes;
@@ -897,7 +896,7 @@ void CSigSharesManager::CollectSigSharesToRequest(std::unordered_map<NodeId, Uin
         decltype(sigSharesToRequest.begin()->second)* invMap = nullptr;
 
         for (auto& [signHash, session] : nodeState.sessions) {
-            if (IsAllMembersConnectedEnabled(session.llmqType, m_sporkman)) {
+            if (IsAllMembersConnectedEnabled(session.llmqType)) {
                 continue;
             }
 
@@ -968,7 +967,7 @@ void CSigSharesManager::CollectSigSharesToSend(std::unordered_map<NodeId, Uint25
         decltype(sigSharesToSend.begin()->second)* sigSharesToSend2 = nullptr;
 
         for (auto& [signHash, session] : nodeState.sessions) {
-            if (IsAllMembersConnectedEnabled(session.llmqType, m_sporkman)) {
+            if (IsAllMembersConnectedEnabled(session.llmqType)) {
                 continue;
             }
 
@@ -1024,7 +1023,7 @@ void CSigSharesManager::CollectSigSharesToSendConcentrated(std::unordered_map<No
 
     for (auto& [_, signedSession] : signedSessions) {
         const auto& quorum = *signedSession.quorum;
-        if (!IsAllMembersConnectedEnabled(quorum.params.type, m_sporkman)) {
+        if (!IsAllMembersConnectedEnabled(quorum.params.type)) {
             continue;
         }
 
@@ -1526,7 +1525,7 @@ std::shared_ptr<CRecoveredSig> CSigSharesManager::SignAndProcessSingleShare(Pend
         auto& sigShare = *opt_sigShare;
         auto rs = ProcessSigShare(sigShare, work.quorum);
 
-        if (IsAllMembersConnectedEnabled(work.quorum->params.type, m_sporkman)) {
+        if (IsAllMembersConnectedEnabled(work.quorum->params.type)) {
             const uint256 signHash{sigShare.GetSignHash()};
             LOCK(cs);
             signedSessions[signHash] = CSignedSession{std::move(sigShare), work.quorum};
@@ -1637,7 +1636,7 @@ std::optional<CSigShare> CSigSharesManager::CreateSigShare(const CQuorum& quorum
 // causes all known sigShares to be re-announced
 void CSigSharesManager::ForceReAnnouncement(const CQuorum& quorum, Consensus::LLMQType llmqType, const uint256& id, const uint256& msgHash)
 {
-    if (IsAllMembersConnectedEnabled(llmqType, m_sporkman)) {
+    if (IsAllMembersConnectedEnabled(llmqType)) {
         return;
     }
 

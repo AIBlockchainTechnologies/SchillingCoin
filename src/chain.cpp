@@ -8,6 +8,8 @@
 #include "chain.h"
 #include "legacy/stakemodifier.h"  // for ComputeNextStakeModifier
 
+#include <util/log.h>
+
 #include <algorithm>
 #include <cassert>
 #include <limits>
@@ -138,7 +140,7 @@ unsigned int CBlockIndex::GetStakeEntropyBit() const
 {
     unsigned int nEntropyBit = (GetBlockHash().GetUint64(0) & 1);
     if (gArgs.GetBoolArg("-printstakemodifier", false))
-        LogPrintf("GetStakeEntropyBit: nHeight=%u hashBlock=%s nEntropyBit=%u\n", nHeight, GetBlockHash().ToString().c_str(), nEntropyBit);
+        LogInfo("GetStakeEntropyBit: nHeight=%u hashBlock=%s nEntropyBit=%u\n", nHeight, GetBlockHash().ToString(), nEntropyBit);
 
     return nEntropyBit;
 }
@@ -167,13 +169,13 @@ void CBlockIndex::SetStakeModifier(const uint64_t nStakeModifier, bool fGenerate
 void CBlockIndex::SetNewStakeModifier()
 {
     if (!SetStakeEntropyBit(GetStakeEntropyBit())) {
-        LogPrintf("%s: SetStakeEntropyBit() failed\n", __func__);
+        LogError("%s: SetStakeEntropyBit() failed\n", __func__);
     }
 
     uint64_t nStakeModifier{0};
     bool fGeneratedStakeModifier{false};
     if (!ComputeNextStakeModifier(pprev, nStakeModifier, fGeneratedStakeModifier)) {
-        LogPrintf("%s: ComputeNextStakeModifier() failed\n", __func__);
+        LogError("%s: ComputeNextStakeModifier() failed\n", __func__);
     }
 
     SetStakeModifier(nStakeModifier, fGeneratedStakeModifier);

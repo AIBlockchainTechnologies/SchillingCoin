@@ -1,9 +1,10 @@
 // Copyright (c) 2025-2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_OBSERVER_H
-#define BITCOIN_LLMQ_OBSERVER_H
+#ifndef SCHILLINGCOIN_LLMQ_OBSERVER_H
+#define SCHILLINGCOIN_LLMQ_OBSERVER_H
 
 #include <llmq/quorumsman.h>
 
@@ -15,7 +16,6 @@
 
 class CBlockIndex;
 class CDeterministicMNManager;
-class CSporkManager;
 namespace llmq {
 class CDKGDebugManager;
 class CDKGSessionManager;
@@ -33,8 +33,7 @@ public:
     ObserverContext(const ObserverContext&) = delete;
     ObserverContext& operator=(const ObserverContext&) = delete;
     ObserverContext(CDeterministicMNManager& dmnman, llmq::CQuorumManager& qman, llmq::CQuorumSnapshotManager& qsnapman,
-                    const ChainstateManager& chainman, const CSporkManager& sporkman,
-                    const util::DbWrapperParams& db_params);
+                    const ChainstateManager& chainman, const util::DbWrapperParams& db_params);
     ~ObserverContext() override;
 
     // QuorumRole
@@ -54,4 +53,4 @@ public:
 };
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_OBSERVER_H
+#endif // SCHILLINGCOIN_LLMQ_OBSERVER_H

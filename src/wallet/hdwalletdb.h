@@ -1,9 +1,10 @@
 // Copyright (c) 2017-2022 The Particl Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef PARTICL_WALLET_HDWALLETDB_H
-#define PARTICL_WALLET_HDWALLETDB_H
+#ifndef SCHILLINGCOIN_WALLET_HDWALLETDB_H
+#define SCHILLINGCOIN_WALLET_HDWALLETDB_H
 
 #include <primitives/transaction.h>
 #include <wallet/bdb.h>
@@ -209,7 +210,7 @@ public:
 class CHDWalletDB : public WalletBatch
 {
 public:
-    CHDWalletDB(WalletDatabase& dbw, bool _fFlushOnClose = true) : WalletBatch(dbw, _fFlushOnClose)
+    CHDWalletDB(WalletDatabase& dbw, bool _fFlushOnClose = true) : WalletBatch(dbw, "r+", _fFlushOnClose)
     {
     };
 
@@ -418,4 +419,4 @@ public:
     bool WriteEKLKey(const CKeyID &id, const CEKLKey &c);
 };
 
-#endif // PARTICL_WALLET_HDWALLETDB_H
+#endif // SCHILLINGCOIN_WALLET_HDWALLETDB_H

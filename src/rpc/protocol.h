@@ -9,18 +9,44 @@
 #define SCHILLINGCOIN_RPCPROTOCOL_H
 
 #include <cstdint>
+#include <string_view>
 
 //! HTTP status codes
-enum HTTPStatusCode {
+enum HTTPStatusCode : int
+{
     HTTP_OK                    = 200,
+    HTTP_NO_CONTENT            = 204,
     HTTP_BAD_REQUEST           = 400,
     HTTP_UNAUTHORIZED          = 401,
     HTTP_FORBIDDEN             = 403,
     HTTP_NOT_FOUND             = 404,
     HTTP_BAD_METHOD            = 405,
+    HTTP_CONTENT_TOO_LARGE     = 413,
     HTTP_INTERNAL_SERVER_ERROR = 500,
     HTTP_SERVICE_UNAVAILABLE   = 503,
 };
+
+//! Mapping of HTTP status codes to short string explanation.
+//! Copied from libevent http.c success_phrases[] and client_error_phrases[]
+inline std::string_view HTTPStatusReasonString(HTTPStatusCode code)
+{
+    switch (code) {
+    case HTTP_OK: return "OK";
+    case HTTP_NO_CONTENT: return "No Content";
+    case HTTP_BAD_REQUEST: return "Bad Request";
+    case HTTP_UNAUTHORIZED: return "Unauthorized";
+    case HTTP_FORBIDDEN: return "Forbidden";
+    case HTTP_NOT_FOUND: return "Not Found";
+    case HTTP_BAD_METHOD: return "Method Not Allowed";
+    case HTTP_CONTENT_TOO_LARGE: return "Content too large";
+    case HTTP_INTERNAL_SERVER_ERROR: return "Internal Server Error";
+    case HTTP_SERVICE_UNAVAILABLE: return "Service Unavailable";
+    }
+
+    // Reason phrases are optional and may be replaced by local variants.
+    // https://httpwg.org/specs/rfc9110.html#rfc.section.15.1
+    return "";
+}
 
 //! SchillingCoin RPC error codes
 enum RPCErrorCode {

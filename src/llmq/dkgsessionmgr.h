@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_DKGSESSIONMGR_H
-#define BITCOIN_LLMQ_DKGSESSIONMGR_H
+#ifndef SCHILLINGCOIN_LLMQ_DKGSESSIONMGR_H
+#define SCHILLINGCOIN_LLMQ_DKGSESSIONMGR_H
 
 #include <bls/bls.h>
 #include <chainparams.h>
@@ -24,7 +25,6 @@ class CBlockIndex;
 class CDBWrapper;
 class CDeterministicMNManager;
 class ChainstateManager;
-class CSporkManager;
 namespace util {
 struct DbWrapperParams;
 } // namespace util
@@ -56,7 +56,6 @@ private:
     CDeterministicMNManager& m_dmnman;
     CQuorumSnapshotManager& m_qsnapman;
     const ChainstateManager& m_chainman;
-    const CSporkManager& m_sporkman;
 
 private:
     std::unique_ptr<CDBWrapper> db{nullptr};
@@ -87,8 +86,7 @@ public:
     CDKGSessionManager(const CDKGSessionManager&) = delete;
     CDKGSessionManager& operator=(const CDKGSessionManager&) = delete;
     explicit CDKGSessionManager(CDeterministicMNManager& dmnman, CQuorumSnapshotManager& qsnapman,
-                                const ChainstateManager& chainman, const CSporkManager& sporkman,
-                                const util::DbWrapperParams& db_params);
+                                const ChainstateManager& chainman, const util::DbWrapperParams& db_params);
     ~CDKGSessionManager();
 
     template <typename HandlerFn>
@@ -159,4 +157,4 @@ private:
 };
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_DKGSESSIONMGR_H
+#endif // SCHILLINGCOIN_LLMQ_DKGSESSIONMGR_H

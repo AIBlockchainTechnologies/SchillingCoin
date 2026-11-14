@@ -9,7 +9,6 @@
 #include "protocol.h"
 
 #include "util/system.h"
-#include "utilstrencodings.h"
 
 #include <atomic>
 #include <set>

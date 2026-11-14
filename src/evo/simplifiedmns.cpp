@@ -1,4 +1,5 @@
 // Copyright (c) 2017-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -127,7 +128,7 @@ bool CalcCbTxMerkleRootMNList(uint256& merkleRootRet, gsl::not_null<std::shared_
 
         int64_t nTime2 = GetTimeMicros();
         nTimeMerkle += nTime2 - nTime1;
-        LogPrint(BCLog::BENCHMARK, "            - CalcMerkleRoot: %.2fms [%.2fs]\n", 0.001 * (nTime2 - nTime1),
+        LogPrint(BCLog::BENCH, "            - CalcMerkleRoot: %.2fms [%.2fs]\n", 0.001 * (nTime2 - nTime1),
                  nTimeMerkle * 0.000001);
 
         cached_sml = sml;

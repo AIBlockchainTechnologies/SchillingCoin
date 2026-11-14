@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TEST_UTIL_LOGGING_H
-#define BITCOIN_TEST_UTIL_LOGGING_H
+#ifndef SCHILLINGCOIN_TEST_UTIL_LOGGING_H
+#define SCHILLINGCOIN_TEST_UTIL_LOGGING_H
 
 #include <util/macros.h>
 
@@ -36,6 +37,6 @@ public:
     ~DebugLogHelper() { check_found(); }
 };
 
-#define ASSERT_DEBUG_LOG(message) DebugLogHelper UNIQUE_NAME(debugloghelper)(message)
+#define ASSERT_DEBUG_LOG(message) DebugLogHelper BITCOIN_UNIQUE_NAME(debugloghelper)(message)
 
-#endif // BITCOIN_TEST_UTIL_LOGGING_H
+#endif // SCHILLINGCOIN_TEST_UTIL_LOGGING_H

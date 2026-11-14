@@ -1,4 +1,5 @@
 // Copyright (c) 2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -92,7 +93,7 @@ bool SpentIndex::CustomAppend(const interfaces::BlockInfo& block)
     for (size_t i = 0; i < blockundo.vtxundo.size(); i++) {
         const CTransactionRef& tx = block.data->vtx[i + 1]; // +1 to skip coinbase
         const CTxUndo& txundo = blockundo.vtxundo[i];
-        const uint256 txhash = tx->GetHash();
+        const uint256 txhash = tx->GetHash().ToUint256();
 
         // Process each input
         if (tx->vin.size() != txundo.vprevout.size()) {
@@ -110,7 +111,7 @@ bool SpentIndex::CustomAppend(const interfaces::BlockInfo& block)
             AddressBytesFromScript(prevout.scriptPubKey, address_type, address_bytes);
 
             // Create spent index entry: spent output -> spending tx info
-            CSpentIndexKey key(input.prevout.hash, input.prevout.n);
+            CSpentIndexKey key(input.prevout.hash.ToUint256(), input.prevout.n);
             CSpentIndexValue value(txhash, j, block.height, prevout.nValue, address_type, address_bytes);
 
             entries.emplace_back(key, value);
@@ -147,7 +148,7 @@ bool SpentIndex::CustomRewind(const interfaces::BlockKey& current_tip, const int
 
             // Erase spent index entries for each input
             for (const CTxIn& input : tx->vin) {
-                CSpentIndexKey key(input.prevout.hash, input.prevout.n);
+                CSpentIndexKey key(input.prevout.hash.ToUint256(), input.prevout.n);
                 keys_to_erase.push_back(key);
             }
         }

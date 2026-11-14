@@ -1,9 +1,10 @@
 // Copyright (c) 2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_NET_SIGNING_H
-#define BITCOIN_LLMQ_NET_SIGNING_H
+#ifndef SCHILLINGCOIN_LLMQ_NET_SIGNING_H
+#define SCHILLINGCOIN_LLMQ_NET_SIGNING_H
 
 #include <ctpl_stl.h>
 #include <llmq/signing_shares.h>
@@ -17,8 +18,6 @@
 
 #include <atomic>
 #include <memory>
-
-class CSporkManager;
 
 namespace llmq {
 class CSigSharesManager;
@@ -39,12 +38,10 @@ std::vector<CBatchedSigShares> UnserializeBatchedSigShares(CDataStream& vRecv);
 class NetSigning final : public NetHandler, public CValidationInterface
 {
 public:
-    NetSigning(PeerManagerInternal* peer_manager, CSigningManager& sig_manager, CSigSharesManager* shares_manager,
-               const CSporkManager& sporkman) :
+    NetSigning(PeerManagerInternal* peer_manager, CSigningManager& sig_manager, CSigSharesManager* shares_manager) :
         NetHandler(peer_manager),
         m_sig_manager{sig_manager},
-        m_shares_manager{shares_manager},
-        m_sporkman{sporkman}
+        m_shares_manager{shares_manager}
     {
         workInterrupt.reset();
     }
@@ -81,7 +78,6 @@ private:
 private:
     CSigningManager& m_sig_manager;
     CSigSharesManager* m_shares_manager;
-    const CSporkManager& m_sporkman;
 
     CleanupThrottler<NodeClock> cleanupThrottler;
 
@@ -96,4 +92,4 @@ private:
 
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_NET_SIGNING_H
+#endif // SCHILLINGCOIN_LLMQ_NET_SIGNING_H

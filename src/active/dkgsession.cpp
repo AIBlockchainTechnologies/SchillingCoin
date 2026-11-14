@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -25,12 +26,11 @@ namespace llmq {
 ActiveDKGSession::ActiveDKGSession(CBLSWorker& bls_worker, CDeterministicMNManager& dmnman, CDKGDebugManager& dkgdbgman,
                                    CDKGSessionManager& qdkgsman, CMasternodeMetaMan& mn_metaman,
                                    CQuorumSnapshotManager& qsnapman, const CActiveMasternodeManager& mn_activeman,
-                                   const ChainstateManager& chainman, const CSporkManager& sporkman,
-                                   const CBlockIndex* base_block_index, const Consensus::LLMQParams& llmq_params) :
+                                   const ChainstateManager& chainman, const CBlockIndex* base_block_index,
+                                   const Consensus::LLMQParams& llmq_params) :
     CDKGSession(bls_worker, dmnman, dkgdbgman, qdkgsman, qsnapman, chainman, base_block_index, llmq_params),
     m_mn_metaman{mn_metaman},
     m_mn_activeman{mn_activeman},
-    m_sporkman{sporkman},
     m_use_legacy_bls{!DeploymentActiveAfter(m_quorum_base_block_index, Params().GetConsensus(), Consensus::DEPLOYMENT_V19)}
 {
 }
@@ -227,7 +227,7 @@ void ActiveDKGSession::VerifyConnectionAndMinProtoVersions(CConnman& connman) co
 {
     assert(m_mn_metaman.IsValid());
 
-    if (!IsQuorumPoseEnabled(params.type, m_sporkman)) {
+    if (!IsQuorumPoseEnabled(params.type)) {
         return;
     }
 
@@ -256,7 +256,7 @@ void ActiveDKGSession::VerifyConnectionAndMinProtoVersions(CConnman& connman) co
         }
     });
 
-    bool fShouldAllMembersBeConnected = IsAllMembersConnectedEnabled(params.type, m_sporkman);
+    bool fShouldAllMembersBeConnected = IsAllMembersConnectedEnabled(params.type);
     for (const auto& m : members) {
         if (m->dmn->proTxHash == myProTxHash) {
             continue;

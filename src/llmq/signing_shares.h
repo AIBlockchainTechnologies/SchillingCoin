@@ -1,9 +1,10 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_SIGNING_SHARES_H
-#define BITCOIN_LLMQ_SIGNING_SHARES_H
+#ifndef SCHILLINGCOIN_LLMQ_SIGNING_SHARES_H
+#define SCHILLINGCOIN_LLMQ_SIGNING_SHARES_H
 
 #include <bls/bls.h>
 #include <evo/types.h>
@@ -32,7 +33,6 @@ class CActiveMasternodeManager;
 class ChainstateManager;
 class CNode;
 class CConnman;
-class CSporkManager;
 
 namespace llmq
 {
@@ -480,7 +480,6 @@ private:
     CSigningManager& sigman;
     const CActiveMasternodeManager& m_mn_activeman;
     const CQuorumManager& qman;
-    const CSporkManager& m_sporkman;
 
     CleanupThrottler<NodeClock> cleanupThrottler;
     std::atomic<uint32_t> recoveredSigsCounter{0};
@@ -490,8 +489,7 @@ public:
     CSigSharesManager(const CSigSharesManager&) = delete;
     CSigSharesManager& operator=(const CSigSharesManager&) = delete;
     explicit CSigSharesManager(CConnman& connman, const ChainstateManager& chainman, CSigningManager& _sigman,
-                               const CActiveMasternodeManager& mn_activeman, const CQuorumManager& _qman,
-                               const CSporkManager& sporkman);
+                               const CActiveMasternodeManager& mn_activeman, const CQuorumManager& _qman);
     ~CSigSharesManager() override;
 
     void RegisterRecoveryInterface() EXCLUSIVE_LOCKS_REQUIRED(!cs);
@@ -583,4 +581,4 @@ public:
 };
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_SIGNING_SHARES_H
+#endif // SCHILLINGCOIN_LLMQ_SIGNING_SHARES_H

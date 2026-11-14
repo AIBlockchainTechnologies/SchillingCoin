@@ -28,7 +28,6 @@
 #include "wallet/bip39.h"
 #include "wallet/bip39_english.h"
 #include "crypto/sha256.h"
-#include <utilstrencodings.h>
 #include "random.h"
 
 #include <boost/algorithm/string.hpp>

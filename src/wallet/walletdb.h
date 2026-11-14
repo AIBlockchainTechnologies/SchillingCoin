@@ -25,6 +25,7 @@
 class CAccount;
 class CAccountingEntry;
 struct CBlockLocator;
+class CHDWalletDB;
 class CKeyPool;
 class CMasterKey;
 class CScript;
@@ -96,6 +97,8 @@ public:
  */
 class WalletBatch
 {
+    friend class ::CHDWalletDB;
+
 private:
     template <typename K, typename T>
     bool WriteIC(const K& key, const T& value, bool fOverwrite = true)

@@ -58,7 +58,6 @@ bool error(const char* fmt, const Args&... args)
     return false;
 }
 
-void PrintExceptionContinue(const std::exception* pex, const char* pszThread);
 // The blocks directory is always net specific.
 const fs::path &GetBlocksDir();
 const fs::path &GetDataDir(bool fNetSpecific = true);
@@ -72,14 +71,6 @@ fs::path GetSpecialFolderPath(int nFolder, bool fCreate = true);
 #endif
 
 void runCommand(std::string strCommand);
-
-/**
- * Format a string to be used as group of options in help messages
- *
- * @param message Group name (e.g. "RPC server options:")
- * @return the formatted string
- */
-std::string HelpMessageGroup(const std::string& message);
 
 /**
  * Format a string to be used as option description in help messages
@@ -97,30 +88,6 @@ std::string HelpMessageOpt(const std::string& option, const std::string& message
 int GetNumCores();
 
 void SetThreadPriority(int nPriority);
-
-/**
- * .. and a wrapper that just calls func once
- */
-template <typename Callable>
-void TraceThread(const std::string name, Callable func)
-{
-    std::string s = "schillingcoin-" + name;
-    util::ThreadRename(s.c_str());
-    try {
-        LogPrintf("%s thread start\n", name);
-        func();
-        LogPrintf("%s thread exit\n", name);
-    } catch (boost::thread_interrupted) {
-        LogPrintf("%s thread interrupt\n", name);
-        throw;
-    } catch (std::exception& e) {
-        PrintExceptionContinue(&e, name.c_str());
-        throw;
-    } catch (...) {
-        PrintExceptionContinue(nullptr, name.c_str());
-        throw;
-    }
-}
 
 fs::path AbsPathForConfigVal(const fs::path& path, bool net_specific = true);
 

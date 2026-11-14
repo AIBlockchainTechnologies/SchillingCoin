@@ -399,6 +399,7 @@ public:
     bool getSpentIndex(const CSpentIndexKey& key, CSpentIndexValue& value) const;
     void removeSpentIndex(const uint256 txhash);
 
+    void removeRecursive(txiter to_remove, MemPoolRemovalReason reason) EXCLUSIVE_LOCKS_REQUIRED(cs);
     void removeRecursive(const CTransaction& tx, MemPoolRemovalReason reason) EXCLUSIVE_LOCKS_REQUIRED(cs);
     /** After reorg, filter the entries that would no longer be valid in the next block, and update
      * the entries' cached LockPoints if needed.  The mempool does not have any knowledge of
@@ -505,10 +506,9 @@ public:
     util::Result<void> CheckPackageLimits(const Package& package,
                                           const Limits& limits) const EXCLUSIVE_LOCKS_REQUIRED(cs);
 
-    /** Populate setDescendants with all in-mempool descendants of hash.
-     *  Assumes that setDescendants includes all in-mempool descendants of anything
-     *  already in it.  */
+    /** Populate setDescendants with all in-mempool descendants of the given transaction. */
     void CalculateDescendants(txiter it, setEntries& setDescendants) const EXCLUSIVE_LOCKS_REQUIRED(cs);
+    txiter CalculateDescendants(const CTxMemPoolEntry& entry, setEntries& setDescendants) const EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     /** The minimum fee to get into the mempool, which may itself not be enough
      *  for larger-sized transactions.

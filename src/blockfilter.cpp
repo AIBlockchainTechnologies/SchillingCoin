@@ -16,6 +16,8 @@
 #include <util/golombrice.h>
 #include <util/string.h>
 
+using util::Join;
+
 /// SerType used to serialize parameters in GCS filter encoding.
 static constexpr int GCS_SER_TYPE = SER_NETWORK;
 

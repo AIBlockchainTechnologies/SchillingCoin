@@ -2871,26 +2871,27 @@ void PeerManagerImpl::ProcessGetData(CNode& pfrom, Peer& peer, const std::atomic
                 push = true;
 
                 // As we're going to send tx, make sure its unconfirmed parents are made requestable.
-                std::vector<uint256> parent_ids_to_add;
+                std::vector<Txid> parent_ids_to_add;
                 {
                     LOCK(m_mempool.cs);
-                    auto tx_iter = m_mempool.GetIter(tx->GetHash());
+                    const auto tx_iter = m_mempool.GetIter(tx->GetHash());
                     if (tx_iter) {
-                        const CTxMemPoolEntry::Parents& parents = (*tx_iter)->GetMemPoolParentsConst();
+                        const auto parents = m_mempool.GetParents(**tx_iter);
                         parent_ids_to_add.reserve(parents.size());
-                        for (const CTxMemPoolEntry& parent : parents) {
-                            if (parent.GetTime() > now - UNCONDITIONAL_RELAY_DELAY) {
-                                parent_ids_to_add.push_back(parent.GetTx().GetHash());
+                        for (const CTxMemPoolEntry::CTxMemPoolEntryRef& parent : parents) {
+                            if (parent.get().GetTime() > now - UNCONDITIONAL_RELAY_DELAY) {
+                                parent_ids_to_add.push_back(parent.get().GetTx().GetHash());
                             }
                         }
                     }
                 }
 
-                for (const uint256& parent_txid : parent_ids_to_add) {
+                for (const Txid& parent_txid : parent_ids_to_add) {
                     // Relaying a transaction with a recent but unconfirmed parent.
-                    if (WITH_LOCK(tx_relay->m_tx_inventory_mutex, return !tx_relay->m_tx_inventory_known_filter.contains(parent_txid))) {
+                    const uint256& parent_hash = parent_txid.ToUint256();
+                    if (WITH_LOCK(tx_relay->m_tx_inventory_mutex, return !tx_relay->m_tx_inventory_known_filter.contains(parent_hash))) {
                         LOCK(cs_main);
-                        State(pfrom.GetId())->m_recently_announced_invs.insert(parent_txid);
+                        State(pfrom.GetId())->m_recently_announced_invs.insert(parent_hash);
                     }
                 }
             }
@@ -3460,7 +3461,7 @@ void PeerManagerImpl::ProcessGetCFCheckPt(CNode& node, Peer& peer, CDataStream& 
 //! Return the ordinary transaction inventory type and transaction hash.
 static std::pair<int, uint256> GetTxAnnouncement(const CTransaction& tx, int peer_version)
 {
-    return {MSG_TX, tx.GetHash()};
+    return {MSG_TX, tx.GetHash().ToUint256()};
 }
 
 void PeerManagerImpl::ProcessBlock(CNode& node, const std::shared_ptr<const CBlock>& block, bool force_processing)

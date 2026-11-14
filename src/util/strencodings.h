@@ -10,6 +10,7 @@
 #ifndef SCHILLINGCOIN_UTIL_STRENCODINGS_H
 #define SCHILLINGCOIN_UTIL_STRENCODINGS_H
 
+#include <crypto/hex_base.h> // IWYU pragma: export
 #include <span.h>
 #include <util/string.h>
 
@@ -71,7 +72,6 @@ std::vector<Byte> ParseHex(std::string_view hex_str)
 {
     return TryParseHex<Byte>(hex_str).value_or(std::vector<Byte>{});
 }
-signed char HexDigit(char c);
 /* Returns true if each character in str is a hex character, and has an even
  * number of hex digits.*/
 bool IsHex(std::string_view str);
@@ -127,7 +127,7 @@ T LocaleIndependentAtoi(std::string_view str)
     static_assert(std::is_integral<T>::value);
     T result;
     // Emulate atoi(...) handling of white space and leading +/-.
-    std::string_view s = TrimStringView(str);
+    std::string_view s = util::TrimStringView(str);
     if (!s.empty() && s[0] == '+') {
         if (s.length() >= 2 && s[1] == '-') {
             return 0;

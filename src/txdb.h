@@ -54,6 +54,7 @@ public:
     bool GetCoin(const COutPoint& outpoint, Coin& coin) const override;
     bool HaveCoin(const COutPoint& outpoint) const override;
     uint256 GetBestBlock() const override;
+    std::vector<uint256> GetHeadBlocks() const override;
     bool BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock) override;
     CCoinsViewCursor* Cursor() const override;
     size_t EstimateSize() const override;

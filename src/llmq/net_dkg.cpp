@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -446,14 +447,14 @@ bool ProcessPendingMessageBatch(const CConnman& connman, CDKGSession& session, c
 } // namespace
 
 
-NetDKG::NetDKG(PeerManagerInternal* peer_manager, const CSporkManager& sporkman, CDKGSessionManager& qdkgsman,
+NetDKG::NetDKG(PeerManagerInternal* peer_manager, CDKGSessionManager& qdkgsman,
                const ChainstateManager& chainman, CQuorumManager& qman, QuorumRole& role) :
     NetHandler(peer_manager),
     m_qdkgsman{qdkgsman},
     m_qman{qman},
-    m_sporkman{sporkman},
     m_chainman{chainman},
     m_active{nullptr}
+
 {
     m_qdkgsman.InitializeHandlers([](const Consensus::LLMQParams& llmq_params,
                                      [[maybe_unused]] int quorum_idx) -> std::unique_ptr<CDKGSessionHandler> {
@@ -462,7 +463,7 @@ NetDKG::NetDKG(PeerManagerInternal* peer_manager, const CSporkManager& sporkman,
     m_qman.ConnectManagers(&role, &m_qdkgsman);
 }
 
-NetDKG::NetDKG(PeerManagerInternal* peer_manager, const CSporkManager& sporkman, CDKGSessionManager& qdkgsman,
+NetDKG::NetDKG(PeerManagerInternal* peer_manager, CDKGSessionManager& qdkgsman,
                const ChainstateManager& chainman, bool quorums_watch, CQuorumManager& qman, QuorumRole& role,
                CBLSWorker& bls_worker, CDeterministicMNManager& dmnman, CMasternodeMetaMan& mn_metaman,
                CDKGDebugManager& dkgdbgman, CQuorumBlockProcessor& qblockman, CQuorumSnapshotManager& qsnapman,
@@ -470,14 +471,13 @@ NetDKG::NetDKG(PeerManagerInternal* peer_manager, const CSporkManager& sporkman,
     NetHandler(peer_manager),
     m_qdkgsman{qdkgsman},
     m_qman{qman},
-    m_sporkman{sporkman},
     m_chainman{chainman},
     m_active{std::make_unique<ActiveDKG>(ActiveDKG{dmnman, mn_metaman, dkgdbgman, qblockman, qsnapman, connman})}
 {
     m_qdkgsman.InitializeHandlers(
         [&](const Consensus::LLMQParams& llmq_params, int quorum_idx) -> std::unique_ptr<ActiveDKGSessionHandler> {
             return std::make_unique<ActiveDKGSessionHandler>(bls_worker, dmnman, mn_metaman, dkgdbgman, qdkgsman,
-                                                             qblockman, qsnapman, mn_activeman, chainman, sporkman,
+                                                             qblockman, qsnapman, mn_activeman, chainman,
                                                              llmq_params, quorums_watch, quorum_idx);
         });
     m_qman.ConnectManagers(&role, &m_qdkgsman);
@@ -491,7 +491,7 @@ NetDKG::~NetDKG()
 
 void NetDKG::ProcessMessage(CNode& pfrom, const std::string& msg_type, CDataStream& vRecv)
 {
-    if (!IsQuorumDKGEnabled(m_sporkman)) return;
+    if (!IsQuorumDKGEnabled()) return;
 
     if (msg_type != NetMsgType::QCONTRIB && msg_type != NetMsgType::QCOMPLAINT && msg_type != NetMsgType::QJUSTIFICATION &&
         msg_type != NetMsgType::QPCOMMITMENT && msg_type != NetMsgType::QWATCH) {
@@ -675,7 +675,7 @@ bool NetDKG::AlreadyHave(const CInv& inv)
         // Observers have no worker that could consume or validate DKG round
         // payloads, so do not request them in response to inventory.
         if (m_active == nullptr) return true;
-        if (!IsQuorumDKGEnabled(m_sporkman)) return false;
+        if (!IsQuorumDKGEnabled()) return false;
         bool seen = false;
         m_qdkgsman.ForEachHandler([&](const CDKGSessionHandler& h) {
             if (seen) return;
@@ -785,13 +785,13 @@ void NetDKG::PhaseHandlerThread(ActiveDKGSessionHandler& handler)
 }
 
 static void AddQuorumProbeConnections(const Consensus::LLMQParams& llmqParams, CConnman& connman,
-                                      const CMasternodeMetaMan& mn_metaman, const CSporkManager& sporkman,
+                                      const CMasternodeMetaMan& mn_metaman,
                                       const UtilParameters& util_params, const CDeterministicMNList& tip_mn_list,
                                       const uint256& myProTxHash)
 {
     assert(mn_metaman.IsValid());
 
-    if (!IsQuorumPoseEnabled(llmqParams.type, sporkman)) {
+    if (!IsQuorumPoseEnabled(llmqParams.type)) {
         return;
     }
 
@@ -865,11 +865,11 @@ void NetDKG::HandleDKGRound(ActiveDKGSessionHandler& handler)
     }
 
     const auto tip_mn_list = active.dmnman.GetListAtChainTip();
-    llmq::EnsureQuorumConnections(handler.params, active.connman, m_sporkman,
+    llmq::EnsureQuorumConnections(handler.params, active.connman,
                                   {active.dmnman, active.qsnapman, m_chainman, pQuorumBaseBlockIndex}, tip_mn_list,
                                   curSession->ProTx(), /*is_masternode=*/true, handler.QuorumsWatch());
     if (curSession->AreWeMember()) {
-        AddQuorumProbeConnections(handler.params, active.connman, active.mn_metaman, m_sporkman,
+        AddQuorumProbeConnections(handler.params, active.connman, active.mn_metaman,
                                   {active.dmnman, active.qsnapman, m_chainman, pQuorumBaseBlockIndex}, tip_mn_list,
                                   curSession->ProTx());
     }

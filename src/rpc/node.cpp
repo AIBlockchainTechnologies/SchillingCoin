@@ -961,24 +961,16 @@ static RPCHelpMan logging()
                 RPCExamples{
                     HelpExampleCli("logging", "\"[\\\"all\\\"]\" \"[\\\"http\\\"]\"")
             + HelpExampleCli("logging", "'[\"dash\"]' '[\"llmq\",\"zmq\"]'")
-            + HelpExampleRpc("logging", "[\"all\"], \"[libevent]\"")
+            + HelpExampleRpc("logging", "[\"all\"], \"[http]\"")
                 },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
 {
 
-    uint64_t original_log_categories = LogInstance().GetCategoryMask();
     if (request.params[0].isArray()) {
         EnableOrDisableLogCategories(request.params[0], true);
     }
     if (request.params[1].isArray()) {
         EnableOrDisableLogCategories(request.params[1], false);
-    }
-    uint64_t updated_log_categories = LogInstance().GetCategoryMask();
-    uint64_t changed_log_categories = original_log_categories ^ updated_log_categories;
-
-    // Update libevent logging if BCLog::LIBEVENT has changed.
-    if (changed_log_categories & BCLog::LIBEVENT) {
-        UpdateHTTPServerLogging(LogInstance().WillLogCategory(BCLog::LIBEVENT));
     }
 
     UniValue result(UniValue::VOBJ);

@@ -26,12 +26,10 @@ static const std::string DB_SKCONTRIB = "qdkg_S";
 static const std::string DB_ENC_CONTRIB = "qdkg_E";
 
 CDKGSessionManager::CDKGSessionManager(CDeterministicMNManager& dmnman, CQuorumSnapshotManager& qsnapman,
-                                       const ChainstateManager& chainman, const CSporkManager& sporkman,
-                                       const util::DbWrapperParams& db_params) :
+                                       const ChainstateManager& chainman, const util::DbWrapperParams& db_params) :
     m_dmnman{dmnman},
     m_qsnapman{qsnapman},
     m_chainman{chainman},
-    m_sporkman{sporkman},
     db{util::MakeDbWrapper({db_params.path / "llmq" / "dkgdb", db_params.memory, db_params.wipe, /*cache_size=*/1 << 20})}
 {
 }
@@ -46,7 +44,7 @@ void CDKGSessionManager::UpdatedBlockTip(const CBlockIndex* pindexNew, bool fIni
         return;
     if (!DeploymentDIP0003Enforced(pindexNew->nHeight, Params().GetConsensus()))
         return;
-    if (!IsQuorumDKGEnabled(m_sporkman))
+    if (!IsQuorumDKGEnabled())
         return;
 
     for (auto& [_, dkgType] : dkgSessionHandlers) {
@@ -56,7 +54,7 @@ void CDKGSessionManager::UpdatedBlockTip(const CBlockIndex* pindexNew, bool fIni
 
 bool CDKGSessionManager::GetContribution(const uint256& hash, CDKGContribution& ret) const
 {
-    if (!IsQuorumDKGEnabled(m_sporkman))
+    if (!IsQuorumDKGEnabled())
         return false;
 
     for (const auto& [_, dkgType] : dkgSessionHandlers) {
@@ -73,7 +71,7 @@ bool CDKGSessionManager::GetContribution(const uint256& hash, CDKGContribution& 
 
 bool CDKGSessionManager::GetComplaint(const uint256& hash, CDKGComplaint& ret) const
 {
-    if (!IsQuorumDKGEnabled(m_sporkman))
+    if (!IsQuorumDKGEnabled())
         return false;
 
     for (const auto& [_, dkgType] : dkgSessionHandlers) {
@@ -90,7 +88,7 @@ bool CDKGSessionManager::GetComplaint(const uint256& hash, CDKGComplaint& ret) c
 
 bool CDKGSessionManager::GetJustification(const uint256& hash, CDKGJustification& ret) const
 {
-    if (!IsQuorumDKGEnabled(m_sporkman))
+    if (!IsQuorumDKGEnabled())
         return false;
 
     for (const auto& [_, dkgType] : dkgSessionHandlers) {
@@ -107,7 +105,7 @@ bool CDKGSessionManager::GetJustification(const uint256& hash, CDKGJustification
 
 bool CDKGSessionManager::GetPrematureCommitment(const uint256& hash, CDKGPrematureCommitment& ret) const
 {
-    if (!IsQuorumDKGEnabled(m_sporkman))
+    if (!IsQuorumDKGEnabled())
         return false;
 
     for (const auto& [_, dkgType] : dkgSessionHandlers) {

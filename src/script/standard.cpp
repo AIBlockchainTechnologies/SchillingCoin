@@ -11,7 +11,6 @@
 #include "script/script.h"
 #include "util.h"
 #include "util/system.h"
-#include "utilstrencodings.h"
 
 typedef std::vector<unsigned char> valtype;
 

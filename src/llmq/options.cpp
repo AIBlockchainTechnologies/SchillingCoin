@@ -23,29 +23,20 @@
 namespace llmq {
 int16_t DEFAULT_WORKER_COUNT{std::clamp<int16_t>(std::thread::hardware_concurrency() / 2, 1, 4)};
 
-static bool EvalSpork(const Consensus::LLMQType llmqType, const int64_t spork_value)
+bool IsAllMembersConnectedEnabled([[maybe_unused]] const Consensus::LLMQType llmq_type)
 {
-    if (spork_value == 0) {
-        return true;
-    }
-    if (spork_value == 1 && llmqType != Consensus::LLMQType::LLMQ_100_67 && llmqType != Consensus::LLMQType::LLMQ_400_60 && llmqType != Consensus::LLMQType::LLMQ_400_85) {
-        return true;
-    }
-    return false;
+    return true;
 }
 
-bool IsAllMembersConnectedEnabled(const Consensus::LLMQType llmqType, const CSporkManager& sporkman)
+bool IsQuorumDKGEnabled()
 {
-    return EvalSpork(llmqType, sporkman.GetSporkValue(SPORK_21_QUORUM_ALL_CONNECTED));
+    return true;
 }
 
-bool IsQuorumDKGEnabled(const CSporkManager& sporkman) { return sporkman.IsSporkActive(SPORK_17_QUORUM_DKG_ENABLED); }
-
-bool IsQuorumPoseEnabled(const Consensus::LLMQType llmqType, const CSporkManager& sporkman)
+bool IsQuorumPoseEnabled([[maybe_unused]] const Consensus::LLMQType llmq_type)
 {
-    return EvalSpork(llmqType, sporkman.GetSporkValue(SPORK_23_QUORUM_POSE));
+    return true;
 }
-
 
 bool IsQuorumRotationEnabled(const Consensus::LLMQParams& llmqParams, gsl::not_null<const CBlockIndex*> pindex)
 {

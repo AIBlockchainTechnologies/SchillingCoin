@@ -32,7 +32,6 @@ class CMasternodeMetaMan;
 class CMasternodeSync;
 class CNetFulfilledRequestManager;
 class CScheduler;
-class CSporkManager;
 class CTxMemPool;
 class NetGroupManager;
 class PeerManager;
@@ -58,6 +57,10 @@ class CInstantSendManager;
 struct ObserverContext;
 } // namespace llmq
 
+namespace util {
+class SignalInterrupt;
+} // namespace util
+
 namespace node {
 class Warnings;
 
@@ -76,6 +79,10 @@ struct NodeContext {
     std::unique_ptr<kernel::Context> kernel;
     //! Init interface for initializing current process and connecting to other processes.
     interfaces::Init* init{nullptr};
+    //! Function to request a shutdown.
+    std::function<bool()> shutdown_request;
+    //! Interrupt object used to track whether node shutdown was requested.
+    util::SignalInterrupt* shutdown_signal{nullptr};
     std::unique_ptr<AddrMan> addrman;
     std::unique_ptr<CConnman> connman;
     std::unique_ptr<CTxMemPool> mempool;
@@ -105,7 +112,6 @@ struct NodeContext {
     std::unique_ptr<CMasternodeMetaMan> mn_metaman;
     std::unique_ptr<CMasternodeSync> mn_sync;
     std::unique_ptr<CNetFulfilledRequestManager> netfulfilledman;
-    std::unique_ptr<CSporkManager> sporkman;
     std::unique_ptr<chainlock::Chainlocks> chainlocks;
     std::unique_ptr<chainlock::ChainlockHandler> clhandler;
     //! Dash contexts

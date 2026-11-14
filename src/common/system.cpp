@@ -40,7 +40,7 @@ using util::ReplaceAll;
 std::string ShellEscape(const std::string& arg)
 {
     std::string escaped = arg;
-    ReplaceAll(escaped, "'", "'\"'\"'");
+    util::ReplaceAll(escaped, "'", "'\"'\"'");
     return "'" + escaped + "'";
 }
 #endif
