@@ -58,7 +58,7 @@ public:
     void Stop();
     void PushJob(std::function<void()> job);
 
-#ifndef BUILD_BITCOIN_INTERNAL
+#ifndef BUILD_SCHILLINGCOIN_INTERNAL
     bool GenerateContributions(int threshold, Span<CBLSId> ids, BLSVerificationVectorPtr& vvecRet, std::vector<CBLSSecretKey>& skSharesRet);
 #endif
 

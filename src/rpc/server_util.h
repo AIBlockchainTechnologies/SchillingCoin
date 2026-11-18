@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RPC_SERVER_UTIL_H
-#define BITCOIN_RPC_SERVER_UTIL_H
+#ifndef SCHILLINGCOIN_RPC_SERVER_UTIL_H
+#define SCHILLINGCOIN_RPC_SERVER_UTIL_H
 
 #include <context.h>
 
@@ -39,4 +39,4 @@ llmq::CInstantSendManager& EnsureInstantSendManager(const node::NodeContext& nod
 CConnman& EnsureConnman(const node::NodeContext& node);
 PeerManager& EnsurePeerman(const node::NodeContext& node);
 
-#endif // BITCOIN_RPC_SERVER_UTIL_H
+#endif // SCHILLINGCOIN_RPC_SERVER_UTIL_H

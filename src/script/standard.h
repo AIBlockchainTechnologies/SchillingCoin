@@ -10,6 +10,7 @@
 
 #include "addresstype.h"
 #include "script/interpreter.h"
+#include "script/solver.h"
 
 #include <stdint.h>
 
@@ -29,38 +30,6 @@ extern unsigned nMaxDatacarrierBytes;
  * details.
  */
 static const unsigned int MANDATORY_SCRIPT_VERIFY_FLAGS = SCRIPT_VERIFY_P2SH;
-
-enum class TxoutType
-{
-    NONSTANDARD,
-    // 'standard' transaction types:
-    PUBKEY,
-    PUBKEYHASH,
-    SCRIPTHASH,
-    MULTISIG,
-    NULL_DATA, //<! unspendable OP_RETURN script that carries data
-
-    // Historical SCH Zerocoin mint classification. Runtime Zerocoin remains
-    // retired; this type is retained for historical-chain interpretation.
-    ZEROCOINMINT,
-
-    // Historical SCH pay-to-cold-staking output.
-    COLDSTAKE,
-};
-
-/** Get the name of a TxoutType. */
-std::string GetTxnOutputType(TxoutType type);
-
-constexpr bool IsPushdataOp(opcodetype opcode)
-{
-    return opcode > OP_FALSE && opcode <= OP_PUSHDATA4;
-}
-
-/**
- * Parse a scriptPubKey and identify its standard output type.
- * TxoutType::NONSTANDARD represents a failed solve.
- */
-TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned char>>& vSolutionsRet);
 
 int ScriptSigArgsExpected(TxoutType type, const std::vector<std::vector<unsigned char>>& vSolutions);
 

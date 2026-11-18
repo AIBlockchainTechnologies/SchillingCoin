@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TEST_UTIL_SETUP_COMMON_H
-#define BITCOIN_TEST_UTIL_SETUP_COMMON_H
+#ifndef SCHILLINGCOIN_TEST_UTIL_SETUP_COMMON_H
+#define SCHILLINGCOIN_TEST_UTIL_SETUP_COMMON_H
 
 #include <chainparamsbase.h>
 #include <key.h>
@@ -256,4 +256,4 @@ private:
 // define an implicit conversion here so that uint256 may be used directly in BOOST_CHECK_*
 std::ostream& operator<<(std::ostream& os, const uint256& num);
 
-#endif // BITCOIN_TEST_UTIL_SETUP_COMMON_H
+#endif // SCHILLINGCOIN_TEST_UTIL_SETUP_COMMON_H

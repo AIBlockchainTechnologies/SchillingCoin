@@ -98,6 +98,6 @@ public:
     }
 };
 
-#define WITH_FRESH_EPOCH(epoch) const Epoch::Guard BITCOIN_UNIQUE_NAME(epoch_guard_)(epoch)
+#define WITH_FRESH_EPOCH(epoch) const Epoch::Guard SCHILLINGCOIN_UNIQUE_NAME(epoch_guard_)(epoch)
 
 #endif // SCHILLINGCOIN_UTIL_EPOCHGUARD_H

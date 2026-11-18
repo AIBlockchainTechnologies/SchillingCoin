@@ -7,6 +7,7 @@
 #include "txmempool.h"
 #include "util.h"
 #include "util/system.h"
+#include "util/translation.h"
 #include "validation.h"
 
 #include <boost/test/unit_test.hpp>
@@ -53,11 +54,16 @@ BOOST_AUTO_TEST_CASE(MempoolRemoveTest)
         txGrandChild[i].vout[0].nValue = 11000LL;
     }
 
-    CTxMemPool testPool(nullptr, CFeeRate(0));
+    CTxMemPool::Options mempool_opts;
+    mempool_opts.min_relay_feerate = CFeeRate{0};
+    bilingual_str mempool_error;
+    CTxMemPool testPool{std::move(mempool_opts), mempool_error};
+    BOOST_REQUIRE(mempool_error.empty());
     std::list<CTransaction> removed;
 
     // Nothing in pool, remove should do nothing:
     testPool.remove(txParent, removed, true);
+
     BOOST_CHECK_EQUAL(removed.size(), 0);
 
     // Just the parent:

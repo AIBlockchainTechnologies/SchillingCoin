@@ -1,10 +1,11 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_VALIDATIONINTERFACE_H
-#define BITCOIN_VALIDATIONINTERFACE_H
+#ifndef SCHILLINGCOIN_VALIDATIONINTERFACE_H
+#define SCHILLINGCOIN_VALIDATIONINTERFACE_H
 
 #include <kernel/cs_main.h>
 #include <primitives/transaction.h> // CTransaction(Ref)
@@ -18,7 +19,6 @@ class CBlock;
 class CBlockIndex;
 struct CBlockLocator;
 class CValidationInterface;
-class CGovernanceVote;
 class CDeterministicMNList;
 class CDeterministicMNListDiff;
 class CScheduler;
@@ -26,9 +26,6 @@ enum class MemPoolRemovalReason;
 namespace chainlock {
 struct ChainLockSig;
 } // namespace chainlock
-namespace Governance {
-class Object;
-} // namespace Governance
 namespace instantsend {
 struct InstantSendLock;
 } // namespace instantsend
@@ -177,8 +174,6 @@ protected:
     virtual void BlockDisconnected(const std::shared_ptr<const CBlock> &block, const CBlockIndex *pindex) {}
     virtual void NotifyTransactionLock(const CTransactionRef &tx, const std::shared_ptr<const instantsend::InstantSendLock>& islock) {}
     virtual void NotifyChainLock(const CBlockIndex* pindex, const std::shared_ptr<const chainlock::ChainLockSig>& clsig) {}
-    virtual void NotifyGovernanceVote(const std::shared_ptr<CDeterministicMNList>& tip_mn_list, const std::shared_ptr<const CGovernanceVote>& vote) {}
-    virtual void NotifyGovernanceObject(const std::shared_ptr<const Governance::Object>& object) {}
     virtual void NotifyInstantSendDoubleSpendAttempt(const CTransactionRef& currentTx, const CTransactionRef& previousTx) {}
     virtual void NotifyRecoveredSig(const std::shared_ptr<const llmq::CRecoveredSig>& sig, bool proactive_relay) {}
     virtual void NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff) {}
@@ -246,8 +241,6 @@ public:
     void BlockDisconnected(const std::shared_ptr<const CBlock> &, const CBlockIndex* pindex);
     void NotifyTransactionLock(const CTransactionRef &tx, const std::shared_ptr<const instantsend::InstantSendLock>& islock);
     void NotifyChainLock(const CBlockIndex* pindex, const std::shared_ptr<const chainlock::ChainLockSig>& clsig, const std::string& id);
-    void NotifyGovernanceVote(const std::shared_ptr<CDeterministicMNList>& tip_mn_list, const std::shared_ptr<const CGovernanceVote>& vote, const std::string& id);
-    void NotifyGovernanceObject(const std::shared_ptr<const Governance::Object>& object, const std::string& id);
     void NotifyInstantSendDoubleSpendAttempt(const CTransactionRef &currentTx, const CTransactionRef &previousTx);
     void NotifyRecoveredSig(const std::shared_ptr<const llmq::CRecoveredSig> &sig, const std::string& id, bool proactive_relay);
     void NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff);
@@ -258,4 +251,4 @@ public:
 
 CMainSignals& GetMainSignals();
 
-#endif // BITCOIN_VALIDATIONINTERFACE_H
+#endif // SCHILLINGCOIN_VALIDATIONINTERFACE_H

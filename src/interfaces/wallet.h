@@ -1,9 +1,10 @@
-// Copyright (c) 2018-present The Bitcoin Core developers
+// Copyright (c) 2018-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INTERFACES_WALLET_H
-#define BITCOIN_INTERFACES_WALLET_H
+#ifndef SCHILLINGCOIN_INTERFACES_WALLET_H
+#define SCHILLINGCOIN_INTERFACES_WALLET_H
 
 #include <addresstype.h>
 #include <common/signmessage.h>
@@ -55,7 +56,6 @@ struct WalletBalances;
 struct WalletTx;
 struct WalletTxOut;
 struct WalletTxStatus;
-struct WalletMigrationResult;
 
 //! Interface for accessing a wallet.
 class Wallet
@@ -300,9 +300,6 @@ public:
 
     //! Return pointer to internal wallet class, useful for testing.
     virtual wallet::CWallet* wallet() { return nullptr; }
-
-    //! Export a watchonly wallet file. See CWallet::ExportWatchOnlyWallet
-    virtual util::Result<std::string> exportWatchOnlyWallet(const fs::path& destination) = 0;
 };
 
 //! Wallet chain client that in addition to having chain client methods for
@@ -322,9 +319,6 @@ public:
 
     //! Restore backup wallet
     virtual util::Result<std::unique_ptr<Wallet>> restoreWallet(const fs::path& backup_file, const std::string& wallet_name, std::vector<bilingual_str>& warnings, bool load_after_restore) = 0;
-
-    //! Migrate a wallet
-    virtual util::Result<WalletMigrationResult> migrateWallet(const std::string& name, const SecureString& passphrase, bool load_wallet) = 0;
 
     //! Returns true if wallet stores encryption keys
     virtual bool isEncrypted(const std::string& wallet_name) = 0;
@@ -421,15 +415,6 @@ struct WalletTxOut
     bool is_spent = false;
 };
 
-//! Migrated wallet info
-struct WalletMigrationResult
-{
-    std::unique_ptr<Wallet> wallet;
-    std::optional<std::string> watchonly_wallet_name;
-    std::optional<std::string> solvables_wallet_name;
-    fs::path backup_path;
-};
-
 //! Return implementation of Wallet interface. This function is defined in
 //! dummywallet.cpp and throws if the wallet component is not compiled.
 std::unique_ptr<Wallet> MakeWallet(wallet::WalletContext& context, const std::shared_ptr<wallet::CWallet>& wallet);
@@ -440,4 +425,4 @@ std::unique_ptr<WalletLoader> MakeWalletLoader(Chain& chain, ArgsManager& args);
 
 } // namespace interfaces
 
-#endif // BITCOIN_INTERFACES_WALLET_H
+#endif // SCHILLINGCOIN_INTERFACES_WALLET_H

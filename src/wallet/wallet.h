@@ -9,7 +9,6 @@
 #ifndef SCHILLINGCOIN_WALLET_H
 #define SCHILLINGCOIN_WALLET_H
 
-#include "addressbook.h"
 #include "consensus/amount.h"
 #include "consensus/tx_verify.h"
 #include "crypter.h"
@@ -21,6 +20,7 @@
 #include "policy/feerate.h"
 #include "primitives/block.h"
 #include "primitives/transaction.h"
+#include "script/ismine.h"
 #include "util.h"
 #include "util/memory.h"
 #include "util/strencodings.h"
@@ -29,17 +29,21 @@
 #include "validation.h"
 #include "validationinterface.h"
 #include "wallet/scriptpubkeyman.h"
-#include "wallet/wallet_ismine.h"
+#include "wallet/types.h"
 #include "wallet/walletdb.h"
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
+#include <functional>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <stdint.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -235,6 +239,154 @@ public:
     bool IsActive() const { return (nTime + 30) >= GetTime(); }
 };
 
+namespace wallet {
+
+inline std::string PurposeToString(AddressPurpose p)
+{
+    switch(p) {
+    case AddressPurpose::RECEIVE: return "receive";
+    case AddressPurpose::SEND: return "send";
+    case AddressPurpose::REFUND: return "refund";
+    case AddressPurpose::DELEGABLE: return "delegable";
+    case AddressPurpose::DELEGATOR: return "delegator";
+    case AddressPurpose::COLD_STAKING: return "coldstaking";
+    case AddressPurpose::COLD_STAKING_SEND: return "coldstaking_send";
+    } // no default case so the compiler will warn when a new enum as added
+    assert(false);
+}
+
+inline std::optional<AddressPurpose> PurposeFromString(std::string_view s)
+{
+    if (s == "receive") return AddressPurpose::RECEIVE;
+    else if (s == "send") return AddressPurpose::SEND;
+    else if (s == "refund") return AddressPurpose::REFUND;
+    else if (s == "delegable") return AddressPurpose::DELEGABLE;
+    else if (s == "delegator") return AddressPurpose::DELEGATOR;
+    else if (s == "coldstaking") return AddressPurpose::COLD_STAKING;
+    else if (s == "coldstaking_send") return AddressPurpose::COLD_STAKING_SEND;
+    return {};
+}
+
+/**
+ * Address book data.
+ */
+struct CAddressBookData
+{
+public:
+    /**
+     * Address label which is always nullopt for change addresses. For sending
+     * and receiving addresses, it will be set to an arbitrary label string
+     * provided by the user, or to "", which is the default label. The presence
+     * or absence of a label is used to distinguish change addresses from
+     * non-change addresses by wallet transaction listing and fee bumping code.
+     */
+    std::optional<std::string> label;
+
+    /**
+     * Address purpose which was originally recorded for payment protocol
+     * support but now serves as a cached IsMine value. Wallet code should
+     * not rely on this field being set.
+     */
+    std::optional<AddressPurpose> purpose;
+
+    /**
+     * Whether coins with this address have previously been spent. Set when the
+     * the wallet avoid_reuse option is enabled and this is an IsMine address
+     * that has already received funds and spent them. This is used during coin
+     * selection to increase privacy by not creating different transactions
+     * that spend from the same addresses.
+     */
+    bool previously_spent{false};
+
+    /**
+     * Map containing data about previously generated receive requests
+     * requesting funds to be sent to this address. Only present for IsMine
+     * addresses. Map keys are decimal numbers uniquely identifying each
+     * request, and map values are serialized RecentRequestEntry objects
+     * containing BIP21 URI information including message and amount.
+     */
+    std::map<std::string, std::string> receive_requests{};
+
+    bool fBech32{false}; // Particl: If address should be encoded in bech32
+    std::vector<uint32_t> vPath; // Particl: Index to m is stored in first entry
+    mutable uint8_t nOwned = 0; // Particl: 0 unknown, 1 yes, 2 no
+
+    /**
+     * Additional address metadata map that can currently hold two types of keys:
+     *
+     *   "used" keys with values always set to "1" or "p" if present. This is set on
+     *       IsMine addresses that have already been spent from if the
+     *       avoid_reuse option is enabled
+     *
+     *   "rr##" keys where ## is a decimal number, with serialized
+     *       RecentRequestEntry objects as values
+     */
+    typedef std::map<std::string, std::string> StringMap;
+    StringMap destdata;
+
+    /** Accessor methods. */
+    bool IsChange() const { return !label.has_value(); }
+    std::string GetLabel() const { return label ? *label : std::string{}; }
+    void SetLabel(std::string name) { label = std::move(name); }
+
+    void SetLabel(const std::string& new_label, const std::optional<AddressPurpose>& new_purpose, const std::vector<uint32_t> &_vPath, bool _fBech32) {
+        label = new_label;
+        if (new_purpose) {
+            purpose = new_purpose;
+        }
+        vPath = _vPath;
+        fBech32 = _fBech32;
+    }
+
+    void Set(const CAddressBookData& data) {
+        label = data.GetLabel();
+        purpose = data.purpose;
+        vPath = data.vPath;
+        fBech32 = data.fBech32;
+        destdata = data.destdata;
+    }
+
+    template <typename Stream>
+    void Serialize(Stream& s) const
+    {
+        std::string str_label;
+        std::string str_purpose;
+        if (label) {
+            str_label = *label;
+        }
+        s << str_label;
+        if (purpose) {
+            str_purpose = PurposeToString(*purpose);
+        }
+        s << str_purpose;
+        s << vPath;
+        s << destdata;
+        s << fBech32;
+    }
+
+    template <typename Stream>
+    void Unserialize(Stream& s)
+    {
+        std::string str_label;
+        std::string str_purpose;
+        s >> str_label;
+        if (!str_label.empty()) {
+            SetLabel(str_label);
+        }
+        s >> str_purpose;
+        if (!str_purpose.empty()) {
+            purpose = PurposeFromString(str_purpose);
+        }
+        s >> vPath;
+        s >> destdata;
+        try { s >> fBech32; } catch(std::exception &e) {
+            // old format
+        }
+    }
+};
+
+} // namespace wallet
+
 /**
  * A CWallet is an extension of a keystore, which also maintains a set of transactions and balances,
  * and provides the ability to create new transactions.
@@ -318,7 +470,7 @@ public:
     bool fWalletUnlockStaking;
     std::string strWalletFile;
 
-    std::unique_ptr<WalletDatabase> database;
+    std::unique_ptr<wallet::WalletDatabase> database;
 
     void LoadKeyPool(int nIndex, const CKeyPool &keypool)
     {
@@ -372,7 +524,7 @@ public:
     CWallet();
     CWallet(
     std::string strWalletFileIn,
-    std::unique_ptr<WalletDatabase> databaseIn);
+    std::unique_ptr<wallet::WalletDatabase> databaseIn);
     ~CWallet();
 
     void SetNull();
@@ -389,7 +541,8 @@ public:
     int64_t nOrderPosNext;
     std::map<uint256, int> mapRequestCount;
 
-    std::map<CTxDestination, AddressBook::CAddressBookData> mapAddressBook;
+    std::map<CTxDestination, wallet::CAddressBookData> m_address_book;
+    const wallet::CAddressBookData* FindAddressBookEntry(const CTxDestination&, bool allow_change = false) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
     std::set<COutPoint> setLockedCoins;
 
@@ -401,12 +554,12 @@ public:
     std::vector<CWalletTx> getWalletTxs();
     std::string GetUniqueWalletBackupName() const;
 
-    WalletDatabase* GetDBHandlePtr() const
+    wallet::WalletDatabase* GetDBHandlePtr() const
     {
         return database.get();
     }
 
-    WalletDatabase& GetDBHandle() const
+    wallet::WalletDatabase& GetDBHandle() const
     {
         return *database;
     }
@@ -734,12 +887,11 @@ static void ReadOrderPos(int64_t& nOrderPos, mapValue_t& mapValue)
     nOrderPos = LocaleIndependentAtoi<int64_t>(mapValue["n"]);
 }
 
-
 static void WriteOrderPos(const int64_t& nOrderPos, mapValue_t& mapValue)
 {
     if (nOrderPos == -1)
         return;
-    mapValue["n"] = ToString(nOrderPos);
+    mapValue["n"] = util::ToString(nOrderPos);
 }
 
 struct COutputEntry {

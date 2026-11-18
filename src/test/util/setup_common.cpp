@@ -77,7 +77,6 @@
 #include <evo/specialtx.h>
 #include <evo/specialtxman.h>
 #include <flat-database.h>
-#include <governance/governance.h>
 #include <instantsend/instantsend.h>
 #include <llmq/context.h>
 #include <llmq/signing.h>
@@ -208,7 +207,6 @@ BasicTestingSetup::BasicTestingSetup(const std::string& chainName, const std::ve
 
     m_node.mn_metaman = std::make_unique<CMasternodeMetaMan>();
     m_node.netfulfilledman = std::make_unique<CNetFulfilledRequestManager>();
-    m_node.sporkman = std::make_unique<CSporkManager>();
     m_node.chainlocks = std::make_unique<chainlock::Chainlocks>();
     m_node.evodb = std::make_unique<CEvoDB>(util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
     m_node.dmnman = std::make_unique<CDeterministicMNManager>(*m_node.evodb, *m_node.mn_metaman);
@@ -234,7 +232,6 @@ BasicTestingSetup::~BasicTestingSetup()
     fs::remove_all(m_path_root);
     gArgs.ClearArgs();
 
-    m_node.sporkman.reset();
     m_node.netfulfilledman.reset();
     m_node.mn_metaman.reset();
     m_node.connman.reset();
@@ -257,12 +254,15 @@ ChainTestingSetup::ChainTestingSetup(const std::string& chainName, const std::ve
     GetMainSignals().RegisterBackgroundSignalScheduler(*m_node.scheduler);
 
     m_node.fee_estimator = std::make_unique<CBlockPolicyEstimator>(FeeestPath(*m_node.args), DEFAULT_ACCEPT_STALE_FEE_ESTIMATES);
-    m_node.mempool = std::make_unique<CTxMemPool>(MemPoolOptionsForTest(m_node));
+    bilingual_str mempool_error;
+    m_node.mempool = std::make_unique<CTxMemPool>(MemPoolOptionsForTest(m_node), mempool_error);
+    Assert(mempool_error.empty());
 
     m_cache_sizes = CalculateCacheSizes(m_args);
 
     const ChainstateManager::Options chainman_opts{
         .chainparams = chainparams,
+        .datadir = m_args.GetDataDirNet(),
         .check_block_index = true,
     };
     m_node.chainman = std::make_unique<ChainstateManager>(chainman_opts);
@@ -343,7 +343,9 @@ void ChainTestingSetup::LoadVerifyActivateChainstate()
         m_node.evodb = std::make_unique<CEvoDB>(util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
         m_node.dmnman = std::make_unique<CDeterministicMNManager>(*m_node.evodb, *m_node.mn_metaman);
         m_node.isman = std::make_unique<llmq::CInstantSendManager>(util::DbWrapperParams{.path = m_node.args->GetDataDirNet(), .memory = m_dash_dbs_in_memory, .wipe = true});
-        m_node.mempool = std::make_unique<CTxMemPool>(MemPoolOptionsForTest(m_node));
+        bilingual_str mempool_error;
+        m_node.mempool = std::make_unique<CTxMemPool>(MemPoolOptionsForTest(m_node), mempool_error);
+        Assert(mempool_error.empty());
         m_node.clhandler = std::make_unique<chainlock::ChainlockHandler>(*m_node.chainlocks, chainman, *m_node.mempool, *m_node.mn_sync);
         options = ChainstateLoadOptionsForTest();
     }
@@ -417,11 +419,6 @@ TestingSetup::~TestingSetup()
     if (m_node.connman) {
         m_node.connman->Stop();
     }
-
-    // govman holds a reference to chain_helper->superblocks, so it must be
-    // reset before chain_helper is destroyed (matches PrepareShutdown ordering
-    // in init.cpp). Keep this defensive for fixtures that construct govman.
-    m_node.govman.reset();
 
     m_node.chain_helper.reset();
     m_node.llmq_ctx.reset();

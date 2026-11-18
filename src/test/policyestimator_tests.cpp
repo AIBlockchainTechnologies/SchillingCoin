@@ -8,6 +8,7 @@
 #include "txmempool.h"
 #include "uint256.h"
 #include "util/system.h"
+#include "util/translation.h"
 
 #include "test/test_schillingcoin.h"
 
@@ -56,7 +57,13 @@ BOOST_FIXTURE_TEST_SUITE(policyestimator_tests, TestingSetup)
 BOOST_AUTO_TEST_CASE(BlockPolicyEstimates)
 {
     CBlockPolicyEstimator feeEst;
-    CTxMemPool mpool(&feeEst, CFeeRate(1000));
+    CTxMemPool::Options mempool_opts{
+        .estimator = &feeEst,
+        .min_relay_feerate = CFeeRate{1000},
+    };
+    bilingual_str mempool_error;
+    CTxMemPool mpool{std::move(mempool_opts), mempool_error};
+    BOOST_REQUIRE(mempool_error.empty());
     TestMemPoolEntryHelper entry;
     CAmount basefee(2000);
     CAmount deltaFee(100);

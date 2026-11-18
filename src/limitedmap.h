@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LIMITEDMAP_H
-#define BITCOIN_LIMITEDMAP_H
+#ifndef SCHILLINGCOIN_LIMITEDMAP_H
+#define SCHILLINGCOIN_LIMITEDMAP_H
 
 #include <assert.h>
 #include <algorithm>
@@ -112,4 +112,4 @@ public:
     }
 };
 
-#endif // BITCOIN_LIMITEDMAP_H
+#endif // SCHILLINGCOIN_LIMITEDMAP_H

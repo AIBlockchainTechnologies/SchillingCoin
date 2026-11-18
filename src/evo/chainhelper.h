@@ -1,9 +1,10 @@
 // Copyright (c) 2024-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_CHAINHELPER_H
-#define BITCOIN_EVO_CHAINHELPER_H
+#ifndef SCHILLINGCOIN_EVO_CHAINHELPER_H
+#define SCHILLINGCOIN_EVO_CHAINHELPER_H
 
 #include <cstdint>
 #include <map>
@@ -25,9 +26,6 @@ struct CCreditPool;
 namespace chainlock {
 class Chainlocks;
 } // namespace chainlock
-namespace governance {
-class SuperblockManager;
-} // namespace governance
 namespace Consensus {
 struct Params;
 } // namespace Consensus
@@ -51,7 +49,6 @@ public:
     const std::unique_ptr<CCreditPoolManager> credit_pool_manager;
     const chainlock::Chainlocks& m_chainlocks;
     const std::unique_ptr<CMNHFManager> ehf_manager;
-    const std::unique_ptr<governance::SuperblockManager> superblocks;
     const std::unique_ptr<CMNPaymentsProcessor> mn_payments;
     const std::unique_ptr<CSpecialTxProcessor> special_tx;
 
@@ -65,8 +62,6 @@ public:
                                const node::BlockManager& blockman, const Consensus::Params& consensus_params,
                                const chainlock::Chainlocks& chainlocks, const llmq::CQuorumManager& qman);
     ~CChainstateHelper();
-
-    bool IsSuperblockValidationRequired(const CBlockIndex* const pindex);
 
     /** Passthrough functions to chainlock::Chainlocks */
     bool HasConflictingChainLock(int nHeight, const uint256& blockHash) const;
@@ -89,4 +84,4 @@ public:
     std::map<uint8_t, int> GetSignalsStage(const CBlockIndex* const pindexPrev);
 };
 
-#endif // BITCOIN_EVO_CHAINHELPER_H
+#endif // SCHILLINGCOIN_EVO_CHAINHELPER_H

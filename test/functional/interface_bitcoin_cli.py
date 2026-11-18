@@ -7,7 +7,7 @@ from test_framework.test_framework import SchillingcoinTestFramework
 from test_framework.util import assert_equal, assert_raises_process_error, get_auth_cookie
 import time
 
-class TestBitcoinCli(SchillingcoinTestFramework):
+class TestSCHILLINGCOINCLI(SchillingcoinTestFramework):
 
     def set_test_params(self):
         self.setup_clean_chain = True
@@ -55,4 +55,4 @@ class TestBitcoinCli(SchillingcoinTestFramework):
         # unlocked_until is not tested because the wallet is not encrypted
 
 if __name__ == '__main__':
-    TestBitcoinCli().main()
+    TestSCHILLINGCOINCLI().main()

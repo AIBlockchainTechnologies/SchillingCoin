@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TEST_UTIL_NET_H
-#define BITCOIN_TEST_UTIL_NET_H
+#ifndef SCHILLINGCOIN_TEST_UTIL_NET_H
+#define SCHILLINGCOIN_TEST_UTIL_NET_H
 
 #include <compat/compat.h>
 #include <net.h>
@@ -251,4 +251,4 @@ void AnnounceInv(PeerManager& peerman, CNode& peer, const CInv& inv)
 /** Misbehavior score PeerManager currently holds against `peer`. */
 int MisbehaviorScore(PeerManager& peerman, const CNode& peer);
 
-#endif // BITCOIN_TEST_UTIL_NET_H
+#endif // SCHILLINGCOIN_TEST_UTIL_NET_H

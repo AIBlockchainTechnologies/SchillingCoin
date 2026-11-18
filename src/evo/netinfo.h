@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_NETINFO_H
-#define BITCOIN_EVO_NETINFO_H
+#ifndef SCHILLINGCOIN_EVO_NETINFO_H
+#define SCHILLINGCOIN_EVO_NETINFO_H
 
 #include <netaddress.h>
 #include <serialize.h>
@@ -505,4 +505,4 @@ public:
     }
 };
 
-#endif // BITCOIN_EVO_NETINFO_H
+#endif // SCHILLINGCOIN_EVO_NETINFO_H

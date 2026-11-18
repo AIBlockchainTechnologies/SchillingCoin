@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CHAINLOCK_SIGNING_H
-#define BITCOIN_CHAINLOCK_SIGNING_H
+#ifndef SCHILLINGCOIN_CHAINLOCK_SIGNING_H
+#define SCHILLINGCOIN_CHAINLOCK_SIGNING_H
 
 #include <chainlock/chainlock.h>
 #include <llmq/signing.h>
@@ -92,4 +93,4 @@ private:
 };
 } // namespace chainlock
 
-#endif // BITCOIN_CHAINLOCK_SIGNING_H
+#endif // SCHILLINGCOIN_CHAINLOCK_SIGNING_H

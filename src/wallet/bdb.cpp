@@ -1424,7 +1424,7 @@ void BerkeleyDatabase::ReloadDbEnv()
         env->ReloadDbEnv();
 }
 
-std::unique_ptr<BerkeleyDatabase> MakeBerkeleyDatabase(const fs::path& path, const DatabaseOptions& options, DatabaseStatus& status, std::string& error)
+std::unique_ptr<BerkeleyDatabase> MakeBerkeleyDatabase(const fs::path& path, const DatabaseOptions& options, DatabaseStatus& status, bilingual_str& error)
 {
     status = DatabaseStatus::FAILED_LOAD;
     error.clear();
@@ -1432,9 +1432,9 @@ std::unique_ptr<BerkeleyDatabase> MakeBerkeleyDatabase(const fs::path& path, con
     if (options.require_create &&
         options.require_existing) {
         status = DatabaseStatus::FAILED_BAD_PATH;
-        error =
+        error = Untranslated(
             "Database options cannot require both creation "
-            "and an existing database.";
+            "and an existing database.");
         return nullptr;
     }
 
@@ -1443,17 +1443,17 @@ std::unique_ptr<BerkeleyDatabase> MakeBerkeleyDatabase(const fs::path& path, con
 
     if (options.require_existing && !exists) {
         status = DatabaseStatus::FAILED_NOT_FOUND;
-        error = strprintf(
+        error = Untranslated(strprintf(
             "Wallet database %s does not exist.",
-            data_file.string());
+            data_file.string()));
         return nullptr;
     }
 
     if (options.require_create && exists) {
         status = DatabaseStatus::FAILED_ALREADY_EXISTS;
-        error = strprintf(
+        error = Untranslated(strprintf(
             "Wallet database %s already exists.",
-            data_file.string());
+            data_file.string()));
         return nullptr;
     }
 
@@ -1468,7 +1468,7 @@ std::unique_ptr<BerkeleyDatabase> MakeBerkeleyDatabase(const fs::path& path, con
             ? DatabaseStatus::FAILED_LOAD
             : DatabaseStatus::FAILED_CREATE;
 
-        error = exception.what();
+        error = Untranslated(exception.what());
         return nullptr;
     }
 }

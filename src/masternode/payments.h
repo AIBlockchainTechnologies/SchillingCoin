@@ -1,9 +1,10 @@
 // Copyright (c) 2014-2024 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_MASTERNODE_PAYMENTS_H
-#define BITCOIN_MASTERNODE_PAYMENTS_H
+#ifndef SCHILLINGCOIN_MASTERNODE_PAYMENTS_H
+#define SCHILLINGCOIN_MASTERNODE_PAYMENTS_H
 
 #include <consensus/amount.h>
 
@@ -38,9 +39,6 @@ int FindUnmatchedMasternodePayment(const std::vector<CTxOut>& expected,
 
 struct CMutableTransaction;
 
-namespace governance {
-class SuperblockManager;
-}
 namespace Consensus { struct Params; }
 
 /**
@@ -58,15 +56,9 @@ CAmount PlatformShare(const CAmount masternodeReward);
  * gates whether payees are validated at all and is handled separately.
  */
 enum class MnRewardEra {
-    Classic,    // historical reward schedule, no credit pool
-    CreditPool, // V20: credit pool active, no platform reallocation yet
-    EvoReward,  // MN_RR: platform share is reallocated from the masternode reward
-};
-
-enum class SuperBlockCheckType {
-    NoCheck, // for chainlocked blocks or during sync
-    AllowDuplicates,
-    DisallowDuplicates,
+    Classic,
+    CreditPool,
+    EvoReward,
 };
 
 CAmount GetMasternodePayment(int nHeight, CAmount blockValue, const Consensus::Params& consensus_params, MnRewardEra era);
@@ -75,31 +67,29 @@ class CMNPaymentsProcessor
 {
 private:
     CDeterministicMNManager& m_dmnman;
-    governance::SuperblockManager& m_superblocks;
     const Consensus::Params& m_consensus_params;
 
 private:
     [[nodiscard]] bool GetBlockTxOuts(const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
                                       MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet);
     [[nodiscard]] bool GetMasternodeTxOuts(const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
-                                      MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet);
+                                           MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet);
     [[nodiscard]] bool IsTransactionValid(const CTransaction& txNew, const CBlockIndex* pindexPrev, const CAmount blockSubsidy,
                                           const CAmount feeReward, MnRewardEra era, bool strict_multiplicity);
-    [[nodiscard]] bool IsOldBudgetBlockValueValid(const CBlock& block, const int nBlockHeight, const CAmount blockReward, std::string& strErrorRet, SuperBlockCheckType check_superblock);
 
 public:
-    explicit CMNPaymentsProcessor(CDeterministicMNManager& dmnman, governance::SuperblockManager& superblocks,
+    explicit CMNPaymentsProcessor(CDeterministicMNManager& dmnman,
                                   const Consensus::Params& consensus_params) :
         m_dmnman{dmnman},
-        m_superblocks{superblocks},
         m_consensus_params{consensus_params}
     {
     }
 
-    bool IsBlockValueValid(const CChain& active_chain, const CBlock& block, const CBlockIndex* pindexPrev, const CAmount blockReward, std::string& strErrorRet, SuperBlockCheckType check_superblock);
-    bool IsBlockPayeeValid(const CChain& active_chain, const CTransaction& txNew, const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward, MnRewardEra era, bool strict_multiplicity, SuperBlockCheckType check_superblock);
+    bool IsBlockValueValid(const CBlock& block, const CBlockIndex* pindexPrev, const CAmount blockReward, std::string& strErrorRet);
+    bool IsBlockPayeeValid(const CTransaction& txNew, const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
+                           MnRewardEra era, bool strict_multiplicity);
     void FillBlockPayments(CMutableTransaction& txNew, const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
-                           MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet, std::vector<CTxOut>& voutSuperblockPaymentsRet);
+                           MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet);
 };
 
-#endif // BITCOIN_MASTERNODE_PAYMENTS_H
+#endif // SCHILLINGCOIN_MASTERNODE_PAYMENTS_H

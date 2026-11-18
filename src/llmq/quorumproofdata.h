@@ -1,7 +1,7 @@
 // Copyright (c) 2026 The Dash Core developers
 // Distributed under the MIT software license, see the accompanying file COPYING.
-#ifndef BITCOIN_LLMQ_QUORUMPROOFDATA_H
-#define BITCOIN_LLMQ_QUORUMPROOFDATA_H
+#ifndef SCHILLINGCOIN_LLMQ_QUORUMPROOFDATA_H
+#define SCHILLINGCOIN_LLMQ_QUORUMPROOFDATA_H
 #include <primitives/block.h>
 #include <serialize.h>
 #include <uint256.h>
@@ -29,4 +29,4 @@ struct ProofTransaction {
     static ProofTransaction Build(const CBlock& block, uint32_t index);
 };
 } // namespace llmq
-#endif // BITCOIN_LLMQ_QUORUMPROOFDATA_H
+#endif // SCHILLINGCOIN_LLMQ_QUORUMPROOFDATA_H

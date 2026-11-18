@@ -1,4 +1,5 @@
 // Copyright (c) 2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -53,7 +54,6 @@ struct QGetDataSetup : public TestingSetup {
         BOOST_REQUIRE(m_node.dmnman);
         BOOST_REQUIRE(m_node.llmq_ctx);
         BOOST_REQUIRE(m_node.mn_sync);
-        BOOST_REQUIRE(m_node.sporkman);
         BOOST_REQUIRE(m_node.chainman);
 
         // Mirror init.cpp: TestingSetup does not register NetQuorum, so install
@@ -61,7 +61,7 @@ struct QGetDataSetup : public TestingSetup {
         m_net_quorum = std::make_unique<NetQuorum>(
             m_node.peerman.get(), *m_node.llmq_ctx->bls_worker, *m_node.connman, *m_node.dmnman,
             *m_node.llmq_ctx->qman, *m_node.llmq_ctx->qsnapman, *m_node.chainman, *m_node.mn_sync,
-            *m_node.sporkman, &m_role, /*nodeman=*/nullptr, DEFAULT_WORKER_COUNT, QvvecSyncModeMap{},
+            &m_role, /*nodeman=*/nullptr, DEFAULT_WORKER_COUNT, QvvecSyncModeMap{},
             /*quorums_recovery=*/false);
     }
 

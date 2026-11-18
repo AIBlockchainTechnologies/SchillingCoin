@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CHAINLOCK_CLSIG_H
-#define BITCOIN_CHAINLOCK_CLSIG_H
+#ifndef SCHILLINGCOIN_CHAINLOCK_CLSIG_H
+#define SCHILLINGCOIN_CHAINLOCK_CLSIG_H
 
 #include <bls/bls.h>
 #include <chainlock/chainlock.h>
@@ -70,4 +71,4 @@ llmq::VerifyRecSigStatus VerifyChainLock(const Consensus::Params& params, const 
                                          const ChainLockSig& clsig, const CBlockIndex* pindexStart);
 } // namespace chainlock
 
-#endif // BITCOIN_CHAINLOCK_CLSIG_H
+#endif // SCHILLINGCOIN_CHAINLOCK_CLSIG_H

@@ -12,7 +12,7 @@
 #include <util/strencodings.h>
 
 // Owner payout list helpers that operate purely on the serialized representation. They live in
-// libbitcoin_common (rather than libbitcoin_node alongside the rest of providertx.cpp) so that
+// libschillingcoin_common (rather than libschillingcoin_node alongside the rest of providertx.cpp) so that
 // common-layer consumers like the bloom filter and the JSON writers can use them without pulling
 // in node-only dependencies.
 

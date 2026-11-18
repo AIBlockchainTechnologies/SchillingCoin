@@ -1,7 +1,8 @@
 // Copyright (c) 2019-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-//
+
 #include <chainparams.h>
 #include <consensus/validation.h>
 #include <evo/chainhelper.h>
@@ -462,6 +463,7 @@ struct SnapshotTestSetup : TestChain100Setup {
             BOOST_CHECK_EQUAL(chainman.GetAll().size(), 0);
             const ChainstateManager::Options chainman_opts{
                 .chainparams = ::Params(),
+                .datadir = chainman.m_options.datadir,
             };
             // For robustness, ensure the old manager is destroyed before creating a
             // new one.

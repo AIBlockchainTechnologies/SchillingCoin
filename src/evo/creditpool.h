@@ -1,9 +1,10 @@
 // Copyright (c) 2023-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_CREDITPOOL_H
-#define BITCOIN_EVO_CREDITPOOL_H
+#ifndef SCHILLINGCOIN_EVO_CREDITPOOL_H
+#define SCHILLINGCOIN_EVO_CREDITPOOL_H
 
 #include <consensus/amount.h>
 #include <primitives/transaction.h>
@@ -191,4 +192,4 @@ std::optional<CCreditPoolDiff> GetCreditPoolDiffForBlock(CCreditPoolManager& cpo
                                                          const CBlock& block, const CBlockIndex* pindexPrev, const Consensus::Params& consensusParams,
                                                          const CAmount blockSubsidy, BlockValidationState& state);
 
-#endif // BITCOIN_EVO_CREDITPOOL_H
+#endif // SCHILLINGCOIN_EVO_CREDITPOOL_H

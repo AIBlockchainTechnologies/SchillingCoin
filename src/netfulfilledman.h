@@ -2,8 +2,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NETFULFILLEDMAN_H
-#define BITCOIN_NETFULFILLEDMAN_H
+#ifndef SCHILLINGCOIN_NETFULFILLEDMAN_H
+#define SCHILLINGCOIN_NETFULFILLEDMAN_H
 
 #include <netaddress.h>
 #include <serialize.h>
@@ -68,4 +68,4 @@ public:
     void DoMaintenance();
 };
 
-#endif // BITCOIN_NETFULFILLEDMAN_H
+#endif // SCHILLINGCOIN_NETFULFILLEDMAN_H

@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TEST_UTIL_LLMQ_TESTS_H
-#define BITCOIN_TEST_UTIL_LLMQ_TESTS_H
+#ifndef SCHILLINGCOIN_TEST_UTIL_LLMQ_TESTS_H
+#define SCHILLINGCOIN_TEST_UTIL_LLMQ_TESTS_H
 
 #include <test/util/random.h>
 #include <test/util/setup_common.h>
@@ -144,4 +144,4 @@ inline void WriteMinedCommitment(CEvoDB& evoDb, const CFinalCommitment& qc, cons
 } // namespace testutils
 } // namespace llmq
 
-#endif // BITCOIN_TEST_UTIL_LLMQ_TESTS_H
+#endif // SCHILLINGCOIN_TEST_UTIL_LLMQ_TESTS_H

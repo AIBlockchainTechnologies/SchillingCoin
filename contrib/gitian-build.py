@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) 2018-2019 The Bitcoin Core developers
 # Copyright (c) 2019 The PIVX developers
-# Copyright (c) 2020 The SchillingCoin developers
+# Copyright (c) 2020, 2026 The SchillingCoin developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,7 +9,6 @@ import argparse
 import os
 import subprocess
 import sys
-
 
 def setup_linux():
     global args, workdir
@@ -82,7 +81,6 @@ def setup_linux():
         print('Unsupported system/OS type.')
         sys.exit(1)
 
-
 def setup_darwin():
     global args, workdir
     programs = []
@@ -101,7 +99,6 @@ def setup_darwin():
         print('KVM and LXC are not supported under macOS at this time.')
         sys.exit(0)
     setup_repos()
-
 
 def setup_repos():
     if not os.path.isdir('gitian.sigs'):
@@ -133,7 +130,6 @@ def setup_repos():
 
     print('Setup complete!')
     sys.exit(0)
-
 
 def build():
     global args, workdir
@@ -180,7 +176,6 @@ def build():
         subprocess.check_call(['git', 'commit', '-m', 'Add '+args.version+' unsigned sigs for '+args.signer])
         os.chdir(workdir)
 
-
 def sign():
     global args, workdir
     os.chdir('gitian-builder')
@@ -217,7 +212,6 @@ def sign():
             print('\nNothing to commit\n')
         os.chdir(workdir)
 
-
 def verify():
     global args, workdir
     rc = 0
@@ -251,7 +245,6 @@ def verify():
 
     os.chdir(workdir)
     return rc
-
 
 def main():
     global args, workdir
@@ -388,7 +381,6 @@ def main():
         subprocess.check_call(['git', 'pull'])
         os.chdir(workdir)
         sys.exit(verify())
-
 
 if __name__ == '__main__':
     main()

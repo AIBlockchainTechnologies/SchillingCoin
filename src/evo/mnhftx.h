@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_MNHFTX_H
-#define BITCOIN_EVO_MNHFTX_H
+#ifndef SCHILLINGCOIN_EVO_MNHFTX_H
+#define SCHILLINGCOIN_EVO_MNHFTX_H
 
 #include <saltedhasher.h>
 #include <sync.h>
@@ -161,4 +161,4 @@ bool CheckMNHFTx(const node::BlockManager& blockman, const llmq::CQuorumManager&
                  const CTransaction& tx, const CBlockIndex* pindexPrev, TxValidationState& state)
     EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
-#endif // BITCOIN_EVO_MNHFTX_H
+#endif // SCHILLINGCOIN_EVO_MNHFTX_H

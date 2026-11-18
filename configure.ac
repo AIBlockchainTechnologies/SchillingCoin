@@ -13,10 +13,10 @@ AC_CONFIG_HEADERS([src/config/schillingcoin-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([build-aux/m4])
 
-BITCOIN_DAEMON_NAME=schillingcoind
-BITCOIN_GUI_NAME=schillingcoin-qt
-BITCOIN_CLI_NAME=schillingcoin-cli
-BITCOIN_TX_NAME=schillingcoin-tx
+SCHILLINGCOIN_DAEMON_NAME=schillingcoind
+SCHILLINGCOIN_GUI_NAME=schillingcoin-qt
+SCHILLINGCOIN_CLI_NAME=schillingcoin-cli
+SCHILLINGCOIN_TX_NAME=schillingcoin-tx
 
 dnl Unless the user specified ARFLAGS, force it to be cr
 AC_ARG_VAR(ARFLAGS, [Flags for the archiver, defaults to <cr> if not set])
@@ -444,20 +444,20 @@ CPPFLAGS="$CPPFLAGS -DHAVE_BUILD_INFO -D__STDC_FORMAT_MACROS"
 AC_ARG_WITH([utils],
   [AS_HELP_STRING([--with-utils],
   [build schillingcoin-cli schillingcoin-tx (default=yes)])],
-  [build_bitcoin_utils=$withval],
-  [build_bitcoin_utils=yes])
+  [build_schillingcoin_utils=$withval],
+  [build_schillingcoin_utils=yes])
 
 AC_ARG_WITH([libs],
   [AS_HELP_STRING([--with-libs],
   [build libraries (default=no)])],
-  [build_bitcoin_libs=$withval],
-  [build_bitcoin_libs=no])
+  [build_schillingcoin_libs=$withval],
+  [build_schillingcoin_libs=no])
 
 AC_ARG_WITH([daemon],
   [AS_HELP_STRING([--with-daemon],
   [build schillingcoind daemon (default=yes)])],
-  [build_bitcoind=$withval],
-  [build_bitcoind=yes])
+  [build_schillingcoind=$withval],
+  [build_schillingcoind=yes])
 
 use_pkgconfig=yes
 case $host in
@@ -969,7 +969,7 @@ fi
 
 if test x$enable_wallet != xno; then
     dnl Check for libdb_cxx only if wallet enabled
-    BITCOIN_FIND_BDB48
+    SCHILLINGCOIN_FIND_BDB48
 
     dnl Check for sqlite3
     if test "$use_sqlite" != "no"; then
@@ -1003,23 +1003,23 @@ fi
 dnl enable-fuzz should disable all other targets
 if test "x$enable_fuzz" = "xyes"; then
   AC_MSG_WARN([enable-fuzz will disable other targets])
-  build_bitcoin_utils=no
-  build_bitcoind=no
-  build_bitcoin_libs=no
-  bitcoin_enable_qt=no
-  bitcoin_enable_qt_test=no
-  bitcoin_enable_qt_dbus=no
+  build_schillingcoin_utils=no
+  build_schillingcoind=no
+  build_schillingcoin_libs=no
+  schillingcoin_enable_qt=no
+  schillingcoin_enable_qt_test=no
+  schillingcoin_enable_qt_dbus=no
   enable_wallet=yes
   use_bench=no
   use_upnp=no
 else
-  BITCOIN_QT_INIT
+  SCHILLINGCOIN_QT_INIT
 
-dnl sets $bitcoin_enable_qt, $bitcoin_enable_qt_test, $bitcoin_enable_qt_dbus
-BITCOIN_QT_CONFIGURE([$use_pkgconfig])
+dnl sets $schillingcoin_enable_qt, $schillingcoin_enable_qt_test, $schillingcoin_enable_qt_dbus
+SCHILLINGCOIN_QT_CONFIGURE([$use_pkgconfig])
 fi
 
-if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests$use_bench = xnonononono; then
+if test x$build_schillingcoin_utils$build_schillingcoind$schillingcoin_enable_qt$use_tests$use_bench = xnonononono; then
     use_boost=no
 else
     use_boost=yes
@@ -1033,7 +1033,7 @@ define(MINIMUM_REQUIRED_BOOST, 1.47.0)
 dnl Check for boost libs
 AX_BOOST_BASE([MINIMUM_REQUIRED_BOOST])
 if test x$want_boost = xno; then
-    AC_MSG_ERROR([[only libbitcoinconsensus can be built without boost]])
+    AC_MSG_ERROR([[only libschillingcoinconsensus can be built without boost]])
 fi
 AX_BOOST_SYSTEM
 AX_BOOST_FILESYSTEM
@@ -1223,12 +1223,12 @@ if test x$use_pkgconfig = xyes; then
     [
       PKG_CHECK_MODULES([SSL], [libssl],, [AC_MSG_ERROR(openssl  not found.)])
       PKG_CHECK_MODULES([CRYPTO], [libcrypto],,[AC_MSG_ERROR(libcrypto  not found.)])
-      BITCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode],,[BITCOIN_QT_FAIL(libqrencode not found)])])
+      SCHILLINGCOIN_QT_CHECK([PKG_CHECK_MODULES([QR], [libqrencode],,[SCHILLINGCOIN_QT_FAIL(libqrencode not found)])])
       if test x$use_qtcharts != xno; then
-        BITCOIN_QT_CHECK([PKG_CHECK_MODULES([CHARTS], [Qt5Charts],[have_qtcharts=yes], [have_qtcharts=no])])
+        SCHILLINGCOIN_QT_CHECK([PKG_CHECK_MODULES([CHARTS], [Qt5Charts],[have_qtcharts=yes], [have_qtcharts=no])])
       fi
 
-      if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests != xnononono; then
+      if test x$build_schillingcoin_utils$build_schillingcoind$schillingcoin_enable_qt$use_tests != xnononono; then
         PKG_CHECK_MODULES([EVENT], [libevent],, [AC_MSG_ERROR(libevent not found.)])
         if test x$TARGET_OS != xwindows; then
           PKG_CHECK_MODULES([EVENT_PTHREADS], [libevent_pthreads],, [AC_MSG_ERROR(libevent_pthreads not found.)])
@@ -1278,7 +1278,7 @@ else
   AC_CHECK_HEADER([openssl/ssl.h],, AC_MSG_ERROR(libssl headers missing),)
   AC_CHECK_LIB([ssl],         [main],SSL_LIBS=-lssl, AC_MSG_ERROR(libssl missing))
 
-  if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests != xnononono; then
+  if test x$build_schillingcoin_utils$build_schillingcoind$schillingcoin_enable_qt$use_tests != xnononono; then
     AC_CHECK_HEADER([event2/event.h],, AC_MSG_ERROR(libevent headers missing),)
     AC_CHECK_LIB([event],[main],EVENT_LIBS=-levent,AC_MSG_ERROR(libevent missing))
     if test x$TARGET_OS != xwindows; then
@@ -1309,11 +1309,11 @@ else
     esac
   fi
 
-  BITCOIN_QT_CHECK([AC_CHECK_LIB([qrencode], [main],[QR_LIBS=-lqrencode], BITCOIN_QT_FAIL(libqrencode not found))])
-  BITCOIN_QT_CHECK([AC_CHECK_HEADER([qrencode.h],, BITCOIN_QT_FAIL(libqrencode not found))])
+  SCHILLINGCOIN_QT_CHECK([AC_CHECK_LIB([qrencode], [main],[QR_LIBS=-lqrencode], SCHILLINGCOIN_QT_FAIL(libqrencode not found))])
+  SCHILLINGCOIN_QT_CHECK([AC_CHECK_HEADER([qrencode.h],, SCHILLINGCOIN_QT_FAIL(libqrencode not found))])
   if test x$use_qtcharts != xno; then
-    BITCOIN_QT_CHECK([AC_CHECK_LIB([Qt5Charts], [main],[CHARTS_LIBS=-lQt5Charts], [have_qtcharts=no])])
-    BITCOIN_QT_CHECK([AC_CHECK_HEADER([QtCharts/qchartview.h],, have_qtcharts=no)])
+    SCHILLINGCOIN_QT_CHECK([AC_CHECK_LIB([Qt5Charts], [main],[CHARTS_LIBS=-lQt5Charts], [have_qtcharts=no])])
+    SCHILLINGCOIN_QT_CHECK([AC_CHECK_HEADER([QtCharts/qchartview.h],, have_qtcharts=no)])
   fi
 fi
 
@@ -1328,7 +1328,7 @@ dnl univalue check
 
 need_bundled_univalue=yes
 
-if test x$build_bitcoin_utils$build_bitcoind$bitcoin_enable_qt$use_tests$use_bench = xnonononono; then
+if test x$build_schillingcoin_utils$build_schillingcoind$schillingcoin_enable_qt$use_tests$use_bench = xnonononono; then
   need_bundled_univalue=no
 else
 
@@ -1373,20 +1373,20 @@ AC_SUBST(UNIVALUE_CFLAGS)
 AC_SUBST(UNIVALUE_LIBS)
 
 AC_MSG_CHECKING([whether to build schillingcoind])
-AM_CONDITIONAL([BUILD_BITCOIND], [test x$build_bitcoind = xyes])
-AC_MSG_RESULT($build_bitcoind)
+AM_CONDITIONAL([BUILD_SCHILLINGCOIND], [test x$build_schillingcoind = xyes])
+AC_MSG_RESULT($build_schillingcoind)
 
 AC_MSG_CHECKING([whether to build utils (schillingcoin-cli schillingcoin-tx)])
-AM_CONDITIONAL([BUILD_BITCOIN_UTILS], [test x$build_bitcoin_utils = xyes])
-AC_MSG_RESULT($build_bitcoin_utils)
+AM_CONDITIONAL([BUILD_SCHILLINGCOIN_UTILS], [test x$build_schillingcoin_utils = xyes])
+AC_MSG_RESULT($build_schillingcoin_utils)
 
 AC_MSG_CHECKING([whether to build libraries])
-AM_CONDITIONAL([BUILD_BITCOIN_LIBS], [test x$build_bitcoin_libs = xyes])
-if test x$build_bitcoin_libs = xyes; then
+AM_CONDITIONAL([BUILD_SCHILLINGCOIN_LIBS], [test x$build_schillingcoin_libs = xyes])
+if test x$build_schillingcoin_libs = xyes; then
   AC_DEFINE(HAVE_CONSENSUS_LIB, 1, [Define this symbol if the consensus lib has been built])
-  AC_CONFIG_FILES([libbitcoinconsensus.pc:libbitcoinconsensus.pc.in])
+  AC_CONFIG_FILES([libschillingcoinconsensus.pc:libschillingcoinconsensus.pc.in])
 fi
-AC_MSG_RESULT($build_bitcoin_libs)
+AC_MSG_RESULT($build_schillingcoin_libs)
 
 AC_LANG_POP
 
@@ -1489,13 +1489,13 @@ fi
 
 dnl these are only used when qt is enabled
 BUILD_TEST_QT=""
-if test x$bitcoin_enable_qt != xno; then
+if test x$schillingcoin_enable_qt != xno; then
   dnl enable dbus support
   AC_MSG_CHECKING([whether to build GUI with support for D-Bus])
-  if test x$bitcoin_enable_qt_dbus != xno; then
+  if test x$schillingcoin_enable_qt_dbus != xno; then
     AC_DEFINE([USE_DBUS],[1],[Define if dbus support should be compiled in])
   fi
-  AC_MSG_RESULT($bitcoin_enable_qt_dbus)
+  AC_MSG_RESULT($schillingcoin_enable_qt_dbus)
 
   dnl enable qtcharts support
   AC_MSG_CHECKING([whether to build GUI with support for qtcharts])
@@ -1520,7 +1520,7 @@ if test x$bitcoin_enable_qt != xno; then
   fi
 
   AC_MSG_CHECKING([whether to build test_schillingcoin-qt])
-  if test x$use_gui_tests$bitcoin_enable_qt_test = xyesyes; then
+  if test x$use_gui_tests$schillingcoin_enable_qt_test = xyesyes; then
     AC_MSG_RESULT([yes])
     BUILD_TEST_QT="yes"
   else
@@ -1562,7 +1562,7 @@ else
   AC_MSG_RESULT([no])
 fi
 
-if test x$build_bitcoin_utils$build_bitcoin_libs$build_bitcoind$bitcoin_enable_qt$use_bench$use_tests = xnononononono; then
+if test x$build_schillingcoin_utils$build_schillingcoin_libs$build_schillingcoind$schillingcoin_enable_qt$use_bench$use_tests = xnononononono; then
   AC_MSG_ERROR([No targets! Please specify at least one of: --with-utils --with-libs --with-daemon --with-gui --enable-bench or --enable-tests])
 fi
 
@@ -1574,7 +1574,7 @@ AM_CONDITIONAL([USE_SQLITE], [test "$use_sqlite" = "yes"])
 AM_CONDITIONAL([ENABLE_USBDEVICE],[test "$enable_usbdevice" = "yes"])
 AM_CONDITIONAL([ENABLE_TESTS],[test x$BUILD_TEST = xyes])
 AM_CONDITIONAL([ENABLE_FUZZ],[test x$enable_fuzz = xyes])
-AM_CONDITIONAL([ENABLE_QT],[test x$bitcoin_enable_qt = xyes])
+AM_CONDITIONAL([ENABLE_QT],[test x$schillingcoin_enable_qt = xyes])
 AM_CONDITIONAL([ENABLE_QT_TESTS],[test x$BUILD_TEST_QT = xyes])
 AM_CONDITIONAL([ENABLE_BENCH],[test x$use_bench = xyes])
 AM_CONDITIONAL([USE_QTCHARTS], [test x$use_qtcharts = xyes])
@@ -1603,10 +1603,10 @@ AC_SUBST(CLIENT_VERSION_REVISION, _CLIENT_VERSION_REVISION)
 AC_SUBST(CLIENT_VERSION_BUILD, _CLIENT_VERSION_BUILD)
 AC_SUBST(CLIENT_VERSION_IS_RELEASE, _CLIENT_VERSION_IS_RELEASE)
 AC_SUBST(COPYRIGHT_YEAR, _COPYRIGHT_YEAR)
-AC_SUBST(BITCOIN_DAEMON_NAME)
-AC_SUBST(BITCOIN_GUI_NAME)
-AC_SUBST(BITCOIN_CLI_NAME)
-AC_SUBST(BITCOIN_TX_NAME)
+AC_SUBST(SCHILLINGCOIN_DAEMON_NAME)
+AC_SUBST(SCHILLINGCOIN_GUI_NAME)
+AC_SUBST(SCHILLINGCOIN_CLI_NAME)
+AC_SUBST(SCHILLINGCOIN_TX_NAME)
 
 AC_SUBST(RELDFLAGS)
 AC_SUBST(DEBUG_CPPFLAGS)
@@ -1717,8 +1717,8 @@ if test "$enable_wallet" != "no"; then
     echo "    with sqlite  = $use_sqlite"
 fi
 echo "  with usbdevice = $enable_usbdevice"
-echo "  with gui / qt  = $bitcoin_enable_qt"
-if test x$bitcoin_enable_qt != xno; then
+echo "  with gui / qt  = $schillingcoin_enable_qt"
+if test x$schillingcoin_enable_qt != xno; then
     echo "    with qtcharts     = $use_qtcharts"
 fi
 echo "  with zmq      = $use_zmq"

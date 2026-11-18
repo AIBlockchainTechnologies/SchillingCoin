@@ -1,9 +1,10 @@
 // Copyright (c) 2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_PLATFORMTYPES_H
-#define BITCOIN_WALLET_PLATFORMTYPES_H
+#ifndef SCHILLINGCOIN_WALLET_PLATFORMTYPES_H
+#define SCHILLINGCOIN_WALLET_PLATFORMTYPES_H
 
 #include <pubkey.h>
 #include <script/standard.h>
@@ -71,4 +72,4 @@ bool DeriveFriendshipPaymentDestination(const FriendshipXpub& xpub, uint32_t ind
 
 } // namespace wallet
 
-#endif // BITCOIN_WALLET_PLATFORMTYPES_H
+#endif // SCHILLINGCOIN_WALLET_PLATFORMTYPES_H

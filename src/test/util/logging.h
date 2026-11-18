@@ -37,6 +37,6 @@ public:
     ~DebugLogHelper() { check_found(); }
 };
 
-#define ASSERT_DEBUG_LOG(message) DebugLogHelper BITCOIN_UNIQUE_NAME(debugloghelper)(message)
+#define ASSERT_DEBUG_LOG(message) DebugLogHelper SCHILLINGCOIN_UNIQUE_NAME(debugloghelper)(message)
 
 #endif // SCHILLINGCOIN_TEST_UTIL_LOGGING_H

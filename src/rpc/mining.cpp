@@ -19,7 +19,6 @@
 #include <core_io.h>
 #include <deploymentinfo.h>
 #include <deploymentstatus.h>
-#include <governance/superblock.h>
 #include <key_io.h>
 #include <llmq/blockprocessor.h>
 #include <llmq/context.h>
@@ -651,17 +650,6 @@ static RPCHelpMan getblocktemplate()
                     }},
                 {RPCResult::Type::BOOL, "masternode_payments_started", "true, if masternode payments started"},
                 {RPCResult::Type::BOOL, "masternode_payments_enforced", "true, if masternode payments are enforced"},
-                {RPCResult::Type::ARR, "superblock", "required superblock payees that must be included in the next block",
-                    {
-                        {RPCResult::Type::OBJ, "", "",
-                            {
-                                {RPCResult::Type::STR_HEX, "payee", "payee address"},
-                                {RPCResult::Type::STR_HEX, "script", "payee scriptPubKey"},
-                                {RPCResult::Type::NUM, "amount", "required amount to pay"},
-                            }},
-                    }},
-                {RPCResult::Type::BOOL, "superblocks_started", "true, if superblock payments started"},
-                {RPCResult::Type::BOOL, "superblocks_enabled", "true, if superblock payments are enabled"},
                 {RPCResult::Type::STR_HEX, "coinbase_payload", "coinbase transaction payload data encoded in hexadecimal"},
             }},
         },
@@ -746,11 +734,6 @@ static RPCHelpMan getblocktemplate()
 
         if (active_chainstate.IsInitialBlockDownload()) {
             throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, PACKAGE_NAME " is in initial sync and waiting for blocks...");
-        }
-
-        if (!node.mn_sync->IsSynced() && CSuperblock::IsValidBlockHeight(active_chain.Height() + 1)) {
-            // Next block is a superblock but we need governance info to correctly construct it.
-            throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, PACKAGE_NAME " is syncing with network...");
         }
     }
 
@@ -963,22 +946,6 @@ static RPCHelpMan getblocktemplate()
     result.pushKV("masternode", masternodeObj);
     result.pushKV("masternode_payments_started", pindexPrev->nHeight + 1 > consensusParams.nMasternodePaymentsStartBlock);
     result.pushKV("masternode_payments_enforced", true);
-
-    UniValue superblockObjArray(UniValue::VARR);
-    if(pblocktemplate->voutSuperblockPayments.size()) {
-        for (const auto& txout : pblocktemplate->voutSuperblockPayments) {
-            UniValue entry(UniValue::VOBJ);
-            CTxDestination dest;
-            ExtractDestination(txout.scriptPubKey, dest);
-            entry.pushKV("payee", EncodeDestination(dest).c_str());
-            entry.pushKV("script", HexStr(txout.scriptPubKey));
-            entry.pushKV("amount", txout.nValue);
-            superblockObjArray.push_back(entry);
-        }
-    }
-    result.pushKV("superblock", superblockObjArray);
-    result.pushKV("superblocks_started", pindexPrev->nHeight + 1 > consensusParams.nSuperblockStartBlock);
-    result.pushKV("superblocks_enabled", true);
 
     result.pushKV("coinbase_payload", HexStr(pblock->vtx[0]->vExtraPayload));
 

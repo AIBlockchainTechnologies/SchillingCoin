@@ -2,8 +2,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_BATCHEDLOGGER_H
-#define BITCOIN_BATCHEDLOGGER_H
+#ifndef SCHILLINGCOIN_BATCHEDLOGGER_H
+#define SCHILLINGCOIN_BATCHEDLOGGER_H
 
 #include <logging.h>
 
@@ -35,4 +35,4 @@ public:
     void Flush();
 };
 
-#endif // BITCOIN_BATCHEDLOGGER_H
+#endif // SCHILLINGCOIN_BATCHEDLOGGER_H

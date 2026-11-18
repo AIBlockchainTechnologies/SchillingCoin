@@ -5,8 +5,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INDEX_SPENTINDEX_TYPES_H
-#define BITCOIN_INDEX_SPENTINDEX_TYPES_H
+#ifndef SCHILLINGCOIN_INDEX_SPENTINDEX_TYPES_H
+#define SCHILLINGCOIN_INDEX_SPENTINDEX_TYPES_H
 
 #include <consensus/amount.h>
 #include <index/addressindex_types.h>
@@ -92,4 +92,4 @@ struct CSpentIndexTxInfo {
     std::map<CSpentIndexKey, CSpentIndexValue, CSpentIndexKeyCompare> mSpentInfo;
 };
 
-#endif // BITCOIN_INDEX_SPENTINDEX_TYPES_H
+#endif // SCHILLINGCOIN_INDEX_SPENTINDEX_TYPES_H

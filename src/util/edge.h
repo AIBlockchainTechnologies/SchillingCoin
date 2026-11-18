@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UTIL_EDGE_H
-#define BITCOIN_UTIL_EDGE_H
+#ifndef SCHILLINGCOIN_UTIL_EDGE_H
+#define SCHILLINGCOIN_UTIL_EDGE_H
 
 #include <compat/compat.h>
 
@@ -59,4 +59,4 @@ private:
     int m_fd{-1};
 };
 
-#endif // BITCOIN_UTIL_EDGE_H
+#endif // SCHILLINGCOIN_UTIL_EDGE_H

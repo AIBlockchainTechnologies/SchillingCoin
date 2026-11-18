@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INIT_H
-#define BITCOIN_INIT_H
+#ifndef SCHILLINGCOIN_INIT_H
+#define SCHILLINGCOIN_INIT_H
 
 #include <context.h>
 
@@ -76,4 +76,4 @@ void PrepareShutdown(node::NodeContext& node);
  */
 void SetupServerArgs(ArgsManager& argsman);
 
-#endif // BITCOIN_INIT_H
+#endif // SCHILLINGCOIN_INIT_H

@@ -389,16 +389,8 @@ BOOST_FIXTURE_TEST_CASE(best_chainlock_is_already_have_after_seen_cache_eviction
     BOOST_CHECK(m_node.clhandler->AlreadyHave(CInv{MSG_CLSIG, best_hash}));
 }
 
-namespace {
-//! Regtest spork key matching Params().SporkAddress(), as used by the functional tests.
-constexpr const char* REGTEST_SPORK_PRIVKEY{"cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK"};
-} // namespace
-
 BOOST_FIXTURE_TEST_CASE(coinbase_chainlock_processing, RegTestingSetup)
 {
-    BOOST_REQUIRE(m_node.sporkman->SetSporkAddress(Params().SporkAddress()));
-    BOOST_REQUIRE(m_node.sporkman->SetPrivKey(REGTEST_SPORK_PRIVKEY));
-    BOOST_REQUIRE(m_node.sporkman->UpdateSpork(SPORK_19_CHAINLOCKS_ENABLED, 0).has_value());
     m_node.mn_sync->SwitchToNextAsset();
     BOOST_REQUIRE(m_node.mn_sync->IsBlockchainSynced());
 
@@ -459,9 +451,15 @@ BOOST_FIXTURE_TEST_CASE(coinbase_chainlock_processing, RegTestingSetup)
     m_node.mn_sync->Reset(/*fForce=*/true);
     process(&indexes.back());
     m_node.mn_sync->SwitchToNextAsset();
-    BOOST_REQUIRE(m_node.sporkman->UpdateSpork(SPORK_19_CHAINLOCKS_ENABLED, 4070908800).has_value());
+
+    const Consensus::Params saved_consensus{Params().GetConsensus()};
+    auto& consensus{const_cast<Consensus::Params&>(Params().GetConsensus())};
+    consensus.DIP0002Height = indexes.back().nHeight + 1;
+    BOOST_REQUIRE(!m_node.chainlocks->IsEnabled(indexes.back().nHeight));
     process(&indexes.back());
-    BOOST_REQUIRE(m_node.sporkman->UpdateSpork(SPORK_19_CHAINLOCKS_ENABLED, 0).has_value());
+
+    consensus = saved_consensus;
+    BOOST_REQUIRE(m_node.chainlocks->IsEnabled(indexes.back().nHeight));
 
     cbtx.bestCLSignature = {};
     set_payload();
@@ -487,7 +485,7 @@ BOOST_FIXTURE_TEST_CASE(unrequested_clsig_is_dropped_and_scored, TestChain100Set
 {
     LOCK(NetEventsInterface::g_msgproc_mutex);
 
-    // INV announcements for non-spork objects are only tracked outside IBD; the 100 mined blocks
+    // INV announcements for requested-only objects are only tracked outside IBD; the 100 mined blocks
     // of this fixture already take us out of it.
     BOOST_REQUIRE(!m_node.chainman->ActiveChainstate().IsInitialBlockDownload());
 
@@ -495,12 +493,11 @@ BOOST_FIXTURE_TEST_CASE(unrequested_clsig_is_dropped_and_scored, TestChain100Set
     // manager. The fixture leaves it unloaded, so initialise an empty cache here.
     BOOST_REQUIRE(m_node.mn_metaman->LoadCache(/*load_cache=*/false));
 
-    // The CLSIG branch in net_processing is gated on spork 19. The test fixture builds a bare
-    // CSporkManager, so wire up the regtest signer before setting the spork.
-    BOOST_REQUIRE(m_node.sporkman->SetSporkAddress(Params().SporkAddress()));
-    BOOST_REQUIRE(m_node.sporkman->SetPrivKey(REGTEST_SPORK_PRIVKEY));
-    BOOST_REQUIRE(m_node.sporkman->UpdateSpork(SPORK_19_CHAINLOCKS_ENABLED, 0).has_value());
-    BOOST_REQUIRE(m_node.chainlocks->IsEnabled());
+    // The CLSIG branch in net_processing is gated on SCH's deterministic
+    // DIP0002 activation boundary.
+    const int32_t chain_height{
+        WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Height())};
+    BOOST_REQUIRE(m_node.chainlocks->IsEnabled(chain_height));
 
     auto unsolicited_peer{MakeTestPeer(/*id=*/41)};
     auto announcing_peer{MakeTestPeer(/*id=*/42)};

@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_OUTPUTTYPE_H
-#define BITCOIN_OUTPUTTYPE_H
+#ifndef SCHILLINGCOIN_OUTPUTTYPE_H
+#define SCHILLINGCOIN_OUTPUTTYPE_H
 
 #include <script/signingprovider.h>
 #include <script/standard.h>
@@ -40,4 +40,4 @@ std::vector<CTxDestination> GetAllDestinationsForKey(const CPubKey& key);
  */
 CTxDestination AddAndGetDestinationForScript(FillableSigningProvider& keystore, const CScript& script, OutputType);
 
-#endif // BITCOIN_OUTPUTTYPE_H
+#endif // SCHILLINGCOIN_OUTPUTTYPE_H

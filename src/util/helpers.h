@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UTIL_HELPERS_H
-#define BITCOIN_UTIL_HELPERS_H
+#ifndef SCHILLINGCOIN_UTIL_HELPERS_H
+#define SCHILLINGCOIN_UTIL_HELPERS_H
 
 #include <memory>
 #include <optional>
@@ -48,4 +48,4 @@ inline bool shared_ptr_not_equal(const std::shared_ptr<T>& lhs, const std::share
 inline constexpr std::string_view to_string(bool value) { return value ? "true" : "false"; }
 } // namespace util
 
-#endif // BITCOIN_UTIL_HELPERS_H
+#endif // SCHILLINGCOIN_UTIL_HELPERS_H

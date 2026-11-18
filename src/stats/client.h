@@ -4,8 +4,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_STATS_CLIENT_H
-#define BITCOIN_STATS_CLIENT_H
+#ifndef SCHILLINGCOIN_STATS_CLIENT_H
+#define SCHILLINGCOIN_STATS_CLIENT_H
 
 #include <util/result.h>
 
@@ -62,4 +62,4 @@ public:
 /** Global smart pointer containing StatsdClient instance */
 extern std::unique_ptr<StatsdClient> g_stats_client;
 
-#endif // BITCOIN_STATS_CLIENT_H
+#endif // SCHILLINGCOIN_STATS_CLIENT_H

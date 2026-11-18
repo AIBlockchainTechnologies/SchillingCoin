@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_STATS_RAWSENDER_H
-#define BITCOIN_STATS_RAWSENDER_H
+#ifndef SCHILLINGCOIN_STATS_RAWSENDER_H
+#define SCHILLINGCOIN_STATS_RAWSENDER_H
 
 #include <compat/compat.h>
 #include <sync.h>
@@ -116,4 +116,4 @@ private:
     uint64_t m_failures{0};
 };
 
-#endif // BITCOIN_STATS_RAWSENDER_H
+#endif // SCHILLINGCOIN_STATS_RAWSENDER_H

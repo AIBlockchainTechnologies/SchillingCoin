@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RPC_MEMPOOL_H
-#define BITCOIN_RPC_MEMPOOL_H
+#ifndef SCHILLINGCOIN_RPC_MEMPOOL_H
+#define SCHILLINGCOIN_RPC_MEMPOOL_H
 
 class CTxMemPool;
 class UniValue;
@@ -17,4 +17,4 @@ UniValue MempoolInfoToJSON(const CTxMemPool& pool, const llmq::CInstantSendManag
 /** Mempool to JSON */
 UniValue MempoolToJSON(const CTxMemPool& pool, const llmq::CInstantSendManager* isman, bool verbose = false, bool include_mempool_sequence = false);
 
-#endif // BITCOIN_RPC_MEMPOOL_H
+#endif // SCHILLINGCOIN_RPC_MEMPOOL_H

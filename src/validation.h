@@ -173,7 +173,7 @@ struct MempoolAcceptResult {
      * package. This is not necessarily equivalent to the list of transactions passed to
      * ProcessNewPackage().
      * Only present when m_result_type = ResultType::VALID. */
-    const std::optional<std::vector<uint256>> m_txids_fee_calculations;
+    const std::optional<std::vector<Txid>> m_txids_fee_calculations;
 
     static MempoolAcceptResult Failure(TxValidationState state) {
         return MempoolAcceptResult(state);
@@ -182,7 +182,7 @@ struct MempoolAcceptResult {
     static MempoolAcceptResult Success(int64_t vsize,
                                        CAmount fees,
                                        CFeeRate effective_feerate,
-                                       const std::vector<uint256>& txids_fee_calculations) {
+                                       const std::vector<Txid>& txids_fee_calculations) {
         return MempoolAcceptResult(vsize, fees, effective_feerate, txids_fee_calculations);
     }
 
@@ -202,7 +202,7 @@ private:
     explicit MempoolAcceptResult(int64_t vsize,
                                  CAmount fees,
                                  CFeeRate effective_feerate,
-                                 const std::vector<uint256>& txids_fee_calculations)
+                                 const std::vector<Txid>& txids_fee_calculations)
         : m_result_type(ResultType::VALID),
         m_vsize{vsize},
         m_base_fees(fees),
@@ -448,7 +448,7 @@ public:
     //! state to disk, which should not be done until the health of the database is verified.
     //!
     //! All arguments forwarded onto CCoinsViewDB.
-    CoinsViews(fs::path ldb_name, size_t cache_size_bytes, bool in_memory, bool should_wipe);
+    CoinsViews(fs::path db_path, size_t cache_size_bytes, bool in_memory, bool should_wipe);
 
     //! Initialize the CCoinsViewCache member.
     void InitCache() EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
@@ -539,6 +539,9 @@ public:
                          const std::unique_ptr<CChainstateHelper>& chain_helper,
                          std::optional<uint256> from_snapshot_blockhash = std::nullopt);
 
+    //! Return path to chainstate leveldb directory.
+    fs::path StoragePath() const;
+
     //! Return the stable EvoDB identity corresponding to this chainstate's coins DB.
     ::EvoDbIdentity EvoDbIdentity() const;
 
@@ -553,8 +556,7 @@ public:
     void InitCoinsDB(
         size_t cache_size_bytes,
         bool in_memory,
-        bool should_wipe,
-        fs::path leveldb_name = "chainstate");
+        bool should_wipe);
 
     //! Initialize the in-memory coins cache (to be done after the health of the on-disk database
     //! is verified).

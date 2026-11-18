@@ -18,10 +18,6 @@
 #include <evo/providertx_service.h>
 #include <evo/specialtxman.h>
 #include <external_signer.h>
-#include <governance/governance.h>
-#include <governance/object.h>
-#include <governance/superblock.h>
-#include <governance/vote.h>
 #include <index/blockfilterindex.h>
 #include <init.h>
 #include <instantsend/instantsend.h>
@@ -69,8 +65,6 @@
 #include <validationinterface.h>
 #include <warnings.h>
 
-#include <governance/common.h>
-
 #if defined(HAVE_CONFIG_H)
 #include <config/schillingcoin-config.h>
 #endif
@@ -90,7 +84,6 @@ using interfaces::BlockTip;
 using interfaces::Chain;
 using interfaces::EVO;
 using interfaces::FoundBlock;
-using interfaces::GOV;
 using interfaces::Handler;
 using interfaces::LLMQ;
 using interfaces::MakeSignalHandler;
@@ -341,218 +334,6 @@ private:
     NodeContext* m_context{nullptr};
 };
 
-class GOVImpl : public GOV
-{
-private:
-    NodeContext& context() { return *Assert(m_context); }
-
-public:
-    void getAllNewerThan(std::vector<CGovernanceObject> &objs, int64_t nMoreThanTime,
-                         bool include_postponed) override
-    {
-        if (context().govman != nullptr) {
-            context().govman->GetAllNewerThan(objs, nMoreThanTime, include_postponed);
-        }
-    }
-    Votes getObjVotes(const CGovernanceObject& obj, vote_signal_enum_t vote_signal) override
-    {
-        Votes ret;
-        if (context().govman != nullptr && context().dmnman != nullptr) {
-            const auto& tip_mn_list{context().dmnman->GetListAtChainTip()};
-            if (auto govobj{context().govman->FindGovernanceObject(obj.GetHash())}) {
-                ret.m_abs = govobj->GetAbstainCount(tip_mn_list, vote_signal);
-                ret.m_no = govobj->GetNoCount(tip_mn_list, vote_signal);
-                ret.m_yes = govobj->GetYesCount(tip_mn_list, vote_signal);
-            } else {
-                ret.m_abs = obj.GetAbstainCount(tip_mn_list, vote_signal);
-                ret.m_no = obj.GetNoCount(tip_mn_list, vote_signal);
-                ret.m_yes = obj.GetYesCount(tip_mn_list, vote_signal);
-            }
-        }
-        return ret;
-    }
-    UniqueVoters getObjUniqueVoters(const CGovernanceObject& obj, vote_signal_enum_t vote_signal) override
-    {
-        if (context().govman != nullptr && context().dmnman != nullptr) {
-            const auto& tip_mn_list{context().dmnman->GetListAtChainTip()};
-            if (auto govobj{context().govman->FindGovernanceObject(obj.GetHash())}) {
-                const auto count = govobj->GetUniqueVoterCount(tip_mn_list, vote_signal);
-                return {.m_regular = count.m_regular, .m_evo = count.m_evo};
-            } else {
-                const auto count = obj.GetUniqueVoterCount(tip_mn_list, vote_signal);
-                return {.m_regular = count.m_regular, .m_evo = count.m_evo};
-            }
-        }
-        return {0, 0};
-    }
-    std::vector<CGovernanceVote> getCurrentVotes(const uint256& hash) override
-    {
-        if (context().govman != nullptr) {
-            return context().govman->GetCurrentVotes(hash, COutPoint{});
-        }
-        return {};
-    }
-    bool existsObj(const uint256& hash) override
-    {
-        if (context().govman != nullptr) {
-            return context().govman->HaveObjectForHash(hash);
-        }
-        return false;
-    }
-    bool isEnabled() override
-    {
-        if (context().govman != nullptr) {
-            return context().govman->IsValid();
-        }
-        return false;
-    }
-    bool processVoteAndRelay(const CGovernanceVote& vote, std::string& error) override
-    {
-        if (context().govman != nullptr) {
-            CGovernanceException exception;
-            bool result = context().govman->ProcessVoteAndRelay(vote, exception);
-            if (!result) {
-                error = exception.GetMessage();
-            }
-            return result;
-        }
-        error = "Governance manager not available";
-        return false;
-    }
-    GovernanceInfo getGovernanceInfo() override
-    {
-        GovernanceInfo info;
-        if (context().chainman) {
-            const Consensus::Params& consensusParams = context().chainman->GetConsensus();
-            LOCK(::cs_main);
-            CSuperblock::GetNearestSuperblocksHeights(context().chainman->ActiveHeight(), info.lastsuperblock, info.nextsuperblock);
-            info.governancebudget = CSuperblock::GetPaymentsLimit(context().chainman->ActiveChain(), info.nextsuperblock);
-            if (context().dmnman) {
-                info.fundingthreshold = static_cast<int>(context().dmnman->GetListAtChainTip().GetCounts().m_valid_weighted / 10);
-            }
-            info.superblockcycle = consensusParams.nSuperblockCycle;
-            info.superblockmaturitywindow = consensusParams.nSuperblockMaturityWindow;
-            info.targetSpacing = consensusParams.nPowTargetSpacing;
-        }
-        info.proposalfee = GOVERNANCE_PROPOSAL_FEE_TX;
-        info.relayRequiredConfs = GOVERNANCE_MIN_RELAY_FEE_CONFIRMATIONS;
-        info.requiredConfs = GOVERNANCE_FEE_CONFIRMATIONS;
-        return info;
-    }
-    std::optional<int32_t> getProposalFundedHeight(const uint256& proposal_hash) override
-    {
-        if (context().chain_helper != nullptr && context().chainman != nullptr) {
-            const int32_t nTipHeight = WITH_LOCK(::cs_main, return context().chainman->ActiveHeight());
-            for (const auto& trigger : context().chain_helper->superblocks->GetActiveTriggers()) {
-                if (!trigger || trigger->GetBlockHeight() > nTipHeight) continue;
-                for (const auto& hash : trigger->GetProposalHashes()) {
-                    if (hash == proposal_hash) {
-                        return trigger->GetBlockHeight();
-                    }
-                }
-            }
-        }
-        return std::nullopt;
-    }
-    FundableResult getFundableProposalHashes() override
-    {
-        FundableResult result;
-        if (context().govman != nullptr && context().chainman != nullptr && context().dmnman != nullptr) {
-            const auto tip_mn_list{context().dmnman->GetListAtChainTip()};
-            if (const auto proposals{context().govman->GetApprovedProposals(tip_mn_list)}; !proposals.empty()) {
-                int32_t last_sb{0}, next_sb{0};
-                CAmount budget{0};
-                {
-                    LOCK(::cs_main);
-                    CSuperblock::GetNearestSuperblocksHeights(context().chainman->ActiveHeight(), last_sb, next_sb);
-                    budget = CSuperblock::GetPaymentsLimit(context().chainman->ActiveChain(), next_sb);
-                }
-                for (const auto& proposal : proposals) {
-                    UniValue json = proposal->GetJSONObject();
-                    CAmount payment_amount{0};
-                    try {
-                        payment_amount = ParsePaymentAmount(json["payment_amount"].getValStr());
-                    } catch (...) {
-                        continue;
-                    }
-                    if (result.allocated + payment_amount > budget) {
-                        // Budget is saturated, cannot fulfill proposal
-                        continue;
-                    }
-                    result.allocated += payment_amount;
-                    result.hashes.insert(proposal->GetHash());
-                }
-                return result;
-            }
-        }
-        return result;
-    }
-    std::optional<CGovernanceObject> createProposal(int32_t revision, int64_t created_time,
-                        const std::string& data_hex, std::string& error) override
-    {
-        CGovernanceObject govobj(uint256{}, revision, created_time, uint256{}, data_hex);
-        if (govobj.GetObjectType() != GovernanceObject::PROPOSAL) {
-            error = "Invalid object type, only proposals can be validated";
-            return std::nullopt;
-        }
-        std::string strValidationError;
-        if (!governance::ValidateProposal(data_hex, strValidationError)) {
-            error = "Invalid proposal data: " + strValidationError;
-            return std::nullopt;
-        }
-        const ChainstateManager& chainman = *Assert(context().chainman);
-        {
-            LOCK(::cs_main);
-            std::string strError;
-            if (!govobj.IsValidLocally(Assert(context().dmnman)->GetListAtChainTip(), chainman, strError, false)) {
-                error = "Governance object is not valid - " + govobj.GetHash().ToString() + " - " + strError;
-                return std::nullopt;
-            }
-        }
-        return govobj;
-    }
-
-    bool submitProposal(const uint256& parent, int32_t revision, int64_t created_time, const std::string& data_hex,
-                        const uint256& fee_txid, std::string& out_object_hash, std::string& error) override
-    {
-        if (!context().govman || !context().dmnman || !context().chainman) { error = "Governance not available"; return false; }
-        if(!Assert(context().mn_sync)->IsBlockchainSynced()) { error = "Client not synced"; return false; }
-        const auto mnList = Assert(context().dmnman)->GetListAtChainTip();
-        CGovernanceObject govobj(parent, revision, created_time, fee_txid, data_hex);
-        if (govobj.GetObjectType() == GovernanceObject::TRIGGER) { error = "Submission of triggers is not available"; return false; }
-        if (govobj.GetObjectType() == GovernanceObject::PROPOSAL) {
-            std::string strValidationError;
-            if (!governance::ValidateProposal(data_hex, strValidationError)) { error = "Invalid proposal data: " + strValidationError; return false; }
-        }
-        const CTxMemPool& mempool = *Assert(context().mempool);
-        bool fMissingConfirmations{false};
-        {
-            LOCK2(cs_main, mempool.cs);
-            std::string strError;
-            if (!govobj.IsValidLocally(mnList, *Assert(context().chainman), strError, fMissingConfirmations, true) && !fMissingConfirmations) {
-                error = "Governance object is not valid - " + govobj.GetHash().ToString() + " - " + strError;
-                return false;
-            }
-        }
-        if (!Assert(context().govman)->MasternodeRateCheck(govobj)) { error = "Object creation rate limit exceeded"; return false; }
-        if (fMissingConfirmations) {
-            context().govman->AddPostponedObject(govobj);
-            context().govman->RelayObject(govobj);
-        } else {
-            context().govman->AddGovernanceObject(govobj, "<local>");
-        }
-        out_object_hash = govobj.GetHash().ToString();
-        return true;
-    }
-    void setContext(NodeContext* context) override
-    {
-        m_context = context;
-    }
-
-private:
-    NodeContext* m_context{nullptr};
-};
-
 class LLMQImpl : public LLMQ
 {
 private:
@@ -736,13 +517,6 @@ public:
         }
         return false;
     }
-    bool isGovernanceSynced() override
-    {
-        if (context().mn_sync != nullptr) {
-            return context().mn_sync->GetAssetID() > MASTERNODE_SYNC_GOVERNANCE;
-        }
-        return false;
-    }
     std::string getSyncStatus() override
     {
         if (context().mn_sync != nullptr) {
@@ -773,7 +547,6 @@ class NodeImpl : public Node
 {
 public:
     EVOImpl m_evo;
-    GOVImpl m_gov;
     LLMQImpl m_llmq;
     MasternodeSyncImpl m_masternodeSync;
 
@@ -1070,7 +843,6 @@ public:
     }
 
     EVO& evo() override { return m_evo; }
-    GOV& gov() override { return m_gov; }
     LLMQ& llmq() override { return m_llmq; }
     Masternode::Sync& masternodeSync() override { return m_masternodeSync; }
 
@@ -1134,10 +906,6 @@ public:
     {
         return MakeSignalHandler(::uiInterface.NotifyInstantSendChanged_connect(fn));
     }
-    std::unique_ptr<Handler> handleNotifyGovernanceChanged(NotifyGovernanceChangedFn fn) override
-    {
-        return MakeSignalHandler(::uiInterface.NotifyGovernanceChanged_connect(fn));
-    }
     std::unique_ptr<Handler> handleNotifyMasternodeListChanged(NotifyMasternodeListChangedFn fn) override
     {
         return MakeSignalHandler(
@@ -1157,7 +925,6 @@ public:
     {
         m_context = context;
         m_evo.setContext(context);
-        m_gov.setContext(context);
         m_llmq.setContext(context);
         m_masternodeSync.setContext(context);
     }

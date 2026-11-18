@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UTIL_STD23_H
-#define BITCOIN_UTIL_STD23_H
+#ifndef SCHILLINGCOIN_UTIL_STD23_H
+#define SCHILLINGCOIN_UTIL_STD23_H
 
 #include <algorithm>
 #include <functional>
@@ -120,4 +120,4 @@ using namespace std23::ranges::views;
 } // namespace views
 } // namespace std23
 
-#endif // BITCOIN_UTIL_STD23_H
+#endif // SCHILLINGCOIN_UTIL_STD23_H

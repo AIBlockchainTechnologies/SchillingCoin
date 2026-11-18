@@ -477,7 +477,7 @@ class SchillingcoinTestFramework():
                     # Add .incomplete flagfile
                     # (removed at the end during clean_cache_subdir)
                     open(os.path.join(datadir, ".incomplete"), 'a').close()
-                args = [os.getenv("BITCOIND", "schillingcoind"), "-spendzeroconfchange=1", "-server", "-keypool=1",
+                args = [os.getenv("SCHILLINGCOIND", "schillingcoind"), "-spendzeroconfchange=1", "-server", "-keypool=1",
                         "-datadir=" + datadir, "-discover=0"]
                 self.nodes.append(
                     TestNode(i, ddir, extra_args=[], rpchost=None, timewait=None, binary=None, stderr=None,
@@ -1094,10 +1094,10 @@ class ComparisonTestFramework(SchillingcoinTestFramework):
 
     def add_options(self, parser):
         parser.add_option("--testbinary", dest="testbinary",
-                          default=os.getenv("BITCOIND", "schillingcoind"),
+                          default=os.getenv("SCHILLINGCOIND", "schillingcoind"),
                           help="schillingcoind binary to test")
         parser.add_option("--refbinary", dest="refbinary",
-                          default=os.getenv("BITCOIND", "schillingcoind"),
+                          default=os.getenv("SCHILLINGCOIND", "schillingcoind"),
                           help="schillingcoind binary to use for reference nodes (if any)")
 
     def setup_network(self):

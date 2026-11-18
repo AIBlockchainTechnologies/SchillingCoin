@@ -6,7 +6,7 @@ Quick installation of the Schilling Coin daemon under Linux Ubuntu 20.04.06 LTS.
 
 Installation of libraries (using root user):
 
-    add-apt-repository ppa:bitcoin/bitcoin -y
+    add-apt-repository ppa:schillingcoin/schillingcoin -y
     apt-get update
     apt-get install -y build-essential libtool autotools-dev automake pkg-config libssl-dev libevent-dev bsdmainutils
     apt-get install -y libboost-system-dev libboost-filesystem-dev libboost-chrono-dev libboost-program-options-dev libboost-test-dev libboost-thread-dev
@@ -43,15 +43,16 @@ Demon status:
 <table>
   <tr><td><strong>Algo</strong></td><td>Quark</td></tr>
   <tr><td><strong>Block Time</strong></td><td>60 Seconds</td></tr>
-  <tr><td><strong>Max Coin Supply</strong></td><td>200,000,000 SCH</td></tr>
+  <tr><td><strong>Original Planned Maximum Supply</strong></td><td>200,000,000 SCH under the original SCH monetary model; the current SCH development plan replaces the terminal-supply reward model with continuing block-reward halvings.</td></tr>
   <tr><td><strong>Premine</strong></td><td>NONE</td></tr>
   <tr><td><strong>Maturity</strong></td><td>50</td></tr>
   <tr><td><strong>Port</strong></td><td>9070</td></tr>
   <tr><td><strong>RPC Port</strong></td><td>9071</td></tr>
-  <tr><td><strong>Reward Per Block (original 200,000,000 max supply pre‑mint completion)</strong></td><td>32.29999999 SCH</td></tr>
-  <tr><td><strong>Reward Per Block (original 200,000,000 max supply post‑mint completion)</strong></td><td>1 SCH (fixed forever; effective on the first block after total circulating initial max supply reaches 200,000,000 SCH)</td></tr>
-  <tr><td><strong>Reward Split (pre‑mint completion)</strong></td><td>80% (MN) / 20% (PoS)</td></tr>
-  <tr><td><strong>Reward Split (pre‑mint completion)</strong></td><td>100% to PoS; timing of new masternode collateral becoming 1 SCH permanently to be announced separately, shortly after 100% of rewards go to PoS.</td></tr>
+  <tr><td><strong>Historical / Pre-Halving Base Block Reward</strong></td><td>32.29999999 SCH</td></tr>
+  <tr><td><strong>First Planned Halving Height</strong></td><td>5,783,307</td></tr>
+  <tr><td><strong>Base Block Reward From First Halving</strong></td><td>16.14999999 SCH</td></tr>
+  <tr><td><strong>Long-Term Reward Policy</strong></td><td>Continuing block-reward halvings under the current SCH development plan rather than permanent termination of block rewards at the original 200,000,000 SCH issuance target.</td></tr>
+  <tr><td><strong>Reward Split</strong></td><td>80% Masternodes / 20% PoS</td></tr>
 </table>
 
 <!-- Historical Masternode Collateral -->
@@ -64,21 +65,49 @@ Demon status:
     <tr><td>260001–520000</td><td>60,000 SCH</td></tr>
     <tr><td>520001–780000</td><td>80,000 SCH</td></tr>
     <tr><td>780001–1,040,000</td><td>90,000 SCH</td></tr>
-    <tr><td>1,040,001–(pre‑repurposing)</td><td>100,000 SCH</td></tr>
-    <tr><td>(post‑repurposing)</td><td>1 SCH (permanent; collateral retained only for MasterSeedNode identity)</td></tr>
+    <tr><td>1,040,001–modern collateral activation</td><td>100,000 SCH</td></tr>
   </tbody>
 </table>
 
-<p><strong>SCH Network Transition Notice</strong></p>
+<p><strong>SCH Permanent Reward and Masternode Model</strong></p>
 <ul>
-  <li><strong>Final Consensus Model</strong> — Schilling Coin (SCH) will transition to a full <strong>100% Proof of Stake (PoS)</strong> reward model as part of the network roadmap.</li>
-  <li><strong>Post‑Mint Block Reward</strong> — When the total circulating supply reaches <strong>200,000,000 SCH</strong>, the block reward will change to <strong>1 SCH</strong> and remain fixed at 1 SCH forever, effective on the first block after the initial 200,000,000 max supply cap is reached, estimated to be late in the year 2029.</li>
-  <li><strong>Activation Block For 100% PoS</strong> — The exact block height at which block rewards become 100% PoS is not yet decided. An official announcement will specify the activation block before it occurs.</li>
-  <li><strong>Masternode Reward Removal Timing</strong> — The precise block height and timing for removing or redistributing masternode rewards (i.e., reducing masternode reward share per block to 0%) have not been finalized. Any change to masternode reward distribution will be announced separately and in advance, and will occur only after the network has moved to 100% PoS.</li>
-  <li><strong>Collateral Repurposing Sequence</strong> — The permanent reduction of masternode collateral to <strong>1 SCH</strong> and the repurposing of masternodes into <strong>MasterSeedNodes</strong> is planned to occur shortly after the activation that makes PoS 100% of block rewards. The exact block height for the collateral change will be announced in the same communications that define the PoS activation and masternode reward schedule.</li>
-  <li><strong>MasterSeedNode Role</strong> — After repurposing, MasterSeedNodes will serve primarily as reliable network seed nodes for peer discovery and bootstrap assistance. Under SCH's current development team, masternodes will never again be entitled to block rewards, at all.</li>
-  <li><strong>Historical Reference</strong> — The collateral tiers and reward behavior above are retained for historical reference. They will be deprecated or updated according to the official transition plan announced with the activation block(s).</li>
-  <li><strong>Operator Guidance</strong> — Existing masternode operators should await the formal migration plan and tooling guidance. No operator action is required until the project publishes the transition instructions and the activation block(s).</li>
+  <li><strong>Permanent Reward Split</strong> — Schilling Coin (SCH) is intended to retain its <strong>80% masternode / 20% Proof of Stake (PoS)</strong> block-reward model permanently under the current SCH development direction. There is no planned transition to a 100% PoS reward model.</li>
+
+  <li><strong>Historical SCH Supply Policy</strong> — The original Schilling Coin developers designed SCH around a planned maximum issuance of <strong>200,000,000 SCH</strong>, with normal block-reward issuance intended to end under that original monetary model.</li>
+
+  <li><strong>Current SCH Monetary Policy</strong> — The current SCH development direction replaces the original terminal-reward model with a continuing <strong>block-reward halving system</strong>. SCH is therefore no longer intended to permanently end normal block rewards after reaching the original 200,000,000 SCH issuance target.</li>
+
+  <li><strong>First Planned Halving</strong> — The current SCH source implements the first planned halving at <strong>block 5,783,307</strong>. The normal base block reward changes from <strong>32.29999999 SCH</strong> to <strong>16.14999999 SCH</strong> under this schedule.</li>
+
+  <li><strong>Long-Term Halving Policy</strong> — Under the current SCH development direction, SCH block rewards are intended to continue under a long-term halving schedule rather than permanently ending under the original 200,000,000 SCH supply design.</li>
+
+  <li><strong>Reward Distribution After Halvings</strong> — Halvings change the amount of the base block reward, not SCH's permanent reward-distribution model. Applicable rewards continue to be divided <strong>80% to masternodes and 20% to the Proof of Stake block producer</strong>.</li>
+
+  <li><strong>Future Transaction Fee Rewards</strong> — SCH is also intended to transition away from the historical treatment in which ordinary PoS transaction fees are not added to the staking reward. Following a future consensus activation, ordinary transaction fees are planned to become part of SCH's block-reward distribution.</li>
+
+  <li><strong>Transaction Fee Distribution</strong> — After activation, ordinary transaction fees are intended to follow SCH's established reward allocation: <strong>80% to the scheduled masternode and 20% to the block-producing PoS staker</strong>.</li>
+
+  <li><strong>Fee-Rewards Activation</strong> — The final consensus activation height for incorporating ordinary transaction fees into SCH rewards remains undecided and is separate from the block-subsidy halving schedule.</li>
+
+  <li><strong>PoS Reward</strong> — The block-producing Proof of Stake participant receives <strong>20%</strong> of the applicable block reward.</li>
+
+  <li><strong>Masternode Reward</strong> — SCH masternodes collectively retain <strong>80%</strong> of the applicable block reward. The current SCH development direction does not plan to eliminate masternode rewards or reduce the masternode reward share to 0%.</li>
+
+  <li><strong>100 Masternode Collateral Levels</strong> — Beginning at the activation height defined by SCH consensus code, the modern SCH masternode system uses <strong>100 separate collateral levels</strong>. Level 1 requires <strong>100,000 SCH</strong>, Level 2 requires <strong>200,000 SCH</strong>, Level 3 requires <strong>300,000 SCH</strong>, continuing in increments of 100,000 SCH through Level 100 at <strong>10,000,000 SCH</strong>.</li>
+
+  <li><strong>Payment Units</strong> — Each <strong>100,000 SCH</strong> of collateral represents one masternode payment unit. Level 1 therefore represents one payment unit, Level 2 represents two payment units, and so forth through Level 100, which represents 100 payment units.</li>
+
+  <li><strong>Consecutive Masternode Rewards</strong> — When selected for payment, a Level 1 masternode receives <strong>1 consecutive masternode block reward</strong>. A Level 2 masternode receives <strong>2 consecutive masternode block rewards</strong>. This pattern continues through Level 100, which receives <strong>100 consecutive masternode block rewards</strong>.</li>
+
+  <li><strong>Payment Queue</strong> — After a masternode completes its full consecutive payout sequence, it returns to the back of the masternode payment queue and waits to be selected again.</li>
+
+  <li><strong>Proportional Collateral Economics</strong> — The 100-level design is intended to maintain proportional reward treatment per 100,000 SCH payment unit. Increasing collateral increases the number of consecutive rewards associated with a selection rather than creating a separate percentage reward schedule for each collateral level.</li>
+
+  <li><strong>Selection</strong> — Eligible masternodes participate in the SCH masternode payment-selection system regardless of collateral level. Collateral level determines the number of consecutive masternode reward payments received after selection.</li>
+
+  <li><strong>Long-Term Model</strong> — Under the current SCH development direction, the <strong>20% PoS / 80% masternode</strong> reward split and the <strong>100-level, 100,000-to-10,000,000 SCH collateral structure</strong> are intended as permanent features of Schilling Coin.</li>
+
+  <li><strong>Historical Compatibility</strong> — Historical collateral requirements and historical reward behavior remain consensus-relevant for the portions of the existing SCH blockchain during which those rules applied. Modern rules do not rewrite or reinterpret historical SCH blocks.</li>
 </ul>
 
 ⚠️ Critical SCH DataDir Warning (Cross‑OS Safety Notice)

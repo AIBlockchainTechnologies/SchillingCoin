@@ -31,7 +31,6 @@
 #include <evo/deterministicmns.h>
 #include <evo/evodb.h>
 #include <evo/mnhftx.h>
-#include <governance/governance.h>
 #include <instantsend/instantsend.h>
 #include <llmq/context.h>
 #include <llmq/observer.h>

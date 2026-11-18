@@ -133,7 +133,6 @@ HEADERS += src/addrman.h \
            src/rpcprotocol.h \
            src/rpcserver.h \
            src/serialize.h \
-           src/stubs/legacy_spork.h \
            src/streams.h \
            src/sync.h \
            src/threadsafety.h \
@@ -202,7 +201,7 @@ HEADERS += src/addrman.h \
            src/qt/walletview.h \
            src/qt/winshutdownmonitor.h \
            src/schillingcoin-config.h \
-           src/script/bitcoinconsensus.h \
+           src/script/schillingcoinconsensus.h \
            src/script/interpreter.h \
            src/script/script.h \
            src/script/script_error.h \
@@ -315,7 +314,7 @@ HEADERS += src/addrman.h \
            src/leveldb/include/leveldb/table_builder.h \
            src/leveldb/include/leveldb/write_batch.h \
            src/leveldb/port/win/stdint.h \
-           src/secp256k1/src/java/org_bitcoin_NativeSecp256k1.h \
+           src/secp256k1/src/java/org_schillingcoin_NativeSecp256k1.h \
            src/crypto/aes_helper.c \
            src/qt/schillingcoin.moc \
            src/qt/intro.moc \
@@ -397,7 +396,6 @@ SOURCES += src/addrman.cpp \
            src/rpcrawtransaction.cpp \
            src/rpcserver.cpp \
            src/rpcwallet.cpp \
-           src/stubs/legacy_spork.cpp \
            src/sync.cpp \
            src/timedata.cpp \
            src/txdb.cpp \
@@ -486,7 +484,7 @@ SOURCES += src/addrman.cpp \
            src/qt/walletmodeltransaction.cpp \
            src/qt/walletview.cpp \
            src/qt/winshutdownmonitor.cpp \
-           src/script/bitcoinconsensus.cpp \
+           src/script/schillingcoinconsensus.cpp \
            src/script/interpreter.cpp \
            src/script/script.cpp \
            src/script/script_error.cpp \
@@ -618,7 +616,7 @@ SOURCES += src/addrman.cpp \
            src/leveldb/doc/bench/db_bench_tree_db.cc \
            src/leveldb/helpers/memenv/memenv.cc \
            src/leveldb/helpers/memenv/memenv_test.cc \
-           src/secp256k1/src/java/org_bitcoin_NativeSecp256k1.c
+           src/secp256k1/src/java/org_schillingcoin_NativeSecp256k1.c
 RESOURCES += src/qt/schillingcoin.qrc src/qt/schillingcoin_locale.qrc
 
 TRANSLATIONS += src/qt/locale/schillingcoin_bg.ts \

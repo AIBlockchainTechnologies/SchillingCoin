@@ -76,6 +76,10 @@ enum class AddressPurpose {
     RECEIVE,
     SEND,
     REFUND, //!< Never set in current code may be present in older wallet databases
+    DELEGABLE,
+    DELEGATOR,
+    COLD_STAKING,
+    COLD_STAKING_SEND,
 };
 } // namespace wallet
 

@@ -14,11 +14,13 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include <kernel/mempool_limits.h>
 #include <kernel/mempool_options.h>
+#include <kernel/mempool_removal_reason.h>
 
 #include <arith_uint256.h>
 #include <coins.h>
@@ -150,20 +152,6 @@ struct TxMempoolInfo
     int64_t nFeeDelta;
 };
 
-/** Reason why a transaction was removed from the mempool,
- * this is passed to the notification signal.
- */
-enum class MemPoolRemovalReason {
-    EXPIRY,      //!< Expired from mempool
-    SIZELIMIT,   //!< Removed in size limiting
-    REORG,       //!< Removed for reorganization
-    BLOCK,       //!< Removed for block
-    CONFLICT,    //!< Removed for conflict with in-block transaction
-    MANUAL       //!< Removed manually
-};
-
-std::string RemovalReasonToString(const MemPoolRemovalReason& r) noexcept;
-
 /**
  * CTxMemPool stores valid-according-to-the-current-best-chain transactions
  * that may be included in the next block.
@@ -238,11 +226,7 @@ std::string RemovalReasonToString(const MemPoolRemovalReason& r) noexcept;
 class CTxMemPool
 {
 protected:
-    const int m_check_ratio; //!< Value n means that 1 times in n we check.
     std::atomic<unsigned int> nTransactionsUpdated{0}; //!< Used by getblocktemplate to trigger CreateNewBlock() invocation
-    CBlockPolicyEstimator* const minerPolicyEstimator;
-    CDeterministicMNManager& m_dmnman;
-    llmq::CInstantSendManager& m_isman;
 
     uint64_t totalTxSize GUARDED_BY(cs){0};      //!< sum of all mempool tx' byte sizes
     CAmount m_total_fee GUARDED_BY(cs){0};       //!< sum of all mempool tx's fees (NOT modified fee)
@@ -362,25 +346,26 @@ public:
 
     using Options = kernel::MemPoolOptions;
 
-    const int64_t m_max_size_bytes;
-    const std::chrono::seconds m_expiry;
-    const CFeeRate m_incremental_relay_feerate;
-    const CFeeRate m_min_relay_feerate;
-    const CFeeRate m_dust_relay_feerate;
-    const bool m_permit_bare_multisig;
-    const std::optional<unsigned> m_max_datacarrier_bytes;
-    const bool m_require_standard;
-    const bool m_address_index_enabled;
-    const bool m_spent_index_enabled;
+    const Options m_opts;
 
-    const Limits m_limits;
+    const int64_t& m_max_size_bytes{m_opts.max_size_bytes};
+    const std::chrono::seconds& m_expiry{m_opts.expiry};
+    const CFeeRate& m_incremental_relay_feerate{m_opts.incremental_relay_feerate};
+    const CFeeRate& m_min_relay_feerate{m_opts.min_relay_feerate};
+    const CFeeRate& m_dust_relay_feerate{m_opts.dust_relay_feerate};
+    const bool& m_permit_bare_multisig{m_opts.permit_bare_multisig};
+    const std::optional<unsigned>& m_max_datacarrier_bytes{m_opts.max_datacarrier_bytes};
+    const bool& m_require_standard{m_opts.require_standard};
+    const bool& m_address_index_enabled{m_opts.address_index_enabled};
+    const bool& m_spent_index_enabled{m_opts.spent_index_enabled};
+    const Limits& m_limits{m_opts.limits};
 
     /** Create a new CTxMemPool.
      * Sanity checks will be off by default for performance, because otherwise
      * accepting transactions becomes O(N^2) where N is the number of transactions
      * in the pool.
      */
-    explicit CTxMemPool(const Options& opts);
+    explicit CTxMemPool(Options opts, bilingual_str& error);
 
     /**
      * If sanity-checking is turned on, check makes sure the pool is
@@ -388,7 +373,7 @@ public:
      * all inputs are in the mapNextTx array). If sanity-checking is turned off,
      * check does nothing.
      */
-    void check(const CCoinsViewCache& active_coins_tip, int64_t spendheight, const Consensus::Params& consensus_params) const EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    void check(const CCoinsViewCache& active_coins_tip, int64_t spendheight) const EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
     void addAddressIndex(const CTxMemPoolEntry& entry, const CCoinsViewCache& view);
     void getAddressIndex(const std::vector<CMempoolAddressDeltaKey>& addresses,
@@ -423,7 +408,17 @@ public:
      *  share reward script: ProUpShareTxs paying it, or ProUpSharedRegTxs setting it as the voting key. */
     void removeProTxVotingPayeeConflicts(const uint256& proTxHash, const CKeyID& keyIDVoting, uint16_t refType) EXCLUSIVE_LOCKS_REQUIRED(cs);
     void removeProTxConflicts(const CTransaction &tx) EXCLUSIVE_LOCKS_REQUIRED(cs);
-    void removeForBlock(const std::vector<CTransactionRef>& vtx, unsigned int nBlockHeight) EXCLUSIVE_LOCKS_REQUIRED(cs);
+    std::vector<RemovedMempoolTransactionInfo> removeForBlock(const std::vector<CTransactionRef>& vtx) EXCLUSIVE_LOCKS_REQUIRED(cs);
+
+    /**
+     * Look up wtxids in the mempool and partially sort by mining score.
+     *
+     * The best entries are removed from wtxids and returned in mining-score
+     * order. Missing and duplicate wtxids are dropped.
+     */
+    std::vector<txiter> ExtractBestByMiningScoreWithTopology(
+        std::vector<Wtxid>& wtxids,
+        size_t n_to_sort) const EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     bool CompareMiningScoreWithTopology(const Wtxid& hasha, const Wtxid& hashb) const;
     bool isSpent(const COutPoint& outpoint) const;
@@ -441,14 +436,27 @@ public:
     void ApplyDelta(const Txid& txid, CAmount& nFeeDelta) const EXCLUSIVE_LOCKS_REQUIRED(cs);
     void ClearPrioritisation(const Txid& txid) EXCLUSIVE_LOCKS_REQUIRED(cs);
 
+    struct delta_info {
+        const bool in_mempool;
+        const CAmount delta;
+        std::optional<CAmount> modified_fee;
+        const Txid txid;
+    };
+
+    std::vector<delta_info> GetPrioritisedTransactions() const EXCLUSIVE_LOCKS_REQUIRED(!cs);
+
     /** Get the transaction in the pool that spends the same prevout. */
     const CTransaction* GetConflictTx(const COutPoint& prevout) const EXCLUSIVE_LOCKS_REQUIRED(cs);
 
-    /** Return an iterator to the transaction identified by txid, if found. */
+    /** Return an iterator to the transaction identified by txid or wtxid, if found. */
     std::optional<txiter> GetIter(const Txid& txid) const EXCLUSIVE_LOCKS_REQUIRED(cs);
+    std::optional<txiter> GetIter(const Wtxid& wtxid) const EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     /** Translate a set of transaction identifiers into mempool iterators. */
     setEntries GetIterSet(const std::set<Txid>& txids) const EXCLUSIVE_LOCKS_REQUIRED(cs);
+
+    /** Translate a vector of transaction identifiers into mempool iterators. */
+    std::vector<txiter> GetIterVec(const std::vector<Txid>& txids) const EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     /** Remove a set of transactions from the mempool.
      *  If a transaction is in this set, then all in-mempool descendants must
@@ -572,11 +580,24 @@ public:
         return mapTx.count(txid) != 0;
     }
 
+    bool exists(const Wtxid& wtxid) const
+    {
+        LOCK(cs);
+        return mapTx.get<index_by_wtxid>().count(wtxid) != 0;
+    }
+
+    const CTxMemPoolEntry* GetEntry(const Txid& txid) const LIFETIMEBOUND EXCLUSIVE_LOCKS_REQUIRED(cs);
+
     bool CompareDepthAndScore(const Txid& hasha, const Txid& hashb);
 
     CTransactionRef get(const Txid& txid) const;
+    CTransactionRef get(const Wtxid& wtxid) const;
     TxMempoolInfo info(const Txid& txid) const;
+    std::vector<CTxMemPoolEntryRef> entryAll() const EXCLUSIVE_LOCKS_REQUIRED(cs);
     std::vector<TxMempoolInfo> infoAll() const;
+
+    bool CheckPolicyLimits(const CTransactionRef& tx);
+    std::vector<FeePerWeight> GetFeerateDiagram() const EXCLUSIVE_LOCKS_REQUIRED(cs);
 
     bool existsProviderTxConflict(const CTransaction &tx) const;
 
@@ -816,6 +837,12 @@ class CCoinsViewMemPool : public CCoinsViewBacked
     * validation, since we can access transaction outputs without submitting them to mempool.
     */
     std::unordered_map<COutPoint, Coin, SaltedOutpointHasher> m_temp_added;
+
+    /**
+     * Set of all coins that have been fetched from mempool or created using PackageAddTransaction
+     * (not base). Used to track the origin of a coin, see GetNonBaseCoins().
+     */
+    mutable std::unordered_set<COutPoint, SaltedOutpointHasher> m_non_base_coins;
 protected:
     const CTxMemPool& mempool;
 
@@ -825,5 +852,9 @@ public:
     /** Add the coins created by this transaction. These coins are only temporarily stored in
      * m_temp_added and cannot be flushed to the back end. Only used for package validation. */
     void PackageAddTransaction(const CTransactionRef& tx);
+    /** Get all coins in m_non_base_coins. */
+    const std::unordered_set<COutPoint, SaltedOutpointHasher>& GetNonBaseCoins() const { return m_non_base_coins; }
+    /** Clear m_temp_added and m_non_base_coins. */
+    void Reset();
 };
 #endif // SCHILLINGCOIN_TXMEMPOOL_H

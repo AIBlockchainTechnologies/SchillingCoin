@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_MSG_RESULT_H
-#define BITCOIN_MSG_RESULT_H
+#ifndef SCHILLINGCOIN_MSG_RESULT_H
+#define SCHILLINGCOIN_MSG_RESULT_H
 
 #include <protocol.h>
 #include <uint256.h>
@@ -72,4 +72,4 @@ struct MessageProcessingResult
     bool empty() const { return !m_error.has_value() && m_inventory.empty() && m_transactions.empty() && !m_to_erase.has_value(); }
 };
 
-#endif // BITCOIN_MSG_RESULT_H
+#endif // SCHILLINGCOIN_MSG_RESULT_H

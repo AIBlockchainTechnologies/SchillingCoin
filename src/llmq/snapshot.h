@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_SNAPSHOT_H
-#define BITCOIN_LLMQ_SNAPSHOT_H
+#ifndef SCHILLINGCOIN_LLMQ_SNAPSHOT_H
+#define SCHILLINGCOIN_LLMQ_SNAPSHOT_H
 
 #include <evo/smldiff.h>
 #include <llmq/commitment.h>
@@ -251,4 +251,4 @@ public:
 };
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_SNAPSHOT_H
+#endif // SCHILLINGCOIN_LLMQ_SNAPSHOT_H

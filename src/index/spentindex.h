@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INDEX_SPENTINDEX_H
-#define BITCOIN_INDEX_SPENTINDEX_H
+#ifndef SCHILLINGCOIN_INDEX_SPENTINDEX_H
+#define SCHILLINGCOIN_INDEX_SPENTINDEX_H
 
 #include <index/base.h>
 #include <index/spentindex_types.h>
@@ -65,4 +65,4 @@ public:
     bool GetSpentInfo(const CSpentIndexKey& key, CSpentIndexValue& value) const;
 };
 
-#endif // BITCOIN_INDEX_SPENTINDEX_H
+#endif // SCHILLINGCOIN_INDEX_SPENTINDEX_H

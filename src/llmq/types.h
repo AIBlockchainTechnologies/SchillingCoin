@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_TYPES_H
-#define BITCOIN_LLMQ_TYPES_H
+#ifndef SCHILLINGCOIN_LLMQ_TYPES_H
+#define SCHILLINGCOIN_LLMQ_TYPES_H
 
 #include <memory>
 
@@ -16,4 +16,4 @@ using CQuorumPtr = std::shared_ptr<CQuorum>;
 using CQuorumCPtr = std::shared_ptr<const CQuorum>;
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_TYPES_H
+#endif // SCHILLINGCOIN_LLMQ_TYPES_H

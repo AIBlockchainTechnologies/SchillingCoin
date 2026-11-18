@@ -1,4 +1,5 @@
 // Copyright (c) 2024-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,7 +11,6 @@
 #include <evo/deterministicmns.h>
 #include <evo/mnhftx.h>
 #include <evo/specialtxman.h>
-#include <governance/superblock.h>
 #include <hash.h>
 #include <instantsend/instantsend.h>
 #include <instantsend/lock.h>
@@ -30,26 +30,12 @@ CChainstateHelper::CChainstateHelper(CEvoDB& evodb, CDeterministicMNManager& dmn
     credit_pool_manager{std::make_unique<CCreditPoolManager>(evodb, chainman)},
     m_chainlocks{chainlocks},
     ehf_manager{std::make_unique<CMNHFManager>(evodb, consensus_params)},
-    superblocks{std::make_unique<governance::SuperblockManager>()},
-    mn_payments{std::make_unique<CMNPaymentsProcessor>(dmnman, *superblocks, consensus_params)},
+    mn_payments{std::make_unique<CMNPaymentsProcessor>(dmnman, consensus_params)},
     special_tx{std::make_unique<CSpecialTxProcessor>(*credit_pool_manager, dmnman, *ehf_manager, qblockman, qsnapman,
                                                      chainman, blockman, consensus_params, chainlocks, qman)}
 {}
 
 CChainstateHelper::~CChainstateHelper() = default;
-
-bool CChainstateHelper::IsSuperblockValidationRequired(const CBlockIndex* const pindex)
-{
-    if (m_chainlocks.GetBestChainLockHeight() >= pindex->nHeight) {
-        LogPrint(BCLog::MNPAYMENTS, "%s -- validation of chainlocked block=%s is skipped\n", __func__, pindex->GetBlockHash().ToString());
-        return false;
-    }
-    if (!mn_sync.IsSynced()) {
-        LogPrint(BCLog::MNPAYMENTS, "%s -- WARNING! Node is not fully synced, checked superblock for block=%s max bounds only\n", __func__, pindex->GetBlockHash().ToString());
-        return false;
-    }
-    return true;
-}
 
 /** Passthrough functions to chainlock::Chainlocks */
 bool CChainstateHelper::HasConflictingChainLock(int nHeight, const uint256& blockHash) const

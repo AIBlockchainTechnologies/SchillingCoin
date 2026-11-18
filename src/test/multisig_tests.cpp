@@ -15,11 +15,10 @@
 #include "validation.h"
 
 #ifdef ENABLE_WALLET
-#include "wallet/wallet_ismine.h"
+#include "script/ismine.h"
 #endif
 
 #include <boost/test/unit_test.hpp>
-
 
 typedef std::vector<unsigned char> valtype;
 

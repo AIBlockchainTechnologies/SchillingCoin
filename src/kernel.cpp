@@ -253,8 +253,8 @@ bool CheckProofOfStake(const CBlock& block, std::string& strError, const CBlockI
             TransactionSignatureChecker(
                 tx.get(),
                 0,
-                stakePrevout.nValue),
-            SIGVERSION_BASE,
+                stakePrevout.nValue,
+                MissingDataBehavior::ASSERT_FAIL),
             &serror)) {
         strError = strprintf(
             "signature fails: %s",

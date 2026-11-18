@@ -78,7 +78,7 @@ files out-of-the-box. This is because the command line options specified in the
 init files take precedence over the configurations in
 `/etc/schillingcoin/schillingcoin.conf`. However, some init systems have their own
 configuration mechanisms that would allow for overriding the command line
-options specified in the init files (e.g. setting `BITCOIND_DATADIR` for
+options specified in the init files (e.g. setting `SCHILLINGCOIND_DATADIR` for
 OpenRC).
 
 ### macOS

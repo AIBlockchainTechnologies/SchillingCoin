@@ -1,9 +1,10 @@
 // Copyright (c) 2011-2014 The Bitcoin developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_BITCOINADDRESSVALIDATOR_H
-#define BITCOIN_QT_BITCOINADDRESSVALIDATOR_H
+#ifndef SCHILLINGCOIN_QT_BITCOINADDRESSVALIDATOR_H
+#define SCHILLINGCOIN_QT_BITCOINADDRESSVALIDATOR_H
 
 #include <QValidator>
 
@@ -32,4 +33,4 @@ public:
     State validate(QString& input, int& pos) const;
 };
 
-#endif // BITCOIN_QT_BITCOINADDRESSVALIDATOR_H
+#endif // SCHILLINGCOIN_QT_BITCOINADDRESSVALIDATOR_H

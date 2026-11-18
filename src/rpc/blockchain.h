@@ -1,9 +1,10 @@
 // Copyright (c) 2017-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_RPC_BLOCKCHAIN_H
-#define BITCOIN_RPC_BLOCKCHAIN_H
+#ifndef SCHILLINGCOIN_RPC_BLOCKCHAIN_H
+#define SCHILLINGCOIN_RPC_BLOCKCHAIN_H
 
 #include <consensus/amount.h>
 #include <core_io.h>
@@ -34,7 +35,10 @@ class BlockManager;
 struct NodeContext;
 } // namespace node
 
+class RPCHelpMan;
 class UniValue;
+
+RPCHelpMan getblockchaininfo();
 
 static constexpr int NUM_GETBLOCKSTATS_PERCENTILES = 5;
 
@@ -80,4 +84,4 @@ std::optional<kernel::CCoinsStats> GetUTXOStats(CCoinsView* view, node::BlockMan
                                                 const CBlockIndex* pindex = nullptr,
                                                 bool index_requested = true);
 
-#endif // BITCOIN_RPC_BLOCKCHAIN_H
+#endif // SCHILLINGCOIN_RPC_BLOCKCHAIN_H

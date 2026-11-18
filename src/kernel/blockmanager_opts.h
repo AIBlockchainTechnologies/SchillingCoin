@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_KERNEL_BLOCKMANAGER_OPTS_H
-#define BITCOIN_KERNEL_BLOCKMANAGER_OPTS_H
+#ifndef SCHILLINGCOIN_KERNEL_BLOCKMANAGER_OPTS_H
+#define SCHILLINGCOIN_KERNEL_BLOCKMANAGER_OPTS_H
 
 class CChainParams;
 
@@ -19,4 +19,4 @@ struct BlockManagerOpts {
 
 } // namespace kernel
 
-#endif // BITCOIN_KERNEL_BLOCKMANAGER_OPTS_H
+#endif // SCHILLINGCOIN_KERNEL_BLOCKMANAGER_OPTS_H

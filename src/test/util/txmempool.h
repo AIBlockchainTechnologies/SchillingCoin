@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TEST_UTIL_TXMEMPOOL_H
-#define BITCOIN_TEST_UTIL_TXMEMPOOL_H
+#ifndef SCHILLINGCOIN_TEST_UTIL_TXMEMPOOL_H
+#define SCHILLINGCOIN_TEST_UTIL_TXMEMPOOL_H
 
 #include <txmempool.h>
 #include <util/time.h>
@@ -34,4 +34,4 @@ struct TestMemPoolEntryHelper {
     TestMemPoolEntryHelper& SigOps(unsigned int _sigops) { sigOpCount = _sigops; return *this; }
 };
 
-#endif // BITCOIN_TEST_UTIL_TXMEMPOOL_H
+#endif // SCHILLINGCOIN_TEST_UTIL_TXMEMPOOL_H

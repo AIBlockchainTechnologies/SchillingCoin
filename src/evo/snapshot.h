@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_SNAPSHOT_H
-#define BITCOIN_EVO_SNAPSHOT_H
+#ifndef SCHILLINGCOIN_EVO_SNAPSHOT_H
+#define SCHILLINGCOIN_EVO_SNAPSHOT_H
 
 #include <consensus/params.h>
 #include <crypto/common.h>
@@ -742,4 +742,4 @@ bool VerifyEvoSnapshotCbTx(const EvoSnapshot& snapshot, const CCbTx& cbtx, std::
 
 } // namespace evo
 
-#endif // BITCOIN_EVO_SNAPSHOT_H
+#endif // SCHILLINGCOIN_EVO_SNAPSHOT_H

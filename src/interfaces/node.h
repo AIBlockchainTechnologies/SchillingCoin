@@ -35,8 +35,6 @@ class BanMan;
 class CBlockIndex;
 class CDeterministicMNList;
 class CFeeRate;
-class CGovernanceObject;
-class CGovernanceVote;
 class CNodeStats;
 class Coin;
 class CService;
@@ -45,7 +43,6 @@ class UniValue;
 class Proxy;
 enum class SynchronizationState;
 enum class TransactionError;
-enum vote_signal_enum_t : int;
 enum class MnType : uint16_t;
 struct bilingual_str;
 struct CNodeStateStats;
@@ -183,53 +180,6 @@ public:
     virtual void setContext(node::NodeContext* context) {}
 };
 
-//! Interface for the src/governance part of a dash node (dashd process).
-class GOV
-{
-public:
-    virtual ~GOV() {}
-    virtual void getAllNewerThan(std::vector<CGovernanceObject> &objs, int64_t nMoreThanTime, bool include_postponed = false) = 0;
-    struct Votes {
-        int32_t m_abs{0};
-        int32_t m_no{0};
-        int32_t m_yes{0};
-    };
-    virtual Votes getObjVotes(const CGovernanceObject& obj, vote_signal_enum_t vote_signal) = 0;
-    struct UniqueVoters {
-        uint16_t m_regular{0};
-        uint16_t m_evo{0};
-    };
-    virtual UniqueVoters getObjUniqueVoters(const CGovernanceObject& obj, vote_signal_enum_t vote_signal) = 0;
-    virtual std::vector<CGovernanceVote> getCurrentVotes(const uint256& hash) = 0;
-    virtual bool existsObj(const uint256& hash) = 0;
-    virtual bool isEnabled() = 0;
-    virtual bool processVoteAndRelay(const CGovernanceVote& vote, std::string& error) = 0;
-    struct GovernanceInfo {
-        CAmount proposalfee{0};
-        int superblockcycle{0};
-        int superblockmaturitywindow{0};
-        int lastsuperblock{0};
-        int nextsuperblock{0};
-        int fundingthreshold{0};
-        CAmount governancebudget{0};
-        int64_t targetSpacing{0};
-        int relayRequiredConfs{1};
-        int requiredConfs{6};
-    };
-    virtual GovernanceInfo getGovernanceInfo() = 0;
-    virtual std::optional<int32_t> getProposalFundedHeight(const uint256& proposal_hash) = 0;
-    struct FundableResult {
-        std::unordered_set<uint256, StaticSaltedHasher> hashes;
-        CAmount allocated{0};
-    };
-    virtual FundableResult getFundableProposalHashes() = 0;
-    virtual std::optional<CGovernanceObject> createProposal(int32_t revision, int64_t created_time,
-                                const std::string& data_hex, std::string& error) = 0;
-    virtual bool submitProposal(const uint256& parent, int32_t revision, int64_t created_time, const std::string& data_hex,
-                                const uint256& fee_txid, std::string& out_object_hash, std::string& error) = 0;
-    virtual void setContext(node::NodeContext* context) {}
-};
-
 //! Interface for the src/llmq part of a dash node (dashd process).
 class LLMQ
 {
@@ -289,7 +239,6 @@ class Sync
 public:
     virtual ~Sync() {}
     virtual bool isBlockchainSynced() = 0;
-    virtual bool isGovernanceSynced() = 0;
     virtual bool isSynced() = 0;
     virtual std::string getSyncStatus() =  0;
     virtual void setContext(node::NodeContext* context) {}
@@ -486,9 +435,6 @@ public:
     //! Return interface for accessing evo related handler.
     virtual EVO& evo() = 0;
 
-    //! Return interface for accessing governance related handler.
-    virtual GOV& gov() = 0;
-
     //! Return interface for accessing llmq related handler.
     virtual LLMQ& llmq() = 0;
 
@@ -553,10 +499,6 @@ public:
     //! Register handler for InstantSend data messages.
     using NotifyInstantSendChangedFn = std::function<void()>;
     virtual std::unique_ptr<Handler> handleNotifyInstantSendChanged(NotifyInstantSendChangedFn fn) = 0;
-
-    //! Register handler for governance data messages.
-    using NotifyGovernanceChangedFn = std::function<void()>;
-    virtual std::unique_ptr<Handler> handleNotifyGovernanceChanged(NotifyGovernanceChangedFn fn) = 0;
 
     //! Register handler for masternode list update messages.
     using NotifyMasternodeListChangedFn =

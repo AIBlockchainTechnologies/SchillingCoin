@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_POLICY_PACKAGES_H
-#define BITCOIN_POLICY_PACKAGES_H
+#ifndef SCHILLINGCOIN_POLICY_PACKAGES_H
+#define SCHILLINGCOIN_POLICY_PACKAGES_H
 
 #include <consensus/validation.h>
 #include <policy/policy.h>
@@ -58,4 +58,4 @@ bool CheckPackage(const Package& txns, PackageValidationState& state);
  */
 bool IsChildWithParents(const Package& package);
 
-#endif // BITCOIN_POLICY_PACKAGES_H
+#endif // SCHILLINGCOIN_POLICY_PACKAGES_H

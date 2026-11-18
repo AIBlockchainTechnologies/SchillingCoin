@@ -23,8 +23,8 @@
 
 #include <vector>
 
-const int BITCOIN_IPC_CONNECT_TIMEOUT = 1000;
-const QString BITCOIN_IPC_PREFIX("schillingcoin:");
+const int SCHILLINGCOIN_IPC_CONNECT_TIMEOUT = 1000;
+const QString SCHILLINGCOIN_IPC_PREFIX("schillingcoin:");
 
 namespace
 {
@@ -48,7 +48,7 @@ void PaymentServer::ipcParseCommandLine(int argc, char* argv[])
             continue;
         }
 
-        if (!argument.startsWith(BITCOIN_IPC_PREFIX, Qt::CaseInsensitive)) {
+        if (!argument.startsWith(SCHILLINGCOIN_IPC_PREFIX, Qt::CaseInsensitive)) {
             continue;
         }
 
@@ -81,7 +81,7 @@ bool PaymentServer::ipcSendCommandLine()
         QLocalSocket socket;
         socket.connectToServer(ipcServerName(), QIODevice::WriteOnly);
 
-        if (!socket.waitForConnected(BITCOIN_IPC_CONNECT_TIMEOUT)) {
+        if (!socket.waitForConnected(SCHILLINGCOIN_IPC_CONNECT_TIMEOUT)) {
             return false;
         }
 
@@ -92,7 +92,7 @@ bool PaymentServer::ipcSendCommandLine()
 
         socket.write(block);
         socket.flush();
-        socket.waitForBytesWritten(BITCOIN_IPC_CONNECT_TIMEOUT);
+        socket.waitForBytesWritten(SCHILLINGCOIN_IPC_CONNECT_TIMEOUT);
         socket.disconnectFromServer();
         sentAnyRequest = true;
     }
@@ -168,7 +168,7 @@ void PaymentServer::handleURIOrFile(const QString& value)
         return;
     }
 
-    if (!value.startsWith(BITCOIN_IPC_PREFIX, Qt::CaseInsensitive)) {
+    if (!value.startsWith(SCHILLINGCOIN_IPC_PREFIX, Qt::CaseInsensitive)) {
         Q_EMIT message(tr("URI handling"),
                        tr("Only schillingcoin: payment URIs are supported."),
                        CClientUIInterface::ICON_WARNING);

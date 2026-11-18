@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NODE_MINISKETCHWRAPPER_H
-#define BITCOIN_NODE_MINISKETCHWRAPPER_H
+#ifndef SCHILLINGCOIN_NODE_MINISKETCHWRAPPER_H
+#define SCHILLINGCOIN_NODE_MINISKETCHWRAPPER_H
 
 #include <minisketch.h>
 #include <cstddef>
@@ -16,4 +16,4 @@ Minisketch MakeMinisketch32(size_t capacity);
 Minisketch MakeMinisketch32FP(size_t max_elements, uint32_t fpbits);
 } // namespace node
 
-#endif // BITCOIN_NODE_MINISKETCHWRAPPER_H
+#endif // SCHILLINGCOIN_NODE_MINISKETCHWRAPPER_H

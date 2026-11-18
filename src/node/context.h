@@ -27,7 +27,6 @@ class CDSNotificationInterface;
 class CChainstateHelper;
 class ChainstateManager;
 class CEvoDB;
-class CGovernanceManager;
 class CMasternodeMetaMan;
 class CMasternodeSync;
 class CNetFulfilledRequestManager;
@@ -75,7 +74,7 @@ class Warnings;
 //! any member functions. It should just be a collection of references that can
 //! be used without pulling in unwanted dependencies or functionality.
 struct NodeContext {
-    //! libbitcoin_kernel context
+    //! libschillingcoin_kernel context
     std::unique_ptr<kernel::Context> kernel;
     //! Init interface for initializing current process and connecting to other processes.
     interfaces::Init* init{nullptr};
@@ -108,7 +107,6 @@ struct NodeContext {
     std::unique_ptr<CChainstateHelper> chain_helper;
     std::unique_ptr<CDeterministicMNManager> dmnman;
     std::unique_ptr<llmq::CInstantSendManager> isman;
-    std::unique_ptr<CGovernanceManager> govman;
     std::unique_ptr<CMasternodeMetaMan> mn_metaman;
     std::unique_ptr<CMasternodeSync> mn_sync;
     std::unique_ptr<CNetFulfilledRequestManager> netfulfilledman;

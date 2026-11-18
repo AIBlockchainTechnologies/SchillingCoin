@@ -5,8 +5,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_GUICONSTANTS_H
-#define BITCOIN_QT_GUICONSTANTS_H
+#ifndef SCHILLINGCOIN_QT_GUICONSTANTS_H
+#define SCHILLINGCOIN_QT_GUICONSTANTS_H
 
 /* Milliseconds between model updates */
 static const int MODEL_UPDATE_DELAY = 1000;
@@ -56,4 +56,4 @@ static const int MAX_URI_LENGTH = 255;
 #define QAPP_APP_NAME_DEFAULT "SchillingCoin-Qt"
 #define QAPP_APP_NAME_TESTNET "SchillingCoin-Qt-testnet"
 
-#endif // BITCOIN_QT_GUICONSTANTS_H
+#endif // SCHILLINGCOIN_QT_GUICONSTANTS_H

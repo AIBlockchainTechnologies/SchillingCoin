@@ -39,10 +39,10 @@ struct CBlockTemplate;
 
 class TxValidationState;
 
-class CHDWallet : public wallet::CWallet
+class CHDWallet : public CWallet
 {
 public:
-    CHDWallet(interfaces::Chain* chain, const std::string& name, std::unique_ptr<WalletDatabase> database, bool warn_no_active_acc=true) : CWallet(chain, name, std::move(database))
+    CHDWallet(interfaces::Chain* chain, const std::string& name, std::unique_ptr<wallet::WalletDatabase> database, bool warn_no_active_acc=true) : CWallet(chain, name, std::move(database))
     {
         m_warn_no_active_acc = warn_no_active_acc;
         m_default_address_type = OutputType::LEGACY; // In Particl segwit is enabled for all types

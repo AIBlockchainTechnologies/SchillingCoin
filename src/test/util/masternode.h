@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TEST_UTIL_MASTERNODE_H
-#define BITCOIN_TEST_UTIL_MASTERNODE_H
+#ifndef SCHILLINGCOIN_TEST_UTIL_MASTERNODE_H
+#define SCHILLINGCOIN_TEST_UTIL_MASTERNODE_H
 
 #include <coins.h>
 #include <primitives/transaction.h>
@@ -29,4 +29,4 @@ CMutableTransaction CreateProRegTx(const ChainstateManager& chainman, SimpleUTXO
                                    CBLSSecretKey& operator_key_ret);
 CScript GenerateRandomAddress();
 
-#endif // BITCOIN_TEST_UTIL_MASTERNODE_H
+#endif // SCHILLINGCOIN_TEST_UTIL_MASTERNODE_H

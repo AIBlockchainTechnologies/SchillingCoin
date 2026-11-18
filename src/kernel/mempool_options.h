@@ -17,6 +17,7 @@
 
 class CBlockPolicyEstimator;
 class CDeterministicMNManager;
+class CMainSignals;
 
 namespace llmq {
 class CInstantSendManager;
@@ -85,6 +86,8 @@ struct MemPoolOptions {
     bool spent_index_enabled{false};
 
     MemPoolLimits limits{};
+
+    CMainSignals* signals{nullptr};
 };
 
 } // namespace kernel

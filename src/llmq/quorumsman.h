@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_QUORUMSMAN_H
-#define BITCOIN_LLMQ_QUORUMSMAN_H
+#ifndef SCHILLINGCOIN_LLMQ_QUORUMSMAN_H
+#define SCHILLINGCOIN_LLMQ_QUORUMSMAN_H
 
 #include <bls/bls_ies.h>
 #include <evo/types.h>
@@ -254,4 +254,4 @@ public:
 
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_QUORUMSMAN_H
+#endif // SCHILLINGCOIN_LLMQ_QUORUMSMAN_H

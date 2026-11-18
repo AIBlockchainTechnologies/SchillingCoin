@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_SHAREDCOLLATERAL_H
-#define BITCOIN_EVO_SHAREDCOLLATERAL_H
+#ifndef SCHILLINGCOIN_EVO_SHAREDCOLLATERAL_H
+#define SCHILLINGCOIN_EVO_SHAREDCOLLATERAL_H
 
 #include <script/script.h>
 
@@ -26,4 +26,4 @@ inline bool IsSharedCollateralScript(const CScript& script)
     return script == SharedCollateralScript();
 }
 
-#endif // BITCOIN_EVO_SHAREDCOLLATERAL_H
+#endif // SCHILLINGCOIN_EVO_SHAREDCOLLATERAL_H

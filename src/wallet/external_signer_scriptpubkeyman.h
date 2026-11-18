@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_EXTERNAL_SIGNER_SCRIPTPUBKEYMAN_H
-#define BITCOIN_WALLET_EXTERNAL_SIGNER_SCRIPTPUBKEYMAN_H
+#ifndef SCHILLINGCOIN_WALLET_EXTERNAL_SIGNER_SCRIPTPUBKEYMAN_H
+#define SCHILLINGCOIN_WALLET_EXTERNAL_SIGNER_SCRIPTPUBKEYMAN_H
 
 #include <wallet/scriptpubkeyman.h>
 
@@ -33,4 +33,4 @@ public:
   std::optional<common::PSBTError> FillPSBT(PartiallySignedTransaction& psbt, const PrecomputedTransactionData& txdata, const common::PSBTFillOptions& options, int* n_signed = nullptr) const override;
 };
 } // namespace wallet
-#endif // BITCOIN_WALLET_EXTERNAL_SIGNER_SCRIPTPUBKEYMAN_H
+#endif // SCHILLINGCOIN_WALLET_EXTERNAL_SIGNER_SCRIPTPUBKEYMAN_H

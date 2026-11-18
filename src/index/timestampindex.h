@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INDEX_TIMESTAMPINDEX_H
-#define BITCOIN_INDEX_TIMESTAMPINDEX_H
+#ifndef SCHILLINGCOIN_INDEX_TIMESTAMPINDEX_H
+#define SCHILLINGCOIN_INDEX_TIMESTAMPINDEX_H
 
 #include <index/base.h>
 #include <index/timestampindex_types.h>
@@ -61,4 +61,4 @@ public:
     void GetBlockHashes(uint32_t high, uint32_t low, std::vector<uint256>& hashes) const;
 };
 
-#endif // BITCOIN_INDEX_TIMESTAMPINDEX_H
+#endif // SCHILLINGCOIN_INDEX_TIMESTAMPINDEX_H

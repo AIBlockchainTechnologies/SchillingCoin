@@ -43,6 +43,7 @@
 #include <interfaces/node.h>
 #include <interfaces/wallet.h>
 #include <kernel/coinstats.h>
+#include <logging.h>
 #include <mapport.h>
 #include <net.h>
 #include <net_permissions.h>
@@ -110,7 +111,6 @@
 #include <evo/evodb.h>
 #include <evo/specialtxman.h>
 #include <flat-database.h>
-#include <governance/governance.h>
 #include <instantsend/instantsend.h>
 #include <instantsend/net_instantsend.h>
 #include <llmq/context.h>
@@ -174,6 +174,8 @@ using node::VerifyLoadedChainstate;
 using node::fPruneMode;
 using node::fReindex;
 using node::nPruneTarget;
+using util::Join;
+using util::ToString;
 #ifdef ENABLE_WALLET
 using wallet::DEFAULT_DISABLE_WALLET;
 #endif // ENABLE_WALLET
@@ -195,7 +197,7 @@ static const char* DEFAULT_ASMAP_FILENAME="ip_asn.map";
 /**
  * The PID file facilities.
  */
-static const char* BITCOIN_PID_FILENAME = "dashd.pid";
+static const char* SCHILLINGCOIN_PID_FILENAME = "dashd.pid";
 /**
  * True if this process has created a PID file.
  * Used to determine whether we should remove the PID file on shutdown.
@@ -204,7 +206,7 @@ static bool g_generated_pid{false};
 
 static fs::path GetPidFile(const ArgsManager& args)
 {
-    return AbsPathForConfigVal(args, args.GetPathArg("-pid", BITCOIN_PID_FILENAME));
+    return AbsPathForConfigVal(args, args.GetPathArg("-pid", SCHILLINGCOIN_PID_FILENAME));
 }
 
 [[nodiscard]] static bool CreatePidFile(const ArgsManager& args)
@@ -229,10 +231,9 @@ static void RemovePidFile(const ArgsManager& args)
     const auto pid_path{GetPidFile(args)};
     if (std::error_code error; !fs::remove(pid_path, error)) {
         std::string msg{error ? error.message() : "File does not exist"};
-        LogPrintf("Unable to remove PID file (%s): %s\n", fs::PathToString(pid_path), msg);
+        LogWarning("Unable to remove PID file (%s): %s", fs::PathToString(pid_path), msg);
     }
 }
-
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -312,7 +313,7 @@ void PrepareShutdown(NodeContext& node)
     static Mutex g_shutdown_mutex;
     TRY_LOCK(g_shutdown_mutex, lock_shutdown);
     if (!lock_shutdown) return;
-    LogPrintf("%s: In progress...\n", __func__);
+    LogInfo("Shutdown in progress...");
     Assert(node.args);
 
     /// Note: Shutdown() must be able to handle cases in which initialization failed part of the way,
@@ -402,7 +403,6 @@ void PrepareShutdown(NodeContext& node)
     // and reset all to nullptr.
     node.observer_ctx.reset();
     node.active_ctx.reset();
-    node.govman.reset();
     node.mn_sync.reset();
     node.netfulfilledman.reset();
     node.mn_metaman.reset();
@@ -502,7 +502,7 @@ void Shutdown(NodeContext& node)
 
     RemovePidFile(*node.args);
 
-    LogPrintf("%s: done\n", __func__);
+    LogInfo("Shutdown done");
 }
 
 /**
@@ -551,7 +551,7 @@ static void OnRPCStopped()
     rpc_notify_block_change_connection.disconnect();
     RPCNotifyBlockChange(nullptr);
     g_best_block_cv.notify_all();
-    LogPrint(BCLog::RPC, "RPC stopped.\n");
+    LogDebug(BCLog::RPC, "RPC stopped.\n");
 }
 
 void SetupServerArgs(ArgsManager& argsman)
@@ -591,12 +591,12 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-chainlocknotify=<cmd>", "Execute command when the best chainlock changes (%s in cmd is replaced by chainlocked block hash)", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
 #endif
     argsman.AddArg("-coinstatsindex", strprintf("Maintain coinstats index used by the gettxoutsetinfo RPC (default: %u)", DEFAULT_COINSTATSINDEX), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
-    argsman.AddArg("-conf=<file>", strprintf("Specify path to read-only configuration file. Relative paths will be prefixed by datadir location (only useable from command line, not configuration file) (default: %s)", BITCOIN_CONF_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    argsman.AddArg("-conf=<file>", strprintf("Specify path to read-only configuration file. Relative paths will be prefixed by datadir location (only useable from command line, not configuration file) (default: %s)", SCHILLINGCOIN_CONF_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-datadir=<dir>", "Specify data directory", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-dbbatchsize", strprintf("Maximum database write batch size in bytes (default: %u)", nDefaultDbBatchSize), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::OPTIONS);
     argsman.AddArg("-dbcache=<n>", strprintf("Maximum database cache size <n> MiB (%d to %d, default: %d). In addition, unused mempool memory is shared for this cache (see -maxmempool).", nMinDbCache, nMaxDbCache, nDefaultDbCache), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-includeconf=<file>", "Specify additional configuration file, relative to the -datadir path (only useable from configuration file, not command line)", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
-    argsman.AddArg("-allowignoredconf", strprintf("For backwards compatibility, treat an unused %s file in the datadir as a warning, not an error.", BITCOIN_CONF_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    argsman.AddArg("-allowignoredconf", strprintf("For backwards compatibility, treat an unused %s file in the datadir as a warning, not an error.", SCHILLINGCOIN_CONF_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-loadblock=<file>", "Imports blocks from external file on startup", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-maxmempool=<n>", strprintf("Keep the transaction memory pool below <n> megabytes (default: %u)", DEFAULT_MAX_MEMPOOL_SIZE_MB), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-maxorphantxsize=<n>", strprintf("Maximum total size of all orphan transactions in megabytes (default: %u)", DEFAULT_MAX_ORPHAN_TRANSACTIONS_SIZE), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
@@ -608,11 +608,11 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-parbls=<n>", strprintf("Set the number of BLS verification threads (0 = auto, <0 = leave that many cores free, max: %d, default: %d)",
         llmq::MAX_BLSCHECK_THREADS, llmq::DEFAULT_BLSCHECK_THREADS), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-persistmempool", strprintf("Whether to save the mempool on shutdown and load on restart (default: %u)", DEFAULT_PERSIST_MEMPOOL), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
-    argsman.AddArg("-pid=<file>", strprintf("Specify pid file. Relative paths will be prefixed by a net-specific datadir location. (default: %s)", BITCOIN_PID_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
-    argsman.AddArg("-prune=<n>", strprintf("Reduce storage requirements by enabling pruning (deleting) of old blocks. This allows the pruneblockchain RPC to be called to delete specific blocks, and enables automatic pruning of old blocks if a target size in MiB is provided. This mode is incompatible with -txindex, -addressindex, -spentindex and -disablegovernance=false. "
+    argsman.AddArg("-pid=<file>", strprintf("Specify pid file. Relative paths will be prefixed by a net-specific datadir location. (default: %s)", SCHILLINGCOIN_PID_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    argsman.AddArg("-prune=<n>", strprintf("Reduce storage requirements by enabling pruning (deleting) of old blocks. This allows the pruneblockchain RPC to be called to delete specific blocks, and enables automatic pruning of old blocks if a target size in MiB is provided. This mode is incompatible with -txindex, -addressindex and -spentindex. "
             "Warning: Reverting this setting requires re-downloading the entire blockchain. "
             "(default: 0 = disable pruning blocks, 1 = allow manual pruning via RPC, >%u = automatically prune block files to stay under the specified target size in MiB)", MIN_DISK_SPACE_FOR_BLOCK_FILES / 1024 / 1024), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
-    argsman.AddArg("-settings=<file>", strprintf("Specify path to dynamic settings data file. Can be disabled with -nosettings. File is written at runtime and not meant to be edited by users (use %s instead for custom settings). Relative paths will be prefixed by datadir location. (default: %s)", BITCOIN_CONF_FILENAME, BITCOIN_SETTINGS_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    argsman.AddArg("-settings=<file>", strprintf("Specify path to dynamic settings data file. Can be disabled with -nosettings. File is written at runtime and not meant to be edited by users (use %s instead for custom settings). Relative paths will be prefixed by datadir location. (default: %s)", SCHILLINGCOIN_CONF_FILENAME, SCHILLINGCOIN_SETTINGS_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-syncmempool", strprintf("Sync mempool from other nodes on start (default: %u)", DEFAULT_SYNC_MEMPOOL), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
 #if HAVE_SYSTEM
     argsman.AddArg("-startupnotify=<cmd>", "Execute command on startup.", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
@@ -704,8 +704,6 @@ void SetupServerArgs(ArgsManager& argsman)
 #if ENABLE_ZMQ
     argsman.AddArg("-zmqpubhashblock=<address>", "Enable publish hash block in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashchainlock=<address>", "Enable publish hash block (locked via ChainLocks) in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
-    argsman.AddArg("-zmqpubhashgovernanceobject=<address>", "Enable publish hash of governance objects (like proposals) in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
-    argsman.AddArg("-zmqpubhashgovernancevote=<address>", "Enable publish hash of governance votes in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashinstantsenddoublespend=<address>", "Enable publish transaction hashes of attempted InstantSend double spend in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashrecoveredsig=<address>", "Enable publish message hash of recovered signatures (recovered by LLMQs) in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashtx=<address>", "Enable publish hash transaction in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
@@ -713,8 +711,6 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-zmqpubrawblock=<address>", "Enable publish raw block in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawchainlock=<address>", "Enable publish raw block (locked via ChainLocks) in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawchainlocksig=<address>", "Enable publish raw block (locked via ChainLocks) and CLSIG message in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
-    argsman.AddArg("-zmqpubrawgovernancevote=<address>", "Enable publish raw governance objects (like proposals) in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
-    argsman.AddArg("-zmqpubrawgovernanceobject=<address>", "Enable publish raw governance votes in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawinstantsenddoublespend=<address>", "Enable publish raw transactions of attempted InstantSend double spend in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawrecoveredsig=<address>", "Enable publish raw recovered signatures (recovered by LLMQs) in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawtx=<address>", "Enable publish raw transaction in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
@@ -723,8 +719,6 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-zmqpubsequence=<address>", "Enable publish hash block and tx sequence in <address>", ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashblockhwm=<n>", strprintf("Set publish hash block outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashchainlockhwm=<n>", strprintf("Set publish hash chain lock outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
-    argsman.AddArg("-zmqpubhashgovernanceobjecthwm=<n>", strprintf("Set publish hash governance object outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
-    argsman.AddArg("-zmqpubhashgovernancevotehwm=<n>", strprintf("Set publish hash governance vote outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashinstantsenddoublespendhwm=<n>", strprintf("Set publish hash InstantSend double spend outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashrecoveredsighwm=<n>", strprintf("Set publish hash recovered signature outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubhashtxhwm=<n>", strprintf("Set publish hash transaction outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
@@ -732,8 +726,6 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-zmqpubrawblockhwm=<n>", strprintf("Set publish raw block outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawchainlockhwm=<n>", strprintf("Set publish raw chain lock outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawchainlocksighwm=<n>", strprintf("Set publish raw chain lock signature outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
-    argsman.AddArg("-zmqpubrawgovernanceobjecthwm=<n>", strprintf("Set publish raw governance object outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
-    argsman.AddArg("-zmqpubrawgovernancevotehwm=<n>", strprintf("Set publish raw governance vote outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawinstantsenddoublespendhwm=<n>", strprintf("Set publish raw InstantSend double spend outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawrecoveredsighwm=<n>", strprintf("Set publish raw recovered signature outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
     argsman.AddArg("-zmqpubrawtxhwm=<n>", strprintf("Set publish raw transaction outbound message high water mark (default: %d)", CZMQAbstractNotifier::DEFAULT_ZMQ_SNDHWM), ArgsManager::ALLOW_ANY, OptionsCategory::ZMQ);
@@ -743,8 +735,6 @@ void SetupServerArgs(ArgsManager& argsman)
 #else
     hidden_args.emplace_back("-zmqpubhashblock=<address>");
     hidden_args.emplace_back("-zmqpubhashchainlock=<address>");
-    hidden_args.emplace_back("-zmqpubhashgovernanceobject=<address>");
-    hidden_args.emplace_back("-zmqpubhashgovernancevote=<address>");
     hidden_args.emplace_back("-zmqpubhashinstantsenddoublespend=<address>");
     hidden_args.emplace_back("-zmqpubhashrecoveredsig=<address>");
     hidden_args.emplace_back("-zmqpubhashtx=<address>");
@@ -752,8 +742,6 @@ void SetupServerArgs(ArgsManager& argsman)
     hidden_args.emplace_back("-zmqpubrawblock=<address>");
     hidden_args.emplace_back("-zmqpubrawchainlock=<address>");
     hidden_args.emplace_back("-zmqpubrawchainlocksig=<address>");
-    hidden_args.emplace_back("-zmqpubrawgovernancevote=<address>");
-    hidden_args.emplace_back("-zmqpubrawgovernanceobject=<address>");
     hidden_args.emplace_back("-zmqpubrawinstantsenddoublespend=<address>");
     hidden_args.emplace_back("-zmqpubrawrecoveredsig=<address>");
     hidden_args.emplace_back("-zmqpubrawtx=<address>");
@@ -762,8 +750,6 @@ void SetupServerArgs(ArgsManager& argsman)
     hidden_args.emplace_back("-zmqpubsequence=<n>");
     hidden_args.emplace_back("-zmqpubhashblockhwm=<n>");
     hidden_args.emplace_back("-zmqpubhashchainlockhwm=<n>");
-    hidden_args.emplace_back("-zmqpubhashgovernanceobjecthwm=<n>");
-    hidden_args.emplace_back("-zmqpubhashgovernancevotehwm=<n>");
     hidden_args.emplace_back("-zmqpubhashinstantsenddoublespendhwm=<n>");
     hidden_args.emplace_back("-zmqpubhashrecoveredsighwm=<n>");
     hidden_args.emplace_back("-zmqpubhashtxhwm=<n>");
@@ -771,8 +757,6 @@ void SetupServerArgs(ArgsManager& argsman)
     hidden_args.emplace_back("-zmqpubrawblockhwm=<n>");
     hidden_args.emplace_back("-zmqpubrawchainlockhwm=<n>");
     hidden_args.emplace_back("-zmqpubrawchainlocksighwm=<n>");
-    hidden_args.emplace_back("-zmqpubrawgovernanceobjecthwm=<n>");
-    hidden_args.emplace_back("-zmqpubrawgovernancevotehwm=<n>");
     hidden_args.emplace_back("-zmqpubrawinstantsenddoublespendhwm=<n>");
     hidden_args.emplace_back("-zmqpubrawrecoveredsighwm=<n>");
     hidden_args.emplace_back("-zmqpubrawtxhwm=<n>");
@@ -797,7 +781,6 @@ void SetupServerArgs(ArgsManager& argsman)
     argsman.AddArg("-stopatheight", strprintf("Stop running after reaching the given height in the main chain (default: %u)", DEFAULT_STOPATHEIGHT), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-watchquorums=<n>", strprintf("Watch and validate quorum communication (default: %u)", llmq::DEFAULT_WATCH_QUORUMS), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-capturemessages", "Capture all P2P messages to disk", ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
-    argsman.AddArg("-disablegovernance", strprintf("Disable governance validation (0-1, default: %u)", 0), ArgsManager::ALLOW_ANY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-maxsigcachesize=<n>", strprintf("Limit sum of signature cache and script execution cache sizes to <n> MiB (default: %u)", DEFAULT_MAX_SIG_CACHE_BYTES >> 20), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::DEBUG_TEST);
     argsman.AddArg("-maxtipage=<n>",
                    strprintf("Maximum tip age in seconds to consider node in initial block download (default: %u)",
@@ -918,7 +901,7 @@ static void PeriodicStats(NodeContext& node)
         }
     } else {
         // something went wrong
-        LogPrintf("%s: GetUTXOStats failed\n", __func__);
+        LogWarning("%s: GetUTXOStats failed", __func__);
     }
 
     CBlockIndex *tip = WITH_LOCK(::cs_main, return chainman.ActiveChain().Tip());
@@ -970,9 +953,9 @@ static bool AppInitServers(NodeContext& node)
         return false;
     StartRPC();
     node.rpc_interruption_point = RpcInterruptionPoint;
-    if (!StartHTTPRPC(&node))
+    if (!StartHTTPRPC(node))
         return false;
-    if (args.GetBoolArg("-rest", DEFAULT_REST_ENABLE)) StartREST(&node);
+    if (args.GetBoolArg("-rest", DEFAULT_REST_ENABLE)) StartREST(node);
     StartHTTPServer();
     return true;
 }
@@ -983,105 +966,118 @@ void InitParameterInteraction(ArgsManager& args)
     // when specifying an explicit binding address, you want to listen on it
     // even when -connect or -proxy is specified
     if (args.IsArgSet("-bind")) {
-        if (args.SoftSetBoolArg("-listen", true))
-            LogPrintf("%s: parameter interaction: -bind set -> setting -listen=1\n", __func__);
+        if (args.SoftSetBoolArg("-listen", true)) {
+            LogInfo("parameter interaction: -bind set -> setting -listen=1\n");
+        }
     }
     if (args.IsArgSet("-whitebind")) {
-        if (args.SoftSetBoolArg("-listen", true))
-            LogPrintf("%s: parameter interaction: -whitebind set -> setting -listen=1\n", __func__);
+        if (args.SoftSetBoolArg("-listen", true)) {
+            LogInfo("parameter interaction: -whitebind set -> setting -listen=1\n");
+        }
     }
 
     if (args.IsArgSet("-connect") || args.GetIntArg("-maxconnections", DEFAULT_MAX_PEER_CONNECTIONS) <= 0) {
         // when only connecting to trusted nodes, do not seed via DNS, or listen by default
-        if (args.SoftSetBoolArg("-dnsseed", false))
-            LogPrintf("%s: parameter interaction: -connect or -maxconnections=0 set -> setting -dnsseed=0\n", __func__);
-        if (args.SoftSetBoolArg("-listen", false))
-            LogPrintf("%s: parameter interaction: -connect or -maxconnections=0 set -> setting -listen=0\n", __func__);
+        if (args.SoftSetBoolArg("-dnsseed", false)) {
+            LogInfo("parameter interaction: -connect or -maxconnections=0 set -> setting -dnsseed=0\n");
+        }
+        if (args.SoftSetBoolArg("-listen", false)) {
+            LogInfo("parameter interaction: -connect or -maxconnections=0 set -> setting -listen=0\n");
+        }
     }
 
     std::string proxy_arg = args.GetArg("-proxy", "");
     if (proxy_arg != "" && proxy_arg != "0") {
         // to protect privacy, do not listen by default if a default proxy server is specified
-        if (args.SoftSetBoolArg("-listen", false))
-            LogPrintf("%s: parameter interaction: -proxy set -> setting -listen=0\n", __func__);
+        if (args.SoftSetBoolArg("-listen", false)) {
+            LogInfo("parameter interaction: -proxy set -> setting -listen=0\n");
+        }
         // to protect privacy, do not map ports when a proxy is set. The user may still specify -listen=1
         // to listen locally, so don't rely on this happening through -listen below.
-        if (args.SoftSetBoolArg("-upnp", false))
-            LogPrintf("%s: parameter interaction: -proxy set -> setting -upnp=0\n", __func__);
-        if (args.SoftSetBoolArg("-natpmp", false))
-            LogPrintf("%s: parameter interaction: -proxy set -> setting -natpmp=0\n", __func__);
+        if (args.SoftSetBoolArg("-upnp", false)) {
+            LogInfo("parameter interaction: -proxy set -> setting -upnp=0\n");
+        }
+        if (args.SoftSetBoolArg("-natpmp", false)) {
+            LogInfo("parameter interaction: -proxy set -> setting -natpmp=0\n");
+        }
         // to protect privacy, do not discover addresses by default
-        if (args.SoftSetBoolArg("-discover", false))
-            LogPrintf("%s: parameter interaction: -proxy set -> setting -discover=0\n", __func__);
+        if (args.SoftSetBoolArg("-discover", false)) {
+            LogInfo("parameter interaction: -proxy set -> setting -discover=0\n");
+        }
     }
 
     if (!args.GetBoolArg("-listen", DEFAULT_LISTEN)) {
         // do not map ports or try to retrieve public IP when not listening (pointless)
-        if (args.SoftSetBoolArg("-upnp", false))
-            LogPrintf("%s: parameter interaction: -listen=0 -> setting -upnp=0\n", __func__);
-        if (args.SoftSetBoolArg("-natpmp", false))
-            LogPrintf("%s: parameter interaction: -listen=0 -> setting -natpmp=0\n", __func__);
-        if (args.SoftSetBoolArg("-discover", false))
-            LogPrintf("%s: parameter interaction: -listen=0 -> setting -discover=0\n", __func__);
-        if (args.SoftSetBoolArg("-listenonion", false))
-            LogPrintf("%s: parameter interaction: -listen=0 -> setting -listenonion=0\n", __func__);
+        if (args.SoftSetBoolArg("-upnp", false)) {
+            LogInfo("parameter interaction: -listen=0 -> setting -upnp=0\n");
+        }
+        if (args.SoftSetBoolArg("-natpmp", false)) {
+            LogInfo("parameter interaction: -listen=0 -> setting -natpmp=0\n");
+        }
+        if (args.SoftSetBoolArg("-discover", false)) {
+            LogInfo("parameter interaction: -listen=0 -> setting -discover=0\n");
+        }
+        if (args.SoftSetBoolArg("-listenonion", false)) {
+            LogInfo("parameter interaction: -listen=0 -> setting -listenonion=0\n");
+        }
         if (args.SoftSetBoolArg("-i2pacceptincoming", false)) {
-            LogPrintf("%s: parameter interaction: -listen=0 -> setting -i2pacceptincoming=0\n", __func__);
+            LogInfo("parameter interaction: -listen=0 -> setting -i2pacceptincoming=0\n");
         }
     }
 
     if (args.IsArgSet("-externalip")) {
         // if an explicit public IP is specified, do not try to find others
-        if (args.SoftSetBoolArg("-discover", false))
-            LogPrintf("%s: parameter interaction: -externalip set -> setting -discover=0\n", __func__);
+        if (args.SoftSetBoolArg("-discover", false)) {
+            LogInfo("parameter interaction: -externalip set -> setting -discover=0\n");
+        }
     }
 
     if (args.GetBoolArg("-blocksonly", DEFAULT_BLOCKSONLY)) {
         // disable whitelistrelay in blocksonly mode
-        if (args.SoftSetBoolArg("-whitelistrelay", false))
-            LogPrintf("%s: parameter interaction: -blocksonly=1 -> setting -whitelistrelay=0\n", __func__);
+        if (args.SoftSetBoolArg("-whitelistrelay", false)) {
+            LogInfo("parameter interaction: -blocksonly=1 -> setting -whitelistrelay=0\n");
+        }
         // Reduce default mempool size in blocksonly mode to avoid unexpected resource usage
-        if (args.SoftSetArg("-maxmempool", ToString(DEFAULT_BLOCKSONLY_MAX_MEMPOOL_SIZE_MB)))
-            LogPrintf("%s: parameter interaction: -blocksonly=1 -> setting -maxmempool=%d\n", __func__, DEFAULT_BLOCKSONLY_MAX_MEMPOOL_SIZE_MB);
+        if (args.SoftSetArg("-maxmempool", util::ToString(DEFAULT_BLOCKSONLY_MAX_MEMPOOL_SIZE_MB))) {
+            LogInfo("parameter interaction: -blocksonly=1 -> setting -maxmempool=%d\n", DEFAULT_BLOCKSONLY_MAX_MEMPOOL_SIZE_MB);
+        }
     }
 
     // Forcing relay from whitelisted hosts implies we will accept relays from them in the first place.
     if (args.GetBoolArg("-whitelistforcerelay", DEFAULT_WHITELISTFORCERELAY)) {
-        if (args.SoftSetBoolArg("-whitelistrelay", true))
-            LogPrintf("%s: parameter interaction: -whitelistforcerelay=1 -> setting -whitelistrelay=1\n", __func__);
+        if (args.SoftSetBoolArg("-whitelistrelay", true)) {
+            LogInfo("parameter interaction: -whitelistforcerelay=1 -> setting -whitelistrelay=1\n");
+        }
     }
 
-    if (args.IsArgSet("-onlynet")) {
-        const auto onlynets = args.GetArgs("-onlynet");
-        bool clearnet_reachable = std::any_of(onlynets.begin(), onlynets.end(), [](const auto& net) {
+    const auto onlynets = args.GetArgs("-onlynet");
+    if (!onlynets.empty()) {
+        const bool clearnet_reachable = std::any_of(onlynets.begin(), onlynets.end(), [](const auto& net) {
             const auto n = ParseNetwork(net);
             return n == NET_IPV4 || n == NET_IPV6;
         });
         if (!clearnet_reachable && args.SoftSetBoolArg("-dnsseed", false)) {
-            LogPrintf("%s: parameter interaction: -onlynet excludes IPv4 and IPv6 -> setting -dnsseed=0\n", __func__);
+            LogInfo("parameter interaction: -onlynet excludes IPv4 and IPv6 -> setting -dnsseed=0\n");
         }
     }
 
-    int64_t nPruneArg = args.GetIntArg("-prune", 0);
+    const int64_t nPruneArg = args.GetIntArg("-prune", 0);
     if (nPruneArg > 0) {
-        if (args.SoftSetBoolArg("-disablegovernance", true)) {
-            LogPrintf("%s: parameter interaction: -prune=%d -> setting -disablegovernance=true\n", __func__, nPruneArg);
-        }
         if (args.SoftSetBoolArg("-txindex", false)) {
-            LogPrintf("%s: parameter interaction: -prune=%d -> setting -txindex=false\n", __func__, nPruneArg);
+            LogInfo("parameter interaction: -prune=%d -> setting -txindex=false\n", nPruneArg);
         }
     }
 
     if (args.IsArgSet("-masternodeblsprivkey")) {
         if (args.SoftSetBoolArg("-disablewallet", true)) {
-            LogPrintf("%s: parameter interaction: -masternodeblsprivkey set -> setting -disablewallet=1\n", __func__);
+            LogInfo("parameter interaction: -masternodeblsprivkey set -> setting -disablewallet=1\n");
         }
         // Enable block filters for masternodes to improve network services
         if (args.SoftSetBoolArg("-peerblockfilters", true)) {
-            LogPrintf("%s: parameter interaction: -masternodeblsprivkey set -> setting -peerblockfilters=1\n", __func__);
+            LogInfo("parameter interaction: -masternodeblsprivkey set -> setting -peerblockfilters=1\n");
         }
         if (args.SoftSetArg("-blockfilterindex", "basic")) {
-            LogPrintf("%s: parameter interaction: -masternodeblsprivkey set -> setting -blockfilterindex=basic\n", __func__);
+            LogInfo("parameter interaction: -masternodeblsprivkey set -> setting -blockfilterindex=basic\n");
         }
     }
 }
@@ -1111,12 +1107,12 @@ std::set<BlockFilterType> g_enabled_filter_types;
 
 [[noreturn]] static void new_handler_terminate()
 {
-    // Rather than throwing std::bad-alloc if allocation fails, terminate
+    // Rather than throwing std::bad_alloc if allocation fails, terminate
     // immediately to (try to) avoid chain corruption.
-    // Since LogPrintf may itself allocate memory, set the handler directly
+    // Since logging may itself allocate memory, set the handler directly
     // to terminate first.
     std::set_new_handler(std::terminate);
-    LogPrintf("Error: Out of memory. Terminating.\n");
+    LogError("Out of memory. Terminating.\n");
 
     // The log was successful, terminate now.
     std::terminate();
@@ -1237,9 +1233,6 @@ bool AppInitParameterInteraction(const ArgsManager& args)
             return InitError(_("Prune mode is incompatible with -spentindex."));
         if (args.GetBoolArg("-reindex-chainstate", false)) {
             return InitError(_("Prune mode is incompatible with -reindex-chainstate. Use full -reindex instead."));
-        }
-        if (!args.GetBoolArg("-disablegovernance", !DEFAULT_GOVERNANCE_ENABLE)) {
-            return InitError(_("Prune mode is incompatible with -disablegovernance=false."));
         }
     }
 
@@ -1394,9 +1387,6 @@ bool AppInitParameterInteraction(const ArgsManager& args)
                 DEFAULT_MAX_PEER_CONNECTIONS,
                 DEFAULT_MAX_PEER_CONNECTIONS)));
         }
-        if (args.GetBoolArg("-disablegovernance", !DEFAULT_GOVERNANCE_ENABLE)) {
-            return InitError(_("You can not disable governance validation on a masternode."));
-        }
         if (args.GetBoolArg("-blocksonly", DEFAULT_BLOCKSONLY)) {
             return InitError(Untranslated("Masternode must relay transactions, set -blocksonly=0"));
         }
@@ -1426,24 +1416,11 @@ bool AppInitParameterInteraction(const ArgsManager& args)
         }
     }
 
-    // Governance needs the transaction index to look up proposal collateral transactions
-    if (!args.GetBoolArg("-disablegovernance", !DEFAULT_GOVERNANCE_ENABLE) &&
-        !args.GetBoolArg("-txindex", DEFAULT_TXINDEX) && chainparams.GetChainType() != ChainType::REGTEST) {
-        return InitError(_("Transaction index can't be disabled with governance validation enabled. Either start with "
-                           "-disablegovernance command line switch or enable transaction index."));
-    }
-
-    if (args.GetBoolArg("-disablegovernance", !DEFAULT_GOVERNANCE_ENABLE)) {
-        InitWarning(_("You are starting with governance validation disabled.") +
-            (fPruneMode ?
-                Untranslated(" ") + _("This is expected because you are running a pruned node.") :
-                Untranslated("")));
-    }
-
     // Also report errors from parsing before daemonization
     {
         ChainstateManager::Options chainman_opts_dummy{
             .chainparams = chainparams,
+            .datadir = args.GetDataDirNet(),
         };
         if (const auto error{ApplyArgsManOptions(args, chainman_opts_dummy)}) {
             return InitError(*error);
@@ -1518,15 +1495,15 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         return false;
     }
 
-    LogPrintf("Using at most %i automatic connections (%i file descriptors available)\n", nMaxConnections, nFD);
+    LogInfo("Using at most %i automatic connections (%i file descriptors available)", nMaxConnections, nFD);
 
     // Warn about relative -datadir path.
     if (args.IsArgSet("-datadir") && !args.GetPathArg("-datadir").is_absolute()) {
-        LogPrintf("Warning: relative datadir option '%s' specified, which will be interpreted relative to the " /* Continued */
-                  "current working directory '%s'. This is fragile, because if Dash Core is started in the future "
-                  "from a different location, it will be unable to locate the current data files. There could "
-                  "also be data loss if Dash Core is started while in a temporary directory.\n",
-                  args.GetArg("-datadir", ""), fs::PathToString(fs::current_path()));
+        LogWarning("Relative datadir option '%s' specified, which will be interpreted relative to the "
+                   "current working directory '%s'. This is fragile, because if SchillingCoin is started in the future "
+                   "from a different location, it will be unable to locate the current data files. There could "
+                   "also be data loss if SchillingCoin is started while in a temporary directory.",
+                   args.GetArg("-datadir", ""), fs::PathToString(fs::current_path()));
     }
 
     ValidationCacheSizes validation_cache_sizes{};
@@ -1550,7 +1527,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // Number of script-checking threads <= MAX_SCRIPTCHECK_THREADS
     script_threads = std::min(script_threads, MAX_SCRIPTCHECK_THREADS);
 
-    LogPrintf("Script verification uses %d additional threads\n", script_threads);
+    LogInfo("Script verification uses %d additional threads", script_threads);
     if (script_threads >= 1) {
         StartScriptCheckWorkerThreads(script_threads);
     }
@@ -1570,7 +1547,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     node.scheduler->scheduleEvery([&args]{
         constexpr uint64_t min_disk_space = 50 << 20; // 50 MB
         if (!CheckDiskSpace(args.GetBlocksDirPath(), min_disk_space)) {
-            LogPrintf("Shutting down due to lack of disk space!\n");
+            LogError("Shutting down due to lack of disk space!\n");
             StartShutdown();
         }
     }, std::chrono::minutes{5});
@@ -1645,9 +1622,9 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                 return false;
             }
             const uint256 asmap_version = (HashWriter{} << asmap).GetHash();
-            LogPrintf("Using asmap version %s for IP bucketing\n", asmap_version.ToString());
+            LogInfo("Using asmap version %s for IP bucketing", asmap_version.ToString());
         } else {
-            LogPrintf("Using /16 prefix for IP bucketing\n");
+            LogInfo("Using /16 prefix for IP bucketing");
         }
 
         // Initialize netgroup manager
@@ -1708,8 +1685,6 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     assert(!node.netfulfilledman);
     node.netfulfilledman = std::make_unique<CNetFulfilledRequestManager>();
 
-    const bool is_governance_enabled{!args.GetBoolArg("-disablegovernance", !DEFAULT_GOVERNANCE_ENABLE)};
-
     node.chainlocks = std::make_unique<chainlock::Chainlocks>();
 
     // Check port numbers
@@ -1736,8 +1711,6 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         {"-whitebind",                          false},
         {"-zmqpubhashblock",                     true},
         {"-zmqpubhashchainlock",                 true},
-        {"-zmqpubhashgovernanceobject",          true},
-        {"-zmqpubhashgovernancevote",            true},
         {"-zmqpubhashinstantsenddoublespend",    true},
         {"-zmqpubhashrecoveredsig",              true},
         {"-zmqpubhashtx",                        true},
@@ -1745,8 +1718,6 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         {"-zmqpubrawblock",                      true},
         {"-zmqpubrawchainlock",                  true},
         {"-zmqpubrawchainlocksig",               true},
-        {"-zmqpubrawgovernancevote",             true},
-        {"-zmqpubrawgovernanceobject",           true},
         {"-zmqpubrawinstantsenddoublespend",     true},
         {"-zmqpubrawrecoveredsig",               true},
         {"-zmqpubrawtx",                         true},
@@ -1920,31 +1891,32 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     bool fReindexChainState = args.GetBoolArg("-reindex-chainstate", false);
     ChainstateManager::Options chainman_opts{
         .chainparams = chainparams,
+        .datadir = args.GetDataDirNet(),
     };
     Assert(!ApplyArgsManOptions(args, chainman_opts)); // no error can happen, already checked in AppInitParameterInteraction
 
     // cache size calculations
     CacheSizes cache_sizes = CalculateCacheSizes(args, g_enabled_filter_types.size());
 
-    LogPrintf("Cache configuration:\n");
-    LogPrintf("* Using %.1f MiB for block index database\n", cache_sizes.block_tree_db * (1.0 / 1024 / 1024));
+    LogInfo("Cache configuration:");
+    LogInfo("* Using %.1f MiB for block index database", cache_sizes.block_tree_db * (1.0 / 1024 / 1024));
     if (args.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
-        LogPrintf("* Using %.1f MiB for transaction index database\n", cache_sizes.tx_index * (1.0 / 1024 / 1024));
+        LogInfo("* Using %.1f MiB for transaction index database", cache_sizes.tx_index * (1.0 / 1024 / 1024));
     }
     if (args.GetBoolArg("-addressindex", DEFAULT_ADDRESSINDEX)) {
-        LogPrintf("* Using %.1f MiB for address index database\n", cache_sizes.address_index * (1.0 / 1024 / 1024));
+        LogInfo("* Using %.1f MiB for address index database", cache_sizes.address_index * (1.0 / 1024 / 1024));
     }
     if (args.GetBoolArg("-timestampindex", DEFAULT_TIMESTAMPINDEX)) {
-        LogPrintf("* Using %.1f MiB for timestamp index database\n", cache_sizes.timestamp_index * (1.0 / 1024 / 1024));
+        LogInfo("* Using %.1f MiB for timestamp index database", cache_sizes.timestamp_index * (1.0 / 1024 / 1024));
     }
     if (args.GetBoolArg("-spentindex", DEFAULT_SPENTINDEX)) {
-        LogPrintf("* Using %.1f MiB for spent index database\n", cache_sizes.spent_index * (1.0 / 1024 / 1024));
+        LogInfo("* Using %.1f MiB for spent index database", cache_sizes.spent_index * (1.0 / 1024 / 1024));
     }
     for (BlockFilterType filter_type : g_enabled_filter_types) {
-        LogPrintf("* Using %.1f MiB for %s block filter index database\n",
-                  cache_sizes.filter_index * (1.0 / 1024 / 1024), BlockFilterTypeName(filter_type));
+        LogInfo("* Using %.1f MiB for %s block filter index database",
+                cache_sizes.filter_index * (1.0 / 1024 / 1024), BlockFilterTypeName(filter_type));
     }
-    LogPrintf("* Using %.1f MiB for chain state database\n", cache_sizes.coins_db * (1.0 / 1024 / 1024));
+    LogInfo("* Using %.1f MiB for chain state database", cache_sizes.coins_db * (1.0 / 1024 / 1024));
 
     assert(!node.mempool);
     assert(!node.chainman);
@@ -1953,6 +1925,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     CTxMemPool::Options mempool_opts{
         .estimator = node.fee_estimator.get(),
         .check_ratio = chainparams.DefaultConsistencyChecks() ? 1 : 0,
+        .signals = &GetMainSignals(),
     };
     if (const auto result{ApplyArgsManOptions(args, chainparams, mempool_opts)}; !result) {
         return InitError(util::ErrorString(result));
@@ -1963,7 +1936,9 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     if (mempool_opts.max_size_bytes < 0 || mempool_opts.max_size_bytes < descendant_limit_bytes) {
         return InitError(strprintf(_("-maxmempool must be at least %d MB"), std::ceil(descendant_limit_bytes / 1'000'000.0)));
     }
-    LogPrintf("* Using %.1f MiB for in-memory UTXO set (plus up to %.1f MiB of unused mempool space)\n", cache_sizes.coins * (1.0 / 1024 / 1024), mempool_opts.max_size_bytes * (1.0 / 1024 / 1024));
+    LogInfo("* Using %.1f MiB for in-memory UTXO set (plus up to %.1f MiB of unused mempool space)",
+            cache_sizes.coins * (1.0 / 1024 / 1024),
+            mempool_opts.max_size_bytes * (1.0 / 1024 / 1024));
 
     for (bool fLoaded = false; !fLoaded && !ShutdownRequested();) {
         // On a retry iteration the previous instances still hold the on-disk
@@ -1972,12 +1947,12 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         node.isman.reset();
         node.dmnman.reset();
         node.evodb.reset();
-        auto catch_exceptions = [](auto&& f) {
+        auto catch_exceptions = [](auto&& f) -> node::ChainstateLoadResult {
             try {
                 return f();
             } catch (const std::exception& e) {
-                LogPrintf("%s\n", e.what());
-                return std::make_tuple(node::ChainstateLoadStatus::FAILURE, _("Error opening block database"));
+                LogError("%s\n", e.what());
+                return {node::ChainstateLoadStatus::FAILURE, bilingual_str{_("Error opening block database")}};
             }
         };
         auto [status, error] = catch_exceptions([&]() -> node::ChainstateLoadResult {
@@ -1987,7 +1962,12 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
             mempool_opts.dmnman = node.dmnman.get();
             mempool_opts.isman = node.isman.get();
-            node.mempool = std::make_unique<CTxMemPool>(mempool_opts);
+
+            bilingual_str mempool_error;
+            node.mempool = std::make_unique<CTxMemPool>(mempool_opts, mempool_error);
+            if (!mempool_error.empty()) {
+                return {node::ChainstateLoadStatus::FAILURE_FATAL, mempool_error};
+            }
             return {node::ChainstateLoadStatus::SUCCESS, {}};
         });
 
@@ -2047,11 +2027,12 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                            MIN_BLOCKS_TO_KEEP);
             }
             std::tie(status, error) = catch_exceptions([&]{ return VerifyLoadedChainstate(chainman, options, *Assert(node.evodb), [](bool bls_state) {
-                        LogPrintf("AppInitMain: bls_legacy_scheme=%d\n", bls_state);
+                        LogDebug(BCLog::VALIDATION, "AppInitMain: bls_legacy_scheme=%d\n", bls_state);
                         });});
             if (status == node::ChainstateLoadStatus::SUCCESS) {
                 fLoaded = true;
-                LogPrintf(" block index %15dms\n", Ticks<std::chrono::milliseconds>(SteadyClock::now() - load_block_index_start_time));
+                LogInfo("Block index and chainstate loaded in %dms",
+                        Ticks<std::chrono::milliseconds>(SteadyClock::now() - load_block_index_start_time));
             }
         }
 
@@ -2070,7 +2051,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                     fReindex = true;
                     AbortShutdown();
                 } else {
-                    LogPrintf("Aborted block database rebuild. Exiting.\n");
+                    LogError("Aborted block database rebuild. Exiting.\n");
                     return false;
                 }
             } else {
@@ -2083,7 +2064,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // requested to kill the GUI during the last operation. If so, exit.
     // As the program has not fully started yet, Shutdown() is possibly overkill.
     if (ShutdownRequested()) {
-        LogPrintf("Shutdown requested. Exiting.\n");
+        LogInfo("Shutdown requested. Exiting.");
         return false;
     }
 
@@ -2091,9 +2072,6 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
     node.clhandler = std::make_unique<chainlock::ChainlockHandler>(*node.chainlocks, chainman, *node.mempool, *node.mn_sync);
     RegisterValidationInterface(node.clhandler.get());
-
-    assert(!node.govman);
-    node.govman = std::make_unique<CGovernanceManager>(*node.mn_metaman, *node.chainman, *node.chain_helper->superblocks, *node.dmnman, *node.mn_sync);
 
     // ********************************************************* Step 7b: Setup masternode mode or watch-only mode
     assert(!node.active_ctx);
@@ -2110,7 +2088,6 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         }
         // Will init later in ThreadImport
         node.active_ctx = std::make_unique<ActiveContext>(*node.llmq_ctx->bls_worker, chainman, *node.connman, *node.dmnman,
-                                                          *node.govman, *node.chain_helper->superblocks,
                                                           *node.chainlocks, *node.mempool, *node.clhandler, *node.isman,
                                                           *node.llmq_ctx->qman, *node.llmq_ctx->qsnapman, *node.llmq_ctx->sigman,
                                                           *node.mn_sync, operator_sk, dash_db_params, quorums_watch);
@@ -2185,21 +2162,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         return InitError(strprintf(_("Failed to clear masternode cache at %s"), file_path));
     }
 
-    if (is_governance_enabled) {
-        if (!node.govman->LoadCache(fLoadCacheFiles)) {
-            auto file_path = fs::PathToString(gArgs.GetDataDirNet() / "governance.dat");
-            if (fLoadCacheFiles) {
-                return InitError(strprintf(_("Failed to load governance cache from %s"), file_path));
-            }
-            return InitError(strprintf(_("Failed to clear governance cache at %s"), file_path));
-        }
-    }
-    // Always register NetGovernance so it can suppress governance inv items in AlreadyHave()
-    // even when -disablegovernance is set. The handler's ProcessMessage/Schedule paths
-    // early-return on !IsValid(), and AlreadyHave() short-circuits to true so we don't
-    // track governance inventory that cannot be processed.
-    node.peerman->AddExtraHandler(std::make_unique<NetGovernance>(node.peerman.get(), *node.govman, *node.mn_sync, *node.netfulfilledman, *node.connman));
-    node.peerman->AddExtraHandler(std::make_unique<SyncManager>(node.peerman.get(), *node.govman, *node.mn_sync, *node.connman, *node.netfulfilledman));
+    node.peerman->AddExtraHandler(std::make_unique<SyncManager>(node.peerman.get(), *node.mn_sync, *node.connman, *node.netfulfilledman));
 
     // ********************************************************* Step 8: start indexers
     if (args.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
@@ -2255,7 +2218,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // requested to kill the GUI during the last operation. If so, exit.
     if (ShutdownRequested())
     {
-        LogPrintf("Shutdown requested. Exiting.\n");
+        LogInfo("Shutdown requested. Exiting.");
         return false;
     }
     // ********************************************************* Step 10: data directory maintenance
@@ -2271,7 +2234,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             }
         }
     } else {
-        LogPrintf("Setting NODE_NETWORK on non-prune mode\n");
+        LogInfo("Setting NODE_NETWORK on non-prune mode");
         nLocalServices = ServiceFlags(nLocalServices | NODE_NETWORK);
     }
 
@@ -2279,7 +2242,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // requested to kill the GUI during the last operation. If so, exit.
     if (ShutdownRequested())
     {
-        LogPrintf("Shutdown requested. Exiting.\n");
+        LogInfo("Shutdown requested. Exiting.");
         return false;
     }
 
@@ -2399,7 +2362,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         {
             // Get all UTXOs for each MN collateral in one go so that we can fill coin cache early
             // and reduce further locking overhead for cs_main in other parts of code including GUI
-            LogPrintf("Filling coin cache with masternode UTXOs...\n");
+            LogInfo("Filling coin cache with masternode UTXOs...");
             LOCK(cs_main);
             const auto start{SteadyClock::now()};
             const auto mnList{node.dmnman->GetListAtChainTip()};
@@ -2407,14 +2370,15 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                 Coin coin;
                 GetUTXOCoin(chainman.ActiveChainstate(), dmn.collateralOutpoint, coin);
             });
-            LogPrintf("Filling coin cache with masternode UTXOs: done in %dms\n", Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
+            LogInfo("Filling coin cache with masternode UTXOs: done in %dms",
+                    Ticks<std::chrono::milliseconds>(SteadyClock::now() - start));
         }
 
         if (skip_evodb_repair_on_reindex) {
-            LogPrintf("Skipping evodb repair during reindex\n");
+            LogInfo("Skipping evodb repair during reindex");
             WITH_LOCK(::cs_main, node.dmnman->CompleteRepair());  // Mark as repaired since we're rebuilding fresh
         } else if (node.dmnman->IsRepaired() && !args.GetBoolArg("-forceevodbrepair", false)) {
-            LogPrintf("Masternode list diffs are already repaired\n");
+            LogInfo("Masternode list diffs are already repaired");
         } else {
             const CBlockIndex* start_index;
             const CBlockIndex* stop_index;
@@ -2426,7 +2390,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             }
 
             if (start_index && stop_index && start_index->nHeight < stop_index->nHeight) {
-                LogPrintf("Verifying and repairing masternode list diffs...\n");
+                LogInfo("Verifying and repairing masternode list diffs...");
                 const auto start{SteadyClock::now()};
                 // Create a callback that wraps CSpecialTxProcessor::BuildNewListFromBlock
                 auto build_list_func =
@@ -2445,17 +2409,17 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
                 if (!result.repair_errors.empty()) {
                     // Critical errors occurred - reindex required
-                    LogPrintf("Failed to repair masternode list diffs. Database corruption detected. " /* Continued */
-                              "Please restart with -reindex to rebuild the database.\n"
-                              "Errors:\n%s\n",
-                              util::Join(result.repair_errors, "\n"));
+                    LogError("Failed to repair masternode list diffs. Database corruption detected. "
+                             "Please restart with -reindex to rebuild the database.\n"
+                             "Errors:\n%s\n",
+                             util::Join(result.repair_errors, "\n"));
                     StartShutdown();
                     return;
                 }
                 WITH_LOCK(::cs_main, node.dmnman->CompleteRepair());
-                LogPrintf("Successfully repaired %d masternode list diffs, verified %d snapshots in %ds\n",
-                          result.diffs_recalculated, result.snapshots_verified,
-                          Ticks<std::chrono::seconds>(SteadyClock::now() - start));
+                LogInfo("Successfully repaired %d masternode list diffs, verified %d snapshots in %ds",
+                        result.diffs_recalculated, result.snapshots_verified,
+                        Ticks<std::chrono::seconds>(SteadyClock::now() - start));
             }
         }
 
@@ -2492,7 +2456,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // As importing blocks can take several minutes, it's possible the user
     // requested to kill the GUI during one of the last operations. If so, exit.
     if (ShutdownRequested()) {
-        LogPrintf("Shutdown requested. Exiting.\n");
+        LogInfo("Shutdown requested. Exiting.");
         return false;
     }
 
@@ -2501,7 +2465,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     //// debug print
     {
         LOCK(cs_main);
-        LogPrintf("block tree size = %u\n", chainman.BlockIndex().size());
+        LogInfo("block tree size = %u", chainman.BlockIndex().size());
         chain_active_height = chainman.ActiveChain().Height();
         if (tip_info) {
             tip_info->block_height = chain_active_height;
@@ -2514,7 +2478,7 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             tip_info->header_time = chainman.m_best_header->GetBlockTime();
         }
     }
-    LogPrintf("nBestHeight = %d\n", chain_active_height);
+    LogInfo("nBestHeight = %d", chain_active_height);
     if (node.peerman) node.peerman->SetBestHeight(chain_active_height);
 
     // Map ports with UPnP or NAT-PMP.
@@ -2643,11 +2607,11 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
             connOptions.m_specified_outgoing = connect;
         }
         if (!connOptions.m_specified_outgoing.empty() && !connOptions.vSeedNodes.empty()) {
-            LogPrintf("-seednode is ignored when -connect is used\n");
+            LogInfo("-seednode is ignored when -connect is used");
         }
 
         if (args.IsArgSet("-dnsseed") && args.GetBoolArg("-dnsseed", DEFAULT_DNSSEED) && args.IsArgSet("-proxy")) {
-            LogPrintf("-dnsseed is ignored when -connect is used and -proxy is specified\n");
+            LogInfo("-dnsseed is ignored when -connect is used and -proxy is specified");
         }
     }
 

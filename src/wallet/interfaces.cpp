@@ -1,4 +1,5 @@
-// Copyright (c) 2018-present The Bitcoin Core developers
+// Copyright (c) 2018-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -20,7 +21,6 @@
 #include <util/ui_change_type.h>
 #include <wallet/coincontrol.h>
 #include <wallet/context.h>
-#include <wallet/export.h>
 #include <wallet/feebumper.h>
 #include <wallet/fees.h>
 #include <wallet/load.h>
@@ -43,7 +43,6 @@ using interfaces::Wallet;
 using interfaces::WalletAddress;
 using interfaces::WalletBalances;
 using interfaces::WalletLoader;
-using interfaces::WalletMigrationResult;
 using interfaces::WalletTx;
 using interfaces::WalletTxOut;
 using interfaces::WalletTxStatus;
@@ -521,12 +520,6 @@ public:
     }
     CWallet* wallet() override { return m_wallet.get(); }
 
-    util::Result<std::string> exportWatchOnlyWallet(const fs::path& destination) override {
-        LOCK(m_wallet->cs_wallet);
-        m_wallet->TopUpKeyPool();
-        return ExportWatchOnlyWallet(*m_wallet, destination, m_context);
-    }
-
     WalletContext& m_context;
     std::shared_ptr<CWallet> m_wallet;
 };
@@ -556,6 +549,7 @@ public:
     }
     bool verify() override { return VerifyWallets(m_context); }
     bool load() override { return LoadWallets(m_context); }
+    void flush() override { FlushWallets(m_context); }
     void start(CScheduler& scheduler) override
     {
         m_context.scheduler = &scheduler;
@@ -606,18 +600,6 @@ public:
         }
         return wallet;
     }
-    util::Result<WalletMigrationResult> migrateWallet(const std::string& name, const SecureString& passphrase, bool load_wallet) override
-    {
-        auto res = wallet::MigrateLegacyToDescriptor(name, passphrase, m_context, load_wallet);
-        if (!res) return util::Error{util::ErrorString(res)};
-        WalletMigrationResult out{
-            .wallet = MakeWallet(m_context, res->wallet),
-            .watchonly_wallet_name = res->watchonly_wallet_name,
-            .solvables_wallet_name = res->solvables_wallet_name,
-            .backup_path = res->backup_path,
-        };
-        return out;
-    }
     bool isEncrypted(const std::string& wallet_name) override
     {
         auto wallets{GetWallets(m_context)};
@@ -630,10 +612,6 @@ public:
         DatabaseStatus status;
         bilingual_str error;
         auto db = MakeWalletDatabase(wallet_name, options, status, error);
-        if (!db && status == wallet::DatabaseStatus::FAILED_LEGACY_DISABLED) {
-            options.require_format = wallet::DatabaseFormat::BERKELEY_RO;
-            db = MakeWalletDatabase(wallet_name, options, status, error);
-        }
         if (!db) return false;
         return WalletBatch(*db).IsEncrypted();
     }

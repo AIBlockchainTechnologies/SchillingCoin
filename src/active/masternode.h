@@ -1,9 +1,10 @@
 // Copyright (c) 2014-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ACTIVE_MASTERNODE_H
-#define BITCOIN_ACTIVE_MASTERNODE_H
+#ifndef SCHILLINGCOIN_ACTIVE_MASTERNODE_H
+#define SCHILLINGCOIN_ACTIVE_MASTERNODE_H
 
 #include <bls/bls.h>
 
@@ -74,4 +75,4 @@ private:
     bool GetLocalAddress(CService& addrRet) EXCLUSIVE_LOCKS_REQUIRED(cs);
 };
 
-#endif // BITCOIN_ACTIVE_MASTERNODE_H
+#endif // SCHILLINGCOIN_ACTIVE_MASTERNODE_H

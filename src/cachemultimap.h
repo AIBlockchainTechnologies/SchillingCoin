@@ -2,8 +2,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CACHEMULTIMAP_H
-#define BITCOIN_CACHEMULTIMAP_H
+#ifndef SCHILLINGCOIN_CACHEMULTIMAP_H
+#define SCHILLINGCOIN_CACHEMULTIMAP_H
 
 #include <cstddef>
 #include <map>
@@ -239,4 +239,4 @@ private:
     }
 };
 
-#endif // BITCOIN_CACHEMULTIMAP_H
+#endif // SCHILLINGCOIN_CACHEMULTIMAP_H

@@ -263,7 +263,7 @@ file(GLOB RPC_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/rpc/*.h)
 file(GLOB SCRIPT_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/script/*.h)
 file(GLOB ZMQ_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/zmq/*.h)
 
-source_group("BitcoinHeaders" FILES
+source_group("SchillingCoinHeaders" FILES
         ${HEADERS}
         ${CRYPTO_HEADERS}
         ${POLICY_HEADERS}
@@ -326,7 +326,7 @@ set(SERVER_SOURCES
         ./src/validationinterface.cpp
         ./src/zschchain.cpp
         )
-add_library(SERVER_A STATIC ${BitcoinHeaders} ${SERVER_SOURCES})
+add_library(SERVER_A STATIC ${SchillingCoinHeaders} ${SERVER_SOURCES})
 if(MINIUPNP_FOUND)
     target_compile_definitions(SERVER_A PUBLIC "-DSTATICLIB -DMINIUPNP_STATICLIB")
 endif()
@@ -345,7 +345,7 @@ if(ZMQ_FOUND)
             ./src/zmq/zmqrpc.cpp
             ./src/zmq/zmqutil.cpp
             )
-    add_library(ZMQ_A STATIC ${BitcoinHeaders} ${ZMQ_SOURCES} ${ZMQ_LIB})
+    add_library(ZMQ_A STATIC ${SchillingCoinHeaders} ${ZMQ_SOURCES} ${ZMQ_LIB})
     target_include_directories(ZMQ_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${ZMQ_INCLUDE_DIR} ${OPENSSL_INCLUDE_DIR})
     target_compile_definitions(ZMQ_A PUBLIC "-DZMQ_STATIC")
 endif()
@@ -368,12 +368,11 @@ set(WALLET_SOURCES
         ./src/wallet/hdchain.cpp
         ./src/wallet/fees.cpp
         ./src/wallet/wallet.cpp
-        ./src/wallet/wallet_ismine.cpp
         ./src/wallet/walletdb.cpp
         ./src/zsch/zschmodule.cpp
         ./src/stakeinput.cpp
         )
-add_library(WALLET_A STATIC ${BitcoinHeaders} ${WALLET_SOURCES})
+add_library(WALLET_A STATIC ${SchillingCoinHeaders} ${WALLET_SOURCES})
 target_include_directories(WALLET_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/secp256k1/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/univalue/include
@@ -382,7 +381,7 @@ target_include_directories(WALLET_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${BerkeleyDB_INCLUDE_DIRS}
         )
 
-set(BITCOIN_CRYPTO_SOURCES
+set(SCHILLINGCOIN_CRYPTO_SOURCES
         ./src/crypto/aes.cpp
         ./src/crypto/sha1.cpp
         ./src/crypto/sha256.cpp
@@ -445,8 +444,8 @@ set(BITCOIN_CRYPTO_SOURCES
         ./src/crypto/sph_haval.h
         ./src/crypto/sph_types.h
         )
-add_library(BITCOIN_CRYPTO_A STATIC ${BITCOIN_CRYPTO_SOURCES})
-target_include_directories(BITCOIN_CRYPTO_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${OPENSSL_INCLUDE_DIR})
+add_library(SCHILLINGCOIN_CRYPTO_A STATIC ${SCHILLINGCOIN_CRYPTO_SOURCES})
+target_include_directories(SCHILLINGCOIN_CRYPTO_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src ${OPENSSL_INCLUDE_DIR})
 
 set(ZEROCOIN_SOURCES
         ./src/libzerocoin/Accumulator.h
@@ -485,7 +484,6 @@ set(COMMON_SOURCES
         ./src/coins.cpp
         ./src/common/args.cpp
         ./src/common/bloom.cpp
-        ./src/common/common.cpp
         ./src/common/config.cpp
         ./src/common/init.cpp
         ./src/common/interfaces.cpp
@@ -518,6 +516,7 @@ set(COMMON_SOURCES
         ./src/protocol.cpp
         ./src/scheduler.cpp
         ./src/script/interpreter.cpp
+        ./src/script/ismine.cpp
         ./src/script/script.cpp
         ./src/script/script_error.cpp
         ./src/script/sign.cpp
@@ -525,7 +524,7 @@ set(COMMON_SOURCES
         ./src/zsch/deterministicmint.cpp
         ./src/zsch/zerocoin.cpp
         )
-add_library(COMMON_A STATIC ${BitcoinHeaders} ${COMMON_SOURCES})
+add_library(COMMON_A STATIC ${SchillingCoinHeaders} ${COMMON_SOURCES})
 target_include_directories(COMMON_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/secp256k1/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/leveldb/include
@@ -561,14 +560,14 @@ set(UTIL_SOURCES
         ./src/util/threadnames.cpp
         ./src/util/tokenpipe.cpp
         )
-add_library(UTIL_A STATIC ${BitcoinHeaders} ${UTIL_SOURCES})
+add_library(UTIL_A STATIC ${SchillingCoinHeaders} ${UTIL_SOURCES})
 target_include_directories(UTIL_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/univalue/include
         ${OPENSSL_INCLUDE_DIR}
         )
 
 set(CLI_A_SOURCES ./src/rpc/client.cpp)
-add_library(CLI_A STATIC ${BitcoinHeaders} ${CLI_A_SOURCES})
+add_library(CLI_A STATIC ${SchillingCoinHeaders} ${CLI_A_SOURCES})
 target_include_directories(CLI_A PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/univalue/include
         )
@@ -588,7 +587,7 @@ target_link_libraries(schillingcoin-cli
         CLI_A
         univalue
         UTIL_A
-        BITCOIN_CRYPTO_A
+        SCHILLINGCOIN_CRYPTO_A
         ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${LIBEVENT_LIB}
         )
 if($ENV{target} MATCHES "Windows")
@@ -606,7 +605,7 @@ target_link_libraries(schillingcoin-tx
         COMMON_A
         ZEROCOIN_A
         UTIL_A
-        BITCOIN_CRYPTO_A
+        SCHILLINGCOIN_CRYPTO_A
         secp256k1
         ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ${LIBEVENT_LIB}
         )
@@ -623,7 +622,7 @@ set(schillingcoind_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/init/bitcoind.cpp ${C
 if($ENV{target} MATCHES "Windows")
     list(APPEND schillingcoind_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/schillingcoind-res.rc)
 endif()
-add_executable(schillingcoind ${schillingcoind_SOURCES} ${BitcoinHeaders})
+add_executable(schillingcoind ${schillingcoind_SOURCES} ${SchillingCoinHeaders})
 add_dependencies(schillingcoind libunivalue libsecp256k1 leveldb leveldb_sse42 memenv)
 target_include_directories(schillingcoind PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src
         ${CMAKE_CURRENT_SOURCE_DIR}/src/leveldb
@@ -638,7 +637,7 @@ target_link_libraries(schillingcoind
         univalue
         ZEROCOIN_A
         UTIL_A
-        BITCOIN_CRYPTO_A
+        SCHILLINGCOIN_CRYPTO_A
         ${CMAKE_BINARY_DIR}/libleveldb.a
         ${CMAKE_BINARY_DIR}/libleveldb_sse42.a
         ${CMAKE_BINARY_DIR}/libmemenv.a

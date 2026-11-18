@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NODE_PSBT_H
-#define BITCOIN_NODE_PSBT_H
+#ifndef SCHILLINGCOIN_NODE_PSBT_H
+#define SCHILLINGCOIN_NODE_PSBT_H
 
 #include <psbt.h>
 
@@ -52,4 +52,4 @@ struct PSBTAnalysis {
 PSBTAnalysis AnalyzePSBT(PartiallySignedTransaction psbtx);
 } // namespace node
 
-#endif // BITCOIN_NODE_PSBT_H
+#endif // SCHILLINGCOIN_NODE_PSBT_H

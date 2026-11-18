@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_VERSIONBITS_H
-#define BITCOIN_VERSIONBITS_H
+#ifndef SCHILLINGCOIN_VERSIONBITS_H
+#define SCHILLINGCOIN_VERSIONBITS_H
 
 #include <chain.h>
 #include <gsl/pointers.h>
@@ -139,4 +139,4 @@ protected:
     static AbstractEHFManager* globalInstance;
 };
 
-#endif // BITCOIN_VERSIONBITS_H
+#endif // SCHILLINGCOIN_VERSIONBITS_H

@@ -198,7 +198,7 @@ bool StartHTTPRPC(const CoreContext& context)
     if (!InitRPCAuthentication())
         return false;
 
-    auto handle_rpc = HTTPRequest* req, const std::string& {
+    auto handle_rpc = [context](HTTPRequest* req, const std::string&) {
         return HTTPReq_JSONRPC(context, req);
     };
     RegisterHTTPHandler("/", true, handle_rpc);

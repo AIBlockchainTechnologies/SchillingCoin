@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_CONTEXT_H
-#define BITCOIN_CONTEXT_H
+#ifndef SCHILLINGCOIN_CONTEXT_H
+#define SCHILLINGCOIN_CONTEXT_H
 
 #include <functional>
 #include <variant>
@@ -37,4 +37,4 @@ T* GetContext(const CoreContext& context) noexcept
                 : nullptr;
 }
 
-#endif // BITCOIN_CONTEXT_H
+#endif // SCHILLINGCOIN_CONTEXT_H

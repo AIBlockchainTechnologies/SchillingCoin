@@ -1,9 +1,10 @@
 // Copyright (c) 2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INSTANTSEND_NET_INSTANTSEND_H
-#define BITCOIN_INSTANTSEND_NET_INSTANTSEND_H
+#ifndef SCHILLINGCOIN_INSTANTSEND_NET_INSTANTSEND_H
+#define SCHILLINGCOIN_INSTANTSEND_NET_INSTANTSEND_H
 
 #include <net_processing.h>
 #include <util/threadinterrupt.h>
@@ -122,4 +123,4 @@ private:
     CThreadInterrupt workInterrupt;
 };
 
-#endif // BITCOIN_INSTANTSEND_NET_INSTANTSEND_H
+#endif // SCHILLINGCOIN_INSTANTSEND_NET_INSTANTSEND_H

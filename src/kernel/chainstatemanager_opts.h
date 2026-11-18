@@ -1,12 +1,14 @@
 // Copyright (c) 2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_KERNEL_CHAINSTATEMANAGER_OPTS_H
-#define BITCOIN_KERNEL_CHAINSTATEMANAGER_OPTS_H
+#ifndef SCHILLINGCOIN_KERNEL_CHAINSTATEMANAGER_OPTS_H
+#define SCHILLINGCOIN_KERNEL_CHAINSTATEMANAGER_OPTS_H
 
 #include <arith_uint256.h>
 #include <uint256.h>
+#include <util/fs.h>
 #include <util/time.h>
 
 #include <cstdint>
@@ -26,6 +28,7 @@ namespace kernel {
  */
 struct ChainstateManagerOpts {
     const CChainParams& chainparams;
+    fs::path datadir;
     std::optional<bool> check_block_index{};
     bool checkpoints_enabled{DEFAULT_CHECKPOINTS_ENABLED};
     //! If set, it will override the minimum work we will assume exists on some valid chain.
@@ -38,4 +41,4 @@ struct ChainstateManagerOpts {
 
 } // namespace kernel
 
-#endif // BITCOIN_KERNEL_CHAINSTATEMANAGER_OPTS_H
+#endif // SCHILLINGCOIN_KERNEL_CHAINSTATEMANAGER_OPTS_H

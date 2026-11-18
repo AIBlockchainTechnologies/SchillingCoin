@@ -114,9 +114,6 @@ extern const char* SENDTXRCNCL;
 extern const char* SPORK;
 extern const char* GETSPORKS;
 extern const char* SYNCSTATUSCOUNT;
-extern const char* MNGOVERNANCESYNC;
-extern const char* MNGOVERNANCEOBJECT;
-extern const char* MNGOVERNANCEOBJECTVOTE;
 
 /* Deterministic masternode, LLMQ, ChainLocks, and InstantSend messages. */
 extern const char* GETMNLISTDIFF;
@@ -338,11 +335,7 @@ enum GetDataMsg : uint32_t {
     MSG_MASTERNODE_ANNOUNCE = 14,
     MSG_MASTERNODE_PING = 15,
     // Value 16 was historically used for DSTX.
-
-    // Temporarily retained while the remaining governance owners are retired.
-    MSG_GOVERNANCE_OBJECT = 17,
-    MSG_GOVERNANCE_OBJECT_VOTE = 18,
-
+    // Values 17 and 18 were historically used for governance objects and votes.
     // Value 19 remains reserved.
 
     // Modern donor-aligned inventory namespace.

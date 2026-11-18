@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NODE_CHAINSTATE_H
-#define BITCOIN_NODE_CHAINSTATE_H
+#ifndef SCHILLINGCOIN_NODE_CHAINSTATE_H
+#define SCHILLINGCOIN_NODE_CHAINSTATE_H
 
 #include <llmq/options.h>
 #include <util/fs.h>
@@ -98,4 +98,4 @@ ChainstateLoadResult VerifyLoadedChainstate(ChainstateManager& chainman, const C
                                             std::function<void(bool)> notify_bls_state = nullptr);
 } // namespace node
 
-#endif // BITCOIN_NODE_CHAINSTATE_H
+#endif // SCHILLINGCOIN_NODE_CHAINSTATE_H

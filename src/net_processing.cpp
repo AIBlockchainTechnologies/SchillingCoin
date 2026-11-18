@@ -81,10 +81,8 @@ using node::ReadBlockFromDisk;
 /** Maximum number of in-flight object requests from a peer. It is not a hard limit, but the
  *  threshold at which point the OVERLOADED_PEER_OBJECT_DELAY kicks in. */
 static constexpr int32_t MAX_PEER_OBJECT_REQUEST_IN_FLIGHT = 100;
-/** Maximum number of announced objects from a peer.
- *  Unlike Bitcoin, this is not reduced to 5000: governance vote sync legitimately announces up to
- *  MAX_INV_SZ objects from a single peer (see CGovernanceManager). */
-static constexpr int32_t MAX_PEER_OBJECT_ANNOUNCEMENTS = std::max<int32_t>(5000, 2 * MAX_INV_SZ);
+/** Maximum number of announced objects from a peer. */
+static constexpr int32_t MAX_PEER_OBJECT_ANNOUNCEMENTS{5000};
 /** How long to delay requesting transactions from non-preferred peers */
 static constexpr auto NONPREF_PEER_TX_DELAY{2s};
 /** How long to delay requesting objects from overloaded peers (see
@@ -1593,9 +1591,8 @@ bool IsGetDataOnlyObject(int invType)
     // which lets the handlers drop it before doing any work on the sender's behalf.
     //
     // Not every inv-driven type belongs here. QSIGREC (proactive relay to peers that sent
-    // QSENDRECSIGS), ISDLOCK (pushed alongside MERKLEBLOCK for BIP37 clients),
-    // SPORK (bulk push in reply to GETSPORKS) and PLATFORMBAN (injected by a Dash Platform node)
-    // all have a legitimate unsolicited-push path.
+    // QSENDRECSIGS), ISDLOCK (pushed alongside MERKLEBLOCK for BIP37 clients), and PLATFORMBAN
+    // (injected by a Dash Platform node) have a legitimate unsolicited-push path.
     switch (invType) {
         case MSG_CLSIG:
         case MSG_QUORUM_FINAL_COMMITMENT:
@@ -2344,20 +2341,6 @@ bool PeerManagerImpl::AlreadyHave(const CInv& inv)
                    (g_txindex != nullptr && g_txindex->HasTx(inv.hash));
         }
 
-    /*
-        Dash Related Inventory Messages
-        ---
-        We shouldn't update the sync times for each of the messages when we already have it.
-        We're going to be asking many nodes upfront for the full inventory list, so we'll get duplicates of these.
-        We want to only update the time on new hits, so that we can time out appropriately if needed.
-    */
-    case MSG_GOVERNANCE_OBJECT:
-    case MSG_GOVERNANCE_OBJECT_VOTE:
-        for (const auto& handler : m_handlers) {
-            if (handler->AlreadyHave(inv)) return true;
-        }
-        return false;
-
     case MSG_QUORUM_FINAL_COMMITMENT:
         return m_llmq_ctx.quorum_block_processor->HasMineableCommitment(inv.hash);
     case MSG_QUORUM_RECOVERED_SIG:
@@ -2759,22 +2742,10 @@ void PeerManagerImpl::ProcessGetBlockData(CNode& pfrom, Peer& peer, const CInv& 
             // else
                 // no response
         } else if (inv.IsMsgCmpctBlk()) {
-            // If a peer is asking for old blocks, we're almost guaranteed
-            // they won't have a useful mempool to match against a compact block,
-            // and we don't feel like constructing the object for them, so
-            // instead we respond with the full, non-compact block.
-            if (can_direct_fetch &&
-                pindex->nHeight >= tip->nHeight - MAX_CMPCTBLOCK_DEPTH) {
-                if (a_recent_compact_block &&
-                    a_recent_compact_block->header.GetHash() == pindex->GetBlockHash()) {
-                    m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::CMPCTBLOCK, *a_recent_compact_block));
-                } else {
-                    CBlockHeaderAndShortTxIDs cmpctblock{*pblock, m_rng.rand64()};
-                    m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::CMPCTBLOCK, cmpctblock));
-                }
-            } else {
-                m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::BLOCK, *pblock));
-            }
+            // SCH proof-of-stake blocks require vchBlockSig, which BIP152
+            // compact-block version 1 does not transport. Preserve wire
+            // compatibility by responding with the complete signed block.
+            m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::BLOCK, *pblock));
         }
     }
 
@@ -3106,17 +3077,12 @@ void PeerManagerImpl::HeadersDirectFetchBlocks(CNode& pfrom, const Peer& peer, c
                          last_header.GetBlockHash().ToString(),
                          last_header.nHeight);
             }
-            if (vGetData.size() > 0) {
-                if (!m_ignore_incoming_txs &&
-                        nodestate->m_provides_cmpctblocks &&
-                        vGetData.size() == 1 &&
-                        mapBlocksInFlight.size() == 1 &&
-                        last_header.pprev->IsValid(BLOCK_VALID_CHAIN)) {
-                    // In any case, we want to download using a compact block, not a regular one
-                    vGetData[0] = CInv(MSG_CMPCT_BLOCK, vGetData[0].hash);
-                }
+            if (!vGetData.empty()) {
+                // Request complete blocks. SCH proof-of-stake block signatures
+                // are not transported by BIP152 compact-block version 1.
                 m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::GETDATA, vGetData));
             }
+
         }
     }
 }
@@ -3638,8 +3604,10 @@ void PeerManagerImpl::ProcessMessage(
             return;
         }
 
-        if (nVersion < MIN_PEER_PROTO_VERSION) {
-            // disconnect from peers older than this proto version
+        // Preserve compatibility with original SCH binaries that operated with
+        // dynamic protocol enforcement inactive.
+        if (nVersion < MIN_PEER_PROTO_VERSION_BEFORE_ENFORCEMENT) {
+            // Disconnect only peers older than the original SCH compatibility floor.
             LogPrint(BCLog::NET, "peer=%d using obsolete version %i; disconnecting\n", pfrom.GetId(), nVersion);
             pfrom.fDisconnect = true;
             return;
@@ -3871,14 +3839,10 @@ void PeerManagerImpl::ProcessMessage(
         // nodes)
         m_connman.PushMessage(&pfrom, msgMaker.Make(UsesCompressedHeaders(*peer) ? NetMsgType::SENDHEADERS2 : NetMsgType::SENDHEADERS));
 
-        if (pfrom.CanRelay()) {
-            // Tell our peer we are willing to provide version 1 cmpctblocks.
-            // However, we do not request new block announcements using
-            // cmpctblock messages.
-            // We send this to non-NODE NETWORK peers as well, because
-            // they may wish to request compact blocks from us
-            m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::SENDCMPCT, /*high_bandwidth=*/false, /*version=*/CMPCTBLOCKS_VERSION));
-        }
+        // SCH proof-of-stake blocks require vchBlockSig, which BIP152
+        // compact-block version 1 does not transport. Do not advertise
+        // compact-block support until SCH defines a negotiated,
+        // signature-capable compact-block wire format.
 
         if (!RejectIncomingTxs(pfrom)) {
             // Tell our peer that he should send us intra-quorum messages
@@ -3932,15 +3896,10 @@ void PeerManagerImpl::ProcessMessage(
         uint64_t sendcmpct_version{0};
         vRecv >> sendcmpct_hb >> sendcmpct_version;
 
-        if (sendcmpct_version != CMPCTBLOCKS_VERSION) return;
-
-        LOCK(cs_main);
-        CNodeState *nodestate = State(pfrom.GetId());
-        nodestate->m_provides_cmpctblocks = true;
-        nodestate->m_requested_hb_cmpctblocks = sendcmpct_hb;
-        // save whether peer selects us as BIP152 high-bandwidth peer
-        // (receiving sendcmpct(1) signals high-bandwidth, sendcmpct(0) low-bandwidth)
-        pfrom.m_bip152_highbandwidth_from = sendcmpct_hb;
+        // SCH proof-of-stake blocks require vchBlockSig, which BIP152
+        // compact-block version 1 does not transport. Keep the message
+        // parse for protocol compatibility, but do not enable compact-block
+        // relay or download state.
         return;
     }
 
@@ -4681,11 +4640,15 @@ void PeerManagerImpl::ProcessMessage(
                 blockhash.ToString(), pfrom.GetId());
         }
 
-        bool fProcessBLOCKTXN = false;
-
-        // If we end up treating this as a plain headers message, call that as well
-        // without cs_main.
-        bool fRevertToHeaderProcessing = false;
+        // SCH proof-of-stake blocks require vchBlockSig, which BIP152
+        // compact-block version 1 does not transport. Retain the valid
+        // header announcement, then let the normal headers path request
+        // the complete signed block.
+        return ProcessHeadersMessage(
+            pfrom,
+            *peer,
+            {cmpctblock.header},
+            /*via_compact_block=*/true);
 
         // Keep a CBlock for "optimistic" compactblock reconstructions (see
         // below)
@@ -5311,6 +5274,19 @@ void PeerManagerImpl::ProcessMessage(
         }
     }
 
+    // Preserve wire compatibility with legacy SCH dynamic-spork binaries.
+    // SCH uses static spork configuration, so recognize legacy spork commands
+    // without deserializing or processing dynamic spork state.
+    if (msg_type == NetMsgType::SPORK) {
+        LogPrint(BCLog::NET, "Ignoring legacy \"spork\" message. peer=%d\n", pfrom.GetId());
+        return;
+    }
+
+    if (msg_type == NetMsgType::GETSPORKS) {
+        LogPrint(BCLog::NET, "Ignoring legacy \"getsporks\" request. peer=%d\n", pfrom.GetId());
+        return;
+    }
+
     if (found)
     {
         // probably one the extensions
@@ -5336,8 +5312,8 @@ void PeerManagerImpl::ProcessMessage(
                 // since every distinct signature blob hashes differently, an unsolicited peer could
                 // otherwise repeat that free work indefinitely. A bare announcement deliberately
                 // does not qualify: it would let the peer authorise its own payload by sending INV
-                // first. Authorise after the spork gate so a CLSIG dropped while ChainLocks are
-                // disabled does not burn a later retransmit.
+                // first. Authorise after the deterministic activation gate so a CLSIG dropped while
+                // ChainLocks are disabled does not burn a later retransmit.
                 if (WITH_LOCK(::cs_main, return PeerConsumeGetDataResponse(pfrom.GetId(), clsig_inv)) ==
                     GetDataResponse::UNREQUESTED) {
                     LogPrint(BCLog::CHAINLOCKS, "CLSIG -- received unrequested CLSIG %s, peer=%d\n",
@@ -5443,7 +5419,7 @@ bool PeerManagerImpl::ProcessMessages(CNode* pfrom, std::atomic<bool>& interrupt
     CNetMessage& msg{poll_result->first};
     bool fMoreWork = poll_result->second;
 
-    TRACE6(net, inbound_message,
+    TRACEPOINT(net, inbound_message,
         pfrom->GetId(),
         pfrom->m_addr_name.c_str(),
         pfrom->ConnectionTypeAsString().c_str(),
@@ -6005,7 +5981,7 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
                 }
             }
             if (!fRevertToInv && !vHeaders.empty()) {
-                if (vHeaders.size() == 1 && state.m_requested_hb_cmpctblocks) {
+                if (false) {
                     // We only send up to 1 block as header-and-ids, as otherwise
                     // probably means we're doing an initial-ish-sync or they're slow
                     LogPrint(BCLog::NET, "%s sending header-and-ids %s to peer=%d\n", __func__,

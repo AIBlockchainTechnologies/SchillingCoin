@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_SIGNHASH_H
-#define BITCOIN_LLMQ_SIGNHASH_H
+#ifndef SCHILLINGCOIN_LLMQ_SIGNHASH_H
+#define SCHILLINGCOIN_LLMQ_SIGNHASH_H
 
 #include <llmq/params.h>
 #include <uint256.h>
@@ -73,4 +73,4 @@ struct std::hash<llmq::SignHash> {
 };
 
 
-#endif // BITCOIN_LLMQ_SIGNHASH_H
+#endif // SCHILLINGCOIN_LLMQ_SIGNHASH_H

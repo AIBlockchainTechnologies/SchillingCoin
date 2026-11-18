@@ -207,7 +207,7 @@ static bool rest_headers(const std::any& context,
         return false;
     std::string param;
     const RESTResponseFormat rf = ParseDataFormat(param, uri_part);
-    std::vector<std::string> path = SplitString(param, '/');
+    std::vector<std::string> path = util::SplitString(param, '/');
 
     std::string raw_count;
     std::string hashStr;
@@ -347,7 +347,7 @@ static bool rest_spent_txouts(const std::any& context, HTTPRequest* req, const s
     }
     std::string param;
     const RESTResponseFormat rf = ParseDataFormat(param, uri_part);
-    std::vector<std::string> path = SplitString(param, '/');
+    std::vector<std::string> path = util::SplitString(param, '/');
 
     std::string hashStr;
     if (path.size() == 1) {
@@ -562,7 +562,7 @@ static bool rest_filter_header(const std::any& context, HTTPRequest* req, const 
     std::string param;
     const RESTResponseFormat rf = ParseDataFormat(param, uri_part);
 
-    std::vector<std::string> uri_parts = SplitString(param, '/');
+    std::vector<std::string> uri_parts = util::SplitString(param, '/');
     std::string raw_count;
     std::string raw_blockhash;
     if (uri_parts.size() == 3) {
@@ -689,7 +689,7 @@ static bool rest_block_filter(const std::any& context, HTTPRequest* req, const s
     const RESTResponseFormat rf = ParseDataFormat(param, uri_part);
 
     // request is sent over URI scheme /rest/blockfilter/filtertype/blockhash
-    std::vector<std::string> uri_parts = SplitString(param, '/');
+    std::vector<std::string> uri_parts = util::SplitString(param, '/');
     if (uri_parts.size() != 2) {
         return RESTERR(req, HTTP_BAD_REQUEST, "Invalid URI format. Expected /rest/blockfilter/<filtertype>/<blockhash>");
     }
@@ -788,7 +788,7 @@ static bool rest_chaininfo(const std::any& context, HTTPRequest* req, const std:
         JSONRPCRequest jsonRequest;
         jsonRequest.context = std::ref(*node);
         jsonRequest.params = UniValue(UniValue::VARR);
-        UniValue chainInfoObject = getblockchaininfo(jsonRequest);
+        UniValue chainInfoObject = getblockchaininfo().HandleRequest(jsonRequest);
         std::string strJSON = chainInfoObject.write() + "\n";
         req->WriteHeader("Cache-Control", REST_CACHE_NO_STORE);
         req->WriteHeader("Content-Type", "application/json");
@@ -986,7 +986,7 @@ static bool rest_getutxos(const std::any& context, HTTPRequest* req, const std::
     std::vector<std::string> uri_parts;
     if (param.length() > 1) {
         const std::string uri_parameters = param.substr(1);
-        uri_parts = SplitString(uri_parameters, '/');
+        uri_parts = util::SplitString(uri_parameters, '/');
     }
 
     // Throw an error for an empty request.
@@ -1010,7 +1010,7 @@ static bool rest_getutxos(const std::any& context, HTTPRequest* req, const std::
         }
 
         for (size_t i = check_mempool ? 1 : 0; i < uri_parts.size(); ++i) {
-            const auto txid_and_output{SplitString(uri_parts[i], '-')};
+            const auto txid_and_output{util::SplitString(uri_parts[i], '-')};
             if (txid_and_output.size() != 2) {
                 return RESTERR(req, HTTP_BAD_REQUEST, "Parse error");
             }
@@ -1311,7 +1311,7 @@ static const struct {
     {"/rest/spenttxouts/", rest_spent_txouts},
 };
 
-void StartREST(const std::any& context)
+void StartREST(const CoreContext& context)
 {
     for (const auto& up : uri_prefixes) {
         auto handler = [context, up](HTTPRequest* req, const std::string& prefix) { return up.handler(context, req, prefix); };

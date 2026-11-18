@@ -1,4 +1,5 @@
 // Copyright (c) 2014-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,7 +9,7 @@
 #include <univalue.h>
 #include <util/time.h>
 
-const std::string MasternodeMetaStore::SERIALIZATION_VERSION_STRING = "CMasternodeMetaMan-Version-5";
+const std::string MasternodeMetaStore::SERIALIZATION_VERSION_STRING = "CMasternodeMetaMan-Version-6";
 
 static constexpr int MASTERNODE_MAX_FAILED_OUTBOUND_ATTEMPTS{5};
 static constexpr int MASTERNODE_MAX_MIXING_TXES{5};
@@ -51,20 +52,6 @@ UniValue CMasternodeMetaInfo::ToJson() const
     ret.pushKV("platform_ban_height_updated", m_platform_ban_updated);
 
     return ret;
-}
-
-void CMasternodeMetaInfo::AddGovernanceVote(const uint256& nGovernanceObjectHash)
-{
-    // Insert a zero value, or not. Then increment the value regardless. This
-    // ensures the value is in the map.
-    const auto& pair = mapGovernanceObjectsVotedOn.emplace(nGovernanceObjectHash, 0);
-    pair.first->second++;
-}
-
-void CMasternodeMetaInfo::RemoveGovernanceObject(const uint256& nGovernanceObjectHash)
-{
-    // Whether or not the govobj hash exists in the map first is irrelevant.
-    mapGovernanceObjectsVotedOn.erase(nGovernanceObjectHash);
 }
 
 const CMasternodeMetaInfo& CMasternodeMetaMan::GetMetaInfoOrDefault(const uint256& protx_hash) const
@@ -125,27 +112,6 @@ bool CMasternodeMetaMan::IsValidForMixingTxes(const uint256& protx_hash) const
 {
     LOCK(cs);
     return GetMetaInfoOrDefault(protx_hash).m_mixing_tx_count <= MASTERNODE_MAX_MIXING_TXES;
-}
-
-void CMasternodeMetaMan::AddGovernanceVote(const uint256& proTxHash, const uint256& nGovernanceObjectHash)
-{
-    LOCK(cs);
-    GetMetaInfo(proTxHash).AddGovernanceVote(nGovernanceObjectHash);
-}
-
-void CMasternodeMetaMan::RemoveGovernanceObject(const uint256& nGovernanceObjectHash)
-{
-    LOCK(cs);
-    for (auto& [_, meta_info] : metaInfos) {
-        meta_info.RemoveGovernanceObject(nGovernanceObjectHash);
-    }
-}
-
-std::vector<uint256> CMasternodeMetaMan::GetAndClearDirtyGovernanceObjectHashes()
-{
-    std::vector<uint256> vecTmp;
-    WITH_LOCK(cs, vecTmp.swap(vecDirtyGovernanceObjectHashes));
-    return vecTmp;
 }
 
 void CMasternodeMetaMan::SetLastOutboundAttempt(const uint256& protx_hash, int64_t t)

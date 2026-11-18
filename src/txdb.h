@@ -16,6 +16,8 @@
 
 #include <functional>
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -43,13 +45,22 @@ static const int64_t nMaxDbCache = sizeof(void*) > 4 ? 4096 : 1024;
 //! min. -dbcache in (MiB)
 static const int64_t nMinDbCache = 4;
 
-class CCoinsViewDB : public CCoinsView
+class CCoinsViewDB final : public CCoinsView
 {
 protected:
-    CDBWrapper db;
+    std::unique_ptr<CDBWrapper> m_db;
+    fs::path m_ldb_path;
+    bool m_is_memory;
 
 public:
-    CCoinsViewDB(size_t nCacheSize, bool fMemory = false, bool fWipe = false);
+    /**
+     * @param[in] ldb_path Location in the filesystem where LevelDB data will be stored.
+     */
+    explicit CCoinsViewDB(
+        fs::path ldb_path,
+        size_t cache_size_bytes,
+        bool in_memory,
+        bool should_wipe);
 
     bool GetCoin(const COutPoint& outpoint, Coin& coin) const override;
     bool HaveCoin(const COutPoint& outpoint) const override;
@@ -58,6 +69,15 @@ public:
     bool BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock) override;
     CCoinsViewCursor* Cursor() const override;
     size_t EstimateSize() const override;
+
+    //! Dynamically alter the underlying LevelDB cache size.
+    void ResizeCache(size_t new_cache_size) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+
+    //! Return the filesystem path to on-disk storage, or std::nullopt for an in-memory database.
+    std::optional<fs::path> StoragePath() const
+    {
+        return m_db->StoragePath();
+    }
 };
 
 /** Specialization of CCoinsViewCursor to iterate over a CCoinsViewDB */

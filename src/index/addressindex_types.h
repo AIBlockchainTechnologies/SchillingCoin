@@ -5,8 +5,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INDEX_ADDRESSINDEX_TYPES_H
-#define BITCOIN_INDEX_ADDRESSINDEX_TYPES_H
+#ifndef SCHILLINGCOIN_INDEX_ADDRESSINDEX_TYPES_H
+#define SCHILLINGCOIN_INDEX_ADDRESSINDEX_TYPES_H
 
 #include <consensus/amount.h>
 #include <script/script.h>
@@ -305,4 +305,4 @@ public:
     SERIALIZE_METHODS(CAddressUnspentValue, obj) { READWRITE(obj.m_amount, obj.m_tx_script, obj.m_block_height); }
 };
 
-#endif // BITCOIN_INDEX_ADDRESSINDEX_TYPES_H
+#endif // SCHILLINGCOIN_INDEX_ADDRESSINDEX_TYPES_H

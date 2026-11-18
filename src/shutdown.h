@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_SHUTDOWN_H
-#define BITCOIN_SHUTDOWN_H
+#ifndef SCHILLINGCOIN_SHUTDOWN_H
+#define SCHILLINGCOIN_SHUTDOWN_H
 
 #include <util/translation.h> // For bilingual_str
 
@@ -38,4 +38,4 @@ bool RestartRequested();
  */
 void WaitForShutdown();
 
-#endif // BITCOIN_SHUTDOWN_H
+#endif // SCHILLINGCOIN_SHUTDOWN_H

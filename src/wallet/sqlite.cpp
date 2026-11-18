@@ -1,4 +1,4 @@
-// Copyright (c) 2020-present The Bitcoin Core developers
+// Copyright (c) 2020-2026 The Bitcoin Core developers
 // Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -347,8 +347,12 @@ void SQLiteDatabase::Open(int additional_flags)
     }
 }
 
-bool SQLiteDatabase::Rewrite()
+bool SQLiteDatabase::Rewrite(const char* skip)
 {
+    // SQLite rewrites the entire database with VACUUM and cannot selectively
+    // skip individual serialized key prefixes.
+    assert(skip == nullptr);
+
     // Rewrite the database using the VACUUM command: https://sqlite.org/lang_vacuum.html
     int ret = sqlite3_exec(m_db, "VACUUM", nullptr, nullptr, nullptr);
     return ret == SQLITE_OK;
@@ -401,9 +405,10 @@ int SQliteExecHandler::Exec(SQLiteDatabase& database, const std::string& stateme
     return sqlite3_exec(database.m_db, statement.data(), nullptr, nullptr, nullptr);
 }
 
-std::unique_ptr<DatabaseBatch> SQLiteDatabase::MakeBatch()
+std::unique_ptr<DatabaseBatch> SQLiteDatabase::MakeBatch(bool flush_on_close)
 {
-    // We ignore flush_on_close because we don't do manual flushing for SQLite
+    // We ignore flush_on_close because we don't do manual flushing for SQLite.
+    (void)flush_on_close;
     return std::make_unique<SQLiteBatch>(*this);
 }
 

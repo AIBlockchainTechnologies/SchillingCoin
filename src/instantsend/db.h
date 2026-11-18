@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INSTANTSEND_DB_H
-#define BITCOIN_INSTANTSEND_DB_H
+#ifndef SCHILLINGCOIN_INSTANTSEND_DB_H
+#define SCHILLINGCOIN_INSTANTSEND_DB_H
 
 #include <saltedhasher.h>
 #include <sync.h>
@@ -162,4 +163,4 @@ public:
 };
 } // namespace instantsend
 
-#endif // BITCOIN_INSTANTSEND_DB_H
+#endif // SCHILLINGCOIN_INSTANTSEND_DB_H

@@ -2,12 +2,12 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_TEST_UTIL_INDEX_H
-#define BITCOIN_TEST_UTIL_INDEX_H
+#ifndef SCHILLINGCOIN_TEST_UTIL_INDEX_H
+#define SCHILLINGCOIN_TEST_UTIL_INDEX_H
 
 class BaseIndex;
 
 /** Block until the index is synced to the current chain */
 void IndexWaitSynced(const BaseIndex& index);
 
-#endif // BITCOIN_TEST_UTIL_INDEX_H
+#endif // SCHILLINGCOIN_TEST_UTIL_INDEX_H

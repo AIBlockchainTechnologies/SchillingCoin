@@ -18,8 +18,8 @@ static const struct {
     const char* splashImage;
 } network_styles[] = {
     {"main", QAPP_APP_NAME_DEFAULT, ":/icons/bitcoin", "", ":/bg-splash"},
-    {"test", QAPP_APP_NAME_TESTNET, ":/icons/bitcoin_testnet", QT_TRANSLATE_NOOP("SplashScreen", "[testnet]"), ":/bg-splash"},
-    {"regtest", QAPP_APP_NAME_TESTNET, ":/icons/bitcoin_regtest", "[regtest]", ":/bg-splash"}};
+    {"test", QAPP_APP_NAME_TESTNET, ":/icons/schillingcoin_testnet", QT_TRANSLATE_NOOP("SplashScreen", "[testnet]"), ":/bg-splash"},
+    {"regtest", QAPP_APP_NAME_TESTNET, ":/icons/schillingcoin_regtest", "[regtest]", ":/bg-splash"}};
 static const unsigned network_styles_count = sizeof(network_styles) / sizeof(*network_styles);
 
 // titleAddText needs to be const char* for tr()

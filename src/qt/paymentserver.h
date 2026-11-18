@@ -1,8 +1,8 @@
 // Copyright (c) 2011-2014, 2026 The Bitcoin developers
 // Distributed under the MIT software license.
 
-#ifndef BITCOIN_QT_PAYMENTSERVER_H
-#define BITCOIN_QT_PAYMENTSERVER_H
+#ifndef SCHILLINGCOIN_QT_PAYMENTSERVER_H
+#define SCHILLINGCOIN_QT_PAYMENTSERVER_H
 
 #include "walletmodel.h"
 
@@ -52,4 +52,4 @@ private:
     OptionsModel* optionsModel;
 };
 
-#endif // BITCOIN_QT_PAYMENTSERVER_H
+#endif // SCHILLINGCOIN_QT_PAYMENTSERVER_H

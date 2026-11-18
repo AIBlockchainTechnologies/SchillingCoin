@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_PROVIDERTX_SERVICE_H
-#define BITCOIN_EVO_PROVIDERTX_SERVICE_H
+#ifndef SCHILLINGCOIN_EVO_PROVIDERTX_SERVICE_H
+#define SCHILLINGCOIN_EVO_PROVIDERTX_SERVICE_H
 
 #include <interfaces/providertx.h>
 
@@ -68,4 +68,4 @@ interfaces::ProviderTxResult<interfaces::PreparedSharedConsent> PrepareSharedReg
 
 } // namespace evo::provider
 
-#endif // BITCOIN_EVO_PROVIDERTX_SERVICE_H
+#endif // SCHILLINGCOIN_EVO_PROVIDERTX_SERVICE_H

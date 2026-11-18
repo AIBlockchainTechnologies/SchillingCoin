@@ -1,10 +1,13 @@
-// Copyright (c) 2023-present The Bitcoin Core developers
+// Copyright (c) 2023-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <node/kernel_notifications.h>
+#if defined(HAVE_CONFIG_H)
+#include <config/schillingcoin-config.h>
+#endif
 
-#include <bitcoin-build-config.h> // IWYU pragma: keep
+#include <node/kernel_notifications.h>
 
 #include <chain.h>
 #include <common/args.h>

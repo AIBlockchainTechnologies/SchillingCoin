@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) The SchilingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -291,20 +292,6 @@ void CMainSignals::NotifyChainLock(const CBlockIndex* pindex, const std::shared_
     ENQUEUE_AND_LOG_EVENT(event, "%s: notify chainlock at block=%s cl=%s", __func__,
             pindex->GetBlockHash().ToString(),
             id);
-}
-
-void CMainSignals::NotifyGovernanceVote(const std::shared_ptr<CDeterministicMNList>& tip_mn_list, const std::shared_ptr<const CGovernanceVote>& vote, const std::string& id) {
-    auto event = [vote, tip_mn_list, this] {
-        m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.NotifyGovernanceVote(tip_mn_list, vote); });
-    };
-    ENQUEUE_AND_LOG_EVENT(event, "%s: notify governance vote: %s", __func__, id);
-}
-
-void CMainSignals::NotifyGovernanceObject(const std::shared_ptr<const Governance::Object>& object, const std::string& id) {
-    auto event = [object, this] {
-        m_internals->Iterate([&](CValidationInterface& callbacks) { callbacks.NotifyGovernanceObject(object); });
-    };
-    ENQUEUE_AND_LOG_EVENT(event, "%s: notify governance object: %s", __func__, id);
 }
 
 void CMainSignals::NotifyInstantSendDoubleSpendAttempt(const CTransactionRef& currentTx, const CTransactionRef& previousTx) {

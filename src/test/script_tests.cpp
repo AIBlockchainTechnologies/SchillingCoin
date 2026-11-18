@@ -18,7 +18,7 @@
 #include "validation.h"
 
 #if defined(HAVE_CONSENSUS_LIB)
-#include "script/bitcoinconsensus.h"
+#include "script/schillingcoinconsensus.h"
 #endif
 
 #include <fstream>
@@ -123,7 +123,7 @@ void DoTest(const CScript& scriptPubKey, const CScript& scriptSig, int flags, bo
     stream << tx2;
 
     BOOST_CHECK_MESSAGE(
-        bitcoinconsensus_verify_script(
+        schillingcoinconsensus_verify_script(
             begin_ptr(scriptPubKey),
             scriptPubKey.size(),
             (const unsigned char*)&stream[0],

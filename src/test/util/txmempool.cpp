@@ -1,4 +1,5 @@
 // Copyright (c) 2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -11,6 +12,7 @@
 #include <util/check.h>
 #include <util/time.h>
 #include <util/translation.h>
+#include <validationinterface.h>
 
 using node::NodeContext;
 
@@ -23,6 +25,7 @@ CTxMemPool::Options MemPoolOptionsForTest(const NodeContext& node)
         // Default to always checking mempool regardless of
         // chainparams.DefaultConsistencyChecks for tests
         .check_ratio = 1,
+        .signals = &GetMainSignals(),
     };
     const auto err{ApplyArgsManOptions(*node.args, ::Params(), mempool_opts)};
     Assert(!err);

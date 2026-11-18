@@ -210,7 +210,7 @@ public:
 class CHDWalletDB : public WalletBatch
 {
 public:
-    CHDWalletDB(WalletDatabase& dbw, bool _fFlushOnClose = true) : WalletBatch(dbw, "r+", _fFlushOnClose)
+    CHDWalletDB(WalletDatabase& dbw, bool _fFlushOnClose = true) : WalletBatch(dbw, _fFlushOnClose)
     {
     };
 

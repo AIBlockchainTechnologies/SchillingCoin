@@ -216,7 +216,7 @@ target_include_directories(schillingcoin-qt PUBLIC ${ENDIAN_INCLUDES})
 target_link_libraries(schillingcoin-qt
         qt_stuff
         univalue
-        SERVER_A UTIL_A WALLET_A CLI_A COMMON_A BITCOIN_CRYPTO_A ZEROCOIN_A
+        SERVER_A UTIL_A WALLET_A CLI_A COMMON_A SCHILLINGCOIN_CRYPTO_A ZEROCOIN_A
         leveldb leveldb_sse42 memenv secp256k1
         ${BerkeleyDB_LIBRARIES} ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} ${LIBEVENT_LIB}
         pthread

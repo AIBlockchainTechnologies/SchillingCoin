@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_SMLDIFF_H
-#define BITCOIN_EVO_SMLDIFF_H
+#ifndef SCHILLINGCOIN_EVO_SMLDIFF_H
+#define SCHILLINGCOIN_EVO_SMLDIFF_H
 
 #include <bls/bls.h>
 #include <evo/dmn_types.h>
@@ -100,4 +100,4 @@ bool BuildSimplifiedMNListDiff(CDeterministicMNManager& dmnman, const Chainstate
 /** Whether a serving failure is caused by this node not retaining the requested block data. */
 bool IsBlockDataUnavailableError(const std::string& error);
 
-#endif // BITCOIN_EVO_SMLDIFF_H
+#endif // SCHILLINGCOIN_EVO_SMLDIFF_H

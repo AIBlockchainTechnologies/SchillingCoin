@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_NODE_UTXO_SNAPSHOT_H
-#define BITCOIN_NODE_UTXO_SNAPSHOT_H
+#ifndef SCHILLINGCOIN_NODE_UTXO_SNAPSHOT_H
+#define SCHILLINGCOIN_NODE_UTXO_SNAPSHOT_H
 
 #include <serialize.h>
 #include <uint256.h>
@@ -74,4 +74,4 @@ std::optional<fs::path> FindSnapshotChainstateDir();
 
 } // namespace node
 
-#endif // BITCOIN_NODE_UTXO_SNAPSHOT_H
+#endif // SCHILLINGCOIN_NODE_UTXO_SNAPSHOT_H

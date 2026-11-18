@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INDEX_ADDRESSINDEX_H
-#define BITCOIN_INDEX_ADDRESSINDEX_H
+#ifndef SCHILLINGCOIN_INDEX_ADDRESSINDEX_H
+#define SCHILLINGCOIN_INDEX_ADDRESSINDEX_H
 
 #include <index/addressindex_types.h>
 #include <index/base.h>
@@ -86,4 +86,4 @@ public:
                                 std::vector<CAddressUnspentIndexEntry>& entries, const bool height_sort = false) const;
 };
 
-#endif // BITCOIN_INDEX_ADDRESSINDEX_H
+#endif // SCHILLINGCOIN_INDEX_ADDRESSINDEX_H

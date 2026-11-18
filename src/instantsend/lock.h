@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_INSTANTSEND_LOCK_H
-#define BITCOIN_INSTANTSEND_LOCK_H
+#ifndef SCHILLINGCOIN_INSTANTSEND_LOCK_H
+#define SCHILLINGCOIN_INSTANTSEND_LOCK_H
 
 #include <bls/bls.h>
 #include <consensus/consensus.h>
@@ -69,4 +70,4 @@ bool HasLockInputs(const CTransaction& tx);
 using InstantSendLockPtr = std::shared_ptr<InstantSendLock>;
 } // namespace instantsend
 
-#endif // BITCOIN_INSTANTSEND_LOCK_H
+#endif // SCHILLINGCOIN_INSTANTSEND_LOCK_H

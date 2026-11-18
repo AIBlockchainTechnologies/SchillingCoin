@@ -1,8 +1,8 @@
 <RCC>
     <qresource prefix="/icons">
         <file alias="bitcoin">res/icons/bitcoin.png</file>
-        <file alias="bitcoin_testnet">res/icons/bitcoin_testnet.png</file>
-        <file alias="bitcoin_regtest">res/icons/bitcoin_regtest.png</file>
+        <file alias="schillingcoin_testnet">res/icons/schillingcoin_testnet.png</file>
+        <file alias="schillingcoin_regtest">res/icons/schillingcoin_regtest.png</file>
         <file alias="ic-transaction-mint">res/icons/ic-transaction-mint.png</file>
         <file alias="ic-transaction-received">res/icons/ic-transaction-received.png</file>
         <file alias="ic-transaction-sent">res/icons/ic-transaction-sent.png</file>

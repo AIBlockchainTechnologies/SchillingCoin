@@ -19,19 +19,14 @@
 class CActiveMasternodeManager;
 class CBLSWorker;
 class CConnman;
-class CGovernanceManager;
 class CMasternodeSync;
 class CMNHFManager;
 class CTxMemPool;
-class GovernanceSigner;
 namespace chainlock {
 class Chainlocks;
 class ChainlockHandler;
 class ChainLockSigner;
 } // namespace chainlock
-namespace governance {
-class SuperblockManager;
-} // namespace governance
 namespace instantsend {
 class InstantSendSigner;
 } // namespace instantsend
@@ -58,8 +53,7 @@ public:
     ActiveContext(const ActiveContext&) = delete;
     ActiveContext& operator=(const ActiveContext&) = delete;
     explicit ActiveContext(CBLSWorker& bls_worker, ChainstateManager& chainman, CConnman& connman,
-                           CDeterministicMNManager& dmnman, CGovernanceManager& govman,
-                           governance::SuperblockManager& superblocks,
+                           CDeterministicMNManager& dmnman,
                            const chainlock::Chainlocks& chainlocks, CTxMemPool& mempool,
                            chainlock::ChainlockHandler& clhandler, llmq::CInstantSendManager& isman,
                            llmq::CQuorumManager& qman, llmq::CQuorumSnapshotManager& qsnapman,
@@ -92,7 +86,6 @@ public:
     const std::unique_ptr<llmq::CSigSharesManager> shareman;
 
 private:
-    const std::unique_ptr<GovernanceSigner> gov_signer;
     const std::unique_ptr<llmq::CEHFSignalsHandler> ehf_sighandler;
     const std::unique_ptr<chainlock::ChainLockSigner> cl_signer;
 

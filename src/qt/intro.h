@@ -4,8 +4,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_INTRO_H
-#define BITCOIN_QT_INTRO_H
+#ifndef SCHILLINGCOIN_QT_INTRO_H
+#define SCHILLINGCOIN_QT_INTRO_H
 
 #include <QDialog>
 #include <QMutex>
@@ -79,4 +79,4 @@ private:
     friend class FreespaceChecker;
 };
 
-#endif // BITCOIN_QT_INTRO_H
+#endif // SCHILLINGCOIN_QT_INTRO_H

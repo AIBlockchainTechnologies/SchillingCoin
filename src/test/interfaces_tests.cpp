@@ -352,11 +352,9 @@ BOOST_AUTO_TEST_CASE(getPlatformQuorums)
 }
 
 // getInstantSendLock returns the network-serialized islock for a locked txid, and an empty vector
-// both for unknown txids and while InstantSend is disabled (spork gate inside the manager).
+// for unknown txids or while InstantSend is below SCH's deterministic DIP0002 activation boundary.
 BOOST_AUTO_TEST_CASE(getInstantSendLock)
 {
-    constexpr const char* REGTEST_SPORK_PRIVKEY{"cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK"};
-
     auto node{interfaces::MakeNode(m_node)};
     auto& isman{*Assert(m_node.isman)};
 
@@ -371,13 +369,22 @@ BOOST_AUTO_TEST_CASE(getInstantSendLock)
 
     isman.WriteNewISLock(::SerializeHash(*islock), islock, /*minedHeight=*/std::nullopt);
 
-    // SPORK_2 defaults to OFF: the stored lock must not leak through the interface.
+    const CBlockIndex* const tip{
+        WITH_LOCK(::cs_main, return Assert(m_node.chainman)->ActiveChain().Tip())};
+    BOOST_REQUIRE(tip != nullptr);
+    isman.CacheTipHeight(tip);
+
+    const Consensus::Params saved_consensus{Params().GetConsensus()};
+    auto& consensus{const_cast<Consensus::Params&>(Params().GetConsensus())};
+
+    // Move activation above the cached tip: the stored lock must not leak through the interface.
+    consensus.DIP0002Height = tip->nHeight + 1;
+    BOOST_CHECK(!isman.IsInstantSendEnabled());
     BOOST_CHECK(node->llmq().getInstantSendLock(islock->txid).empty());
 
-    // The fixture builds a bare CSporkManager, so wire up the regtest signer before setting the spork.
-    BOOST_REQUIRE(m_node.sporkman->SetSporkAddress(Params().SporkAddress()));
-    BOOST_REQUIRE(m_node.sporkman->SetPrivKey(REGTEST_SPORK_PRIVKEY));
-    BOOST_REQUIRE(m_node.sporkman->UpdateSpork(SPORK_2_INSTANTSEND_ENABLED, 0).has_value());
+    // Restore SCH's configured activation and verify the serialized interface result.
+    consensus = saved_consensus;
+    BOOST_REQUIRE(isman.IsInstantSendEnabled());
 
     CDataStream expected{SER_NETWORK, PROTOCOL_VERSION};
     expected << *islock;

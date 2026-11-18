@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_SPECIALTXMAN_H
-#define BITCOIN_EVO_SPECIALTXMAN_H
+#ifndef SCHILLINGCOIN_EVO_SPECIALTXMAN_H
+#define SCHILLINGCOIN_EVO_SPECIALTXMAN_H
 
 #include <consensus/amount.h>
 #include <gsl/pointers.h>
@@ -182,4 +182,4 @@ bool CheckSharedCollateralTemplateOutputs(const CTransaction& tx, TxValidationSt
  * true for any transaction that is not an asset lock or not special-tx.
  */
 bool IsStandardSpecialTx(const CTransaction& tx, std::string& reason);
-#endif // BITCOIN_EVO_SPECIALTXMAN_H
+#endif // SCHILLINGCOIN_EVO_SPECIALTXMAN_H

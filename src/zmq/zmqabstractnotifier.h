@@ -1,9 +1,10 @@
 // Copyright (c) 2015 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_ZMQ_ZMQABSTRACTNOTIFIER_H
-#define BITCOIN_ZMQ_ZMQABSTRACTNOTIFIER_H
+#ifndef SCHILLINCOIN_ZMQ_ZMQABSTRACTNOTIFIER_H
+#define SCHILLINGCOIN_ZMQ_ZMQABSTRACTNOTIFIER_H
 
 #include "zmqconfig.h"
 
@@ -42,4 +43,4 @@ protected:
     std::string address;
 };
 
-#endif // BITCOIN_ZMQ_ZMQABSTRACTNOTIFIER_H
+#endif // SCHILLINGCOIN_ZMQ_ZMQABSTRACTNOTIFIER_H

@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-present The Bitcoin Core developers
+// Copyright (c) 2009-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -29,6 +30,8 @@ std::string GetTxnOutputType(TxoutType t)
     case TxoutType::WITNESS_V0_SCRIPTHASH: return "witness_v0_scripthash";
     case TxoutType::WITNESS_V1_TAPROOT: return "witness_v1_taproot";
     case TxoutType::WITNESS_UNKNOWN: return "witness_unknown";
+    case TxoutType::ZEROCOINMINT: return "zerocoinmint";
+    case TxoutType::COLDSTAKE: return "coldstake";
     } // no default case, so the compiler can warn about missing cases
     assert(false);
 }
@@ -50,6 +53,16 @@ static bool MatchPayToPubkeyHash(const CScript& script, valtype& pubkeyhash)
 {
     if (script.size() == 25 && script[0] == OP_DUP && script[1] == OP_HASH160 && script[2] == 20 && script[23] == OP_EQUALVERIFY && script[24] == OP_CHECKSIG) {
         pubkeyhash = valtype(script.begin () + 3, script.begin() + 23);
+        return true;
+    }
+    return false;
+}
+
+static bool MatchPayToColdStaking(const CScript& script, valtype& staker_pubkey_hash, valtype& owner_pubkey_hash)
+{
+    if (script.IsPayToColdStaking()) {
+        staker_pubkey_hash = valtype(script.begin() + 6, script.begin() + 26);
+        owner_pubkey_hash = valtype(script.begin() + 28, script.begin() + 48);
         return true;
     }
     return false;
@@ -142,13 +155,22 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
 {
     vSolutionsRet.clear();
 
-    // Shortcut for pay-to-script-hash, which are more constrained than the other types:
-    // it is always OP_HASH160 20 [20 byte hash] OP_EQUAL
-    if (scriptPubKey.IsPayToScriptHash())
-    {
-        std::vector<unsigned char> hashBytes(scriptPubKey.begin()+2, scriptPubKey.begin()+22);
-        vSolutionsRet.push_back(hashBytes);
+    // Shortcut for pay-to-script-hash, which is more constrained than the other types.
+    if (scriptPubKey.IsPayToScriptHash()) {
+        std::vector<unsigned char> hash_bytes(scriptPubKey.begin() + 2, scriptPubKey.begin() + 22);
+        vSolutionsRet.push_back(std::move(hash_bytes));
         return TxoutType::SCRIPTHASH;
+    }
+
+    // Historical SCH Zerocoin mint classification. Runtime Zerocoin is retired,
+    // but historical-chain interpretation must still recognize these scripts.
+    if (scriptPubKey.IsZerocoinMint()) {
+        if (scriptPubKey.size() > 150) {
+            return TxoutType::NONSTANDARD;
+        }
+        std::vector<unsigned char> hash_bytes(scriptPubKey.begin() + 2, scriptPubKey.end());
+        vSolutionsRet.push_back(std::move(hash_bytes));
+        return TxoutType::ZEROCOINMINT;
     }
 
     int witnessversion;
@@ -170,19 +192,17 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
             return TxoutType::ANCHOR;
         }
         if (witnessversion != 0) {
-            vSolutionsRet.push_back(std::vector<unsigned char>{(unsigned char)witnessversion});
+            vSolutionsRet.push_back(std::vector<unsigned char>{static_cast<unsigned char>(witnessversion)});
             vSolutionsRet.push_back(std::move(witnessprogram));
             return TxoutType::WITNESS_UNKNOWN;
         }
         return TxoutType::NONSTANDARD;
     }
 
-    // Provably prunable, data-carrying output
-    //
-    // So long as script passes the IsUnspendable() test and all but the first
-    // byte passes the IsPushOnly() test we don't care what exactly is in the
-    // script.
-    if (scriptPubKey.size() >= 1 && scriptPubKey[0] == OP_RETURN && scriptPubKey.IsPushOnly(scriptPubKey.begin()+1)) {
+    // Provably prunable, data-carrying output.
+    if (scriptPubKey.size() >= 1 &&
+        scriptPubKey[0] == OP_RETURN &&
+        scriptPubKey.IsPushOnly(scriptPubKey.begin() + 1)) {
         return TxoutType::NULL_DATA;
     }
 
@@ -197,12 +217,19 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
         return TxoutType::PUBKEYHASH;
     }
 
+    std::vector<unsigned char> owner_data;
+    if (MatchPayToColdStaking(scriptPubKey, data, owner_data)) {
+        vSolutionsRet.push_back(std::move(data));
+        vSolutionsRet.push_back(std::move(owner_data));
+        return TxoutType::COLDSTAKE;
+    }
+
     int required;
     std::vector<std::vector<unsigned char>> keys;
     if (MatchMultisig(scriptPubKey, required, keys)) {
-        vSolutionsRet.push_back({static_cast<unsigned char>(required)}); // safe as required is in range 1..20
+        vSolutionsRet.push_back({static_cast<unsigned char>(required)});
         vSolutionsRet.insert(vSolutionsRet.end(), keys.begin(), keys.end());
-        vSolutionsRet.push_back({static_cast<unsigned char>(keys.size())}); // safe as size is in range 1..20
+        vSolutionsRet.push_back({static_cast<unsigned char>(keys.size())});
         return TxoutType::MULTISIG;
     }
 

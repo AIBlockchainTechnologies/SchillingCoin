@@ -1,9 +1,10 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_MNAUTH_H
-#define BITCOIN_EVO_MNAUTH_H
+#ifndef SCHILLINGCOIN_EVO_MNAUTH_H
+#define SCHILLINGCOIN_EVO_MNAUTH_H
 
 #include <bls/bls.h>
 #include <msg_result.h>
@@ -67,4 +68,4 @@ public:
 };
 
 
-#endif // BITCOIN_EVO_MNAUTH_H
+#endif // SCHILLINGCOIN_EVO_MNAUTH_H

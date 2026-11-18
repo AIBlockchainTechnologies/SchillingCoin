@@ -8,8 +8,6 @@
 
 #include <context.h>
 
-#include <any>
-
 /** Start HTTP RPC subsystem.
  * Precondition; HTTP and RPC has been started.
  */
@@ -25,7 +23,7 @@ void StopHTTPRPC();
 /** Start HTTP REST subsystem.
  * Precondition; HTTP and RPC has been started.
  */
-void StartREST(const std::any& context);
+void StartREST(const CoreContext& context);
 /** Interrupt RPC REST subsystem.
  */
 void InterruptREST();

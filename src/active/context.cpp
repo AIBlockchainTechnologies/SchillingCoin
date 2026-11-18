@@ -10,9 +10,6 @@
 #include <chainlock/handler.h>
 #include <chainlock/signing.h>
 #include <evo/deterministicmns.h>
-#include <governance/governance.h>
-#include <governance/signing.h>
-#include <governance/superblock.h>
 #include <instantsend/instantsend.h>
 #include <instantsend/signing.h>
 #include <llmq/debug.h>
@@ -28,8 +25,7 @@
 #include <validationinterface.h>
 
 ActiveContext::ActiveContext(CBLSWorker& bls_worker, ChainstateManager& chainman, CConnman& connman,
-                             CDeterministicMNManager& dmnman, CGovernanceManager& govman,
-                             governance::SuperblockManager& superblocks,
+                             CDeterministicMNManager& dmnman,
                              const chainlock::Chainlocks& chainlocks, CTxMemPool& mempool,
                              chainlock::ChainlockHandler& clhandler, llmq::CInstantSendManager& isman,
                              llmq::CQuorumManager& qman, llmq::CQuorumSnapshotManager& qsnapman,
@@ -43,7 +39,6 @@ ActiveContext::ActiveContext(CBLSWorker& bls_worker, ChainstateManager& chainman
     dkgdbgman{std::make_unique<llmq::CDKGDebugManager>(dmnman, qsnapman, chainman)},
     qdkgsman{std::make_unique<llmq::CDKGSessionManager>(dmnman, qsnapman, chainman, db_params)},
     shareman{std::make_unique<llmq::CSigSharesManager>(connman, chainman, sigman, *nodeman, qman)},
-    gov_signer{std::make_unique<GovernanceSigner>(dmnman, govman, superblocks, *nodeman, chainman, mn_sync)},
     ehf_sighandler{std::make_unique<llmq::CEHFSignalsHandler>(chainman, sigman, *shareman, qman)},
     cl_signer{std::make_unique<chainlock::ChainLockSigner>(chainman, chainlocks, clhandler, isman,
                                                            qman, sigman, *shareman, mn_sync)},
@@ -97,7 +92,6 @@ void ActiveContext::UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIn
     }
 
     ehf_sighandler->UpdatedBlockTip(pindexNew);
-    gov_signer->UpdatedBlockTip(pindexNew);
     qdkgsman->UpdatedBlockTip(pindexNew, fInitialDownload);
 }
 

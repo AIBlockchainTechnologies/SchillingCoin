@@ -708,7 +708,7 @@ private:
 
         const CTransactionRef& m_ptx;
         /** Txid. */
-        const uint256& m_hash;
+        const Txid& m_hash;
         TxValidationState m_state;
         /** A temporary cache containing serialized transaction data for signature verification.
          * Reused across PolicyScriptChecks and ConsensusScriptChecks. */
@@ -750,7 +750,7 @@ private:
     // The package may end up partially-submitted after size limiting; returns true if all
     // transactions are successfully added to the mempool, false otherwise.
     bool SubmitPackage(const ATMPArgs& args, std::vector<Workspace>& workspaces, PackageValidationState& package_state,
-                       std::map<const uint256, const MempoolAcceptResult>& results)
+                       std::map<Txid, MempoolAcceptResult>& results)
          EXCLUSIVE_LOCKS_REQUIRED(cs_main, m_pool.cs);
 
     // Compare a package's feerate against minimum allowed.
@@ -1184,7 +1184,7 @@ bool MemPoolAccept::Finalize(const ATMPArgs& args, Workspace& ws)
 
 bool MemPoolAccept::SubmitPackage(const ATMPArgs& args, std::vector<Workspace>& workspaces,
                                   PackageValidationState& package_state,
-                                  std::map<const uint256, const MempoolAcceptResult>& results)
+                                  std::map<Txid, MempoolAcceptResult>& results)
 {
     AssertLockHeld(cs_main);
     AssertLockHeld(m_pool.cs);
@@ -1242,7 +1242,7 @@ bool MemPoolAccept::SubmitPackage(const ATMPArgs& args, std::vector<Workspace>& 
     // make sure we haven't exceeded max mempool size.
     LimitMempoolSize(m_pool, m_active_chainstate.CoinsTip());
 
-    std::vector<uint256> all_package_txids;
+    std::vector<Txid> all_package_txids;
     all_package_txids.reserve(workspaces.size());
     std::transform(workspaces.cbegin(), workspaces.cend(), std::back_inserter(all_package_txids),
                    [](const auto& ws) { return ws.m_ptx->GetHash(); });
@@ -1252,7 +1252,7 @@ bool MemPoolAccept::SubmitPackage(const ATMPArgs& args, std::vector<Workspace>& 
         const auto effective_feerate = args.m_package_feerates ? ws.m_package_feerate :
             CFeeRate{ws.m_modified_fees, static_cast<uint32_t>(ws.m_vsize)};
         const auto effective_feerate_txids = args.m_package_feerates ? all_package_txids :
-            std::vector<uint256>({ws.m_ptx->GetHash()});
+            std::vector<Txid>{ws.m_ptx->GetHash()};
         if (m_pool.exists(ws.m_ptx->GetHash())) {
             results.emplace(ws.m_ptx->GetHash(),
                 MempoolAcceptResult::Success(ws.m_vsize, ws.m_base_fees, effective_feerate, effective_feerate_txids));
@@ -1284,7 +1284,7 @@ MempoolAcceptResult MemPoolAccept::AcceptSingleTransaction(const CTransactionRef
     if (!ConsensusScriptChecks(args, ws)) return MempoolAcceptResult::Failure(ws.m_state);
 
     const CFeeRate effective_feerate{ws.m_modified_fees, static_cast<uint32_t>(ws.m_vsize)};
-    const std::vector<uint256> single_txid{ws.m_ptx->GetHash()};
+    const std::vector<Txid> single_txid{ws.m_ptx->GetHash()};
     // Tx was accepted, but not added
     if (args.m_test_accept) {
         return MempoolAcceptResult::Success(ws.m_vsize, ws.m_base_fees, effective_feerate, single_txid);
@@ -1355,7 +1355,7 @@ PackageMempoolAcceptResult MemPoolAccept::AcceptMultipleTransactions(const std::
         return PackageMempoolAcceptResult(package_state, std::move(results));
     }
 
-    std::vector<uint256> all_package_txids;
+    std::vector<Txid> all_package_txids;
     all_package_txids.reserve(workspaces.size());
     std::transform(workspaces.cbegin(), workspaces.cend(), std::back_inserter(all_package_txids),
                    [](const auto& ws) { return ws.m_ptx->GetHash(); });
@@ -1371,7 +1371,7 @@ PackageMempoolAcceptResult MemPoolAccept::AcceptMultipleTransactions(const std::
             const auto effective_feerate = args.m_package_feerates ? ws.m_package_feerate :
                 CFeeRate{ws.m_modified_fees, static_cast<uint32_t>(ws.m_vsize)};
             const auto effective_feerate_txids = args.m_package_feerates ? all_package_txids :
-                std::vector<uint256>{ws.m_ptx->GetHash()};
+                std::vector<Txid>{ws.m_ptx->GetHash()};
             results.emplace(ws.m_ptx->GetHash(),
                             MempoolAcceptResult::Success(ws.m_vsize, ws.m_base_fees, effective_feerate, effective_feerate_txids));
         }
@@ -1667,11 +1667,11 @@ CAmount GetBlockSubsidy(const CBlockIndex* const pindex, const Consensus::Params
 }
 
 CoinsViews::CoinsViews(
-    fs::path ldb_name,
+    fs::path db_path,
     size_t cache_size_bytes,
     bool in_memory,
     bool should_wipe) : m_dbview(
-                            gArgs.GetDataDirNet() / ldb_name, cache_size_bytes, in_memory, should_wipe),
+                            std::move(db_path), cache_size_bytes, in_memory, should_wipe),
                         m_catcherview(&m_dbview) {}
 
 void CoinsViews::InitCache()
@@ -1692,6 +1692,15 @@ Chainstate::Chainstate(CTxMemPool* mempool,
       m_blockman(blockman),
       m_chainman(chainman),
       m_from_snapshot_blockhash(from_snapshot_blockhash) {}
+
+fs::path Chainstate::StoragePath() const
+{
+    fs::path path{m_chainman.m_options.datadir / "chainstate"};
+    if (m_from_snapshot_blockhash) {
+        path += node::SNAPSHOT_CHAINSTATE_SUFFIX;
+    }
+    return path;
+}
 
 ::EvoDbIdentity Chainstate::EvoDbIdentity() const
 {
@@ -1721,15 +1730,10 @@ const CBlockIndex* Chainstate::SnapshotBase()
 void Chainstate::InitCoinsDB(
     size_t cache_size_bytes,
     bool in_memory,
-    bool should_wipe,
-    fs::path leveldb_name)
+    bool should_wipe)
 {
-    if (m_from_snapshot_blockhash) {
-        leveldb_name += node::SNAPSHOT_CHAINSTATE_SUFFIX;
-    }
-
     m_coins_views = std::make_unique<CoinsViews>(
-        leveldb_name, cache_size_bytes, in_memory, should_wipe);
+        StoragePath(), cache_size_bytes, in_memory, should_wipe);
 }
 
 void Chainstate::InitCoinsCache(size_t cache_size_bytes)
@@ -2738,10 +2742,8 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
              Ticks<SecondsDouble>(time_is_filter),
              Ticks<MillisecondsDouble>(time_is_filter) / num_blocks_total);
 
-    // DASH : MODIFIED TO CHECK MASTERNODE PAYMENTS AND SUPERBLOCKS
-
-    // TODO: resync data (both ways?) and try to reprocess this block later.
-    CAmount feeReward = nFees;
+    // Validate SCH block value and deterministic masternode payments.
+    const CAmount feeReward = nFees;
     std::string strError;
 
     const auto time_5_2{SteadyClock::now()};
@@ -2751,14 +2753,9 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
              Ticks<SecondsDouble>(time_subsidy),
              Ticks<MillisecondsDouble>(time_subsidy) / num_blocks_total);
 
-    const SuperBlockCheckType check_superblock = !m_chain_helper->IsSuperblockValidationRequired(pindex)
-        ? SuperBlockCheckType::NoCheck
-        : special_tx_rules.v24 ? SuperBlockCheckType::DisallowDuplicates : SuperBlockCheckType::AllowDuplicates;
-
-
-    if (!m_chain_helper->mn_payments->IsBlockValueValid(m_chain, block, pindex->pprev, blockSubsidy + feeReward, strError, check_superblock)) {
-        // NOTE: Do not punish, the node might be missing governance data
-        LogPrintf("ERROR: ConnectBlock(DASH): %s\n", strError);
+    if (!m_chain_helper->mn_payments->IsBlockValueValid(
+            block, pindex->pprev, blockSubsidy + feeReward, strError)) {
+        LogPrintf("ERROR: ConnectBlock: %s\n", strError);
         return state.Invalid(BlockValidationResult::BLOCK_RESULT_UNSET, "bad-cb-amount");
     }
 
@@ -2770,10 +2767,10 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
              Ticks<MillisecondsDouble>(time_value_valid) / num_blocks_total);
 
     const MnRewardEra mn_reward_era{GetMnRewardEraAfter(pindex->pprev, m_chainman)};
-    if (!m_chain_helper->mn_payments->IsBlockPayeeValid(m_chain, *block.vtx[0], pindex->pprev, blockSubsidy, feeReward,
-                                                        mn_reward_era, special_tx_rules.v24, check_superblock)) {
-        // NOTE: Do not punish, the node might be missing governance data
-        LogPrintf("ERROR: ConnectBlock(DASH): couldn't find masternode or superblock payments\n");
+    if (!m_chain_helper->mn_payments->IsBlockPayeeValid(
+            *block.vtx[0], pindex->pprev, blockSubsidy, feeReward,
+            mn_reward_era, special_tx_rules.v24)) {
+        LogPrintf("ERROR: ConnectBlock: couldn't find required masternode payments\n");
         return state.Invalid(BlockValidationResult::BLOCK_RESULT_UNSET, "bad-cb-payee");
     }
 
@@ -2835,7 +2832,7 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
 
     ::g_stats_client->timing("ConnectBlock_ms", Ticks<std::chrono::milliseconds>(time_8 - time_start), 1.0f);
 
-    TRACE6(validation, block_connected,
+    TRACEPOINT(validation, block_connected,
         block_hash.data(),
         pindex->nHeight,
         block.vtx.size(),
@@ -4428,7 +4425,7 @@ bool IsBlockMutated(const CBlock& block)
         // Note: This is not a consensus change as this only applies to blocks that
         // don't have a coinbase transaction and would therefore already be invalid.
         return std::any_of(block.vtx.begin(), block.vtx.end(),
-                           [](auto& tx) { return ::GetSerializeSize(*tx, PROTOCOL_VERSION) == 64; });
+                           [](auto& tx) { return ::GetSerializeSize(TX_NO_WITNESS(tx)) == 64; });
     } else {
         // Theoretically it is still possible for a block with a 64 byte
         // coinbase transaction to be mutated but we neglect that possibility
@@ -4728,9 +4725,12 @@ bool ChainstateManager::ProcessNewBlockHeaders(const std::vector<CBlockHeader>& 
     if (NotifyHeaderTip(ActiveChainstate())) {
         if (ActiveChainstate().IsInitialBlockDownload() && ppindex && *ppindex) {
             const CBlockIndex& last_accepted{**ppindex};
-            const int64_t blocks_left{(GetTime() - last_accepted.GetBlockTime()) / GetConsensus().nPowTargetSpacing};
+            int64_t blocks_left{
+                (GetTime() - last_accepted.GetBlockTime()) /
+                GetConsensus().PowTargetSpacing().count()};
+            blocks_left = std::max<int64_t>(0, blocks_left);
             const double progress{100.0 * last_accepted.nHeight / (last_accepted.nHeight + blocks_left)};
-            LogPrintf("Synchronizing blockheaders, height: %d (~%.2f%%)\n", last_accepted.nHeight, progress);
+            LogInfo("Synchronizing blockheaders, height: %d (~%.2f%%)\n", last_accepted.nHeight, progress);
         }
     }
     return true;
@@ -6065,7 +6065,7 @@ bool ChainstateManager::ActivateSnapshot(
         LOCK(::cs_main);
         snapshot_chainstate->InitCoinsDB(
             static_cast<size_t>(current_coinsdb_cache_size * SNAPSHOT_CACHE_PERC),
-            in_memory, false, "chainstate");
+            in_memory, false);
         snapshot_chainstate->InitCoinsCache(
             static_cast<size_t>(current_coinstip_cache_size * SNAPSHOT_CACHE_PERC));
     }
@@ -6665,8 +6665,8 @@ bool ChainstateManager::IsQuorumTypeEnabled(const Consensus::LLMQType llmqType,
     case Consensus::LLMQType::LLMQ_DEVNET:
         return true;
     case Consensus::LLMQType::LLMQ_50_60:
-        return !fDIP0024IsActive || !fHaveDIP0024Quorums || GetParams().NetworkIDString() == CBaseChainParams::TESTNET ||
-               GetParams().NetworkIDString() == CBaseChainParams::DEVNET;
+        return !fDIP0024IsActive || !fHaveDIP0024Quorums ||
+               GetParams().GetChainType() == ChainType::TESTNET;
     case Consensus::LLMQType::LLMQ_TEST_INSTANTSEND:
         return !fDIP0024IsActive || !fHaveDIP0024Quorums ||
                GetConsensus().llmqTypeDIP0024InstantSend == Consensus::LLMQType::LLMQ_TEST_INSTANTSEND;

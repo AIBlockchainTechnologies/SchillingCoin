@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UTIL_RANGES_SET_H
-#define BITCOIN_UTIL_RANGES_SET_H
+#ifndef SCHILLINGCOIN_UTIL_RANGES_SET_H
+#define SCHILLINGCOIN_UTIL_RANGES_SET_H
 
 #include <hash.h>
 #include <saltedhasher.h>
@@ -131,4 +131,4 @@ public:
     }
 };
 
-#endif // BITCOIN_UTIL_RANGES_SET_H
+#endif // SCHILLINGCOIN_UTIL_RANGES_SET_H

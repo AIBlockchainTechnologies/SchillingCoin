@@ -8,6 +8,7 @@
 #ifndef SCHILLINGCOIN_WALLETDB_H
 #define SCHILLINGCOIN_WALLETDB_H
 
+#include "addresstype.h"
 #include "consensus/amount.h"
 #include "key.h"
 #include "keystore.h"
@@ -16,9 +17,11 @@
 #include "wallet/db.h"
 #include "wallet/hdchain.h"
 
+#include <functional>
 #include <list>
 #include <stdint.h>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -43,6 +46,28 @@ enum DBErrors {
     DB_LOAD_FAIL,
     DB_NEED_REWRITE
 };
+
+namespace wallet {
+namespace DBKeys {
+
+extern const std::string MASTER_KEY;
+
+extern const std::string PART_EXTACC;
+extern const std::string PART_EXTKEY;
+extern const std::string PART_EXTKEYNAMED;
+extern const std::string PART_EXTKEYPACK;
+extern const std::string PART_FLAG;
+extern const std::string PART_LEXTKEYCK;
+extern const std::string PART_LOCKEDBLINDOUTPUT;
+extern const std::string PART_LOCKEDUTXO;
+extern const std::string PART_STEALTHCHILDKEYPACK;
+extern const std::string PART_SXADDR;
+extern const std::string PART_SXADDRKEYPACK;
+extern const std::string PART_SXKEYMETADATA;
+extern const std::string PART_WALLETSETTING;
+
+} // namespace DBKeys
+} // namespace wallet
 
 class CKeyMetadata
 {
@@ -124,9 +149,12 @@ private:
 
 public:
     explicit WalletBatch(
-        WalletDatabase& database,
-        const char* pszMode = "r+",
-        bool fFlushOnClose = true);
+        wallet::WalletDatabase& database,
+        bool flush_on_close = true) :
+        m_batch(database.MakeBatch(flush_on_close)),
+        m_database(database)
+    {
+    }
 
     WalletBatch(const WalletBatch&) = delete;
     WalletBatch& operator=(const WalletBatch&) = delete;
@@ -184,6 +212,8 @@ public:
     bool WriteDestData(const std::string& address, const std::string& key, const std::string& value);
     /// Erase destination data tuple from wallet database
     bool EraseDestData(const std::string& address, const std::string& key);
+    /// Erase all destination data associated with an address.
+    bool EraseAddressData(const CTxDestination& dest);
 
     CAmount GetAccountCreditDebit(const std::string& strAccount);
     void ListAccountCreditDebit(const std::string& strAccount, std::list<CAccountingEntry>& acentries);
@@ -254,17 +284,33 @@ public:
     bool EraseZSCHSeed();
     bool EraseZSCHSeed_deprecated();
 
-private:
-    std::unique_ptr<DatabaseBatch> m_batch;
-    WalletDatabase& m_database;
+protected:
+    std::unique_ptr<wallet::DatabaseBatch> m_batch;
+    wallet::WalletDatabase& m_database;
 
+private:
     bool WriteAccountingEntry(const uint64_t nAccEntryNum, const CAccountingEntry& acentry);
 };
+
+/**
+ * Executes the provided function within a wallet database transaction.
+ *
+ * Database changes are committed atomically when the function succeeds and
+ * rolled back when it fails.
+ */
+bool RunWithinTxn(wallet::WalletDatabase& database, std::string_view process_desc, const std::function<bool(WalletBatch&)>& func);
 
 //! Called during init: Automatic backups
 bool AutoBackupWallet(CWallet& wallet, std::string& strBackupWarning, std::string& strBackupError);
 
 //! Compacts BDB state so that wallet.dat is self-contained (if there are changes)
 void MaybeCompactWalletDB();
+
+namespace wallet {
+
+/** Return an object providing access to a temporary in-memory BDB database. */
+std::unique_ptr<WalletDatabase> CreateMockWalletDatabaseBDB();
+
+} // namespace wallet
 
 #endif // SCHILLINGCOIN_WALLETDB_H

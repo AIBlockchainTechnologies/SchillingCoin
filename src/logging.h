@@ -3,8 +3,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LOGGING_H
-#define BITCOIN_LOGGING_H
+#ifndef SCHILLINGCOIN_LOGGING_H
+#define SCHILLINGCOIN_LOGGING_H
 
 #include <crypto/siphash.h>
 #include <logging/categories.h> // IWYU pragma: export
@@ -283,4 +283,4 @@ namespace BCLog {
 
 BCLog::Logger& LogInstance();
 
-#endif // BITCOIN_LOGGING_H
+#endif // SCHILLINGCOIN_LOGGING_H

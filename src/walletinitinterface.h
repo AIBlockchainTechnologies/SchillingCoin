@@ -4,7 +4,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #ifndef SCHILLINGCOIN_WALLETINITINTERFACE_H
-#define SCHILLINGCOIn_WALLETINITINTERFACE_H
+#define SCHILLINGCOIN_WALLETINITINTERFACE_H
 
 class ArgsManager;
 namespace interfaces {

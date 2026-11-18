@@ -288,7 +288,7 @@ public:
     void AggregateInsecure(const CBLSSecretKey& o);
     static CBLSSecretKey AggregateInsecure(Span<CBLSSecretKey> sks);
 
-#ifndef BUILD_BITCOIN_INTERNAL
+#ifndef BUILD_SCHILLINGCOIN_INTERNAL
     //! MakeNewKey() is invariant to BLS scheme
     void MakeNewKey();
 #endif

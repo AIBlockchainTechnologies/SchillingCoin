@@ -2,8 +2,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_DKGSESSION_H
-#define BITCOIN_LLMQ_DKGSESSION_H
+#ifndef SCHILLINGCOIN_LLMQ_DKGSESSION_H
+#define SCHILLINGCOIN_LLMQ_DKGSESSION_H
 
 #include <llmq/dkgmessages.h>
 
@@ -266,4 +266,4 @@ void SetSimulatedDKGErrorRate(DKGError::type type, double rate);
 double GetSimulatedErrorRate(DKGError::type type);
 } // namespace llmq
 
-#endif // BITCOIN_LLMQ_DKGSESSION_H
+#endif // SCHILLINGCOIN_LLMQ_DKGSESSION_H

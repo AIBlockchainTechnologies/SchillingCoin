@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -1305,7 +1306,9 @@ void FuncTestMempoolReorg(TestChainSetup& setup)
     const auto collateralOutpoint = GetCollateralOutpoint(tx_collateral);
     auto tx_reg = CreateProRegTxExternalCollateral(chainman, utxos, 1, collateralOutpoint, scriptPayout, ownerKey, operatorKey, collateralKey, setup.coinbaseKey);
 
-    CTxMemPool testPool{MemPoolOptionsForTest(setup.m_node)};
+    bilingual_str mempool_error;
+    CTxMemPool testPool{MemPoolOptionsForTest(setup.m_node), mempool_error};
+    BOOST_REQUIRE(mempool_error.empty());
     TestMemPoolEntryHelper entry;
     LOCK2(cs_main, testPool.cs);
 
@@ -1389,7 +1392,9 @@ void FuncTestMempoolProTxKeyChangedConflictChain(TestChainSetup& setup)
     // The revocation that invalidates both pending ProUpServ transactions.
     auto tx_revoke = CreateProUpRevTx(chainman, utxos, proTxHash, operatorKey, setup.coinbaseKey);
 
-    CTxMemPool testPool{MemPoolOptionsForTest(setup.m_node)};
+    bilingual_str mempool_error;
+    CTxMemPool testPool{MemPoolOptionsForTest(setup.m_node), mempool_error};
+    BOOST_REQUIRE(mempool_error.empty());
     TestMemPoolEntryHelper entry;
     LOCK2(cs_main, testPool.cs);
 
@@ -1430,7 +1435,9 @@ void FuncTestMempoolDualProregtx(TestChainSetup& setup)
     const auto collateralOutpoint = GetCollateralOutpoint(tx_reg1);
     auto tx_reg2 = CreateProRegTxExternalCollateral(chainman, utxos, 2, collateralOutpoint, scriptPayout, ownerKey, operatorKey, collateralKey, setup.coinbaseKey);
 
-    CTxMemPool testPool{MemPoolOptionsForTest(setup.m_node)};
+    bilingual_str mempool_error;
+    CTxMemPool testPool{MemPoolOptionsForTest(setup.m_node), mempool_error};
+    BOOST_REQUIRE(mempool_error.empty());
     TestMemPoolEntryHelper entry;
     LOCK2(cs_main, testPool.cs);
 
@@ -1519,7 +1526,9 @@ void FuncTestMempoolProRegReplacementUpdateConflict(TestChainSetup& setup)
     }
 
     // Mempool acceptance must refuse the second of these once one is present.
-    CTxMemPool testPool{MemPoolOptionsForTest(setup.m_node)};
+    bilingual_str mempool_error;
+    CTxMemPool testPool{MemPoolOptionsForTest(setup.m_node), mempool_error};
+    BOOST_REQUIRE(mempool_error.empty());
     TestMemPoolEntryHelper entry;
 
     {
@@ -1528,7 +1537,7 @@ void FuncTestMempoolProRegReplacementUpdateConflict(TestChainSetup& setup)
         testPool.addUnchecked(entry.FromTx(tx_reg_replace));
         BOOST_CHECK_EQUAL(testPool.size(), 1U);
         BOOST_CHECK(testPool.existsProviderTxConflict(CTransaction(tx_up_serv)));
-        testPool.removeRecursive(CTransaction(tx_reg_replace), MemPoolRemovalReason::MANUAL);
+        testPool.removeRecursive(CTransaction(tx_reg_replace), MemPoolRemovalReason::REPLACED);
         BOOST_CHECK_EQUAL(testPool.size(), 0U);
 
         // Update already in mempool => replacement ProRegTx reusing that MN's collateral conflicts.

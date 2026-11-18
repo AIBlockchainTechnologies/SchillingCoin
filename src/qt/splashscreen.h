@@ -3,8 +3,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_QT_SPLASHSCREEN_H
-#define BITCOIN_QT_SPLASHSCREEN_H
+#ifndef SCHILLINGCOIN_QT_SPLASHSCREEN_H
+#define SCHILLINGCOIN_QT_SPLASHSCREEN_H
 
 #include <QWidget>
 #include <QPixmap>
@@ -54,4 +54,4 @@ private:
     Q_DISABLE_COPY(SplashScreen)
 };
 
-#endif // BITCOIN_QT_SPLASHSCREEN_H
+#endif // SCHILLINGCOIN_QT_SPLASHSCREEN_H

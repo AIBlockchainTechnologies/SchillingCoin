@@ -10,8 +10,8 @@
 //! dependencies. More complicated types should be defined in dedicated header
 //! files.
 
-#ifndef BITCOIN_NODE_TYPES_H
-#define BITCOIN_NODE_TYPES_H
+#ifndef SCHILLINGCOIN_NODE_TYPES_H
+#define SCHILLINGCOIN_NODE_TYPES_H
 
 #include <cstdint>
 
@@ -44,4 +44,4 @@ enum class TxBroadcast : uint8_t {
 
 } // namespace node
 
-#endif // BITCOIN_NODE_TYPES_H
+#endif // SCHILLINGCOIN_NODE_TYPES_H

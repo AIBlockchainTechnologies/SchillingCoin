@@ -1,9 +1,10 @@
 // Copyright (c) 2021-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_SPEND_H
-#define BITCOIN_WALLET_SPEND_H
+#ifndef SCHILLINGCOIN_WALLET_SPEND_H
+#define SCHILLINGCOIN_WALLET_SPEND_H
 
 #include <policy/fees.h> // for FeeCalculation
 #include <util/result.h>
@@ -220,4 +221,4 @@ bool FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& nFeeRet,
 bool GenBudgetSystemCollateralTx(CWallet& wallet, CTransactionRef& tx, uint256 hash, CAmount amount, const COutPoint& outpoint = COutPoint());
 } // namespace wallet
 
-#endif // BITCOIN_WALLET_SPEND_H
+#endif // SCHILLINGCOIN_WALLET_SPEND_H

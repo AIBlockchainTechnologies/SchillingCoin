@@ -46,7 +46,7 @@ bool TestLockPointValidity(CChain& active_chain, const LockPoints& lp)
     if (lp.maxInputBlock) {
         // Check whether active_chain is an extension of the block at which the LockPoints
         // calculation was valid.  If not LockPoints are no longer valid
-        if (!active_chain.Contains(*lp.maxInputBlock)) {
+        if (!active_chain.Contains(lp.maxInputBlock)) {
             return false;
         }
     }
@@ -788,12 +788,14 @@ bool CTxMemPool::HasNoInputsOf(const CTransaction &tx) const
 
 CCoinsViewMemPool::CCoinsViewMemPool(CCoinsView* baseIn, const CTxMemPool& mempoolIn) : CCoinsViewBacked(baseIn), mempool(mempoolIn) { }
 
-std::optional<Coin> CCoinsViewMemPool::GetCoin(const COutPoint& outpoint) const
+bool CCoinsViewMemPool::GetCoin(const COutPoint& outpoint, Coin& coin) const
 {
     // Check to see if the inputs are made available by another tx in the package.
     // These Coins would not be available in the underlying CoinsView.
     if (auto it = m_temp_added.find(outpoint); it != m_temp_added.end()) {
-        return it->second;
+        coin = it->second;
+        m_non_base_coins.emplace(outpoint);
+        return true;
     }
 
     // If an entry in the mempool exists, always return that one, as it's guaranteed to never
@@ -802,22 +804,25 @@ std::optional<Coin> CCoinsViewMemPool::GetCoin(const COutPoint& outpoint) const
     CTransactionRef ptx = mempool.get(outpoint.hash);
     if (ptx) {
         if (outpoint.n < ptx->vout.size()) {
-            Coin coin(ptx->vout[outpoint.n], MEMPOOL_HEIGHT, false);
+            coin = Coin(ptx->vout[outpoint.n], MEMPOOL_HEIGHT, false, false);
             m_non_base_coins.emplace(outpoint);
-            return coin;
+            return true;
         }
-        return std::nullopt;
+        return false;
     }
-    return base->GetCoin(outpoint);
+
+    return base->GetCoin(outpoint, coin);
 }
 
 void CCoinsViewMemPool::PackageAddTransaction(const CTransactionRef& tx)
 {
     for (unsigned int n = 0; n < tx->vout.size(); ++n) {
-        m_temp_added.emplace(COutPoint(tx->GetHash(), n), Coin(tx->vout[n], MEMPOOL_HEIGHT, false));
-        m_non_base_coins.emplace(tx->GetHash(), n);
+        const COutPoint outpoint{tx->GetHash(), n};
+        m_temp_added.emplace(outpoint, Coin(tx->vout[n], MEMPOOL_HEIGHT, false, false));
+        m_non_base_coins.emplace(outpoint);
     }
 }
+
 void CCoinsViewMemPool::Reset()
 {
     m_temp_added.clear();

@@ -1,9 +1,10 @@
 // Copyright (c) 2023-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_ASSETLOCKTX_H
-#define BITCOIN_EVO_ASSETLOCKTX_H
+#ifndef SCHILLINGCOIN_EVO_ASSETLOCKTX_H
+#define SCHILLINGCOIN_EVO_ASSETLOCKTX_H
 
 #include <bls/bls.h>
 #include <consensus/amount.h>
@@ -175,4 +176,4 @@ bool CheckAssetUnlockTx(const node::BlockManager& blockman, const llmq::CQuorumM
     EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 bool GetAssetUnlockFee(const CTransaction& tx, CAmount& txfee, TxValidationState& state);
 
-#endif // BITCOIN_EVO_ASSETLOCKTX_H
+#endif // SCHILLINGCOIN_EVO_ASSETLOCKTX_H

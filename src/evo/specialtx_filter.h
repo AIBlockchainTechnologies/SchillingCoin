@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_SPECIALTX_FILTER_H
-#define BITCOIN_EVO_SPECIALTX_FILTER_H
+#ifndef SCHILLINGCOIN_EVO_SPECIALTX_FILTER_H
+#define SCHILLINGCOIN_EVO_SPECIALTX_FILTER_H
 
 #include <functional>
 #include <span.h>
@@ -23,4 +23,4 @@ class CTransaction;
 void ExtractSpecialTxFilterElements(const CTransaction& tx,
                                     const std::function<void(Span<const unsigned char>)>& addElement);
 
-#endif // BITCOIN_EVO_SPECIALTX_FILTER_H
+#endif // SCHILLINGCOIN_EVO_SPECIALTX_FILTER_H

@@ -37,22 +37,23 @@ int64_t GetAdjustedTime()
     return GetTime() + GetTimeOffset();
 }
 
-#define BITCOIN_TIMEDATA_MAX_SAMPLES 200
+#define SCHILLINGCOIN_TIMEDATA_MAX_SAMPLES 200
 
 void AddTimeData(const CNetAddr& ip, int64_t nOffsetSample, int nOffsetLimit)
 {
     LOCK(cs_nTimeOffset);
     // Ignore duplicates (Except on regtest where all nodes have the same ip)
     static std::set<CNetAddr> setKnown;
-    if (setKnown.size() == BITCOIN_TIMEDATA_MAX_SAMPLES)
+    if (setKnown.size() == SCHILLINGCOIN_TIMEDATA_MAX_SAMPLES)
         return;
     if (!Params().IsRegTestNet() && !setKnown.insert(ip).second)
         return;
 
     // Add data
-    static CMedianFilter<int64_t> vTimeOffsets(BITCOIN_TIMEDATA_MAX_SAMPLES, 0);
+    static CMedianFilter<int64_t> vTimeOffsets(SCHILLINGCOIN_TIMEDATA_MAX_SAMPLES, 0);
     vTimeOffsets.input(nOffsetSample);
-    LogPrintf("Added time data, samples %d, offset %+d (%+d minutes)\n", vTimeOffsets.size(), nOffsetSample, nOffsetSample / 60);
+    LogDebug(BCLog::NET, "Added time data, samples %d, offset %+d (%+d minutes)\n",
+             vTimeOffsets.size(), nOffsetSample, nOffsetSample / 60);
 
     // There is a known issue here (see issue #4521):
     //
@@ -82,17 +83,16 @@ void AddTimeData(const CNetAddr& ip, int64_t nOffsetSample, int nOffsetLimit)
             nTimeOffset = (nMedian > 0 ? 1 : -1) * nOffsetLimit;
             const bilingual_str strMessage = _("Warning: Please check that your computer's date and time are correct! If your clock is wrong Schilling Coin will not work properly.");
             SetMiscWarning(strMessage);
-            LogPrintf("*** %s\n", strMessage.original);
+            LogWarning("*** %s\n", strMessage.original);
             uiInterface.ThreadSafeMessageBox(strMessage, "", CClientUIInterface::MSG_ERROR);
         }
-        if (LogAcceptCategory(BCLog::NET, BCLog::Level::Debug)) {
-            std::string log_message{"time data samples: "};
-            for (const int64_t n : vSorted) {
-                log_message += strprintf("%+d  ", n);
-            }
-            log_message += strprintf("|  median offset = %+d  (%+d minutes)", nTimeOffset, nTimeOffset / 60);
-            LogPrint(BCLog::NET, "%s\n", log_message);
+
+        std::string log_message{"time data samples: "};
+        for (const int64_t n : vSorted) {
+            log_message += strprintf("%+d  ", n);
         }
+        log_message += strprintf("|  median offset = %+d  (%+d minutes)", nTimeOffset, nTimeOffset / 60);
+        LogDebug(BCLog::NET, "%s\n", log_message);
     }
 }
 

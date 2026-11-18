@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_LLMQ_PARAMS_H
-#define BITCOIN_LLMQ_PARAMS_H
+#ifndef SCHILLINGCOIN_LLMQ_PARAMS_H
+#define SCHILLINGCOIN_LLMQ_PARAMS_H
 
 #include <array>
 #include <cstdint>
@@ -517,4 +517,4 @@ static constexpr std::array<LLMQParams, 14> available_llmqs = {
 template<typename T> struct is_serializable_enum;
 template<> struct is_serializable_enum<Consensus::LLMQType> : std::true_type {};
 
-#endif // BITCOIN_LLMQ_PARAMS_H
+#endif // SCHILLINGCOIN_LLMQ_PARAMS_H

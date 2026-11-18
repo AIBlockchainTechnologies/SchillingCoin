@@ -57,9 +57,6 @@ MAKE_MSG(SENDTXRCNCL, "sendtxrcncl");
 MAKE_MSG(SPORK, "spork");
 MAKE_MSG(GETSPORKS, "getsporks");
 MAKE_MSG(SYNCSTATUSCOUNT, "ssc");
-MAKE_MSG(MNGOVERNANCESYNC, "govsync");
-MAKE_MSG(MNGOVERNANCEOBJECT, "govobj");
-MAKE_MSG(MNGOVERNANCEOBJECTVOTE, "govobjvote");
 MAKE_MSG(GETMNLISTDIFF, "getmnlistd");
 MAKE_MSG(MNLISTDIFF, "mnlistdiff");
 MAKE_MSG(QSENDRECSIGS, "qsendrecsigs");
@@ -99,8 +96,7 @@ static const std::string allNetMessageTypes[] = {
     NetMsgType::GETBLOCKTXN, NetMsgType::BLOCKTXN, NetMsgType::GETCFILTERS, NetMsgType::CFILTER,
     NetMsgType::GETCFHEADERS, NetMsgType::CFHEADERS, NetMsgType::GETCFCHECKPT, NetMsgType::CFCHECKPT,
     NetMsgType::SENDTXRCNCL, NetMsgType::SPORK, NetMsgType::GETSPORKS,
-    NetMsgType::SYNCSTATUSCOUNT, NetMsgType::MNGOVERNANCESYNC, NetMsgType::MNGOVERNANCEOBJECT,
-    NetMsgType::MNGOVERNANCEOBJECTVOTE, NetMsgType::GETMNLISTDIFF, NetMsgType::MNLISTDIFF,
+    NetMsgType::SYNCSTATUSCOUNT, NetMsgType::GETMNLISTDIFF, NetMsgType::MNLISTDIFF,
     NetMsgType::QSENDRECSIGS, NetMsgType::QFCOMMITMENT, NetMsgType::QCONTRIB,
     NetMsgType::QCOMPLAINT, NetMsgType::QJUSTIFICATION, NetMsgType::QPCOMMITMENT,
     NetMsgType::QWATCH, NetMsgType::QSIGSESANN, NetMsgType::QSIGSHARESINV,
@@ -197,8 +193,6 @@ const char* CInv::GetCommandInternal() const
     case MSG_MASTERNODE_WINNER: return "mnw";
     case MSG_MASTERNODE_ANNOUNCE: return "mnb";
     case MSG_MASTERNODE_PING: return "mnp";
-    case MSG_GOVERNANCE_OBJECT: return NetMsgType::MNGOVERNANCEOBJECT;
-    case MSG_GOVERNANCE_OBJECT_VOTE: return NetMsgType::MNGOVERNANCEOBJECTVOTE;
     case MSG_CMPCT_BLOCK: return NetMsgType::CMPCTBLOCK;
     case MSG_QUORUM_FINAL_COMMITMENT: return NetMsgType::QFCOMMITMENT;
     case MSG_QUORUM_CONTRIB: return NetMsgType::QCONTRIB;

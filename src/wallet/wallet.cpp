@@ -992,7 +992,7 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
 
         if (fFileBacked) {
             assert(!pwalletdbEncryption);
-            pwalletdbEncryption = new WalletBatch(*database, "r+");
+            pwalletdbEncryption = new WalletBatch(*database);
             if (!pwalletdbEncryption->TxnBegin()) {
                 delete pwalletdbEncryption;
                 pwalletdbEncryption = nullptr;
@@ -1354,7 +1354,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransaction& tx, const CBlock* pbl
                 wtx.SetMerkleBranch(*pblock);
             // Do not flush the wallet here for performance reasons
             // this is safe, as in case of a crash, we rescan the necessary blocks on startup through our SetBestChain-mechanism
-            WalletBatch batch(*database, "r+", false);
+            WalletBatch batch(*database, false);
 
             return AddToWallet(wtx, false, &batch);
         }
@@ -1441,7 +1441,7 @@ void CWallet::MarkConflicted(const uint256& hashBlock, const uint256& hashTx)
     assert(conflictconfirms < 0);
 
     // Do not flush the wallet here for performance reasons
-    WalletBatch batch(*database, "r+", false);
+    WalletBatch batch(*database, false);
 
     std::set<uint256> todo;
     std::set<uint256> done;
@@ -3274,7 +3274,7 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey, std:
             // This is only to keep the database open to defeat the auto-flush for the
             // duration of this scope.  This is the only place where this optimization
             // maybe makes sense; please don't do it anywhere else.
-            WalletBatch* batch = fFileBacked ? new WalletBatch(*database, "r+") : nullptr;
+            WalletBatch* batch = fFileBacked ? new WalletBatch(*database) : nullptr;
 
             // Take key pair from key pool so it won't be used again
             reservekey.KeepKey();
@@ -3332,7 +3332,7 @@ DBErrors CWallet::LoadWallet(bool& fFirstRunRet)
     if (!fFileBacked)
         return DB_LOAD_OK;
 
-    WalletBatch batch(*database, "cr+");
+    WalletBatch batch(*database);
     DBErrors nLoadWalletRet = batch.LoadWallet(this);
 
     if (nLoadWalletRet == DB_NEED_REWRITE) {
@@ -3365,7 +3365,7 @@ DBErrors CWallet::ZapWalletTx(std::vector<CWalletTx>& vWtx)
     if (!fFileBacked)
         return DB_LOAD_OK;
 
-    WalletBatch batch(*database, "cr+");
+    WalletBatch batch(*database);
     DBErrors nZapWalletTxRet = batch.ZapWalletTx(this, vWtx);
 
     if (nZapWalletTxRet == DB_NEED_REWRITE) {
@@ -3382,6 +3382,16 @@ DBErrors CWallet::ZapWalletTx(std::vector<CWalletTx>& vWtx)
         return nZapWalletTxRet;
 
     return DB_LOAD_OK;
+}
+
+const wallet::CAddressBookData* CWallet::FindAddressBookEntry(const CTxDestination& dest, bool allow_change) const
+{
+    const auto& address_book_it = m_address_book.find(dest);
+    if (address_book_it == m_address_book.end()) return nullptr;
+    if ((!allow_change) && address_book_it->second.IsChange()) {
+        return nullptr;
+    }
+    return &address_book_it->second;
 }
 
 std::string CWallet::ParseIntoAddress(const CTxDestination& dest, const std::string& purpose)
@@ -4189,7 +4199,7 @@ CWallet* CreateWalletFromFileInternal(const std::string& walletFile, const fs::p
         [&walletPath, &walletFile]() -> std::unique_ptr<WalletDatabase> {
         DatabaseOptions options;
         DatabaseStatus status;
-        std::string error;
+        bilingual_str error;
 
         std::unique_ptr<WalletDatabase> database =
             MakeDatabase(
@@ -4202,7 +4212,7 @@ CWallet* CreateWalletFromFileInternal(const std::string& walletFile, const fs::p
             UIError(strprintf(
                 _("Error opening wallet database %s: %s"),
                 walletFile,
-                error));
+                error.original));
         }
 
         return database;

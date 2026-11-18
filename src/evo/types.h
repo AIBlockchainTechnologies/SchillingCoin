@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_EVO_TYPES_H
-#define BITCOIN_EVO_TYPES_H
+#ifndef SCHILLINGCOIN_EVO_TYPES_H
+#define SCHILLINGCOIN_EVO_TYPES_H
 
 #include <cstdint>
 #include <memory>
@@ -36,4 +36,4 @@ enum : uint16_t {
 
 } // namespace ProTxVersion
 
-#endif // BITCOIN_EVO_TYPES_H
+#endif // SCHILLINGCOIN_EVO_TYPES_H

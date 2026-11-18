@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UTIL_WPIPE_H
-#define BITCOIN_UTIL_WPIPE_H
+#ifndef SCHILLINGCOIN_UTIL_WPIPE_H
+#define SCHILLINGCOIN_UTIL_WPIPE_H
 
 #include <array>
 #include <assert.h>
@@ -60,4 +60,4 @@ private:
     EdgeTriggeredEvents* m_edge_trig_events{nullptr};
 };
 
-#endif // BITCOIN_UTIL_WPIPE_H
+#endif // SCHILLINGCOIN_UTIL_WPIPE_H

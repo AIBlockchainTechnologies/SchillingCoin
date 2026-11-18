@@ -1,8 +1,10 @@
 // Copyright (c) 2014-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-#ifndef BITCOIN_MASTERNODE_SYNC_H
-#define BITCOIN_MASTERNODE_SYNC_H
+
+#ifndef SCHILLINGCOIN_MASTERNODE_SYNC_H
+#define SCHILLINGCOIN_MASTERNODE_SYNC_H
 
 #include <atomic>
 #include <memory>
@@ -13,11 +15,8 @@ class CBlockIndex;
 /** Default for -syncmempool */
 static const bool DEFAULT_SYNC_MEMPOOL = true;
 
-static constexpr int MASTERNODE_SYNC_BLOCKCHAIN      = 1;
-static constexpr int MASTERNODE_SYNC_GOVERNANCE      = 4;
-static constexpr int MASTERNODE_SYNC_GOVOBJ          = 10;
-static constexpr int MASTERNODE_SYNC_GOVOBJ_VOTE     = 11;
-static constexpr int MASTERNODE_SYNC_FINISHED        = 999;
+static constexpr int MASTERNODE_SYNC_BLOCKCHAIN = 1;
+static constexpr int MASTERNODE_SYNC_FINISHED   = 999;
 
 static constexpr int MASTERNODE_SYNC_TICK_SECONDS    = 6;
 static constexpr int MASTERNODE_SYNC_TIMEOUT_SECONDS = 30; // nominal target spacing is 2.5 minutes, so 30 seconds should be fine
@@ -97,4 +96,4 @@ public:
     void UpdatedBlockTip(const CBlockIndex *pindexTip, const CBlockIndex *pindexNew, bool fInitialDownload);
 };
 
-#endif // BITCOIN_MASTERNODE_SYNC_H
+#endif // SCHILLINGCOIN_MASTERNODE_SYNC_H

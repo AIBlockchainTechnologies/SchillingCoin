@@ -54,7 +54,8 @@ bool SetupNetworking();
 template<typename... Args>
 bool error(const char* fmt, const Args&... args)
 {
-    LogPrintf("ERROR: %s\n", tfm::format(fmt, args...));
+    const std::string format{fmt};
+    LogError("%s\n", tfm::format(tfm::RuntimeFormat{format}, args...));
     return false;
 }
 

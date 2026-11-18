@@ -54,22 +54,49 @@ static void BatchWriteHashBestChain(CDBBatch& batch, const uint256& hash)
     batch.Write(DB_BEST_BLOCK, hash);
 }
 
-CCoinsViewDB::CCoinsViewDB(size_t nCacheSize, bool fMemory, bool fWipe) : db(GetDataDir() / "chainstate", nCacheSize, fMemory, fWipe)
+CCoinsViewDB::CCoinsViewDB(
+    fs::path ldb_path,
+    size_t cache_size_bytes,
+    bool in_memory,
+    bool should_wipe)
+    : m_db(std::make_unique<CDBWrapper>(
+          ldb_path,
+          cache_size_bytes,
+          in_memory,
+          should_wipe)),
+      m_ldb_path(std::move(ldb_path)),
+      m_is_memory(in_memory)
 {
+}
+
+void CCoinsViewDB::ResizeCache(size_t new_cache_size)
+{
+    AssertLockHeld(::cs_main);
+
+    if (m_is_memory) {
+        return;
+    }
+
+    m_db.reset();
+    m_db = std::make_unique<CDBWrapper>(
+        m_ldb_path,
+        new_cache_size,
+        m_is_memory,
+        false);
 }
 
 bool CCoinsViewDB::GetCoin(
     const COutPoint& outpoint,
     Coin& coin) const
 {
-    return db.Read(
+    return m_db->Read(
         CoinEntry(&outpoint),
         coin);
 }
 
 bool CCoinsViewDB::HaveCoin(const COutPoint& outpoint) const
 {
-    return db.Exists(
+    return m_db->Exists(
         CoinEntry(&outpoint));
 }
 
@@ -77,7 +104,7 @@ uint256 CCoinsViewDB::GetBestBlock() const
 {
     uint256 hashBestChain;
 
-    if (!db.Read(DB_BEST_BLOCK, hashBestChain))
+    if (!m_db->Read(DB_BEST_BLOCK, hashBestChain))
         return UINT256_ZERO;
 
     return hashBestChain;
@@ -87,7 +114,7 @@ std::vector<uint256> CCoinsViewDB::GetHeadBlocks() const
 {
     std::vector<uint256> vhashHeadBlocks;
 
-    if (!db.Read(DB_HEAD_BLOCKS, vhashHeadBlocks))
+    if (!m_db->Read(DB_HEAD_BLOCKS, vhashHeadBlocks))
         return std::vector<uint256>();
 
     return vhashHeadBlocks;
@@ -95,7 +122,7 @@ std::vector<uint256> CCoinsViewDB::GetHeadBlocks() const
 
 bool CCoinsViewDB::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock)
 {
-    CDBBatch batch(db);
+    CDBBatch batch(*m_db);
     size_t count = 0;
     size_t changed = 0;
 
@@ -120,18 +147,18 @@ bool CCoinsViewDB::BatchWrite(CCoinsMap& mapCoins, const uint256& hashBlock)
     if (!hashBlock.IsNull())
         BatchWriteHashBestChain(batch, hashBlock);
 
-    LogPrint(BCLog::COINDB,"Committing %u changed transaction outputs (out of %u) to coin database...\n",
+    LogDebug(BCLog::COINDB, "Committing %u changed transaction outputs (out of %u) to coin database...\n",
         static_cast<unsigned int>(changed),
         static_cast<unsigned int>(count));
 
-    return db.WriteBatch(batch);
+    return m_db->WriteBatch(batch);
 }
 
 CCoinsViewCursor* CCoinsViewDB::Cursor() const
 {
     CCoinsViewDBCursor* cursor =
         new CCoinsViewDBCursor(
-            const_cast<CDBWrapper*>(&db)->NewIterator(),
+            m_db->NewIterator(),
             GetBestBlock());
 
     COutPoint outpoint;
@@ -195,7 +222,7 @@ void CCoinsViewDBCursor::Next()
 
 size_t CCoinsViewDB::EstimateSize() const
 {
-    return db.EstimateSize(DB_COIN, uint8_t(DB_COIN + 1));
+    return m_db->EstimateSize(DB_COIN, uint8_t(DB_COIN + 1));
 }
 
 CBlockTreeDB::CBlockTreeDB(size_t nCacheSize, bool fMemory, bool fWipe) : CDBWrapper(GetDataDir() / "blocks" / "index", nCacheSize, fMemory, fWipe)

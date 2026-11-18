@@ -14,7 +14,7 @@
 #include "validation.h"
 
 #ifdef ENABLE_WALLET
-#include "wallet/wallet_ismine.h"
+#include "script/ismine.h"
 #endif
 
 #include <vector>

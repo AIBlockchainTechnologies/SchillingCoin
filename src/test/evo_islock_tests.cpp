@@ -40,10 +40,6 @@ BOOST_AUTO_TEST_SUITE(evo_islock_tests)
 BOOST_FIXTURE_TEST_CASE(received_genesis_cycle_has_no_quorum, TestChain100Setup)
 {
     LOCK(NetEventsInterface::g_msgproc_mutex);
-    constexpr const char* REGTEST_SPORK_PRIVKEY{"cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK"};
-    BOOST_REQUIRE(m_node.sporkman->SetSporkAddress(Params().SporkAddress()));
-    BOOST_REQUIRE(m_node.sporkman->SetPrivKey(REGTEST_SPORK_PRIVKEY));
-    BOOST_REQUIRE(m_node.sporkman->UpdateSpork(SPORK_2_INSTANTSEND_ENABLED, 0).has_value());
     auto& isman = *m_node.isman;
     auto& qman = *m_node.llmq_ctx->qman;
     auto& sigman = *m_node.llmq_ctx->sigman;
@@ -93,11 +89,8 @@ BOOST_FIXTURE_TEST_CASE(received_genesis_cycle_has_no_quorum, TestChain100Setup)
 
 BOOST_FIXTURE_TEST_CASE(missing_quorum_does_not_drop_batch, NetInstantSendTest)
 {
-    constexpr const char* REGTEST_SPORK_PRIVKEY{"cP4EKFyJsHT39LDqgdcB43Y3YXjNyjb5Fuas1GQSeAtjnZWmZEQK"};
-    BOOST_REQUIRE(m_node.sporkman->SetSporkAddress(Params().SporkAddress()));
-    BOOST_REQUIRE(m_node.sporkman->SetPrivKey(REGTEST_SPORK_PRIVKEY));
-    BOOST_REQUIRE(m_node.sporkman->UpdateSpork(SPORK_2_INSTANTSEND_ENABLED, 0).has_value());
     auto& sigman = *m_node.llmq_ctx->sigman;
+
     NetInstantSend net{m_node.peerman.get(), *m_node.isman,    nullptr,         sigman,         *m_node.llmq_ctx->qman,
                        *m_node.chainlocks,   *m_node.chainman, *m_node.mempool, *m_node.mn_sync};
     const auto cycle_hash = WITH_LOCK(cs_main, return m_node.chainman->ActiveChain().Genesis()->GetBlockHash());

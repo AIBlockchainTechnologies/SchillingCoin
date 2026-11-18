@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_DEPLOYMENTSTATUS_H
-#define BITCOIN_DEPLOYMENTSTATUS_H
+#ifndef SCHILLINGCOIN_DEPLOYMENTSTATUS_H
+#define SCHILLINGCOIN_DEPLOYMENTSTATUS_H
 
 #include <chain.h>
 #include <versionbits.h>
@@ -68,4 +68,4 @@ constexpr bool DeploymentDIP0003Enforced(const int nHeight, const Consensus::Par
     return nHeight >= params.DIP0003EnforcementHeight;
 }
 
-#endif // BITCOIN_DEPLOYMENTSTATUS_H
+#endif // SCHILLINGCOIN_DEPLOYMENTSTATUS_H

@@ -1,7 +1,7 @@
 // Copyright (c) 2025-2026 The Dash Core developers
 // Distributed under the MIT software license, see the accompanying file COPYING.
-#ifndef BITCOIN_LLMQ_QUORUMPROOFS_H
-#define BITCOIN_LLMQ_QUORUMPROOFS_H
+#ifndef SCHILLINGCOIN_LLMQ_QUORUMPROOFS_H
+#define SCHILLINGCOIN_LLMQ_QUORUMPROOFS_H
 #include <bls/bls.h>
 #include <llmq/commitment.h>
 #include <llmq/quorumproofdata.h>
@@ -98,4 +98,4 @@ public:
     std::optional<QuorumProofChain> Build(const CBlockIndex* checkpoint, const chainlock::ChainLockSig& target) const;
 };
 } // namespace llmq
-#endif // BITCOIN_LLMQ_QUORUMPROOFS_H
+#endif // SCHILLINGCOIN_LLMQ_QUORUMPROOFS_H

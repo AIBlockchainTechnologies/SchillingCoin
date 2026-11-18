@@ -5,7 +5,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <script/bitcoinconsensus.h>
+#include <script/schillingcoinconsensus.h>
 
 #include <primitives/transaction.h>
 #include <script/interpreter.h>
@@ -56,7 +56,7 @@ private:
     size_t m_remaining;
 };
 
-inline int set_error(bitcoinconsensus_error* ret, bitcoinconsensus_error serror)
+inline int set_error(schillingcoinconsensus_error* ret, schillingcoinconsensus_error serror)
 {
     if (ret) {
         *ret = serror;
@@ -66,29 +66,29 @@ inline int set_error(bitcoinconsensus_error* ret, bitcoinconsensus_error serror)
 
 } // namespace
 
-int bitcoinconsensus_verify_script(const unsigned char* scriptPubKey,
-                                   unsigned int scriptPubKeyLen,
-                                   const unsigned char* txTo,
-                                   unsigned int txToLen,
-                                   unsigned int nIn,
-                                   unsigned int flags,
-                                   bitcoinconsensus_error* err)
+int schillingcoinconsensus_verify_script(const unsigned char* scriptPubKey,
+                                         unsigned int scriptPubKeyLen,
+                                         const unsigned char* txTo,
+                                         unsigned int txToLen,
+                                         unsigned int nIn,
+                                         unsigned int flags,
+                                         schillingcoinconsensus_error* err)
 {
     try {
         TxInputStream stream(txTo, txToLen);
         const CTransaction tx(deserialize, TX_WITH_WITNESS, stream);
 
         if (nIn >= tx.vin.size()) {
-            return set_error(err, bitcoinconsensus_ERR_TX_INDEX);
+            return set_error(err, schillingcoinconsensus_ERR_TX_INDEX);
         }
 
         if (GetSerializeSize(TX_WITH_WITNESS(tx)) != txToLen) {
-            return set_error(err, bitcoinconsensus_ERR_TX_SIZE_MISMATCH);
+            return set_error(err, schillingcoinconsensus_ERR_TX_SIZE_MISMATCH);
         }
 
         // Regardless of the verification result, the transaction did not
         // produce an API-level deserialization or input-index error.
-        set_error(err, bitcoinconsensus_ERR_OK);
+        set_error(err, schillingcoinconsensus_ERR_OK);
 
         const PrecomputedTransactionData txdata(tx);
         return VerifyScript(
@@ -103,11 +103,11 @@ int bitcoinconsensus_verify_script(const unsigned char* scriptPubKey,
                 MissingDataBehavior::FAIL),
             nullptr);
     } catch (const std::exception&) {
-        return set_error(err, bitcoinconsensus_ERR_TX_DESERIALIZE);
+        return set_error(err, schillingcoinconsensus_ERR_TX_DESERIALIZE);
     }
 }
 
-unsigned int bitcoinconsensus_version()
+unsigned int schillingcoinconsensus_version()
 {
-    return BITCOINCONSENSUS_API_VER;
+    return SCHILLINGCOINCONSENSUS_API_VER;
 }

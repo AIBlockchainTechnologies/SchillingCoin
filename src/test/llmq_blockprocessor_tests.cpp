@@ -1,4 +1,5 @@
 // Copyright (c) 2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -50,7 +51,7 @@ BOOST_FIXTURE_TEST_CASE(unrequested_qfcommit_is_dropped_and_scored, TestChain100
 {
     LOCK(NetEventsInterface::g_msgproc_mutex);
 
-    // INV announcements for non-spork objects are only tracked outside IBD; the 100 mined blocks
+    // INV announcements for requested-only objects are only tracked outside IBD; the 100 mined blocks
     // of this fixture already take us out of it.
     BOOST_REQUIRE(!m_node.chainman->ActiveChainstate().IsInitialBlockDownload());
 

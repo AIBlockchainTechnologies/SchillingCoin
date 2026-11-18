@@ -15,62 +15,62 @@ AM_CPPFLAGS = $(DEBUG_CPPFLAGS) $(HARDENED_CPPFLAGS)
 AM_LIBTOOLFLAGS = --preserve-dup-deps
 EXTRA_LIBRARIES =
 
-BITCOIN_CONFIG_INCLUDES = -I$(builddir)/config
-BITCOIN_INCLUDES = -I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) \
+SCHILLINGCOIN_CONFIG_INCLUDES = -I$(builddir)/config
+SCHILLINGCOIN_INCLUDES = -I$(builddir) -I$(builddir)/obj $(BDB_CPPFLAGS) $(BOOST_CPPFLAGS) \
   $(LEVELDB_CPPFLAGS) $(CRYPTO_CFLAGS) $(SSL_CFLAGS)
 
-BITCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
-BITCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
-BITCOIN_INCLUDES += -isystem$(srcdir)/dashbls/include -isystem$(srcdir)/dashbls/depends/relic/include -isystem$(srcdir)/dashbls/depends/minialloc/include
-BITCOIN_INCLUDES += -isystem$(srcdir)/immer
+SCHILLINGCOIN_INCLUDES += -I$(srcdir)/secp256k1/include
+SCHILLINGCOIN_INCLUDES += $(UNIVALUE_CFLAGS)
+SCHILLINGCOIN_INCLUDES += -isystem$(srcdir)/dashbls/include -isystem$(srcdir)/dashbls/depends/relic/include -isystem$(srcdir)/dashbls/depends/minialloc/include
+SCHILLINGCOIN_INCLUDES += -isystem$(srcdir)/immer
 
 lib_LTLIBRARIES =
 noinst_LTLIBRARIES =
 
-LIBBITCOIN_NODE = libbitcoin_node.a
-LIBBITCOIN_COMMON = libbitcoin_common.a
-LIBBITCOIN_CONSENSUS = libbitcoin_consensus.a
-LIBBITCOIN_CLI = libbitcoin_cli.a
-LIBBITCOIN_UTIL = libbitcoin_util.a
-LIBBITCOIN_CRYPTO_BASE = crypto/libbitcoin_crypto_base.la
-LIBBITCOIN_CRYPTO_SPH = crypto/libbitcoin_crypto_sph.la
-LIBBITCOIN_BIGNUM = libbignum.a
-LIBBITCOINQT = qt/libbitcoinqt.a
+LIBSCHILLINGCOIN_NODE = libschillingcoin_node.a
+LIBSCHILLINGCOIN_COMMON = libschillingcoin_common.a
+LIBSCHILLINGCOIN_CONSENSUS = libschillingcoin_consensus.a
+LIBSCHILLINGCOIN_CLI = libschillingcoin_cli.a
+LIBSCHILLINGCOIN_UTIL = libschillingcoin_util.a
+LIBSCHILLINGCOIN_CRYPTO_BASE = crypto/libschillingcoin_crypto_base.la
+LIBSCHILLINGCOIN_CRYPTO_SPH = crypto/libschillingcoin_crypto_sph.la
+LIBSCHILLINGCOIN_BIGNUM = libbignum.a
+LIBSCHILLINGCOINQT = qt/libbitcoinqt.a
 LIBDASHBLS = dashbls/libdashbls.la
 LIBSECP256K1 = secp256k1/libsecp256k1.la
 
-LIBBITCOIN_CRYPTO = $(LIBBITCOIN_CRYPTO_BASE) $(LIBBITCOIN_CRYPTO_SPH)
+LIBSCHILLINGCOIN_CRYPTO = $(LIBSCHILLINGCOIN_CRYPTO_BASE) $(LIBSCHILLINGCOIN_CRYPTO_SPH)
 
 if ENABLE_SSE41
-LIBBITCOIN_CRYPTO_SSE41 = crypto/libbitcoin_crypto_sse41.la
-LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_SSE41)
+LIBSCHILLINGCOIN_CRYPTO_SSE41 = crypto/libschillingcoin_crypto_sse41.la
+LIBSCHILLINGCOIN_CRYPTO += $(LIBSCHILLINGCOIN_CRYPTO_SSE41)
 endif
 if ENABLE_AVX2
-LIBBITCOIN_CRYPTO_AVX2 = crypto/libbitcoin_crypto_avx2.la
-LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_AVX2)
+LIBSCHILLINGCOIN_CRYPTO_AVX2 = crypto/libschillingcoin_crypto_avx2.la
+LIBSCHILLINGCOIN_CRYPTO += $(LIBSCHILLINGCOIN_CRYPTO_AVX2)
 endif
 if ENABLE_X86_SHANI
-LIBBITCOIN_CRYPTO_X86_SHANI = crypto/libbitcoin_crypto_x86_shani.la
-LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_X86_SHANI)
+LIBSCHILLINGCOIN_CRYPTO_X86_SHANI = crypto/libschillingcoin_crypto_x86_shani.la
+LIBSCHILLINGCOIN_CRYPTO += $(LIBSCHILLINGCOIN_CRYPTO_X86_SHANI)
 endif
 if ENABLE_ARM_SHANI
-LIBBITCOIN_CRYPTO_ARM_SHANI = crypto/libbitcoin_crypto_arm_shani.la
-LIBBITCOIN_CRYPTO += $(LIBBITCOIN_CRYPTO_ARM_SHANI)
+LIBSCHILLINGCOIN_CRYPTO_ARM_SHANI = crypto/libschillingcoin_crypto_arm_shani.la
+LIBSCHILLINGCOIN_CRYPTO += $(LIBSCHILLINGCOIN_CRYPTO_ARM_SHANI)
 endif
 
-noinst_LTLIBRARIES += $(LIBBITCOIN_CRYPTO)
+noinst_LTLIBRARIES += $(LIBSCHILLINGCOIN_CRYPTO)
 
 if ENABLE_ZMQ
-LIBBITCOIN_ZMQ = libbitcoin_zmq.a
+LIBSCHILLINGCOIN_ZMQ = libschillingcoin_zmq.a
 endif
-if BUILD_BITCOIN_LIBS
-LIBBITCOINCONSENSUS = libbitcoinconsensus.la
+if BUILD_SCHILLINGCOIN_LIBS
+LIBSCHILLINGCOINCONSENSUS = libschillingcoinconsensus.la
 endif
 if ENABLE_WALLET
-LIBBITCOIN_WALLET = libbitcoin_wallet.a
+LIBSCHILLINGCOIN_WALLET = libschillingcoin_wallet.a
 endif
 if ENABLE_USBDEVICE
-LIBBITCOIN_USBDEVICE = libbitcoin_usbdevice.a
+LIBSCHILLINGCOIN_USBDEVICE = libschillingcoin_usbdevice.a
 endif
 
 $(LIBDASHBLS):
@@ -81,33 +81,33 @@ $(LIBSECP256K1): $(wildcard secp256k1/src/*.h) $(wildcard secp256k1/src/*.c) $(w
 # Make is not made aware of per-object dependencies to avoid limiting building parallelization
 # But to build the less dependent modules first, we manually select their order here:
 EXTRA_LIBRARIES += \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_CONSENSUS) \
-  $(LIBBITCOIN_BIGNUM) \
-  $(LIBBITCOIN_NODE) \
-  $(LIBBITCOIN_CLI) \
-  $(LIBBITCOIN_WALLET) \
-  $(LIBBITCOIN_USBDEVICE) \
-  $(LIBBITCOIN_ZMQ)
+  $(LIBSCHILLINGCOIN_UTIL) \
+  $(LIBSCHILLINGCOIN_COMMON) \
+  $(LIBSCHILLINGCOIN_CONSENSUS) \
+  $(LIBSCHILLINGCOIN_BIGNUM) \
+  $(LIBSCHILLINGCOIN_NODE) \
+  $(LIBSCHILLINGCOIN_CLI) \
+  $(LIBSCHILLINGCOIN_WALLET) \
+  $(LIBSCHILLINGCOIN_USBDEVICE) \
+  $(LIBSCHILLINGCOIN_ZMQ)
 
-lib_LTLIBRARIES += $(LIBBITCOINCONSENSUS)
+lib_LTLIBRARIES += $(LIBSCHILLINGCOINCONSENSUS)
 bin_PROGRAMS =
 noinst_PROGRAMS =
 TESTS =
 BENCHMARKS =
 
-if BUILD_BITCOIND
+if BUILD_SCHILLINGCOIND
   bin_PROGRAMS += schillingcoind
 endif
 
-if BUILD_BITCOIN_UTILS
+if BUILD_SCHILLINGCOIN_UTILS
   bin_PROGRAMS += schillingcoin-cli schillingcoin-tx
 endif
 
 .PHONY: FORCE check-symbols check-security
 # schillingcoin core #
-BITCOIN_CORE_H = \
+SCHILLINGCOIN_CORE_H = \
   addressbook.h \
   addrdb.h \
   addrman.h \
@@ -161,11 +161,6 @@ BITCOIN_CORE_H = \
   deploymentstatus.h \
   evo/specialtx.h \
   external_signer.h \
-  governance/common.h \
-  governance/governance.h \
-  governance/object.h \
-  governance/vote.h \
-  governance/votedb.h \
   hash.h \
   httprpc.h \
   httpserver.h \
@@ -357,7 +352,6 @@ BITCOIN_CORE_H = \
   wallet/coinselection.h \
   wallet/context.h \
   wallet/db.h \
-  wallet/export.h \
   wallet/external_signer_scriptpubkeyman.h \
   wallet/fees.h \
   wallet/hdchain.h \
@@ -365,6 +359,7 @@ BITCOIN_CORE_H = \
   wallet/hdwalletdb.h \
   wallet/hdwallettypes.h \
   wallet/init.h \
+  wallet/ismine.h \
   wallet/load.h \
   wallet/receive.h \
   wallet/rpc/util.h \
@@ -378,7 +373,6 @@ BITCOIN_CORE_H = \
   wallet/wallet.h \
   wallet/walletdb.h \
   wallet/walletutil.h \
-  wallet/wallet_ismine.h \
   zmq/zmqabstractnotifier.h \
   zmq/zmqconfig.h \
   zmq/zmqnotificationinterface.h \
@@ -390,12 +384,12 @@ obj/build.h: FORCE
 	@$(MKDIR_P) $(builddir)/obj
 	@$(top_srcdir)/share/genbuild.sh "$(abs_top_builddir)/src/obj/build.h" \
 	  "$(abs_top_srcdir)"
-libbitcoin_util_a-clientversion.$(OBJEXT): obj/build.h
+libschillingcoin_util_a-clientversion.$(OBJEXT): obj/build.h
 
 # node: shared between schillingcoind and schillingcoin-qt
-libbitcoin_node_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
-libbitcoin_node_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_node_a_SOURCES = \
+libschillingcoin_node_a_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
+libschillingcoin_node_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoin_node_a_SOURCES = \
   active/context.cpp \
   active/dkgsession.cpp \
   active/dkgsessionhandler.cpp \
@@ -553,21 +547,21 @@ libbitcoin_node_a_SOURCES = \
   validation.cpp \
   validationinterface.cpp \
   versionbits.cpp \
-  $(BITCOIN_CORE_H)
+  $(SCHILLINGCOIN_CORE_H)
 
 if ENABLE_WALLET
-libbitcoin_node_a_SOURCES += wallet/init.cpp
-libbitcoin_node_a_CPPFLAGS += $(BDB_CPPFLAGS)
+libschillingcoin_node_a_SOURCES += wallet/init.cpp
+libschillingcoin_node_a_CPPFLAGS += $(BDB_CPPFLAGS)
 endif
 
 if !ENABLE_WALLET
-libbitcoin_node_a_SOURCES += dummywallet.cpp
+libschillingcoin_node_a_SOURCES += dummywallet.cpp
 endif
 
 if ENABLE_ZMQ
-libbitcoin_zmq_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(BOOST_CPPFLAGS) $(ZMQ_CFLAGS)
-libbitcoin_zmq_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_zmq_a_SOURCES = \
+libschillingcoin_zmq_a_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES) $(BOOST_CPPFLAGS) $(ZMQ_CFLAGS)
+libschillingcoin_zmq_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoin_zmq_a_SOURCES = \
   zmq/zmqabstractnotifier.cpp \
   zmq/zmqnotificationinterface.cpp \
   zmq/zmqpublishnotifier.cpp \
@@ -577,10 +571,10 @@ endif
 
 # usbdevice: native hardware-wallet support
 if ENABLE_USBDEVICE
-libbitcoin_usbdevice_a_CPPFLAGS = $(BITCOIN_INCLUDES) $(AM_CPPFLAGS) $(PROTOBUF_CFLAGS)
-libbitcoin_usbdevice_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_usbdevice_a_CFLAGS = -DHAVE_HIDAPI $(AM_CFLAGS) $(PIE_FLAGS)
-libbitcoin_usbdevice_a_SOURCES = \
+libschillingcoin_usbdevice_a_CPPFLAGS = $(SCHILLINGCOIN_INCLUDES) $(AM_CPPFLAGS) $(PROTOBUF_CFLAGS)
+libschillingcoin_usbdevice_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoin_usbdevice_a_CFLAGS = -DHAVE_HIDAPI $(AM_CFLAGS) $(PIE_FLAGS)
+libschillingcoin_usbdevice_a_SOURCES = \
   usbdevice/usbwrapper.cpp \
   usbdevice/usbwrapper.h \
   usbdevice/ledger/btchipApdu.h \
@@ -603,7 +597,7 @@ libbitcoin_usbdevice_a_SOURCES = \
   usbdevice/rpcusbdevice.h \
   usbdevice/rpcusbdevice.cpp
 
-nodist_libbitcoin_usbdevice_a_SOURCES = \
+nodist_libschillingcoin_usbdevice_a_SOURCES = \
   usbdevice/trezor/messages.pb.h \
   usbdevice/trezor/messages.pb.cc \
   usbdevice/trezor/messages-common.pb.h \
@@ -613,14 +607,14 @@ nodist_libbitcoin_usbdevice_a_SOURCES = \
   usbdevice/trezor/messages-bitcoin.pb.h \
   usbdevice/trezor/messages-bitcoin.pb.cc
 
-BUILT_SOURCES = $(nodist_libbitcoin_usbdevice_a_SOURCES)
+BUILT_SOURCES = $(nodist_libschillingcoin_usbdevice_a_SOURCES)
 endif
 
 # wallet: shared between schillingcoind and schillingcoin-qt, but only linked
 # when wallet enabled
-libbitcoin_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(SQLITE_CFLAGS)
-libbitcoin_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_wallet_a_SOURCES = \
+libschillingcoin_wallet_a_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES) $(SQLITE_CFLAGS)
+libschillingcoin_wallet_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoin_wallet_a_SOURCES = \
   addressbook.cpp \
   wallet/crypter.cpp \
   masternode-payments.cpp \
@@ -631,7 +625,6 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/coinselection.cpp \
   wallet/context.cpp \
   wallet/db.cpp \
-  wallet/export.cpp \
   wallet/external_signer_scriptpubkeyman.cpp \
   wallet/feebumper.cpp \
   wallet/fees.cpp \
@@ -653,23 +646,22 @@ libbitcoin_wallet_a_SOURCES = \
   wallet/spend.cpp \
   wallet/transaction.cpp \
   wallet/wallet.cpp \
-  wallet/wallet_ismine.cpp \
   wallet/walletdb.cpp \
   wallet/walletutil.cpp \
   pos/miner.cpp \
   stakeinput.cpp \
-  $(BITCOIN_CORE_H)
+  $(SCHILLINGCOIN_CORE_H)
 
 if USE_SQLITE
-libbitcoin_wallet_a_SOURCES += wallet/sqlite.cpp
+libschillingcoin_wallet_a_SOURCES += wallet/sqlite.cpp
 endif
 
 # crypto primitives library
 # Portable crypto base. CPU-specific SHA256 implementations are linked
 # separately below and selected at runtime by SHA256AutoDetect().
-crypto_libbitcoin_crypto_base_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(PIC_FLAGS) -static
-crypto_libbitcoin_crypto_base_la_LDFLAGS = $(AM_LDFLAGS) -static
-crypto_libbitcoin_crypto_base_la_SOURCES = \
+crypto_libschillingcoin_crypto_base_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(PIC_FLAGS) -static
+crypto_libschillingcoin_crypto_base_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libschillingcoin_crypto_base_la_SOURCES = \
   crypto/aes.cpp \
   crypto/aes.h \
   crypto/chacha20.cpp \
@@ -706,16 +698,16 @@ crypto_libbitcoin_crypto_base_la_SOURCES = \
   crypto/siphash.h
 
 if USE_ASM
-crypto_libbitcoin_crypto_base_la_SOURCES += crypto/sha256_sse4.cpp
+crypto_libschillingcoin_crypto_base_la_SOURCES += crypto/sha256_sse4.cpp
 endif
 
 # SCH historical SPH hash family. These sources are consensus-sensitive and
 # remain unchanged; only their build ownership is modernized.
-crypto_libbitcoin_crypto_sph_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(PIC_FLAGS) -static
-crypto_libbitcoin_crypto_sph_la_CFLAGS = $(AM_CFLAGS) $(PIC_FLAGS)
-crypto_libbitcoin_crypto_sph_la_LDFLAGS = $(AM_LDFLAGS) -static
-crypto_libbitcoin_crypto_sph_la_CPPFLAGS = $(AM_CPPFLAGS)
-crypto_libbitcoin_crypto_sph_la_SOURCES = \
+crypto_libschillingcoin_crypto_sph_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) $(PIC_FLAGS) -static
+crypto_libschillingcoin_crypto_sph_la_CFLAGS = $(AM_CFLAGS) $(PIC_FLAGS)
+crypto_libschillingcoin_crypto_sph_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libschillingcoin_crypto_sph_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libschillingcoin_crypto_sph_la_SOURCES = \
   crypto/sph_md_helper.c \
   crypto/sph_sha2big.c \
   crypto/aes_helper.c \
@@ -757,33 +749,33 @@ crypto_libbitcoin_crypto_sph_la_SOURCES = \
   crypto/sph_haval.h \
   crypto/sph_types.h
 
-crypto_libbitcoin_crypto_sse41_la_LDFLAGS = $(AM_LDFLAGS) -static
-crypto_libbitcoin_crypto_sse41_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
-crypto_libbitcoin_crypto_sse41_la_CPPFLAGS = $(AM_CPPFLAGS)
-crypto_libbitcoin_crypto_sse41_la_CXXFLAGS += $(SSE41_CXXFLAGS)
-crypto_libbitcoin_crypto_sse41_la_CPPFLAGS += -DENABLE_SSE41
-crypto_libbitcoin_crypto_sse41_la_SOURCES = crypto/sha256_sse41.cpp
+crypto_libschillingcoin_crypto_sse41_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libschillingcoin_crypto_sse41_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
+crypto_libschillingcoin_crypto_sse41_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libschillingcoin_crypto_sse41_la_CXXFLAGS += $(SSE41_CXXFLAGS)
+crypto_libschillingcoin_crypto_sse41_la_CPPFLAGS += -DENABLE_SSE41
+crypto_libschillingcoin_crypto_sse41_la_SOURCES = crypto/sha256_sse41.cpp
 
-crypto_libbitcoin_crypto_avx2_la_LDFLAGS = $(AM_LDFLAGS) -static
-crypto_libbitcoin_crypto_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
-crypto_libbitcoin_crypto_avx2_la_CPPFLAGS = $(AM_CPPFLAGS)
-crypto_libbitcoin_crypto_avx2_la_CXXFLAGS += $(AVX2_CXXFLAGS)
-crypto_libbitcoin_crypto_avx2_la_CPPFLAGS += -DENABLE_AVX2
-crypto_libbitcoin_crypto_avx2_la_SOURCES = crypto/sha256_avx2.cpp
+crypto_libschillingcoin_crypto_avx2_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libschillingcoin_crypto_avx2_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
+crypto_libschillingcoin_crypto_avx2_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libschillingcoin_crypto_avx2_la_CXXFLAGS += $(AVX2_CXXFLAGS)
+crypto_libschillingcoin_crypto_avx2_la_CPPFLAGS += -DENABLE_AVX2
+crypto_libschillingcoin_crypto_avx2_la_SOURCES = crypto/sha256_avx2.cpp
 
-crypto_libbitcoin_crypto_x86_shani_la_LDFLAGS = $(AM_LDFLAGS) -static
-crypto_libbitcoin_crypto_x86_shani_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
-crypto_libbitcoin_crypto_x86_shani_la_CPPFLAGS = $(AM_CPPFLAGS)
-crypto_libbitcoin_crypto_x86_shani_la_CXXFLAGS += $(X86_SHANI_CXXFLAGS)
-crypto_libbitcoin_crypto_x86_shani_la_CPPFLAGS += -DENABLE_SSE41 -DENABLE_X86_SHANI
-crypto_libbitcoin_crypto_x86_shani_la_SOURCES = crypto/sha256_x86_shani.cpp
+crypto_libschillingcoin_crypto_x86_shani_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libschillingcoin_crypto_x86_shani_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
+crypto_libschillingcoin_crypto_x86_shani_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libschillingcoin_crypto_x86_shani_la_CXXFLAGS += $(X86_SHANI_CXXFLAGS)
+crypto_libschillingcoin_crypto_x86_shani_la_CPPFLAGS += -DENABLE_SSE41 -DENABLE_X86_SHANI
+crypto_libschillingcoin_crypto_x86_shani_la_SOURCES = crypto/sha256_x86_shani.cpp
 
-crypto_libbitcoin_crypto_arm_shani_la_LDFLAGS = $(AM_LDFLAGS) -static
-crypto_libbitcoin_crypto_arm_shani_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
-crypto_libbitcoin_crypto_arm_shani_la_CPPFLAGS = $(AM_CPPFLAGS)
-crypto_libbitcoin_crypto_arm_shani_la_CXXFLAGS += $(ARM_SHANI_CXXFLAGS)
-crypto_libbitcoin_crypto_arm_shani_la_CPPFLAGS += -DENABLE_ARM_SHANI
-crypto_libbitcoin_crypto_arm_shani_la_SOURCES = crypto/sha256_arm_shani.cpp
+crypto_libschillingcoin_crypto_arm_shani_la_LDFLAGS = $(AM_LDFLAGS) -static
+crypto_libschillingcoin_crypto_arm_shani_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS) -static
+crypto_libschillingcoin_crypto_arm_shani_la_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libschillingcoin_crypto_arm_shani_la_CXXFLAGS += $(ARM_SHANI_CXXFLAGS)
+crypto_libschillingcoin_crypto_arm_shani_la_CPPFLAGS += -DENABLE_ARM_SHANI
+crypto_libschillingcoin_crypto_arm_shani_la_SOURCES = crypto/sha256_arm_shani.cpp
 
 # bignum library
 libbignum_a_CPPFLAGS = $(AM_CPPFLAGS) $(BOOST_CPPFLAGS)
@@ -801,9 +793,9 @@ if USE_NUM_OPENSSL
 endif
 
 # common: shared between schillingcoind, schillingcoin-qt and non-server tools
-libbitcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
-libbitcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_common_a_SOURCES = \
+libschillingcoin_common_a_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES)
+libschillingcoin_common_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoin_common_a_SOURCES = \
   allocators.cpp \
   base58.cpp \
   bech32.cpp \
@@ -812,7 +804,6 @@ libbitcoin_common_a_SOURCES = \
   coins.cpp \
   common/args.cpp \
   common/bloom.cpp \
-  common/common.cpp \
   common/config.cpp \
   common/init.cpp \
   common/interfaces.cpp \
@@ -862,6 +853,7 @@ libbitcoin_common_a_SOURCES = \
   scheduler.cpp \
   script/descriptor.cpp \
   script/interpreter.cpp \
+  script/ismine.cpp \
   script/miniscript.cpp \
   script/script.cpp \
   script/sign.cpp \
@@ -870,14 +862,14 @@ libbitcoin_common_a_SOURCES = \
   script/standard.cpp \
   script/script_error.cpp \
   warnings.cpp \
-  $(BITCOIN_CORE_H)
+  $(SCHILLINGCOIN_CORE_H)
 
 # util: shared between all executables.
 # This library *must* be included to make sure that the glibc
 # backward-compatibility objects and their sanity checks are linked.
-libbitcoin_util_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
-libbitcoin_util_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_util_a_SOURCES = \
+libschillingcoin_util_a_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES)
+libschillingcoin_util_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoin_util_a_SOURCES = \
   allocators.cpp \
   arith_uint256.cpp \
   blob_uint256.cpp \
@@ -934,18 +926,18 @@ libbitcoin_util_a_SOURCES = \
   util/time.cpp \
   util/tokenpipe.cpp \
   util/wpipe.cpp \
-  $(BITCOIN_CORE_H)
+  $(SCHILLINGCOIN_CORE_H)
 
 if GLIBC_BACK_COMPAT
-libbitcoin_util_a_SOURCES += compat/glibc_compat.cpp
+libschillingcoin_util_a_SOURCES += compat/glibc_compat.cpp
 AM_LDFLAGS += $(COMPAT_LDFLAGS)
 endif
 
 #
 # consensus #
-libbitcoin_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(BOOST_CPPFLAGS)
-libbitcoin_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_consensus_a_SOURCES = \
+libschillingcoin_consensus_a_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES) $(BOOST_CPPFLAGS)
+libschillingcoin_consensus_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoin_consensus_a_SOURCES = \
   arith_uint256.cpp \
   arith_uint256.h \
   bls/bls.cpp \
@@ -966,7 +958,7 @@ libbitcoin_consensus_a_SOURCES = \
   primitives/transaction.h \
   pubkey.cpp \
   pubkey.h \
-  script/bitcoinconsensus.cpp \
+  script/schillingcoinconsensus.cpp \
   script/interpreter.cpp \
   script/interpreter.h \
   script/script.cpp \
@@ -987,18 +979,18 @@ libbitcoin_consensus_a_SOURCES = \
 #
 
 # cli: shared between schillingcoin-cli and schillingcoin-qt
-libbitcoin_cli_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
-libbitcoin_cli_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
-libbitcoin_cli_a_SOURCES = \
+libschillingcoin_cli_a_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES)
+libschillingcoin_cli_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoin_cli_a_SOURCES = \
   rpc/client.cpp \
-  $(BITCOIN_CORE_H)
+  $(SCHILLINGCOIN_CORE_H)
 
-nodist_libbitcoin_util_a_SOURCES = $(srcdir)/obj/build.h
+nodist_libschillingcoin_util_a_SOURCES = $(srcdir)/obj/build.h
 #
 
 # schillingcoind binary #
 schillingcoind_SOURCES = schillingcoind.cpp init/bitcoind.cpp
-schillingcoind_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
+schillingcoind_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES)
 schillingcoind_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 schillingcoind_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
@@ -1006,16 +998,16 @@ if TARGET_WINDOWS
 schillingcoind_SOURCES += schillingcoind-res.rc
 endif
 schillingcoind_LDADD = \
-  $(LIBBITCOIN_NODE) \
-  $(LIBBITCOIN_WALLET) \
-  $(LIBBITCOIN_USBDEVICE) \
-  $(LIBBITCOIN_COMMON) \
+  $(LIBSCHILLINGCOIN_NODE) \
+  $(LIBSCHILLINGCOIN_WALLET) \
+  $(LIBSCHILLINGCOIN_USBDEVICE) \
+  $(LIBSCHILLINGCOIN_COMMON) \
   $(LIBUNIVALUE) \
-  $(LIBBITCOIN_BIGNUM) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_ZMQ) \
-  $(LIBBITCOIN_CONSENSUS) \
-  $(LIBBITCOIN_CRYPTO) \
+  $(LIBSCHILLINGCOIN_BIGNUM) \
+  $(LIBSCHILLINGCOIN_UTIL) \
+  $(LIBSCHILLINGCOIN_ZMQ) \
+  $(LIBSCHILLINGCOIN_CONSENSUS) \
+  $(LIBSCHILLINGCOIN_CRYPTO) \
   $(LIBDASHBLS) \
   $(LIBLEVELDB) \
   $(LIBMEMENV) \
@@ -1025,7 +1017,7 @@ schillingcoind_LDADD += $(BOOST_LIBS) $(BDB_LIBS) $(SQLITE_LIBS) $(SSL_LIBS) $(C
 
 # schillingcoin-cli binary #
 schillingcoin_cli_SOURCES = schillingcoin-cli.cpp
-schillingcoin_cli_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(EVENT_CFLAGS)
+schillingcoin_cli_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES) $(EVENT_CFLAGS)
 schillingcoin_cli_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 schillingcoin_cli_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
@@ -1034,17 +1026,17 @@ schillingcoin_cli_SOURCES += schillingcoin-cli-res.rc
 endif
 
 schillingcoin_cli_LDADD = \
-  $(LIBBITCOIN_CLI) \
+  $(LIBSCHILLINGCOIN_CLI) \
   $(LIBUNIVALUE) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_CRYPTO)
+  $(LIBSCHILLINGCOIN_UTIL) \
+  $(LIBSCHILLINGCOIN_CRYPTO)
 
 schillingcoin_cli_LDADD += $(BOOST_LIBS) $(SSL_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)
 #
 
 # schillingcoin-tx binary #
 schillingcoin_tx_SOURCES = schillingcoin-tx.cpp
-schillingcoin_tx_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES)
+schillingcoin_tx_CPPFLAGS = $(AM_CPPFLAGS) $(SCHILLINGCOIN_INCLUDES)
 schillingcoin_tx_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 schillingcoin_tx_LDFLAGS = $(RELDFLAGS) $(AM_LDFLAGS) $(LIBTOOL_APP_LDFLAGS)
 
@@ -1054,20 +1046,20 @@ endif
 
 schillingcoin_tx_LDADD = \
   $(LIBUNIVALUE) \
-  $(LIBBITCOIN_COMMON) \
-  $(LIBBITCOIN_BIGNUM) \
-  $(LIBBITCOIN_UTIL) \
-  $(LIBBITCOIN_CONSENSUS) \
-  $(LIBBITCOIN_CRYPTO) \
+  $(LIBSCHILLINGCOIN_COMMON) \
+  $(LIBSCHILLINGCOIN_BIGNUM) \
+  $(LIBSCHILLINGCOIN_UTIL) \
+  $(LIBSCHILLINGCOIN_CONSENSUS) \
+  $(LIBSCHILLINGCOIN_CRYPTO) \
   $(LIBSECP256K1)
 
 schillingcoin_tx_LDADD += $(BOOST_LIBS) $(CRYPTO_LIBS)
 #
 
-# bitcoinconsensus library #
-if BUILD_BITCOIN_LIBS
-include_HEADERS = script/bitcoinconsensus.h
-libbitcoinconsensus_la_SOURCES = \
+# schillingcoinconsensus library #
+if BUILD_SCHILLINGCOIN_LIBS
+include_HEADERS = script/schillingcoinconsensus.h
+libschillingcoinconsensus_la_SOURCES = \
   allocators.cpp \
   arith_uint256.cpp \
   blob_uint256.cpp \
@@ -1082,18 +1074,18 @@ libbitcoinconsensus_la_SOURCES = \
   pubkey.cpp \
   script/script.cpp \
   script/interpreter.cpp \
-  script/bitcoinconsensus.cpp \
+  script/schillingcoinconsensus.cpp \
   uint256.cpp \
   utilstrencodings.cpp
 
 if GLIBC_BACK_COMPAT
-  libbitcoinconsensus_la_SOURCES += compat/glibc_compat.cpp
+  libschillingcoinconsensus_la_SOURCES += compat/glibc_compat.cpp
 endif
 
-libbitcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
-libbitcoinconsensus_la_LIBADD = $(LIBSECP256K1)
-libbitcoinconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_BITCOIN_INTERNAL
-libbitcoinconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
+libschillingcoinconsensus_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined $(RELDFLAGS)
+libschillingcoinconsensus_la_LIBADD = $(LIBSECP256K1)
+libschillingcoinconsensus_la_CPPFLAGS = $(AM_CPPFLAGS) -I$(builddir)/obj -I$(srcdir)/secp256k1/include -DBUILD_SCHILLINGCOIN_INTERNAL
+libschillingcoinconsensus_la_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 
 endif
 #

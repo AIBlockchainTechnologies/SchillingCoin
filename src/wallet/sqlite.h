@@ -1,9 +1,10 @@
-// Copyright (c) 2020-present The Bitcoin Core developers
+// Copyright (c) 2020-2026 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_WALLET_SQLITE_H
-#define BITCOIN_WALLET_SQLITE_H
+#ifndef SCHILLINGCOIN_WALLET_SQLITE_H
+#define SCHILLINGCOIN_WALLET_SQLITE_H
 
 #include <sync.h>
 #include <wallet/db.h>
@@ -147,14 +148,28 @@ public:
     /** Close the database */
     void Close() override;
 
-    /** Rewrite the entire database on disk */
-    bool Rewrite() override;
+    /* These functions are unused for SQLite. */
+    void AddRef() override { assert(false); }
+    void RemoveRef() override { assert(false); }
 
-    /** Back up the entire database to a file.
-     */
+    /** Rewrite the entire database on disk. */
+    bool Rewrite(const char* skip = nullptr) override;
+
+    /** Back up the entire database to a file. */
     bool Backup(const std::string& dest) const override;
 
+    /**
+     * SQLite commits changes directly through its transaction handling, so
+     * explicit database flushing and environment reloading are no-ops.
+     */
+    void Flush() override {}
+    bool PeriodicFlush() override { return false; }
+    void ReloadDbEnv() override {}
+
+    void IncrementUpdateCounter() override { ++nUpdateCounter; }
+
     std::string Filename() override { return m_file_path; }
+
     /** Return paths to all database created files */
     std::vector<fs::path> Files() override
     {
@@ -166,7 +181,7 @@ public:
     std::string Format() override { return "sqlite"; }
 
     /** Make a SQLiteBatch connected to this database */
-    std::unique_ptr<DatabaseBatch> MakeBatch() override;
+    std::unique_ptr<DatabaseBatch> MakeBatch(bool flush_on_close = true) override;
 
     /** Return true if there is an on-going txn in this connection */
     bool HasActiveTxn();
@@ -191,4 +206,4 @@ std::unique_ptr<WalletDatabase> MakeInMemoryWalletDatabase();
 std::string SQLiteDatabaseVersion();
 } // namespace wallet
 
-#endif // BITCOIN_WALLET_SQLITE_H
+#endif // SCHILLINGCOIN_WALLET_SQLITE_H

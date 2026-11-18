@@ -1,9 +1,10 @@
 // Copyright (c) 2014-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_MASTERNODE_META_H
-#define BITCOIN_MASTERNODE_META_H
+#ifndef SCHILLINGCOIN_MASTERNODE_META_H
+#define SCHILLINGCOIN_MASTERNODE_META_H
 
 #include <bls/bls.h>
 #include <saltedhasher.h>
@@ -24,7 +25,6 @@ template<typename T>
 class CFlatDB;
 
 // Holds extra (non-deterministic) information about masternodes
-// This is mostly local information, e.g. about mixing and governance
 class CMasternodeMetaInfo
 {
 public:
@@ -33,9 +33,6 @@ public:
     //! the dsq count from the last dsq broadcast of this node
     int64_t m_last_dsq{0};
     int m_mixing_tx_count{0};
-
-    // KEEP TRACK OF GOVERNANCE ITEMS EACH MASTERNODE HAS VOTE UPON FOR RECALCULATION
-    std::map<uint256, int> mapGovernanceObjectsVotedOn;
 
     int outboundAttemptCount{0};
     int64_t lastOutboundAttempt{0};
@@ -56,16 +53,12 @@ public:
 
     SERIALIZE_METHODS(CMasternodeMetaInfo, obj)
     {
-        READWRITE(obj.m_protx_hash, obj.m_last_dsq, obj.m_mixing_tx_count, obj.mapGovernanceObjectsVotedOn,
+        READWRITE(obj.m_protx_hash, obj.m_last_dsq, obj.m_mixing_tx_count,
                   obj.outboundAttemptCount, obj.lastOutboundAttempt, obj.lastOutboundSuccess, obj.m_platform_ban,
                   obj.m_platform_ban_updated);
     }
 
     UniValue ToJson() const;
-
-    // KEEP TRACK OF EACH GOVERNANCE ITEM IN CASE THIS NODE GOES OFFLINE, SO WE CAN RECALCULATE THEIR STATUS
-    void AddGovernanceVote(const uint256& nGovernanceObjectHash);
-    void RemoveGovernanceObject(const uint256& nGovernanceObjectHash);
 
     void SetLastOutboundAttempt(int64_t t) { lastOutboundAttempt = t; ++outboundAttemptCount; }
     void SetLastOutboundSuccess(int64_t t) { lastOutboundSuccess = t; outboundAttemptCount = 0; }
@@ -193,8 +186,6 @@ private:
     const std::unique_ptr<db_type> m_db;
     bool is_valid{false};
 
-    std::vector<uint256> vecDirtyGovernanceObjectHashes GUARDED_BY(cs);
-
     // equal to double of expected amount of all evo nodes, see DIP-0028
     // it consumes no more than 1Mb of RAM but will cover extreme cases
     static constexpr size_t SeenBanInventorySize = 900;
@@ -226,11 +217,6 @@ public:
     void DisallowMixing(const uint256& proTxHash) EXCLUSIVE_LOCKS_REQUIRED(!cs);
     bool IsValidForMixingTxes(const uint256& protx_hash) const EXCLUSIVE_LOCKS_REQUIRED(!cs);
 
-    void AddGovernanceVote(const uint256& proTxHash, const uint256& nGovernanceObjectHash);
-    void RemoveGovernanceObject(const uint256& nGovernanceObjectHash) EXCLUSIVE_LOCKS_REQUIRED(!cs);
-
-    std::vector<uint256> GetAndClearDirtyGovernanceObjectHashes() EXCLUSIVE_LOCKS_REQUIRED(!cs);
-
     void SetLastOutboundAttempt(const uint256& protx_hash, int64_t t) EXCLUSIVE_LOCKS_REQUIRED(!cs);
     void SetLastOutboundSuccess(const uint256& protx_hash, int64_t t) EXCLUSIVE_LOCKS_REQUIRED(!cs);
     int64_t GetLastOutboundAttempt(const uint256& protx_hash) const EXCLUSIVE_LOCKS_REQUIRED(!cs);
@@ -250,4 +236,4 @@ public:
     bool IsUsedMasternode(const uint256& proTxHash) const EXCLUSIVE_LOCKS_REQUIRED(!cs);
 };
 
-#endif // BITCOIN_MASTERNODE_META_H
+#endif // SCHILLINGCOIN_MASTERNODE_META_H

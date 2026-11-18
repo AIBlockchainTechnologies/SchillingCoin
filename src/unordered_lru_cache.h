@@ -2,8 +2,8 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef BITCOIN_UNORDERED_LRU_CACHE_H
-#define BITCOIN_UNORDERED_LRU_CACHE_H
+#ifndef SCHILLINGCOIN_UNORDERED_LRU_CACHE_H
+#define SCHILLINGCOIN_UNORDERED_LRU_CACHE_H
 
 #include <algorithm>
 #include <cassert>
@@ -114,4 +114,4 @@ private:
     }
 };
 
-#endif // BITCOIN_UNORDERED_LRU_CACHE_H
+#endif // SCHILLINGCOIN_UNORDERED_LRU_CACHE_H
