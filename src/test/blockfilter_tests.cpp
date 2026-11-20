@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,7 +8,6 @@
 
 #include <blockfilter.h>
 #include <core_io.h>
-#include <evo/assetlocktx.h>
 #include <evo/netinfo.h>
 #include <evo/providertx.h>
 #include <evo/specialtx.h>

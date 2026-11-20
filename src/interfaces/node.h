@@ -191,12 +191,6 @@ public:
         uint256 m_hash{};
     };
     virtual ChainLockInfo getBestChainLock() = 0;
-    struct CreditPoolCounts {
-        CAmount m_diff{0};
-        CAmount m_limit{0};
-        CAmount m_locked{0};
-    };
-    virtual CreditPoolCounts getCreditPoolCounts() = 0;
     struct InstantSendCounts {
         size_t m_verified{0};
         size_t m_unverified{0};
@@ -204,7 +198,6 @@ public:
         size_t m_unprotected_tx{0};
     };
     virtual InstantSendCounts getInstantSendCounts() = 0;
-    virtual size_t getPendingAssetUnlocks() = 0;
     struct QuorumInfo {
         std::string m_name;
         size_t m_count{0};
@@ -215,19 +208,6 @@ public:
         int32_t m_expiry_height{0};
     };
     virtual std::vector<QuorumInfo> getQuorumStats() = 0;
-    struct PlatformQuorum {
-        uint256 m_quorum_hash{};
-        std::vector<uint8_t> m_pubkey{}; //!< serialized BLS public key (basic scheme)
-        int32_t m_height{0};
-    };
-    //! Locally retained quorums of the given LLMQ type with their public
-    //! keys. Used by the GUI Platform client to verify Platform state-root
-    //! quorum signatures against locally synced quorum data. This includes
-    //! retained signing quorums that are no longer in the active signing set.
-    virtual std::vector<PlatformQuorum> getPlatformQuorums(uint8_t llmq_type) = 0;
-    //! Serialized InstantSend lock for the given txid, or empty if the
-    //! transaction has no islock (used to build asset lock proofs).
-    virtual std::vector<uint8_t> getInstantSendLock(const uint256& txid) = 0;
     virtual void setContext(node::NodeContext* context) {}
 };
 

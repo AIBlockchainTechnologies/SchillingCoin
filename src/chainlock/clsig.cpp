@@ -1,4 +1,5 @@
 // Copyright (c) 2021-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -125,11 +126,11 @@ void ClearCoinbaseChainLockCacheForTesting()
 
 namespace {
 
-/** Offset of bestCLHeightDiff in a CLSIG_AND_BALANCE coinbase payload:
+/** Offset of bestCLHeightDiff in a CLSIG coinbase payload:
  *  nVersion u16, nHeight i32, merkleRootMNList, merkleRootQuorums. */
 constexpr size_t CBTX_CLSIG_OFFSET{2 + 4 + 32 + 32};
 
-/** The raw bestCLSignature bytes of a validated CLSIG_AND_BALANCE payload.
+/** The raw bestCLSignature bytes of a validated CLSIG payload.
  *  Read from the wire rather than from the decoded CCbTx, whose signature
  *  depends on the process-wide BLS scheme flag at decode time; a cached value
  *  must be a function of the block alone. */
@@ -157,7 +158,7 @@ CarrierEntry LoadCarrier(const CBlockIndex* carrier, int carrier_height)
     }
     const auto cb = GetTxPayload<CCbTx>(*block.vtx[0]);
     if (!block.vtx[0]->IsCoinBase() || block.vtx[0]->nType != TRANSACTION_COINBASE || !cb ||
-        cb->nVersion < CCbTx::Version::CLSIG_AND_BALANCE || cb->nHeight != carrier_height) {
+        cb->nVersion < CCbTx::Version::CLSIG || cb->nHeight != carrier_height) {
         throw std::runtime_error("Invalid historical ChainLock coinbase");
     }
     if (cb->bestCLHeightDiff >= uint32_t(carrier_height)) {

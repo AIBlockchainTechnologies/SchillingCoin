@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -46,13 +47,13 @@ static RPCHelpMan gettxoutproof()
         },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
         {
-            std::set<uint256> setTxids;
+            std::set<Txid> setTxids;
             UniValue txids = request.params[0].get_array();
             if (txids.empty()) {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Parameter 'txids' cannot be empty");
             }
             for (unsigned int idx = 0; idx < txids.size(); idx++) {
-                auto ret = setTxids.insert(ParseHashV(txids[idx], "txid"));
+                auto ret = setTxids.insert(Txid::FromUint256(ParseHashV(txids[idx], "txid")));
                 if (!ret.second) {
                     throw JSONRPCError(RPC_INVALID_PARAMETER, std::string("Invalid parameter, duplicated txid: ") + txids[idx].get_str());
                 }
@@ -149,7 +150,7 @@ static RPCHelpMan verifytxoutproof()
 
             UniValue res(UniValue::VARR);
 
-            std::vector<uint256> vMatch;
+            std::vector<Txid> vMatch;
             std::vector<unsigned int> vIndex;
             if (merkleBlock.txn.ExtractMatches(vMatch, vIndex) != merkleBlock.header.hashMerkleRoot)
                 return res;
@@ -164,7 +165,7 @@ static RPCHelpMan verifytxoutproof()
 
             // Check if proof is valid, only add results if so
             if (pindex->nTx == merkleBlock.txn.GetNumTransactions()) {
-                for (const uint256& hash : vMatch) {
+                for (const Txid& hash : vMatch) {
                     res.push_back(hash.GetHex());
                 }
             }

@@ -66,14 +66,6 @@ static const int ISDLOCK_CYCLEHASH_UPDATE_VERSION = 70237;
 //! Re-propagation of stale quorum final commitments was restricted in this protocol version.
 static const int QFCOMMIT_STALE_REPROP_BAN_VERSION = 70239;
 
-//! Temporary imported Platform short-ID gate.
-//! Remove this constant with the remaining Platform protocol path.
-static const int PLATFORMBAN_V2_SHORT_ID_VERSION = 70240;
-
-//! Temporary imported AssetUnlock inventory gate.
-//! Remove this constant with the remaining AssetUnlock protocol path.
-static const int ASSET_UNLOCK_INV_VERSION = 70242;
-
 //! nTime was added to CAddress in this protocol version.
 static const int CADDR_TIME_VERSION = 31402;
 
@@ -85,6 +77,5 @@ static const int MEMPOOL_GD_VERSION = 60002;
 
 //! Filter commands require NODE_BLOOM at and after this protocol version.
 static const int NO_BLOOM_VERSION = 70000;
-
 
 #endif // SCHILLINGCOIN_VERSION_H

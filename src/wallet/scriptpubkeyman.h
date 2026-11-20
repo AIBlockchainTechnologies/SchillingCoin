@@ -8,8 +8,10 @@
 #ifndef SCHILLINGCOIN_WALLET_SCRIPTPUBKEYMAN_H
 #define SCHILLINGCOIN_WALLET_SCRIPTPUBKEYMAN_H
 
+#include "addresstype.h"
 #include "pubkey.h"
 #include "script/script.h"
+#include "util/message.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -53,6 +55,9 @@ public:
 
     //! Mark keypool destinations found in a script as used.
     void MarkUnusedAddresses(const CScript& script);
+
+    //! Sign a message using the private key for the supplied public-key hash.
+    SigningResult SignMessage(const std::string& message, const PKHash& pkhash, std::string& signature) const;
 
     //! Return keypool statistics.
     size_t KeypoolCountExternalKeys() const;

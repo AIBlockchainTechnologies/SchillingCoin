@@ -5,7 +5,6 @@
 
 #include <rpc/json_help.h>
 
-#include <evo/assetlocktx.h>
 #include <evo/cbtx.h>
 #include <evo/deterministicmns.h>
 #include <evo/dmnstate.h>
@@ -110,38 +109,6 @@ RPCResult GetRpcResult(const std::string& key, bool optional, const std::string&
                              __FILE__, __LINE__, __func__);
 }
 
-RPCResult CAssetLockPayload::GetJsonHelp(const std::string& key, bool optional)
-{
-    return {RPCResult::Type::OBJ, key, optional, key.empty() ? "" : "The asset lock special transaction",
-    {
-        GetRpcResult("version"),
-        {RPCResult::Type::ARR, "creditOutputs", "", {
-            {RPCResult::Type::OBJ, "", "", {
-                {RPCResult::Type::NUM, "value", "The value in Dash"},
-                {RPCResult::Type::NUM, "valueSat", "The value in duffs"},
-                {RPCResult::Type::OBJ, "scriptPubKey", "", {
-                    {RPCResult::Type::STR, "asm", "The asm"},
-                    {RPCResult::Type::STR_HEX, "hex", "The hex"},
-                    {RPCResult::Type::STR, "type", "The type, eg 'pubkeyhash'"},
-                }},
-                {RPCResult::Type::STR, "address", /*optional=*/true, "DIP-18 Platform address (version >= 2 only)"},
-        }}}}
-    }};
-}
-
-RPCResult CAssetUnlockPayload::GetJsonHelp(const std::string& key, bool optional)
-{
-    return {RPCResult::Type::OBJ, key, optional, key.empty() ? "" : "The asset unlock special transaction",
-    {
-        GetRpcResult("version"),
-        {RPCResult::Type::NUM, "index", "Index of the transaction"},
-        {RPCResult::Type::NUM, "fee", "Transaction fee in duffs awarded to the miner"},
-        {RPCResult::Type::NUM, "requestedHeight", "Payment chain block height known by Platform when signing the withdrawal"},
-        GetRpcResult("quorumHash"),
-        GetRpcResult("quorumSig"),
-    }};
-}
-
 RPCResult CCbTx::GetJsonHelp(const std::string& key, bool optional)
 {
     return {RPCResult::Type::OBJ, key, optional, key.empty() ? "" : "The coinbase special transaction",
@@ -152,8 +119,6 @@ RPCResult CCbTx::GetJsonHelp(const std::string& key, bool optional)
         GetRpcResult("merkleRootQuorums", /*optional=*/true),
         {RPCResult::Type::NUM, "bestCLHeightDiff", /*optional=*/true, "Blocks between the current block and the last known block with a ChainLock"},
         {RPCResult::Type::STR_HEX, "bestCLSignature", /*optional=*/true, "Best ChainLock signature known by the miner"},
-        {RPCResult::Type::NUM, "creditPoolBalance", /*optional=*/true, "Balance in the Platform credit pool"},
-        {RPCResult::Type::STR_HEX, "merkleRootAssetUnlocks", /*optional=*/true, "Merkle root of the instance hashes of the block's version 2 asset unlock transactions"},
     }};
 }
 

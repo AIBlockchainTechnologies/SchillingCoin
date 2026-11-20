@@ -41,27 +41,7 @@ struct CMutableTransaction;
 
 namespace Consensus { struct Params; }
 
-/**
- * This helper returns amount that should be reallocated to platform
- * It is calculated based on total amount of masternode rewards (not block reward)
- */
-CAmount PlatformShare(const CAmount masternodeReward);
-
-/**
- * Masternode reward era for a given block, gating how the reward is computed.
- * Each era implies the previous one: EvoReward is only reachable once CreditPool
- * (V20) is active, so the ordering encodes that invariant. The era is computed by
- * the caller (which owns the block context) and passed in, keeping this module free
- * of deployment dependencies. Note this is orthogonal to DIP0003 enforcement, which
- * gates whether payees are validated at all and is handled separately.
- */
-enum class MnRewardEra {
-    Classic,
-    CreditPool,
-    EvoReward,
-};
-
-CAmount GetMasternodePayment(int nHeight, CAmount blockValue, const Consensus::Params& consensus_params, MnRewardEra era);
+CAmount GetMasternodePayment(int nHeight, CAmount blockValue, const Consensus::Params& consensus_params);
 
 class CMNPaymentsProcessor
 {
@@ -71,11 +51,11 @@ private:
 
 private:
     [[nodiscard]] bool GetBlockTxOuts(const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
-                                      MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet);
+                                      std::vector<CTxOut>& voutMasternodePaymentsRet);
     [[nodiscard]] bool GetMasternodeTxOuts(const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
-                                           MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet);
+                                           std::vector<CTxOut>& voutMasternodePaymentsRet);
     [[nodiscard]] bool IsTransactionValid(const CTransaction& txNew, const CBlockIndex* pindexPrev, const CAmount blockSubsidy,
-                                          const CAmount feeReward, MnRewardEra era, bool strict_multiplicity);
+                                          const CAmount feeReward, bool strict_multiplicity);
 
 public:
     explicit CMNPaymentsProcessor(CDeterministicMNManager& dmnman,
@@ -87,9 +67,9 @@ public:
 
     bool IsBlockValueValid(const CBlock& block, const CBlockIndex* pindexPrev, const CAmount blockReward, std::string& strErrorRet);
     bool IsBlockPayeeValid(const CTransaction& txNew, const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
-                           MnRewardEra era, bool strict_multiplicity);
+                           bool strict_multiplicity);
     void FillBlockPayments(CMutableTransaction& txNew, const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
-                           MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet);
+                           bool fProofOfStake, std::vector<CTxOut>& voutMasternodePaymentsRet);
 };
 
 #endif // SCHILLINGCOIN_MASTERNODE_PAYMENTS_H

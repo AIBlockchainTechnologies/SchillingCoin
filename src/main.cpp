@@ -66,8 +66,6 @@
  * The transaction pool has a separate lock to allow reading from it and the
  * chainstate at the same time.
  */
-RecursiveMutex cs_main;
-
 BlockMap mapBlockIndex;
 CChain chainActive;
 
@@ -86,18 +84,7 @@ CBlockIndex* GetChainTip()
 
 CBlockIndex* pindexBestHeader = NULL;
 int64_t nTimeBestReceived = 0;
-
-// Best block section
-Mutex g_best_block_mutex;
-std::condition_variable g_best_block_cv;
-uint256 g_best_block;
-
-int nScriptCheckThreads = 0;
-std::atomic<bool> fImporting{false};
-std::atomic<bool> fReindex{false};
 bool fTxIndex = true;
-bool fCheckBlockIndex = false;
-bool fVerifyingBlocks = false;
 unsigned int nCoinCacheSize = 5000;
 
 /* If the tip is older than this (in seconds), the node is considered to be in initial block download. */
@@ -121,16 +108,8 @@ struct COrphanTx {
 std::map<uint256, COrphanTx> mapOrphanTransactions;
 std::map<uint256, std::set<uint256> > mapOrphanTransactionsByPrev;
 std::map<uint256, int64_t> mapRejectedBlocks;
-
 void EraseOrphansFor(NodeId peer);
-
 static void CheckBlockIndex();
-
-/** Constant stuff for coinbase transactions we create: */
-CScript COINBASE_FLAGS;
-
-const std::string strMessageMagic = "DarkNet Signed Message:\n";
-
 // Internal stuff
 namespace
 {

@@ -528,7 +528,6 @@ libschillingcoin_node_a_SOURCES = \
   rpc/net.cpp \
   rpc/node.cpp \
   rpc/rawtransaction.cpp \
-  common/signmessage.cpp \
   rpc/server.cpp \
   rpc/server_util.cpp \
   rpc/signmessage.cpp \
@@ -633,10 +632,10 @@ libschillingcoin_wallet_a_SOURCES = \
   wallet/hdwallet.cpp \
   wallet/hdwalletdb.cpp \
   wallet/hdwallettypes.cpp \
-  wallet/init.cpp \
   wallet/load.cpp \
   wallet/receive.cpp \
   wallet/rpc/coins.cpp \
+  wallet/rpc/signmessage.cpp \
   wallet/rpc/util.cpp \
   wallet/rpc/wallet.cpp \
   wallet/rpchdwallet.cpp \

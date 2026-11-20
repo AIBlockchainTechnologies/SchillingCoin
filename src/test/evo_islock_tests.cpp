@@ -4,7 +4,6 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <consensus/consensus.h>
-#include <evo/assetlocktx.h>
 #include <evo/specialtx.h>
 #include <hash.h>
 #include <instantsend/instantsend.h>

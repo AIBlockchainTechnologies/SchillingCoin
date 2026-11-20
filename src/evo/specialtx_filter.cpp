@@ -22,14 +22,12 @@
  * - Payout scripts: To detect payments to specific addresses
  * - ProTx hashes: To track masternode lifecycle and updates
  * - Collateral outpoints: To track masternode collateral
- * - Credit outputs: To track platform-related transactions
  *
  * Each transaction type has different fields based on its purpose:
  * - ProRegTx: All identity and payout fields (initial registration)
  * - ProUpServTx: ProTx hash and operator payout (service updates)
  * - ProUpRegTx: ProTx hash, voting key, and payout (ownership updates)
  * - ProUpRevTx: ProTx hash only (revocation tracking)
- * - AssetLockTx: Credit output scripts (platform credits)
  */
 // Helper function to add a script to the filter if it's not empty
 static void AddScriptElement(const CScript& script, const std::function<void(Span<const unsigned char>)>& addElement)

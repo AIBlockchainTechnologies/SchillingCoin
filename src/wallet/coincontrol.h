@@ -79,11 +79,6 @@ public:
 
     bool IsSelected(const COutPoint& output) const;
 
-    bool IsSelected(const uint256& hash, unsigned int n) const
-    {
-        return IsSelected(COutPoint(hash, n));
-    }
-
     void Select(const COutPoint& output);
 
     void UnSelect(const COutPoint& output);

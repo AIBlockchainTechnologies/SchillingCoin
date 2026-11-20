@@ -105,8 +105,6 @@ struct BlockHasher {
     size_t operator()(const uint256& hash) const { return hash.GetCheapHash(); }
 };
 
-extern CScript COINBASE_FLAGS;
-extern RecursiveMutex cs_main;
 extern std::unique_ptr<CBlockPolicyEstimator> feeEstimator;
 extern CTxMemPool mempool;
 typedef boost::unordered_map<uint256, CBlockIndex*, BlockHasher> BlockMap;
@@ -116,26 +114,13 @@ extern BlockMap mapBlockIndex;
  * Return a reliable pointer in mapBlockIndex to the active chain's tip index.
  */
 CBlockIndex* GetChainTip();
-
 extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockSize;
-extern const std::string strMessageMagic;
 extern int64_t nTimeBestReceived;
-
-// Best block section
-extern Mutex g_best_block_mutex;
-extern std::condition_variable g_best_block_cv;
-extern uint256 g_best_block;
-
-extern std::atomic<bool> fImporting;
-extern std::atomic<bool> fReindex;
-extern int nScriptCheckThreads;
 extern bool fTxIndex;
-extern bool fCheckBlockIndex;
 extern unsigned int nCoinCacheSize;
 extern CFeeRate minRelayTxFee;
 extern int64_t nMaxTipAge;
-extern bool fVerifyingBlocks;
 
 extern bool fLargeWorkForkFound;
 extern bool fLargeWorkInvalidChainFound;

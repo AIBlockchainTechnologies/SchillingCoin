@@ -142,9 +142,6 @@ extern const char* HEADERS2;
 extern const char* GETQUORUMROTATIONINFO;
 extern const char* QUORUMROTATIONINFO;
 
-/* Temporary until the remaining Platform message owner is retired. */
-extern const char* PLATFORMBAN;
-
 } // namespace NetMsgType
 
 /** Get a vector of all valid message types. */
@@ -353,10 +350,7 @@ enum GetDataMsg : uint32_t {
     MSG_ISDLOCK = 31,
 
     // Value 32 was historically used for the CoinJoin DSQ inventory type.
-
-    // Temporary compiled owners to be removed with their excluded subsystems.
-    MSG_PLATFORM_BAN = 33,
-    MSG_ASSET_UNLOCK = 34,
+    // Values 33 and 34 are reserved for historical wire compatibility.
 };
 
 /** inv message data */
@@ -384,13 +378,12 @@ public:
 
     bool IsMsgTx() const { return type == MSG_TX; }
     bool IsMsgBlk() const { return type == MSG_BLOCK; }
-    bool IsMsgAssetUnlock() const { return type == MSG_ASSET_UNLOCK; }
     bool IsMsgFilteredBlk() const { return type == MSG_FILTERED_BLOCK; }
     bool IsMsgCmpctBlk() const { return type == MSG_CMPCT_BLOCK; }
 
     bool IsGenTxMsg() const
     {
-        return type == MSG_TX || type == MSG_ASSET_UNLOCK;
+        return type == MSG_TX;
     }
 
     bool IsGenBlkMsg() const

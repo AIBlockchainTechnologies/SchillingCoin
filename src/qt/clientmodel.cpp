@@ -16,6 +16,7 @@
 #include "net_processing.h"
 #include "netaddress.h"
 #include "netbase.h"
+#include "node/blockstorage.h"
 #include "peertablemodel.h"
 #include "util.h"
 #include "util/system.h"
@@ -192,9 +193,9 @@ bool ClientModel::inInitialBlockDownload() const
 
 enum BlockSource ClientModel::getBlockSource() const
 {
-    if (fReindex)
+    if (node::fReindex)
         return BLOCK_SOURCE_REINDEX;
-    else if (fImporting)
+    else if (node::fImporting)
         return BLOCK_SOURCE_DISK;
     else if (getNumConnections() > 0)
         return BLOCK_SOURCE_NETWORK;
@@ -274,8 +275,8 @@ static void BlockTipChanged(ClientModel* clientmodel, bool initialSync, const CB
     // if we are in-sync, update the UI regardless of last update time
     if (!initialSync || now - nLastBlockTipUpdateNotification > MODEL_UPDATE_DELAY) {
         clientmodel->setCacheTip(pIndex);
-        clientmodel->setCacheImporting(fImporting);
-        clientmodel->setCacheReindexing(fReindex);
+        clientmodel->setCacheImporting(node::fImporting);
+        clientmodel->setCacheReindexing(node::fReindex);
         clientmodel->setCacheInitialSync(initialSync);
         Q_EMIT clientmodel->numBlocksChanged(pIndex->nHeight);
         nLastBlockTipUpdateNotification = now;

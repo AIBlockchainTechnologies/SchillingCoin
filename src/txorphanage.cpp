@@ -36,7 +36,7 @@ bool TxOrphanage::AddTx(const CTransactionRef& tx, NodeId peer)
     const unsigned int sz = GetSerializeSize(TX_WITH_WITNESS(*tx));
     if (sz > MAX_STANDARD_TX_SIZE)
     {
-        LogPrint(BCLog::MEMPOOL,
+        LogDebug(BCLog::MEMPOOL,
                  "ignoring large orphan tx (size: %u, txid: %s, wtxid: %s)\n",
                  sz, txid.ToString(), wtxid.ToString());
         return false;
@@ -58,7 +58,7 @@ bool TxOrphanage::AddTx(const CTransactionRef& tx, NodeId peer)
 
     m_orphan_tx_size += sz;
 
-    LogPrint(BCLog::MEMPOOL,
+    LogDebug(BCLog::MEMPOOL,
              "stored orphan tx %s (wtxid=%s, mapsz %u outsz %u)\n",
              txid.ToString(),
              wtxid.ToString(),
@@ -124,7 +124,7 @@ void TxOrphanage::EraseForPeer(NodeId peer)
             nErased += EraseTxNoLock(maybeErase->first);
         }
     }
-    if (nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx from peer=%d\n", nErased, peer);
+    if (nErased > 0) LogDebug(BCLog::MEMPOOL, "Erased %d orphan tx from peer=%d\n", nErased, peer);
 }
 
 void TxOrphanage::LimitOrphans(unsigned int max_orphans_size)
@@ -149,7 +149,7 @@ void TxOrphanage::LimitOrphans(unsigned int max_orphans_size)
         }
         // Sweep again 5 minutes after the next entry that expires in order to batch the linear scan.
         nNextSweep = nMinExpTime + ORPHAN_TX_EXPIRE_INTERVAL;
-        if (nErased > 0) LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx due to expiration\n", nErased);
+        if (nErased > 0) LogDebug(BCLog::MEMPOOL, "Erased %d orphan tx due to expiration\n", nErased);
     }
     FastRandomContext rng;
     while (!m_orphans.empty() && m_orphan_tx_size > max_orphans_size)
@@ -159,7 +159,7 @@ void TxOrphanage::LimitOrphans(unsigned int max_orphans_size)
         EraseTxNoLock(m_orphan_list[randompos]->first);
         ++nEvicted;
     }
-    if (nEvicted > 0) LogPrint(BCLog::MEMPOOL, "orphanage overflow, removed %u tx\n", nEvicted);
+    if (nEvicted > 0) LogDebug(BCLog::MEMPOOL, "orphanage overflow, removed %u tx\n", nEvicted);
 }
 
 void TxOrphanage::AddChildrenToWorkSet(const CTransaction& tx)
@@ -260,7 +260,7 @@ void TxOrphanage::EraseForBlock(const CBlock& block)
         for (const Wtxid& orphanHash : vOrphanErase) {
             nErased += EraseTxNoLock(orphanHash);
         }
-        LogPrint(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);
+        LogDebug(BCLog::MEMPOOL, "Erased %d orphan tx included or conflicted by block\n", nErased);
     }
 }
 

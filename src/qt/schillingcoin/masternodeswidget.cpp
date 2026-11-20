@@ -459,7 +459,9 @@ void MasterNodesWidget::onDeleteMNClicked()
             bool convertOK = false;
             unsigned int indexOut = outIndex.toUInt(&convertOK);
             if(convertOK) {
-                COutPoint collateralOut(uint256(txId.toStdString()), indexOut);
+                COutPoint collateralOut(
+                    Txid::FromUint256(uint256(txId.toStdString())),
+                    indexOut);
                 walletModel->unlockCoin(collateralOut);
             }
 

@@ -370,12 +370,8 @@ void NetInstantSend::ProcessInstantSendLock(NodeId from, const uint256& hash, co
     auto tx = GetTransaction(nullptr, &m_mempool, islock->txid, Params().GetConsensus(), hashBlock);
     const bool found_transaction{tx != nullptr};
     if (found_transaction && islock->inputs != instantsend::GetLockInputs(*tx)) {
-        // A lock must pin exactly the transaction's lock inputs. For an asset unlock that is
-        // the withdrawal's synthetic outpoint; anything else would poison conflict tracking of
-        // unrelated coins. (Ordinary transactions can only fail this with a lock whose txid
-        // does not match its inputs, which the signing quorum never produces.) A lock for a
-        // transaction we do not have yet is parked and comes back through here once the
-        // transaction arrives; until then its inputs are trusted like any quorum-signed lock's.
+        // A lock must pin exactly the transaction's input outpoints. A lock for a
+        // transaction we do not have yet is checked once the transaction arrives.
         LogPrintf("NetInstantSend::%s -- txid=%s, islock=%s: lock inputs do not match the transaction, peer=%d\n",
                   __func__, islock->txid.ToString(), hash.ToString(), from);
         return;
@@ -495,11 +491,6 @@ void NetInstantSend::RemoveMempoolConflictsForLock(const uint256& hash, const in
         for (const auto& p : toDelete) {
             m_mempool.removeRecursive(*p.second, MemPoolRemovalReason::CONFLICT);
         }
-        // Asset unlocks have no inputs, so mapNextTx cannot reveal another instance of the
-        // locked withdrawal; the mempool tracks them by index instead.
-        if (const auto locked_tx = m_mempool.get(islock.txid)) {
-            m_mempool.removeAssetUnlockConflicts(*locked_tx);
-        }
     }
     ClearConflicting(toDelete);
 }
@@ -549,10 +540,7 @@ void NetInstantSend::BlockConnected(const std::shared_ptr<const CBlock>& pblock,
             }
 
             if (!m_is_manager.IsLocked(tx->GetHash()) && !has_chainlock) {
-                // A mined asset unlock is not locked retroactively: its lock exists to make
-                // pending withdrawals spendable, and ChainLocks do not wait for it. It is still
-                // tracked so a lock binding its withdrawal index to another txid is detected.
-                if (m_signer && !tx->vin.empty()) {
+                if (m_signer) {
                     m_signer->ProcessTx(*tx, true, Params().GetConsensus());
                 }
                 // TX is not locked, so make sure it is tracked
@@ -562,9 +550,6 @@ void NetInstantSend::BlockConnected(const std::shared_ptr<const CBlock>& pblock,
                 m_is_manager.RemoveNonLockedTx(tx->GetHash(), true);
             }
         }
-        // The new tip may have moved a pending withdrawal into its height window or freed
-        // enough of the credit pool limit for every pending withdrawal to fit
-        m_is_manager.RetryUnminedAssetUnlocks();
     }
     m_is_manager.WriteBlockISLocks(pblock, pindex);
 }

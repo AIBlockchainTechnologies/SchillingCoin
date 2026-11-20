@@ -383,64 +383,6 @@ UniValue createmultisig(const JSONRPCRequest& request)
     return result;
 }
 
-UniValue verifymessage(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 3)
-        throw std::runtime_error(
-            "verifymessage \"schillingcoinaddress\" \"signature\" \"message\"\n"
-            "\nVerify a signed message\n"
-
-            "\nArguments:\n"
-            "1. \"schillingcoinaddress\"  (string, required) The SchillingCoin address to use for the signature.\n"
-            "2. \"signature\"       (string, required) The signature provided by the signer in base 64 encoding (see signmessage).\n"
-            "3. \"message\"         (string, required) The message that was signed.\n"
-
-            "\nResult:\n"
-            "true|false   (boolean) If the signature is verified or not.\n"
-
-            "\nExamples:\n"
-            "\nUnlock the wallet for 30 seconds\n" +
-            HelpExampleCli("walletpassphrase", "\"mypassphrase\" 30") +
-            "\nCreate the signature\n" +
-            HelpExampleCli("signmessage", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" \"my message\"") +
-            "\nVerify the signature\n" +
-            HelpExampleCli("verifymessage", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\" \"signature\" \"my message\"") +
-            "\nAs json rpc\n" +
-            HelpExampleRpc("verifymessage", "\"1D1ZrZNe3JUo7ZycKEYQQiQAWd9y54F4XZ\", \"signature\", \"my message\""));
-
-    LOCK(cs_main);
-
-    const std::string strAddress = request.params[0].get_str();
-    const std::string strSign = request.params[1].get_str();
-    const std::string strMessage = request.params[2].get_str();
-
-    bool isStaking = false;
-    CTxDestination destination = DecodeDestination(strAddress, isStaking);
-
-    if (!IsValidDestination(destination))
-        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
-
-    const CKeyID* keyID = boost::get<CKeyID>(&destination);
-    if (!keyID)
-        throw JSONRPCError(RPC_TYPE_ERROR, "Address does not refer to key");
-
-    bool fInvalid = false;
-    std::vector<unsigned char> vchSig = DecodeBase64(strSign.c_str(), &fInvalid);
-
-    if (fInvalid)
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Malformed base64 encoding");
-
-    CHashWriter ss(SER_GETHASH, 0);
-    ss << strMessageMagic;
-    ss << strMessage;
-
-    CPubKey pubkey;
-    if (!pubkey.RecoverCompact(ss.GetHash(), vchSig))
-        return false;
-
-    return pubkey.GetID() == *keyID;
-}
-
 #ifdef ENABLE_WALLET
 UniValue getstakingstatus(const JSONRPCRequest& request)
 {

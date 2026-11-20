@@ -139,7 +139,7 @@ bool CheckCbTxBestChainlock(const CCbTx& cbTx, const CBlockIndex* pindex, const 
                             const CChain& chain, const llmq::CQuorumManager& qman,
                             const chainlock::Chainlocks& chainlocks, BlockValidationState& state)
 {
-    if (cbTx.nVersion < CCbTx::Version::CLSIG_AND_BALANCE) {
+    if (cbTx.nVersion < CCbTx::Version::CLSIG) {
         return true;
     }
 
@@ -215,8 +215,8 @@ bool CheckCbTxBestChainlock(const CCbTx& cbTx, const CBlockIndex* pindex, const 
 
 bool CSpecialTxProcessor::CheckSpecialTxInner(const CChain* chain, const CTransaction& tx,
                                               const CBlockIndex* pindexPrev, SpecialTxRules rules,
-                                              const CCoinsViewCache& view, const std::optional<CRangesSet>& indexes,
-                                              bool check_sigs, TxValidationState& state)
+                                              const CCoinsViewCache& view, bool check_sigs,
+                                              TxValidationState& state)
 {
     AssertLockHeld(::cs_main);
 
@@ -248,7 +248,7 @@ bool CSpecialTxProcessor::CheckSpecialTxInner(const CChain* chain, const CTransa
                 return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-cbtx-invalid");
             }
             if (const auto opt_cbTx = GetTxPayload<CCbTx>(tx)) {
-                return CheckCbTx(*opt_cbTx, pindexPrev, rules.v24, state);
+                return CheckCbTx(*opt_cbTx, pindexPrev, state);
             } else {
                 return state.Invalid(TxValidationResult::TX_CONSENSUS, "bad-cbtx-payload");
             }
@@ -258,11 +258,6 @@ bool CSpecialTxProcessor::CheckSpecialTxInner(const CChain* chain, const CTransa
         case TRANSACTION_MNHF_SIGNAL:
             return chain ? CheckMNHFTx(m_blockman, m_qman, *chain, tx, pindexPrev, state) :
                            CheckMNHFTx(m_blockman, m_qman, tx, pindexPrev, state);
-        case TRANSACTION_ASSET_LOCK:
-            return CheckAssetLockTx(tx, state, rules.v24);
-        case TRANSACTION_ASSET_UNLOCK:
-            return chain ? CheckAssetUnlockTx(m_blockman, m_qman, *chain, tx, pindexPrev, indexes, rules.v24, state)
-                         : CheckAssetUnlockTx(m_blockman, m_qman, tx, pindexPrev, indexes, rules.v24, state);
         }
     } catch (const std::exception& e) {
         LogPrintf("%s -- failed: %s\n", __func__, e.what());
@@ -276,7 +271,7 @@ bool CSpecialTxProcessor::CheckSpecialTx(const CTransaction& tx, const CBlockInd
                                          const CCoinsViewCache& view, bool check_sigs, TxValidationState& state)
 {
     AssertLockHeld(::cs_main);
-    return CheckSpecialTxInner(nullptr, tx, pindexPrev, rules, view, std::nullopt, check_sigs, state);
+    return CheckSpecialTxInner(nullptr, tx, pindexPrev, rules, view, check_sigs, state);
 }
 
 static void HandleQuorumCommitment(const llmq::CFinalCommitment& qc, const std::vector<CDeterministicMNCPtr>& members,
@@ -807,7 +802,6 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
         static int64_t nTimeDMN = 0;
         static int64_t nTimeMnehf = 0;
         static int64_t nTimePayload = 0;
-        static int64_t nTimeCreditPool = 0;
 
         int64_t nTime1 = GetTimeMicros();
 
@@ -819,7 +813,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
             }
             if (opt_cbTx = GetTxPayload<CCbTx>(*tx); opt_cbTx) {
                 TxValidationState tx_state;
-                if (!CheckCbTx(*opt_cbTx, pindex->pprev, rules.v24, tx_state)) {
+                if (!CheckCbTx(*opt_cbTx, pindex->pprev, tx_state)) {
                     assert(tx_state.GetResult() == TxValidationResult::TX_CONSENSUS ||
                            tx_state.GetResult() == TxValidationResult::TX_BAD_SPECIAL);
                     return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, tx_state.GetRejectReason(),
@@ -842,13 +836,6 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
         LogPrint(BCLog::BENCH, "      - GetTxPayload: %.2fms [%.2fs]\n", 0.001 * (nTime2 - nTime1),
                  nTimePayload * 0.000001);
 
-        CRangesSet indexes;
-        if (DeploymentActiveAt(*pindex, m_consensus_params, Consensus::DEPLOYMENT_V20)) {
-            CCreditPool creditPool{m_cpoolman.GetCreditPool(pindex->pprev)};
-            LogPrint(BCLog::CREDITPOOL, "CSpecialTxProcessor::%s -- CCreditPool is %s\n", __func__, creditPool.ToString());
-            indexes = std::move(creditPool.indexes);
-        }
-
         for (size_t i = 0; i < block.vtx.size(); ++i) {
             // The shared-collateral creation rule applies to every transaction, including the
             // coinbase and non-special transactions, which CheckSpecialTxInner never sees
@@ -867,7 +854,7 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
             TxValidationState tx_state;
             // At this moment CheckSpecialTx() may fail by 2 possible ways:
             // consensus failures and "TX_BAD_SPECIAL"
-            if (!CheckSpecialTxInner(&chain, *ptr_tx, pindex->pprev, rules, view, indexes, fCheckCbTxMerkleRoots, tx_state)) {
+            if (!CheckSpecialTxInner(&chain, *ptr_tx, pindex->pprev, rules, view, fCheckCbTxMerkleRoots, tx_state)) {
                 assert(tx_state.GetResult() == TxValidationResult::TX_CONSENSUS || tx_state.GetResult() == TxValidationResult::TX_BAD_SPECIAL);
                 return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, tx_state.GetRejectReason(),
                                  strprintf("Special Transaction check failed (tx hash %s) %s", ptr_tx->GetHash().ToString(), tx_state.GetDebugMessage()));
@@ -878,27 +865,14 @@ bool CSpecialTxProcessor::ProcessSpecialTxsInBlock(Chainstate& chainstate, const
         nTimeLoop += nTime3 - nTime2;
         LogPrint(BCLog::BENCH, "      - Loop: %.2fms [%.2fs]\n", 0.001 * (nTime3 - nTime2), nTimeLoop * 0.000001);
 
-        if (opt_cbTx.has_value()) {
-            if (!CheckCreditPoolDiffForBlock(block, pindex, *opt_cbTx, blockSubsidy, state)) {
-                LogError("CSpecialTxProcessor: CheckCreditPoolDiffForBlock for block %s failed with %s\n",
-                         pindex->GetBlockHash().ToString(), state.ToString());
-                return false;
-            }
-        }
-
-        int64_t nTime4 = GetTimeMicros();
-        nTimeCreditPool += nTime4 - nTime3;
-        LogPrint(BCLog::BENCH, "      - CheckCreditPoolDiffForBlock: %.2fms [%.2fs]\n", 0.001 * (nTime4 - nTime3),
-                 nTimeCreditPool * 0.000001);
-
         if (!m_qblockman.ProcessBlock(chainstate, block, pindex, state, fJustCheck, fCheckCbTxMerkleRoots)) {
             // pass the state returned by the function above
             return false;
         }
 
         int64_t nTime5 = GetTimeMicros();
-        nTimeQuorum += nTime5 - nTime4;
-        LogPrint(BCLog::BENCH, "      - m_qblockman.ProcessBlock: %.2fms [%.2fs]\n", 0.001 * (nTime5 - nTime4),
+        nTimeQuorum += nTime5 - nTime3;
+        LogPrint(BCLog::BENCH, "      - m_qblockman.ProcessBlock: %.2fms [%.2fs]\n", 0.001 * (nTime5 - nTime3),
                  nTimeQuorum * 0.000001);
 
         CDeterministicMNList mn_list;
@@ -1027,39 +1001,6 @@ bool CSpecialTxProcessor::UndoSpecialTxsInBlock(const Chainstate& chainstate, co
         LogPrintf("CSpecialTxProcessor::%s -- bls_legacy_scheme=%d\n", __func__, bls::bls_legacy_scheme.load());
         LogError("CSpecialTxProcessor::%s -- FAILURE! %s\n", __func__, e.what());
         return false;
-    }
-
-    return true;
-}
-
-bool CSpecialTxProcessor::CheckCreditPoolDiffForBlock(const CBlock& block, const CBlockIndex* pindex, const CCbTx& cbTx,
-                                                      CAmount blockSubsidy, BlockValidationState& state)
-{
-    AssertLockHeld(::cs_main);
-
-    if (!DeploymentActiveAt(*pindex, m_consensus_params, Consensus::DEPLOYMENT_DIP0008)) return true;
-    if (!DeploymentActiveAt(*pindex, m_consensus_params, Consensus::DEPLOYMENT_V20)) return true;
-
-    try {
-        const auto creditPoolDiff = GetCreditPoolDiffForBlock(m_cpoolman, block,
-                                                              pindex->pprev, m_consensus_params, blockSubsidy, state);
-        if (!creditPoolDiff.has_value()) return false;
-
-        const CAmount target_balance{cbTx.creditPoolBalance};
-        // But it maybe not included yet in previous block yet; in this case value must be 0
-        const CAmount locked_calculated{creditPoolDiff->GetTotalLocked()};
-        if (target_balance != locked_calculated) {
-            LogPrintf("CSpecialTxProcessor::%s -- mismatched locked amount in CbTx: %lld against re-calculated: %lld\n", __func__, target_balance, locked_calculated);
-            return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-cbtx-assetlocked-amount");
-        }
-
-    } catch (const EvoDbInconsistencyError& e) {
-        // Local EvoDB corruption detected below (the node is already
-        // aborting): fail with M_ERROR so the block is not marked invalid.
-        return state.Error(e.what());
-    } catch (const std::exception& e) {
-        LogPrintf("CSpecialTxProcessor::%s -- FAILURE! %s\n", __func__, e.what());
-        return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "failed-checkcreditpooldiff");
     }
 
     return true;
@@ -1849,29 +1790,7 @@ bool CheckSharedCollateralTemplateOutputs(const CTransaction& tx, TxValidationSt
 
 bool IsStandardSpecialTx(const CTransaction& tx, std::string& reason)
 {
-    if (!tx.IsSpecialTxVersion()) return true;
-
-    if (tx.nType != TRANSACTION_ASSET_LOCK) return true;
-
-    // Each input is referenced by Platform's funding state transition; beyond this
-    // many inputs that state transition exceeds Platform's ~20 kB size limit.
-    static constexpr size_t MAX_STANDARD_ASSET_LOCK_INPUTS{100};
-    if (tx.vin.size() > MAX_STANDARD_ASSET_LOCK_INPUTS) {
-        reason = "assetlocktx-too-many-inputs";
-        return false;
-    }
-
-    constexpr int max_tx_size_for_platform = 20480;
-    if (tx.GetTotalSize() > max_tx_size_for_platform) {
-        reason = "assetlocktx-too-big";
-        return false;
-    }
-
-    if (const auto opt_assetLockTx = GetTxPayload<CAssetLockPayload>(tx);
-        opt_assetLockTx.has_value() && opt_assetLockTx->getVersion() >= 2) {
-        reason = "assetlocktx-version-2";
-        return false;
-    }
-
+    (void)tx;
+    (void)reason;
     return true;
 }

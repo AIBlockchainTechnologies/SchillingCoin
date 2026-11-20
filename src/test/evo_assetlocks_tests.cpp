@@ -1,4 +1,5 @@
 // Copyright (c) 2023-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,10 +8,8 @@
 #include <consensus/amount.h>
 #include <consensus/tx_check.h>
 #include <consensus/validation.h>
-#include <evo/assetlocktx.h>
 #include <evo/cbtx.h>
 #include <evo/chainhelper.h>
-#include <evo/creditpool.h>
 #include <evo/evodb.h>
 #include <evo/specialtx.h>
 #include <llmq/context.h>

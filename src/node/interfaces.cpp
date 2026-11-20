@@ -13,7 +13,6 @@
 #include <chainparams.h>
 #include <deploymentstatus.h>
 #include <evo/chainhelper.h>
-#include <evo/creditpool.h>
 #include <evo/deterministicmns.h>
 #include <evo/providertx_service.h>
 #include <evo/specialtxman.h>
@@ -340,23 +339,7 @@ private:
     NodeContext& context() { return *Assert(m_context); }
 
 public:
-    CreditPoolCounts getCreditPoolCounts() override
-    {
-        CreditPoolCounts ret{};
-        if (!context().chainman) {
-            return ret;
-        }
-        const auto* pindex{WITH_LOCK(::cs_main, return context().chainman->ActiveChain().Tip())};
-        if (!pindex || !pindex->pprev) {
-            return ret;
-        }
-        auto& chain_helper{context().chainman->ActiveChainstate().ChainHelper()};
-        const auto pool{chain_helper.GetCreditPool(pindex)};
-        ret.m_locked = pool.locked;
-        ret.m_limit = pool.currentLimit;
-        ret.m_diff = pool.locked - chain_helper.GetCreditPool(pindex->pprev).locked;
-        return ret;
-    }
+
     ChainLockInfo getBestChainLock() override
     {
         if (!context().chainlocks) {
@@ -384,16 +367,6 @@ public:
             .m_awaiting_tx = counts.m_awaiting_tx,
             .m_unprotected_tx = counts.m_unprotected_tx,
         };
-    }
-    size_t getPendingAssetUnlocks() override
-    {
-        if (!context().mempool) {
-            return 0;
-        }
-        LOCK(context().mempool->cs);
-        return static_cast<size_t>(std::ranges::count_if(context().mempool->mapTx, [](const auto& entry) {
-            return entry.GetTx().IsPlatformTransfer();
-        }));
     }
     std::vector<QuorumInfo> getQuorumStats() override
     {
@@ -434,58 +407,6 @@ public:
             });
         }
         return stats;
-    }
-    std::vector<PlatformQuorum> getPlatformQuorums(uint8_t llmq_type) override
-    {
-        std::vector<PlatformQuorum> ret;
-        if (!context().llmq_ctx || !context().llmq_ctx->quorum_block_processor || !context().chainman) {
-            return ret;
-        }
-        const auto* pindex{WITH_LOCK(::cs_main, return context().chainman->ActiveChain().Tip())};
-        if (!pindex) {
-            return ret;
-        }
-        const auto type{static_cast<Consensus::LLMQType>(llmq_type)};
-        const auto llmq_params{Params().GetLLMQ(type)};
-        if (!llmq_params.has_value()) {
-            return ret;
-        }
-        // Drive proofs may be signed by an older Platform quorum while they
-        // are still consensus-valid and retained locally. Export the full
-        // retained-key window, not only the current signing-active set.
-        const auto quorum_count{static_cast<size_t>(std::max(llmq_params->signingActiveQuorumCount,
-                                                             llmq_params->keepOldKeys))};
-        // Read mined final commitments directly: they already carry the quorum
-        // hash and public key, so there is no need to materialize full CQuorum
-        // objects (member lists, vvec/contribution reads, quorum cache inserts)
-        // via ScanQuorums. Newest-first, matching ScanQuorums' ordering.
-        const auto& qbp{*context().llmq_ctx->quorum_block_processor};
-        const auto quorum_base_block_indexes{llmq_params->useRotation
-            ? qbp.GetMinedCommitmentsIndexedUntilBlock(type, pindex, quorum_count)
-            : qbp.GetMinedCommitmentsUntilBlock(type, pindex, quorum_count)};
-        for (const auto* pQuorumBaseBlockIndex : quorum_base_block_indexes) {
-            const auto qc{qbp.GetMinedCommitment(type, pQuorumBaseBlockIndex->GetBlockHash()).first};
-            if (!qc.quorumPublicKey.IsValid()) continue;
-            ret.emplace_back(PlatformQuorum{
-                .m_quorum_hash = qc.quorumHash,
-                .m_pubkey = qc.quorumPublicKey.ToByteVector(/*specificLegacyScheme=*/false),
-                .m_height = pQuorumBaseBlockIndex->nHeight,
-            });
-        }
-        return ret;
-    }
-    std::vector<uint8_t> getInstantSendLock(const uint256& txid) override
-    {
-        if (!context().isman) {
-            return {};
-        }
-        const auto islock{context().isman->GetInstantSendLockByTxid(txid)};
-        if (!islock) {
-            return {};
-        }
-        CDataStream ds(SER_NETWORK, PROTOCOL_VERSION);
-        ds << *islock;
-        return {UCharCast(ds.data()), UCharCast(ds.data()) + ds.size()};
     }
     void setContext(NodeContext* context) override
     {

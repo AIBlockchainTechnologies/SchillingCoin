@@ -12,7 +12,6 @@
 #include <optional>
 
 class CBlockIndex;
-class CCreditPoolManager;
 class CDeterministicMNManager;
 class CEvoDB;
 class ChainstateManager;
@@ -22,7 +21,6 @@ class CMNPaymentsProcessor;
 class CSpecialTxProcessor;
 class CTransaction;
 class uint256;
-struct CCreditPool;
 namespace chainlock {
 class Chainlocks;
 } // namespace chainlock
@@ -46,7 +44,6 @@ private:
     CDeterministicMNManager& m_dmnman;
 
 public:
-    const std::unique_ptr<CCreditPoolManager> credit_pool_manager;
     const chainlock::Chainlocks& m_chainlocks;
     const std::unique_ptr<CMNHFManager> ehf_manager;
     const std::unique_ptr<CMNPaymentsProcessor> mn_payments;
@@ -70,9 +67,6 @@ public:
 
     /** Return a canonical hash of the deterministic MN list derived at a block. */
     uint256 GetDeterministicMNListHash(const CBlockIndex* pindex) const;
-
-    /** Passthrough functions to CCreditPoolManager */
-    CCreditPool GetCreditPool(const CBlockIndex* const pindex);
 
     /** Passthrough functions to CInstantSendManager */
     std::optional<std::pair</*islock_hash=*/uint256, /*txid=*/uint256>> ConflictingISLockIfAny(const CTransaction& tx) const;

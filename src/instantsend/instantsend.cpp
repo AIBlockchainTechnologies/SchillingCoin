@@ -133,20 +133,13 @@ void CInstantSendManager::TransactionIsRemoved(const CTransactionRef& tx)
     }
 
     instantsend::InstantSendLockPtr islock = GetInstantSendLockByTxid(tx->GetHash());
-
     if (islock == nullptr) {
-        // An unlocked asset unlock leaving the mempool (evicted by another instance of its
-        // withdrawal index, expired, or trimmed) is gone for good under this txid. It has no
-        // inputs, so the conflict cleanup keyed on spent outpoints never reaches its entry;
-        // drop it here or it would be re-queued for locking on every block.
-        if (tx->IsPlatformTransfer()) {
-            RemoveNonLockedTx(tx->GetHash(), false);
-        }
         return;
     }
 
     LogPrint(BCLog::INSTANTSEND, "CInstantSendManager::%s -- transaction %s was removed from mempool\n", __func__,
              tx->GetHash().ToString());
+
     RemoveConflictingLock(::SerializeHash(*islock), *islock);
 }
 
@@ -191,10 +184,7 @@ void CInstantSendManager::AddNonLockedTx(const CTransactionRef& tx, const CBlock
                 nonLockedTxs[outpoint.hash].children.emplace(tx->GetHash());
                 nonLockedTxsByOutpoints.emplace(outpoint, tx->GetHash());
             }
-        } else if (nonLockedTxInfo.tx == nullptr || nonLockedTxInfo.tx->GetInstanceHash() != tx->GetInstanceHash()) {
-            // A re-signed instance of a version 2 asset unlock shares the txid and the lock
-            // inputs of the tracked one. Retries must evaluate the fresh instance, or an expired
-            // one would be re-checked forever once its replacement arrives while not yet lockable.
+        } else if (nonLockedTxInfo.tx == nullptr) {
             nonLockedTxInfo.tx = tx;
         }
     }
@@ -249,38 +239,16 @@ void CInstantSendManager::RemoveNonLockedTx(const uint256& txid, bool retryChild
              __func__, txid.ToString(), retryChildren, retryChildrenCount);
 }
 
-void CInstantSendManager::RetryUnminedAssetUnlocks()
-{
-    LOCK2(cs_nonLocked, cs_pendingRetry);
-    for (const auto& [txid, info] : nonLockedTxs) {
-        if (info.tx && !info.pindexMined && info.tx->IsPlatformTransfer()) {
-            pendingRetryTxs.emplace(txid);
-        }
-    }
-}
-
 std::vector<CTransactionRef> CInstantSendManager::PrepareTxToRetry()
 {
     std::vector<CTransactionRef> txns{};
-
     LOCK2(cs_nonLocked, cs_pendingRetry);
     if (pendingRetryTxs.empty()) return txns;
     txns.reserve(pendingRetryTxs.size());
-    for (auto it = pendingRetryTxs.begin(); it != pendingRetryTxs.end();) {
-        const auto tx_it = nonLockedTxs.find(*it);
-        const CTransactionRef tx = tx_it != nonLockedTxs.end() ? tx_it->second.tx : nullptr;
-        if (tx) {
-            txns.push_back(tx);
-        }
-        // Whether an asset unlock can be locked changes only with the tip, which re-queues it
-        // (RetryUnminedAssetUnlocks), or with a re-signed instance, which is tried on arrival
-        // (TransactionAddedToMempool). Handing it out once per trigger keeps the worker from
-        // re-verifying its quorum signature and rebuilding the credit pool every iteration
-        // while it stays unlockable.
-        if (tx && tx->IsPlatformTransfer()) {
-            it = pendingRetryTxs.erase(it);
-        } else {
-            ++it;
+    for (const auto& txid : pendingRetryTxs) {
+        const auto tx_it = nonLockedTxs.find(txid);
+        if (tx_it != nonLockedTxs.end() && tx_it->second.tx) {
+            txns.push_back(tx_it->second.tx);
         }
     }
     return txns;

@@ -38,8 +38,6 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet,
 bool ExtractDestinations(const CScript& scriptPubKey, TxoutType& typeRet, std::vector<CTxDestination>& addressRet, int& nRequiredRet);
 
 CScript GetLockedScriptForDestination(const CTxDestination& dest, int nLockTime);
-CScript GetScriptForRawPubKey(const CPubKey& pubKey);
-CScript GetScriptForMultisig(int nRequired, const std::vector<CPubKey>& keys);
 CScript GetScriptForStakeDelegation(const CKeyID& stakingKey, const CKeyID& spendingKey);
 
 #endif // SCHILLINGCOIN_SCRIPT_STANDARD_H

@@ -1,4 +1,5 @@
 // Copyright (c) 2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,7 +10,6 @@
 #include <consensus/merkle.h>
 #include <evo/cbtx.h>
 #include <evo/chainhelper.h>
-#include <evo/creditpool.h>
 #include <evo/evodb.h>
 #include <evo/mnhftx.h>
 #include <evo/netinfo.h>

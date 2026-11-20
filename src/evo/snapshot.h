@@ -1,4 +1,5 @@
 // Copyright (c) 2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -7,7 +8,6 @@
 
 #include <consensus/params.h>
 #include <crypto/common.h>
-#include <evo/creditpool.h>
 #include <evo/deterministicmns.h>
 #include <llmq/commitment.h>
 #include <llmq/params.h>
@@ -34,7 +34,7 @@ class CCbTx;
 
 namespace evo {
 
-static constexpr uint16_t EVO_SNAPSHOT_VERSION{3};
+static constexpr uint16_t EVO_SNAPSHOT_VERSION{4};
 /** Serialized little-endian bytes are "DASHEVO\0". */
 static constexpr uint64_t EVO_SNAPSHOT_MARKER{0x004f564548534144ULL};
 // ComputeQuorumMembersByQuarterRotation consumes H-C, H-2C and H-3C. To
@@ -44,10 +44,6 @@ static constexpr size_t EVO_SNAPSHOT_ROTATION_CYCLES{4};
 // records is already far beyond today's list while limiting hostile snapshots
 // to a tractable decode. Changes above this require a format-version review.
 static constexpr size_t EVO_SNAPSHOT_MAX_MNS{100'000};
-// Asset-unlock indexes are uint64_t and have no consensus upper bound. This is
-// a range-count allocation/work bound, chosen far above any plausible live
-// state. Raising it requires an evo snapshot format-version review.
-static constexpr size_t EVO_SNAPSHOT_MAX_RANGES{100'000};
 // IsPayoutListTriviallyValid() is the protocol admission rule for MultiPayout.
 static constexpr size_t EVO_SNAPSHOT_MAX_PAYOUT_SHARES{8};
 // CDeterministicMN contains several consensus/P2P CompactSize collections
@@ -507,7 +503,6 @@ public:
     std::vector<QuorumSnapshotData> quorums;
     std::vector<HistoricalMNListDiff> historical_mn_list_diffs;
     std::vector<QuorumModifier> quorum_modifiers;
-    CCreditPool credit_pool;
     AbstractEHFManager::Signals mnhf_signals;
 
     template <typename Stream> void Serialize(Stream& s) const;
@@ -657,7 +652,6 @@ void EvoSnapshot::Serialize(Stream& s) const
         SerializeCanonicalMNListDiff(s, entry.diff);
     }
     s << sorted_modifiers;
-    s << credit_pool.locked << credit_pool.currentLimit << credit_pool.latelyUnlocked << credit_pool.indexes;
     WriteCompactSize(s, mnhf_signals.size());
     for (const auto& signal : mnhf_signals) s << signal;
 }
@@ -700,8 +694,6 @@ void EvoSnapshot::Unserialize(Stream& s)
         s >> modifier;
         quorum_modifiers.emplace_back(std::move(modifier));
     }
-    s >> credit_pool.locked >> credit_pool.currentLimit >> credit_pool.latelyUnlocked;
-    credit_pool.indexes.UnserializeBounded(s, EVO_SNAPSHOT_MAX_RANGES);
     const size_t signal_count{ReadBoundedCompactSize(s, VERSIONBITS_NUM_BITS, "MNHF signals")};
     // The signal map normalizes iteration order, so wire order is observable
     // only here: require the strictly ascending bit order the serializer

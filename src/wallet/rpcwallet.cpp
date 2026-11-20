@@ -1060,63 +1060,6 @@ UniValue listaddressgroupings(const JSONRPCRequest& request)
     return jsonGroupings;
 }
 
-UniValue signmessage(const JSONRPCRequest& request)
-{
-    if (request.fHelp || request.params.size() != 2)
-        throw std::runtime_error(
-            "signmessage \"schillingcoinaddress\" \"message\"\n"
-            "\nSign a message with the private key of an address" +
-            HelpRequiringPassphrase() + "\n"
-
-            "\nArguments:\n"
-            "1. \"schillingcoinaddress\"  (string, required) The SchillingCoin address to use for the private key.\n"
-            "2. \"message\"         (string, required) The message to create a signature of.\n"
-
-            "\nResult:\n"
-            "\"signature\"          (string) The signature of the message encoded in base 64\n"
-
-            "\nExamples:\n"
-            "\nUnlock the wallet for 30 seconds\n" +
-            HelpExampleCli("walletpassphrase", "\"mypassphrase\" 30") +
-            "\nCreate the signature\n" +
-            HelpExampleCli("signmessage", "\"DMJRSsuU9zfyrvxVaAEFQqK4MxZg6vgeS6\" \"my message\"") +
-            "\nVerify the signature\n" +
-            HelpExampleCli("verifymessage", "\"DMJRSsuU9zfyrvxVaAEFQqK4MxZg6vgeS6\" \"signature\" \"my message\"") +
-            "\nAs json rpc\n" +
-            HelpExampleRpc("signmessage", "\"DMJRSsuU9zfyrvxVaAEFQqK4MxZg6vgeS6\", \"my message\""));
-
-    LOCK2(cs_main, pwalletMain->cs_wallet);
-
-    EnsureWalletIsUnlocked();
-
-    const std::string strAddress = request.params[0].get_str();
-    const std::string strMessage = request.params[1].get_str();
-
-    bool isStaking = false;
-    CTxDestination destination = DecodeDestination(strAddress, isStaking);
-
-    if (!IsValidDestination(destination))
-        throw JSONRPCError(RPC_TYPE_ERROR, "Invalid address");
-
-    const CKeyID* keyID = boost::get<CKeyID>(&destination);
-    if (!keyID)
-        throw JSONRPCError(RPC_TYPE_ERROR, "Address does not refer to key");
-
-    CKey key;
-    if (!pwalletMain->GetKey(*keyID, key))
-        throw JSONRPCError(RPC_WALLET_ERROR, "Private key not available");
-
-    CHashWriter ss(SER_GETHASH, 0);
-    ss << strMessageMagic;
-    ss << strMessage;
-
-    std::vector<unsigned char> vchSig;
-    if (!key.SignCompact(ss.GetHash(), vchSig))
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Sign failed");
-
-    return EncodeBase64(&vchSig[0], vchSig.size());
-}
-
 UniValue getreceivedbyaddress(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() < 1 || request.params.size() > 2)
@@ -2822,11 +2765,11 @@ UniValue lockunspent(const JSONRPCRequest& request)
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, vout index out of bounds");
         }
 
-        if (pwalletMain->IsSpent(outpt.hash, outpt.n)) {
+        if (pwalletMain->IsSpent(outpt)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, expected unspent output");
         }
 
-        const bool is_locked = pwalletMain->IsLockedCoin(outpt.hash, outpt.n);
+        const bool is_locked = pwalletMain->IsLockedCoin(outpt);
 
         if (fUnlock && !is_locked) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, expected locked output");

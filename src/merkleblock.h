@@ -9,11 +9,17 @@
 #define SCHILLINGCOIN_MERKLEBLOCK_H
 
 #include <common/bloom.h>
-#include "primitives/block.h"
-#include "serialize.h"
-#include "uint256.h"
+#include <primitives/block.h>
+#include <primitives/transaction_identifier.h>
+#include <serialize.h>
+#include <uint256.h>
 
+#include <set>
 #include <vector>
+
+// Helper functions for serialization.
+std::vector<unsigned char> BitsToBytes(const std::vector<bool>& bits);
+std::vector<bool> BytesToBits(const std::vector<unsigned char>& bytes);
 
 /** Data structure that represents a partial merkle tree.
  *
@@ -54,72 +60,53 @@ class CPartialMerkleTree
 protected:
     /** the total number of transactions in the block */
     unsigned int nTransactions;
-
     /** node-is-parent-of-matched-txid bits */
     std::vector<bool> vBits;
-
     /** txids and internal hashes */
     std::vector<uint256> vHash;
-
     /** flag set when encountering invalid data */
     bool fBad;
-
     /** helper function to efficiently calculate the number of nodes at given height in the merkle tree */
-    unsigned int CalcTreeWidth(int height)
+    unsigned int CalcTreeWidth(int height) const
     {
         return (nTransactions + (1 << height) - 1) >> height;
     }
-
     /** calculate the hash of a node in the merkle tree (at leaf level: the txid's themselves) */
-    uint256 CalcHash(int height, unsigned int pos, const std::vector<uint256>& vTxid);
-
+    uint256 CalcHash(int height, unsigned int pos, const std::vector<Txid>& vTxid);
     /** recursive function that traverses tree nodes, storing the data as bits and hashes */
-    void TraverseAndBuild(int height, unsigned int pos, const std::vector<uint256>& vTxid, const std::vector<bool>& vMatch);
-
+    void TraverseAndBuild(int height, unsigned int pos, const std::vector<Txid>& vTxid, const std::vector<bool>& vMatch);
     /**
      * recursive function that traverses tree nodes, consuming the bits and hashes produced by TraverseAndBuild.
-     * it returns the hash of the respective node.
+     * it returns the hash of the respective node and its respective index.
      */
-    uint256 TraverseAndExtract(int height, unsigned int pos, unsigned int& nBitsUsed, unsigned int& nHashUsed, std::vector<uint256>& vMatch);
+    uint256 TraverseAndExtract(int height, unsigned int pos, unsigned int& nBitsUsed, unsigned int& nHashUsed,
+                               std::vector<Txid>& vMatch, std::vector<unsigned int>& vnIndex);
 
 public:
-    /** serialization implementation */
     SERIALIZE_METHODS(CPartialMerkleTree, obj)
     {
         READWRITE(obj.nTransactions, obj.vHash);
-
-        std::vector<unsigned char> vBytes;
-
-        SER_WRITE(obj,
-            vBytes.resize((obj.vBits.size() + 7) / 8);
-
-            for (unsigned int p = 0; p < obj.vBits.size(); ++p)
-                vBytes[p / 8] |= obj.vBits[p] << (p % 8);
-        );
-
-        READWRITE(vBytes);
-
-        SER_READ(obj,
-            obj.vBits.resize(vBytes.size() * 8);
-
-            for (unsigned int p = 0; p < obj.vBits.size(); ++p)
-                obj.vBits[p] =
-                    (vBytes[p / 8] & (1 << (p % 8))) != 0;
-
-            obj.fBad = false;
-        );
+        std::vector<unsigned char> bytes;
+        SER_WRITE(obj, bytes = BitsToBytes(obj.vBits));
+        READWRITE(bytes);
+        SER_READ(obj, obj.vBits = BytesToBits(bytes));
+        SER_READ(obj, obj.fBad = false);
     }
 
-    /** Construct a partial merkle tree from a list of transaction id's, and a mask that selects a subset of them */
-    CPartialMerkleTree(const std::vector<uint256>& vTxid, const std::vector<bool>& vMatch);
+    /** Construct a partial merkle tree from a list of transaction ids, and a mask that selects a subset of them */
+    CPartialMerkleTree(const std::vector<Txid>& vTxid, const std::vector<bool>& vMatch);
 
     CPartialMerkleTree();
 
     /**
-     * extract the matching txid's represented by this partial merkle tree.
-     * returns the merkle root, or 0 in case of failure
+     * Extract the matching txids represented by this partial merkle tree
+     * and their respective indices within the partial tree.
+     * Returns the merkle root, or zero in case of failure.
      */
-    uint256 ExtractMatches(std::vector<uint256>& vMatch);
+    uint256 ExtractMatches(std::vector<Txid>& vMatch, std::vector<unsigned int>& vnIndex);
+
+    /** Get the number of transactions represented by the Merkle proof. */
+    unsigned int GetNumTransactions() const { return nTransactions; }
 };
 
 /**
@@ -133,22 +120,34 @@ public:
     CBlockHeader header;
     CPartialMerkleTree txn;
 
-public:
-    /** Public only for unit testing and relay testing (not relayed) */
-    std::vector<std::pair<unsigned int, uint256> > vMatchedTxn;
+    /**
+     * Public only for unit testing and relay testing (not relayed).
+     *
+     * Used only when a Bloom filter is specified to identify transactions
+     * that matched the filter.
+     */
+    std::vector<std::pair<unsigned int, Txid>> vMatchedTxn;
 
     /**
-     * Create from a CBlock, filtering transactions according to filter
-     * Note that this will call IsRelevantAndUpdate on the filter for each transaction,
-     * thus the filter will likely be modified.
+     * Create from a CBlock, filtering transactions according to filter.
+     * This calls IsRelevantAndUpdate on the filter for each transaction,
+     * so the filter may be modified.
      */
-    CMerkleBlock(const CBlock& block, CBloomFilter& filter);
+    CMerkleBlock(const CBlock& block, CBloomFilter& filter) : CMerkleBlock(block, &filter, nullptr) {}
+
+    /** Create from a CBlock, matching transaction IDs contained in the set. */
+    CMerkleBlock(const CBlock& block, const std::set<Txid>& txids) : CMerkleBlock(block, nullptr, &txids) {}
+
     CMerkleBlock() = default;
 
     SERIALIZE_METHODS(CMerkleBlock, obj)
     {
         READWRITE(obj.header, obj.txn);
     }
+
+private:
+    /** Combined constructor shared by Bloom-filter and explicit-txid construction. */
+    CMerkleBlock(const CBlock& block, CBloomFilter* filter, const std::set<Txid>* txids);
 };
 
 #endif // SCHILLINGCOIN_MERKLEBLOCK_H

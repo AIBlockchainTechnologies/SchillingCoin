@@ -5,7 +5,6 @@
 
 #include <common/bloom.h>
 
-#include <evo/assetlocktx.h>
 #include <evo/providertx.h>
 #include <evo/specialtx.h>
 #include <hash.h>
@@ -221,20 +220,6 @@ bool CBloomFilter::CheckSpecialTransactionMatchesAndUpdate(const CTransaction &t
         }
         return false;
     }
-    case(TRANSACTION_ASSET_LOCK): {
-        // inputs of Asset Lock transactions are standard. But some outputs are special
-        if (const auto opt_assetlockTx = GetTxPayload<CAssetLockPayload>(tx)) {
-            bool fFound = false;
-            const auto& extraOuts = opt_assetlockTx->getCreditOutputs();
-            for (unsigned int i = 0; i < extraOuts.size(); ++i)
-            {
-                fFound = ProcessTxOut(extraOuts[i], tx.GetHash(), i) || fFound;
-            }
-            if (fFound) return true;
-        }
-        return false;
-    }
-    case(TRANSACTION_ASSET_UNLOCK): // Outputs are standard and no inputs.
     case(TRANSACTION_COINBASE):
     case(TRANSACTION_QUORUM_COMMITMENT):
     case(TRANSACTION_MNHF_SIGNAL):

@@ -13,6 +13,7 @@
 #include "guiconstants.h"
 #include "key_io.h"
 #include "keystore.h"
+#include "node/blockstorage.h"
 #include "recentrequeststablemodel.h"
 #include "sync.h"
 #include "transactiontablemodel.h"
@@ -183,7 +184,7 @@ bool WalletModel::isWalletLocked(bool fFullUnlocked) const
 
 bool IsImportingOrReindexing()
 {
-    return fImporting || fReindex;
+    return node::fImporting || node::fReindex;
 }
 
 void WalletModel::pollBalanceChanged()
@@ -956,8 +957,12 @@ bool WalletModel::getMNCollateralCandidate(COutPoint& outPoint)
     std::vector<COutput> vCoins;
     wallet->AvailableCoins(&vCoins, true, nullptr, false, ONLY_15000);
     for (const COutput& out : vCoins) {
-        if (!isLockedCoin(out.tx->GetHash(), out.i)) {
-            outPoint = COutPoint(out.tx->GetHash(), out.i);
+        const COutPoint candidate(
+            Txid::FromUint256(out.tx->GetHash()),
+            out.i);
+
+        if (!isLockedCoin(candidate)) {
+            outPoint = candidate;
             return true;
         }
     }
@@ -967,7 +972,7 @@ bool WalletModel::getMNCollateralCandidate(COutPoint& outPoint)
 bool WalletModel::isSpent(const COutPoint& outpoint) const
 {
     LOCK2(cs_main, wallet->cs_wallet);
-    return wallet->IsSpent(outpoint.hash, outpoint.n);
+    return wallet->IsSpent(outpoint);
 }
 
 void WalletModel::listCoins(std::map<QString, std::vector<COutput> >& mapCoins) const
@@ -1029,10 +1034,10 @@ void WalletModel::listCoins(std::map<QString, std::vector<COutput> >& mapCoins) 
     }
 }
 
-bool WalletModel::isLockedCoin(uint256 hash, unsigned int n) const
+bool WalletModel::isLockedCoin(const COutPoint& output) const
 {
     LOCK2(cs_main, wallet->cs_wallet);
-    return wallet->IsLockedCoin(hash, n);
+    return wallet->IsLockedCoin(output);
 }
 
 void WalletModel::lockCoin(COutPoint& output)

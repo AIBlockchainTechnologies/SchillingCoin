@@ -54,17 +54,10 @@ struct InstantSendLock {
 
 uint256 GenInputLockRequestId(const COutPoint& outpoint);
 
-/** The outpoints an InstantSend lock on this transaction pins. These are the transaction's
- *  prevouts, except for asset unlock transactions, which have no inputs: an unlock's lock pins
- *  the synthetic outpoint {DIP-27 signing request id of its withdrawal index, 0}. Every
- *  instance of one withdrawal, whatever its version or txid, maps to that same outpoint, so a
- *  lock binds the withdrawal index to one txid and any other transaction claiming the index
- *  conflicts with it through the ordinary outpoint conflict handling. */
+/** Return the transaction input outpoints pinned by an InstantSend lock. */
 std::vector<COutPoint> GetLockInputs(const CTransaction& tx);
 
-/** Whether GetLockInputs() is non-empty: the transaction spends outputs or is an asset unlock.
- *  Coinbase, quorum commitment and other input-less special transactions cannot be locked or
- *  conflict with a lock. */
+/** Whether the transaction has input outpoints that can be locked by InstantSend. */
 bool HasLockInputs(const CTransaction& tx);
 
 using InstantSendLockPtr = std::shared_ptr<InstantSendLock>;

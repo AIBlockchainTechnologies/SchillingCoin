@@ -27,7 +27,6 @@
 #include <chainlock/handler.h>
 #include <dsnotificationinterface.h>
 #include <evo/chainhelper.h>
-#include <evo/creditpool.h>
 #include <evo/deterministicmns.h>
 #include <evo/evodb.h>
 #include <evo/mnhftx.h>

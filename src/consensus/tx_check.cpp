@@ -24,10 +24,6 @@ bool CheckTransaction(const CTransaction& tx, TxValidationState& state)
         allow_empty_outputs = true;
     }
 
-    if (tx.nType == TRANSACTION_ASSET_UNLOCK) {
-        allow_empty_inputs = true;
-    }
-
     if (!allow_empty_inputs && tx.vin.empty()) {
         return state.Invalid(
             TxValidationResult::TX_CONSENSUS,

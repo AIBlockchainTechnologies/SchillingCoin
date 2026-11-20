@@ -82,7 +82,6 @@ MAKE_MSG(SENDHEADERS2, "sendheaders2");
 MAKE_MSG(HEADERS2, "headers2");
 MAKE_MSG(GETQUORUMROTATIONINFO, "getqrinfo");
 MAKE_MSG(QUORUMROTATIONINFO, "qrinfo");
-MAKE_MSG(PLATFORMBAN, "platformban");
 
 } // namespace NetMsgType
 
@@ -104,12 +103,11 @@ static const std::string allNetMessageTypes[] = {
     NetMsgType::QSIGSHARE, NetMsgType::QGETDATA, NetMsgType::QDATA, NetMsgType::CLSIG,
     NetMsgType::ISDLOCK, NetMsgType::MNAUTH, NetMsgType::GETHEADERS2, NetMsgType::SENDHEADERS2,
     NetMsgType::HEADERS2, NetMsgType::GETQUORUMROTATIONINFO, NetMsgType::QUORUMROTATIONINFO,
-    NetMsgType::PLATFORMBAN,
 };
 
 static const std::vector<std::string> allNetMessageTypesVec(std::begin(allNetMessageTypes), std::end(allNetMessageTypes));
 static const std::string netMessageTypesViolateBlocksOnly[] = {
-    NetMsgType::GETQUORUMROTATIONINFO, NetMsgType::PLATFORMBAN, NetMsgType::QBSIGSHARES,
+    NetMsgType::GETQUORUMROTATIONINFO, NetMsgType::QBSIGSHARES,
     NetMsgType::QCOMPLAINT, NetMsgType::QCONTRIB, NetMsgType::QDATA, NetMsgType::QGETDATA,
     NetMsgType::QGETSIGSHARES, NetMsgType::QJUSTIFICATION, NetMsgType::QPCOMMITMENT,
     NetMsgType::QSENDRECSIGS, NetMsgType::QSIGREC, NetMsgType::QSIGSESANN, NetMsgType::QSIGSHARE,
@@ -202,8 +200,6 @@ const char* CInv::GetCommandInternal() const
     case MSG_QUORUM_RECOVERED_SIG: return NetMsgType::QSIGREC;
     case MSG_CLSIG: return NetMsgType::CLSIG;
     case MSG_ISDLOCK: return NetMsgType::ISDLOCK;
-    case MSG_PLATFORM_BAN: return NetMsgType::PLATFORMBAN;
-    case MSG_ASSET_UNLOCK: return NetMsgType::TX;
     default: return nullptr;
     }
 }

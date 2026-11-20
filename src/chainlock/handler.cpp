@@ -107,13 +107,12 @@ MessageProcessingResult ChainlockHandler::ProcessCoinbaseChainLock(const CBlock&
                                                                    const llmq::CQuorumManager& qman)
 {
     if (!m_mn_sync.IsBlockchainSynced() || pindex == nullptr ||
-        !m_chainlocks.IsEnabled(pindex->nHeight) ||
-        !DeploymentActiveAt(*pindex, Params().GetConsensus(), Consensus::DEPLOYMENT_V20) || block.vtx.empty()) {
+        !m_chainlocks.IsEnabled(pindex->nHeight) || block.vtx.empty()) {
         return {};
     }
 
     const auto cbtx = GetTxPayload<CCbTx>(*block.vtx.front(), /*assert_type=*/false);
-    if (!cbtx || cbtx->nVersion < CCbTx::Version::CLSIG_AND_BALANCE || !cbtx->bestCLSignature.IsValid()) {
+    if (!cbtx || cbtx->nVersion < CCbTx::Version::CLSIG || !cbtx->bestCLSignature.IsValid()) {
         return {};
     }
 
@@ -121,14 +120,17 @@ MessageProcessingResult ChainlockHandler::ProcessCoinbaseChainLock(const CBlock&
     if (pindex->nHeight <= 0 || cbtx->bestCLHeightDiff >= static_cast<uint32_t>(pindex->nHeight)) {
         return {};
     }
+
     const int32_t height = pindex->nHeight - static_cast<int32_t>(cbtx->bestCLHeightDiff) - 1;
     if (height <= m_chainlocks.GetBestChainLockHeight()) {
         return {};
     }
+
     const auto* ancestor = pindex->GetAncestor(height);
     if (ancestor == nullptr) {
         return {};
     }
+
     const ChainLockSig clsig{height, ancestor->GetBlockHash(), cbtx->bestCLSignature};
     return ProcessNewChainLock(/*from=*/-1, clsig, qman, ::SerializeHash(clsig));
 }

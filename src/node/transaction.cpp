@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2021 The Bitcoin Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -56,12 +57,7 @@ TransactionError BroadcastTransaction(NodeContext& node, const CTransactionRef t
             if (!existingCoin.IsSpent()) return TransactionError::ALREADY_IN_CHAIN;
         }
         const auto mempool_tx = node.mempool->get(txid);
-        // A version 2 asset unlock sharing a mempool entry's txid but carrying different quorum
-        // signing info is a re-signed instance of that withdrawal and must reach the mempool,
-        // which accepts it as an in-place refresh.
-        const bool is_unlock_refresh{mempool_tx && IsAssetUnlockWithStableTxid(*tx) &&
-                                     mempool_tx->GetInstanceHash() != tx->GetInstanceHash()};
-        if (mempool_tx && !is_unlock_refresh) {
+        if (mempool_tx) {
             // There's already a transaction in the mempool with this txid. Don't
             // try to submit this transaction to the mempool (since it'll be
             // rejected as a TX_CONFLICT), but do attempt to reannounce the mempool

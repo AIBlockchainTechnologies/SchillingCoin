@@ -1,4 +1,5 @@
 // Copyright (c) 2026 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -239,15 +240,6 @@ void EvoSnapshot::Validate(bool require_canonical_order) const
     if (EvoSnapshotHistoricalMNOperations(historical_mn_list_diffs) > EvoSnapshotMaxHistoricalMNOperations()) {
         throw std::ios_base::failure("historical MN-diff operation budget exceeded");
     }
-    // ConstructCreditPool guarantees 0 <= currentLimit <= locked in every
-    // deployment branch, and all three amounts are money-range window sums.
-    if (!MoneyRange(credit_pool.locked) || !MoneyRange(credit_pool.currentLimit) ||
-        !MoneyRange(credit_pool.latelyUnlocked) || credit_pool.currentLimit > credit_pool.locked) {
-        throw std::ios_base::failure("invalid evo snapshot credit pool amounts");
-    }
-    if (credit_pool.indexes.RangeCount() > EVO_SNAPSHOT_MAX_RANGES) {
-        throw std::ios_base::failure("oversized CRangesSet range count");
-    }
     // Consensus admits MNHF signals only for bits below VERSIONBITS_NUM_BITS
     // and records the mined height, which cannot exceed the base height.
     for (const auto& [bit, height] : mnhf_signals) {
@@ -376,10 +368,6 @@ bool VerifyEvoSnapshotCbTx(const EvoSnapshot& snapshot, const CCbTx& cbtx, std::
             error = "evo snapshot quorum merkle root mismatch";
             return false;
         }
-    }
-    if (cbtx.nVersion >= CCbTx::Version::CLSIG_AND_BALANCE && snapshot.credit_pool.locked != cbtx.creditPoolBalance) {
-        error = "evo snapshot credit pool balance mismatch";
-        return false;
     }
     return true;
 }

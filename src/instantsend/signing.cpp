@@ -8,9 +8,7 @@
 #include <chain.h>
 #include <chainlock/chainlock.h>
 #include <chainparams.h>
-#include <evo/assetlocktx.h>
 #include <evo/chainhelper.h>
-#include <evo/creditpool.h>
 #include <evo/specialtx.h>
 #include <evo/specialtxman.h>
 #include <index/txindex.h>
@@ -174,9 +172,6 @@ void InstantSendSigner::ProcessPendingRetryLockTxs(const std::vector<CTransactio
 
 bool InstantSendSigner::CheckCanLock(const CTransaction& tx, bool printDebug, const Consensus::Params& params) const
 {
-    if (tx.IsPlatformTransfer()) {
-        return CheckCanLockAssetUnlock(tx, printDebug);
-    }
     if (tx.vin.empty()) {
         // can't lock TXs without inputs (e.g. quorum commitments)
         return false;
@@ -185,59 +180,6 @@ bool InstantSendSigner::CheckCanLock(const CTransaction& tx, bool printDebug, co
     return std::ranges::all_of(tx.vin, [&](const auto& in) {
         return CheckCanLock(in.prevout, printDebug, tx.GetHash(), params);
     });
-}
-
-bool InstantSendSigner::CheckCanLockAssetUnlock(const CTransaction& tx, bool printDebug) const
-{
-    const auto log_refusal = [&](std::string_view reason) {
-        if (printDebug) {
-            LogPrint(BCLog::INSTANTSEND, "%s -- txid=%s: asset unlock not lockable: %s\n", __func__,
-                     tx.GetHash().ToString(), reason);
-        }
-        return false;
-    };
-    // Version 1 instances change txid when Platform re-signs them, so a lock on one would not
-    // survive a re-sign; only stable-txid instances are locked
-    if (!IsAssetUnlockWithStableTxid(tx)) return log_refusal("version 1");
-    const auto opt_payload = GetTxPayload<CAssetUnlockPayload>(tx);
-    if (!opt_payload) return log_refusal("bad payload");
-
-    LOCK2(::cs_main, m_mempool.cs);
-    if (!m_mempool.exists(tx.GetHash())) return log_refusal("not in mempool");
-    // A withdrawal signed as version 1 before v24 activation may be re-signed as version 2 after
-    // it; both instances then claim the index under different txids. Locking the version 2
-    // instance while the version 1 one is minable risks the lock losing to a ChainLock.
-    if (m_mempool.GetAssetUnlockTxidsByIndex(opt_payload->getIndex()).size() != 1) {
-        return log_refusal("another instance of this withdrawal index is in the mempool");
-    }
-
-    Chainstate& chainstate = m_chainman.ActiveChainstate();
-    const CBlockIndex* tip = chainstate.m_chain.Tip();
-    // Minable in the next block: inside its height window and signed by a recent quorum
-    TxValidationState state;
-    if (!chainstate.ChainHelper().special_tx->CheckSpecialTx(tx, tip, GetSpecialTxRules(tip, m_chainman),
-                                                             chainstate.CoinsTip(),
-                                                             /*check_sigs=*/true, state)) {
-        return log_refusal(state.ToString());
-    }
-    // Fits the withdrawal limit alongside every other pending withdrawal: the limit is enforced
-    // only when a block is connected, so an over-limit unlock is otherwise indistinguishable from
-    // a minable one in the mempool. Platform pools withdrawals under the same daily limit, so
-    // the pending total exceeding it means something is wrong and nothing is locked until the
-    // window clears rather than guessing which withdrawals miners will pick.
-    // The pool is reconstructed from disk on a cold cache; a local failure there (block read,
-    // inconsistent pool, EvoDB) refuses this lock rather than escaping into the worker thread.
-    CAmount limit{0};
-    try {
-        limit = chainstate.ChainHelper().GetCreditPool(tip).currentLimit;
-    } catch (const std::exception& e) {
-        LogPrintf("%s -- txid=%s: GetCreditPool failed: %s\n", __func__, tx.GetHash().ToString(), e.what());
-        return false;
-    }
-    if (const CAmount pending{m_mempool.GetPendingAssetUnlockAmount()}; pending > limit) {
-        return log_refusal(strprintf("pending withdrawals %d exceed the credit pool limit %d", pending, limit));
-    }
-    return true;
 }
 
 bool InstantSendSigner::CheckCanLock(const COutPoint& outpoint, bool printDebug, const uint256& txHash,

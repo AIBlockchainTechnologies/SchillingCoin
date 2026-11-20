@@ -580,9 +580,9 @@ public:
     /// Extract txin information and keys from output
     bool GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, bool fColdStake = false);
 
-    bool IsSpent(const uint256& hash, unsigned int n) const;
+    bool IsSpent(const COutPoint& outpoint) const;
 
-    bool IsLockedCoin(const uint256& hash, unsigned int n) const;
+    bool IsLockedCoin(const COutPoint& output) const;
     void LockCoin(const COutPoint& output);
     void UnlockCoin(const COutPoint& output);
     void UnlockAllCoins();
@@ -613,6 +613,8 @@ public:
     bool GetPubKey(const CKeyID& address, CPubKey& vchPubKeyOut) const;
     //! GetKey implementation that can derive a HD private key on the fly
     bool GetKey(const CKeyID& address, CKey& keyOut) const;
+    //! Sign a message using the private key belonging to the supplied public-key hash.
+    SigningResult SignMessage(const std::string& message, const PKHash& pkhash, std::string& signature) const;
     //! Returns BIP32 key origin metadata if available
     bool GetKeyOrigin(const CKeyID& keyID, KeyOriginInfo& info) const;
     //! Adds a HDPubKey into the wallet(database)

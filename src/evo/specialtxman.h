@@ -1,4 +1,5 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,11 +20,9 @@ class CBlockIndex;
 class CCbTx;
 class CChain;
 class CCoinsViewCache;
-class CCreditPoolManager;
 class CDeterministicMNList;
 class CDeterministicMNManager;
 class CProDisTx;
-class CRangesSet;
 class CTransaction;
 class ChainstateManager;
 class Chainstate;
@@ -55,7 +54,6 @@ struct SpecialTxRules {
 class CSpecialTxProcessor
 {
 private:
-    CCreditPoolManager& m_cpoolman;
     CDeterministicMNManager& m_dmnman;
     CMNHFManager& m_mnhfman;
     llmq::CQuorumBlockProcessor& m_qblockman;
@@ -67,12 +65,11 @@ private:
     const llmq::CQuorumManager& m_qman;
 
 public:
-    explicit CSpecialTxProcessor(CCreditPoolManager& cpoolman, CDeterministicMNManager& dmnman, CMNHFManager& mnhfman,
+    explicit CSpecialTxProcessor(CDeterministicMNManager& dmnman, CMNHFManager& mnhfman,
                                  llmq::CQuorumBlockProcessor& qblockman, llmq::CQuorumSnapshotManager& qsnapman,
                                  const ChainstateManager& chainman, const node::BlockManager& blockman,
                                  const Consensus::Params& consensus_params, const chainlock::Chainlocks& chainlocks,
                                  const llmq::CQuorumManager& qman) :
-        m_cpoolman(cpoolman),
         m_dmnman{dmnman},
         m_mnhfman{mnhfman},
         m_qblockman{qblockman},
@@ -110,10 +107,8 @@ public:
 
 private:
     bool CheckSpecialTxInner(const CChain* chain, const CTransaction& tx, const CBlockIndex* pindexPrev,
-                             SpecialTxRules rules, const CCoinsViewCache& view, const std::optional<CRangesSet>& indexes,
-                             bool check_sigs, TxValidationState& state) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
-    bool CheckCreditPoolDiffForBlock(const CBlock& block, const CBlockIndex* pindex, const CCbTx& cbTx,
-                                     CAmount blockSubsidy, BlockValidationState& state) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+                             SpecialTxRules rules, const CCoinsViewCache& view, bool check_sigs,
+                             TxValidationState& state) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 };
 
 /**
@@ -165,7 +160,6 @@ bool CheckSharedCollateralSpends(const CTransaction& tx, const CCoinsViewCache& 
  *  the collateral output of a shared registration. Applies to every transaction, including the
  *  coinbase; callers gate on v24 activation. */
 bool CheckSharedCollateralTemplateOutputs(const CTransaction& tx, TxValidationState& state);
-
 
 /**
  * Asset lock transactions with more than 100 inputs (and so over ~20 kB) can not

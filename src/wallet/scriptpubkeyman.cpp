@@ -9,6 +9,7 @@
 
 #include "script/standard.h"
 #include "util.h"
+#include "util/message.h"
 #include "wallet/wallet.h"
 #include "wallet/walletdb.h"
 
@@ -441,4 +442,18 @@ void ScriptPubKeyMan::MarkUnusedAddresses(const CScript& script)
             LogPrintf("%s: Topping up keypool failed (locked wallet)\n", __func__);
         }
     }
+}
+
+SigningResult ScriptPubKeyMan::SignMessage(const std::string& message, const PKHash& pkhash, std::string& signature) const
+{
+    CKey key;
+    if (!wallet->GetKey(ToKeyID(pkhash), key)) {
+        return SigningResult::PRIVATE_KEY_NOT_AVAILABLE;
+    }
+
+    if (!MessageSign(key, message, signature)) {
+        return SigningResult::SIGNING_FAILED;
+    }
+
+    return SigningResult::OK;
 }

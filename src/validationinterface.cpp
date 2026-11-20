@@ -1,6 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2022 The Bitcoin Core developers
-// Copyright (c) The SchilingCoin developers
+// Copyright (c) 2026 The SchilingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -174,22 +174,24 @@ void SyncWithValidationInterfaceQueue()
     promise.get_future().wait();
 }
 
-// Use a macro instead of a function for conditional logging to prevent
-// evaluating arguments when logging is not enabled.
-//
-// NOTE: The lambda captures all local variables by value.
-#define ENQUEUE_AND_LOG_EVENT(event, fmt, name, ...)           \
-    do {                                                       \
-        auto local_name = (name);                              \
-        LOG_EVENT("Enqueuing " fmt, local_name, __VA_ARGS__);  \
-        m_internals->m_schedulerClient.AddToProcessQueue([=] { \
-            LOG_EVENT(fmt, local_name, __VA_ARGS__);           \
-            event();                                           \
-        });                                                    \
-    } while (0)
+// Use macros instead of functions for conditional logging to prevent
+// evaluating and formatting arguments when validation logging is not enabled.
+#define LOG_MSG(fmt, ...) \
+    (util::log::ShouldDebugLog(BCLog::VALIDATION) ? tfm::format((fmt), __VA_ARGS__) : std::string{})
 
 #define LOG_EVENT(fmt, ...) \
-    LogPrint(BCLog::VALIDATION, fmt "\n", __VA_ARGS__)
+    LogDebug(BCLog::VALIDATION, fmt "\n", __VA_ARGS__)
+
+#define ENQUEUE_AND_LOG_EVENT(event, fmt, name, ...)                                      \
+    do {                                                                                  \
+        auto local_log_msg = LOG_MSG(fmt, name, __VA_ARGS__);                             \
+        LOG_EVENT("Enqueuing %s", local_log_msg);                                          \
+        m_internals->m_schedulerClient.AddToProcessQueue(                                  \
+            [local_log_msg = std::move(local_log_msg), local_event = std::move(event)] {   \
+                LOG_EVENT("%s", local_log_msg);                                             \
+                local_event();                                                             \
+            });                                                                            \
+    } while (0)
 
 void CMainSignals::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload) {
     // Dependencies exist that require UpdatedBlockTip events to be delivered in the order in which

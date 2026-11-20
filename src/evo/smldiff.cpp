@@ -235,11 +235,11 @@ bool BuildSimplifiedMNListDiff(CDeterministicMNManager& dmnman, const Chainstate
 
     mnListDiffRet.cbTx = CMutableTransaction(*block.vtx[0]);
 
-    std::vector<uint256> vHashes;
+    std::vector<Txid> vHashes;
     vHashes.reserve(block.vtx.size());
     std::vector<bool> vMatch(block.vtx.size(), false);
     for (const auto& tx : block.vtx) {
-        vHashes.emplace_back(tx->GetHash().ToUint256());
+        vHashes.emplace_back(tx->GetHash());
     }
     vMatch[0] = true; // only coinbase matches
     mnListDiffRet.cbTxMerkleTree = CPartialMerkleTree(vHashes, vMatch);

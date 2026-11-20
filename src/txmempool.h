@@ -373,7 +373,7 @@ public:
      * all inputs are in the mapNextTx array). If sanity-checking is turned off,
      * check does nothing.
      */
-    void check(const CCoinsViewCache& active_coins_tip, int64_t spendheight) const EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+    void check(const CCoinsViewCache& active_coins_tip, int64_t spendheight, const Consensus::Params& consensus_params) const EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
     void addAddressIndex(const CTxMemPoolEntry& entry, const CCoinsViewCache& view);
     void getAddressIndex(const std::vector<CMempoolAddressDeltaKey>& addresses,

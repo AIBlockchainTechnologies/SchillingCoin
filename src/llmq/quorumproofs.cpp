@@ -1,5 +1,8 @@
 // Copyright (c) 2026 The Dash Core developers
-// Distributed under the MIT software license, see the accompanying file COPYING.
+// Copyright (c) 2026 The SchillingCoin developers
+// Distributed under the MIT software license, see the accompanying
+// file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
 #include <algorithm>
 #include <array>
 #include <chain.h>
@@ -247,7 +250,7 @@ static CoinbasePayload Coinbase(const ProofTransaction& proof, const ProofCertif
     Require(proof.path.index == 0 && proof.Verify(cert.header), "coinbase inclusion");
     const auto payload = ParseCoinbasePayload(proof.transaction);
     Require(payload.envelope_ok, "coinbase envelope");
-    Require(payload.payload_ok && payload.version >= CCbTx::Version::CLSIG_AND_BALANCE &&
+    Require(payload.payload_ok && payload.version >= CCbTx::Version::CLSIG &&
                 payload.height == int64_t(cert.height) && payload.best_cl_height_diff < cert.height &&
                 !payload.merkle_root_quorums.IsNull(),
             "coinbase payload");

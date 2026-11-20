@@ -7,6 +7,7 @@
 #include "key_io.h"
 #include "messagesigner.h"
 #include "tinyformat.h"
+#include "util/message.h"
 #include "util/strencodings.h"
 #include "util/system.h"
 #include "validation.h"
@@ -27,7 +28,7 @@ bool CMessageSigner::GetKeysFromSecret(const std::string& strSecret, CKey& keyRe
 uint256 CMessageSigner::GetMessageHash(const std::string& strMessage)
 {
     CHashWriter ss(SER_GETHASH, 0);
-    ss << strMessageMagic;
+    ss << MESSAGE_MAGIC;
     ss << strMessage;
     return ss.GetHash();
 }

@@ -5,11 +5,10 @@
 
 #include <masternode/payments.h>
 
-#include <evo/deterministicmns.h>
-
 #include <chain.h>
 #include <consensus/amount.h>
 #include <deploymentstatus.h>
+#include <evo/deterministicmns.h>
 #include <key_io.h>
 #include <logging.h>
 #include <primitives/block.h>
@@ -50,223 +49,115 @@ int FindUnmatchedMasternodePayment(const std::vector<CTxOut>& expected,
     return -1;
 }
 
-CAmount PlatformShare(const CAmount reward)
+CAmount GetMasternodePayment(int nHeight, CAmount blockValue, const Consensus::Params& consensus_params)
 {
-    const CAmount platformReward = reward * 375 / 1000;
-    bool ok = MoneyRange(platformReward);
-    assert(ok);
-    return platformReward;
-}
-
-CAmount GetMasternodePayment(int nHeight, CAmount blockValue, const Consensus::Params& consensus_params, MnRewardEra era)
-{
-    // SCH consensus: no masternode payment during the historical PoW phase.
-    // After PoW, 80% of the applicable block reward is paid to the masternode.
-    // Transaction-fee distribution is supplied separately through feeReward.
     (void)consensus_params;
-    (void)era;
-
-    if (nHeight <= 100) {
-        return 0;
-    }
-
+    if (nHeight <= 100) return 0;
     return blockValue / 100 * 80;
 }
 
-[[nodiscard]] bool CMNPaymentsProcessor::GetBlockTxOuts(const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
-                                                        MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet)
+[[nodiscard]] bool CMNPaymentsProcessor::GetBlockTxOuts(const CBlockIndex* pindexPrev, const CAmount blockSubsidy,
+                                                         const CAmount feeReward, std::vector<CTxOut>& ret)
 {
-    voutMasternodePaymentsRet.clear();
-
-    const int nBlockHeight = pindexPrev  == nullptr ? 0 : pindexPrev->nHeight + 1;
-
-    CAmount masternodeReward = GetMasternodePayment(nBlockHeight, blockSubsidy + feeReward, m_consensus_params, era);
-
-    // Credit Pool doesn't exist before V20. If any part of reward will re-allocated to credit pool before v20
-    // activation these fund will be just permanently lost. Applicable for devnets, regtest, testnet
-    if (era == MnRewardEra::EvoReward) {
-        CAmount masternodeSubsidyReward = GetMasternodePayment(nBlockHeight, blockSubsidy, m_consensus_params, era);
-        const CAmount platformReward = PlatformShare(masternodeSubsidyReward);
-        masternodeReward -= platformReward;
-
-        assert(MoneyRange(masternodeReward));
-
-        LogPrint(BCLog::MNPAYMENTS, "CMNPaymentsProcessor::%s -- MN reward %lld reallocated to credit pool\n", __func__, platformReward);
-        voutMasternodePaymentsRet.emplace_back(platformReward, CScript() << OP_RETURN);
-    }
+    ret.clear();
+    const int height = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
+    CAmount ownerReward = GetMasternodePayment(height, blockSubsidy + feeReward, m_consensus_params);
     const auto mnList = m_dmnman.GetListForBlock(pindexPrev);
-    if (mnList.GetCounts().total() == 0) {
-        LogPrint(BCLog::MNPAYMENTS, "CMNPaymentsProcessor::%s -- no masternode registered to receive a payment\n", __func__);
-        return true;
-    }
-    const auto dmnPayee = mnList.GetMNPayee(pindexPrev);
-    if (!dmnPayee) {
-        return false;
-    }
+    if (mnList.GetCounts().total() == 0) return true;
+    const auto payee = mnList.GetMNPayee(pindexPrev);
+    if (!payee) return false;
 
-    CAmount operatorReward = 0;
-
-    if (dmnPayee->nOperatorReward != 0 && dmnPayee->pdmnState->scriptOperatorPayout != CScript()) {
-        // This calculation might eventually turn out to result in 0 even if an operator reward percentage is given.
-        // This will however only happen in a few years when the block rewards drops very low.
-        operatorReward = (masternodeReward * dmnPayee->nOperatorReward) / 10000;
-        masternodeReward -= operatorReward;
+    CAmount operatorReward{0};
+    if (payee->nOperatorReward != 0 && payee->pdmnState->scriptOperatorPayout != CScript()) {
+        operatorReward = (ownerReward * payee->nOperatorReward) / 10000;
+        ownerReward -= operatorReward;
     }
-
-    if (dmnPayee->pdmnState->IsShared()) {
-        // Shared masternodes split the owner reward by recorded collateral contribution, paying
-        // each share's reward script (or its refund script when no reward script is set)
-        const auto& shares = dmnPayee->pdmnState->shares;
-        const auto amounts = SplitAmountByShares(masternodeReward, shares);
-        for (size_t i = 0; i < shares.size(); ++i) {
-            if (amounts[i] > 0) {
-                voutMasternodePaymentsRet.emplace_back(amounts[i], shares[i].RewardScript());
-            }
-        }
+    if (payee->pdmnState->IsShared()) {
+        const auto& shares = payee->pdmnState->shares;
+        const auto amounts = SplitAmountByShares(ownerReward, shares);
+        for (size_t i = 0; i < shares.size(); ++i) if (amounts[i] > 0) ret.emplace_back(amounts[i], shares[i].RewardScript());
     } else {
-        const auto owner_payouts = GetOwnerPayouts(*dmnPayee->pdmnState);
-        CAmount paid_owner_reward{0};
-        for (size_t i = 0; i < owner_payouts.size(); ++i) {
-            const bool last = i + 1 == owner_payouts.size();
-            const CAmount payout_amount = last ? masternodeReward - paid_owner_reward
-                                               : (masternodeReward * owner_payouts[i].reward) / MasternodePayoutShare::MAX_REWARD;
-            paid_owner_reward += payout_amount;
-            if (payout_amount > 0) {
-                voutMasternodePaymentsRet.emplace_back(payout_amount, owner_payouts[i].scriptPayout);
-            }
+        const auto payouts = GetOwnerPayouts(*payee->pdmnState);
+        CAmount paid{0};
+        for (size_t i = 0; i < payouts.size(); ++i) {
+            const bool last = i + 1 == payouts.size();
+            const CAmount amount = last ? ownerReward - paid : (ownerReward * payouts[i].reward) / MasternodePayoutShare::MAX_REWARD;
+            paid += amount;
+            if (amount > 0) ret.emplace_back(amount, payouts[i].scriptPayout);
         }
     }
-    if (operatorReward > 0) {
-        voutMasternodePaymentsRet.emplace_back(operatorReward, dmnPayee->pdmnState->scriptOperatorPayout);
-    }
-
+    if (operatorReward > 0) ret.emplace_back(operatorReward, payee->pdmnState->scriptOperatorPayout);
     return true;
 }
 
-/**
-*   GetMasternodeTxOuts
-*
-*   Get masternode payment tx outputs
-*/
-[[nodiscard]] bool CMNPaymentsProcessor::GetMasternodeTxOuts(const CBlockIndex* pindexPrev, const CAmount blockSubsidy, const CAmount feeReward,
-                                                             MnRewardEra era, std::vector<CTxOut>& voutMasternodePaymentsRet)
+[[nodiscard]] bool CMNPaymentsProcessor::GetMasternodeTxOuts(const CBlockIndex* pindexPrev, const CAmount blockSubsidy,
+                                                              const CAmount feeReward, std::vector<CTxOut>& ret)
 {
-    // make sure it's not filled yet
-    voutMasternodePaymentsRet.clear();
-
-    if(!GetBlockTxOuts(pindexPrev, blockSubsidy, feeReward, era, voutMasternodePaymentsRet)) {
-        LogPrintf("CMNPaymentsProcessor::%s -- ERROR Failed to get payee\n", __func__);
-        return false;
-    }
-
-    for (const auto& txout : voutMasternodePaymentsRet) {
-        CTxDestination dest;
-        ExtractDestination(txout.scriptPubKey, dest);
-
-        LogPrintf("CMNPaymentsProcessor::%s -- Masternode payment %lld to %s\n", __func__, txout.nValue, EncodeDestination(dest));
-    }
-
+    ret.clear();
+    if (!GetBlockTxOuts(pindexPrev, blockSubsidy, feeReward, ret)) return false;
     return true;
 }
 
-[[nodiscard]] bool CMNPaymentsProcessor::IsTransactionValid(const CTransaction& txNew, const CBlockIndex* pindexPrev, const CAmount blockSubsidy,
-                                                            const CAmount feeReward, MnRewardEra era, bool strict_multiplicity)
+[[nodiscard]] bool CMNPaymentsProcessor::IsTransactionValid(const CTransaction& txNew, const CBlockIndex* pindexPrev,
+                                                             const CAmount blockSubsidy, const CAmount feeReward,
+                                                             bool strict_multiplicity)
 {
-    const int nBlockHeight = pindexPrev  == nullptr ? 0 : pindexPrev->nHeight + 1;
-    if (!DeploymentDIP0003Enforced(nBlockHeight, m_consensus_params)) {
-        // can't verify historical blocks here
-        return true;
-    }
-
-    std::vector<CTxOut> voutMasternodePayments;
-    if (!GetBlockTxOuts(pindexPrev, blockSubsidy, feeReward, era, voutMasternodePayments)) {
-        LogPrintf("CMNPaymentsProcessor::%s -- ERROR! Failed to get payees for block at height %s\n", __func__, nBlockHeight);
-        return true;
-    }
-
-    // With strict multiplicity (v24 active, computed by the caller) each expected payment must be
-    // matched by a distinct coinbase output: duplicate expected outputs require duplicate coinbase
-    // outputs. Pre-v24 retains the legacy existence-only check to avoid tightening historical
-    // validation.
-    const int unmatched_idx = FindUnmatchedMasternodePayment(voutMasternodePayments, txNew.vout, strict_multiplicity);
-    if (unmatched_idx >= 0) {
-        const auto& txout = voutMasternodePayments[unmatched_idx];
-        std::string str_payout;
-        if (CTxDestination dest; ExtractDestination(txout.scriptPubKey, dest)) {
-            str_payout = "address=" + EncodeDestination(dest);
-        } else {
-            str_payout = "scriptPubKey=" + HexStr(txout.scriptPubKey);
-        }
-        LogPrintf("CMNPaymentsProcessor::%s -- ERROR! Failed to find expected payee %s amount=%lld height=%d\n",
-                  __func__, str_payout, txout.nValue, nBlockHeight);
-        return false;
-    }
-    return true;
+    const int height = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
+    if (!DeploymentDIP0003Enforced(height, m_consensus_params)) return true;
+    std::vector<CTxOut> expected;
+    if (!GetBlockTxOuts(pindexPrev, blockSubsidy, feeReward, expected)) return true;
+    return FindUnmatchedMasternodePayment(expected, txNew.vout, strict_multiplicity) < 0;
 }
 
-bool CMNPaymentsProcessor::IsBlockValueValid(const CBlock& block, const CBlockIndex* pindexPrev, const CAmount blockReward, std::string& strErrorRet)
+bool CMNPaymentsProcessor::IsBlockValueValid(const CBlock& block, const CBlockIndex* pindexPrev,
+                                              const CAmount blockReward, std::string& strErrorRet)
 {
-    const int nBlockHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
-    const CAmount actual_value = block.vtx[0]->GetValueOut();
-
+    const int height = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
+    const CAmount actual = block.vtx[0]->GetValueOut();
     strErrorRet.clear();
-
-    if (actual_value > blockReward) {
-        strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d)",
-                                nBlockHeight, actual_value, blockReward);
+    if (actual > blockReward) {
+        strErrorRet = strprintf("coinbase pays too much at height %d (actual=%d vs limit=%d)", height, actual, blockReward);
         return false;
     }
-
     return true;
 }
 
 bool CMNPaymentsProcessor::IsBlockPayeeValid(const CTransaction& txNew, const CBlockIndex* pindexPrev,
-                                             const CAmount blockSubsidy, const CAmount feeReward,
-                                             MnRewardEra era, bool strict_multiplicity)
+                                              const CAmount blockSubsidy, const CAmount feeReward,
+                                              bool strict_multiplicity)
 {
-    const int nBlockHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
+    return IsTransactionValid(txNew, pindexPrev, blockSubsidy, feeReward, strict_multiplicity);
+}
 
-    if (!IsTransactionValid(txNew, pindexPrev, blockSubsidy, feeReward, era, strict_multiplicity)) {
-        LogPrintf("CMNPaymentsProcessor::%s -- ERROR! Invalid masternode payment detected at height %d: %s",
-                  __func__, nBlockHeight, txNew.ToString()); /* Continued */
-        return false;
+static void SubtractMasternodePaymentFromCoinstake(CMutableTransaction& txCoinStake, CAmount payment, size_t stakerOutputs)
+{
+    assert(stakerOutputs >= 2);
+    assert(txCoinStake.vout.size() >= stakerOutputs);
+    if (stakerOutputs == 2) {
+        txCoinStake.vout[1].nValue -= payment;
+        return;
     }
-
-    LogPrint(BCLog::MNPAYMENTS,
-             "CMNPaymentsProcessor::%s -- Valid masternode payment at height %d: %s",
-             __func__, nBlockHeight, txNew.ToString()); /* Continued */
-    return true;
+    const size_t outputs = stakerOutputs - 1;
+    const CAmount split = payment / outputs;
+    const CAmount remainder = payment - split * outputs;
+    for (size_t i = 1; i <= outputs; ++i) txCoinStake.vout[i].nValue -= split;
+    txCoinStake.vout[outputs].nValue -= remainder;
 }
 
 void CMNPaymentsProcessor::FillBlockPayments(CMutableTransaction& txNew, const CBlockIndex* pindexPrev,
-                                             const CAmount blockSubsidy, const CAmount feeReward,
-                                             MnRewardEra era,
-                                             std::vector<CTxOut>& voutMasternodePaymentsRet)
+                                              const CAmount blockSubsidy, const CAmount feeReward,
+                                              bool fProofOfStake, std::vector<CTxOut>& ret)
 {
-    const int nBlockHeight = pindexPrev == nullptr ? 0 : pindexPrev->nHeight + 1;
-
-    if (!GetMasternodeTxOuts(pindexPrev, blockSubsidy, feeReward, era, voutMasternodePaymentsRet)) {
-        LogPrint(BCLog::MNPAYMENTS,
-                 "CMNPaymentsProcessor::%s -- No masternode to pay (MN list probably empty)\n",
-                 __func__);
-    }
-
-    txNew.vout.insert(txNew.vout.end(),
-                      voutMasternodePaymentsRet.begin(),
-                      voutMasternodePaymentsRet.end());
-
-    std::string voutMasternodeStr;
-    for (const auto& txout : voutMasternodePaymentsRet) {
-        txNew.vout[0].nValue -= txout.nValue;
-
-        if (!voutMasternodeStr.empty()) {
-            voutMasternodeStr += ",";
+    if (!GetMasternodeTxOuts(pindexPrev, blockSubsidy, feeReward, ret)) return;
+    CAmount payment{0};
+    for (const auto& out : ret) payment += out.nValue;
+    const size_t originalOutputs = txNew.vout.size();
+    txNew.vout.insert(txNew.vout.end(), ret.begin(), ret.end());
+    if (payment > 0) {
+        if (fProofOfStake) SubtractMasternodePaymentFromCoinstake(txNew, payment, originalOutputs);
+        else {
+            assert(!txNew.vout.empty());
+            txNew.vout[0].nValue -= payment;
         }
-        voutMasternodeStr += txout.ToString();
     }
-
-    LogPrint(BCLog::MNPAYMENTS,
-             "CMNPaymentsProcessor::%s -- nBlockHeight %d blockReward %lld voutMasternodePaymentsRet \"%s\" txNew %s",
-             __func__, nBlockHeight, blockSubsidy + feeReward,
-             voutMasternodeStr, txNew.ToString()); /* Continued */
 }

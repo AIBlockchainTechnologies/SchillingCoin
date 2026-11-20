@@ -7,13 +7,13 @@
 #define SCHILLINGCOIN_INTERFACES_WALLET_H
 
 #include <addresstype.h>
-#include <common/signmessage.h>
 #include <common/types.h>
 #include <consensus/amount.h>
 #include <interfaces/chain.h>
 #include <primitives/transaction.h>
 #include <support/allocators/secure.h>
 #include <util/fs.h>
+#include <util/message.h>
 #include <util/result.h>
 #include <util/ui_change_type.h>
 

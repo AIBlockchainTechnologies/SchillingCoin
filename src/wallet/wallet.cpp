@@ -9,6 +9,7 @@
 #include "guiinterfaceutil.h"
 #include "masternode-payments.h"
 #include "net.h"
+#include "node/blockstorage.h"
 #include "node/interface_ui.h"
 #include "optional.h"
 #include "policy/policy.h"
@@ -311,6 +312,11 @@ bool CWallet::GetKey(const CKeyID& address, CKey& keyOut) const
     }
 
     return CCryptoKeyStore::GetKey(address, keyOut);
+}
+
+SigningResult CWallet::SignMessage(const std::string& message, const PKHash& pkhash, std::string& signature) const
+{
+    return m_spk_man->SignMessage(message, pkhash, signature);
 }
 
 bool CWallet::GetKeyOrigin(const CKeyID& keyID, KeyOriginInfo& info) const
@@ -880,9 +886,8 @@ ScriptPubKeyMan* CWallet::GetScriptPubKeyMan() const
  * Outpoint is spent if any non-conflicted transaction
  * spends it:
  */
-bool CWallet::IsSpent(const uint256& hash, unsigned int n) const
+bool CWallet::IsSpent(const COutPoint& outpoint) const
 {
-    const COutPoint outpoint(hash, n);
     std::pair<TxSpends::const_iterator, TxSpends::const_iterator> range;
     range = mapTxSpends.equal_range(outpoint);
     for (TxSpends::const_iterator it = range.first; it != range.second; ++it) {
@@ -925,7 +930,7 @@ void CWallet::AddToSpends(const uint256& wtxid)
 bool CWallet::GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, bool fColdStake)
 {
     // wait for reindex and/or import to finish
-    if (fImporting || fReindex) return false;
+    if (node::fImporting || node::fReindex) return false;
 
     CScript pubScript;
 
@@ -1404,11 +1409,12 @@ bool CWallet::AbandonTransaction(const uint256& hashTx)
             NotifyTransactionChanged(this, wtx.GetHash(), CT_UPDATED);
 
             // Iterate over all its outputs, and mark transactions in the wallet that spend them abandoned too
+            const Txid txid{Txid::FromUint256(now)};
             TxSpends::const_iterator iter =
-                mapTxSpends.lower_bound(COutPoint(now, 0));
+                mapTxSpends.lower_bound(COutPoint(txid, 0));
 
             while (iter != mapTxSpends.end() &&
-                   iter->first.hash == now) {
+                   iter->first.hash == txid) {
                 if (!done.count(iter->second)) {
                     todo.insert(iter->second);
                 }
@@ -1463,8 +1469,9 @@ void CWallet::MarkConflicted(const uint256& hashBlock, const uint256& hashTx)
             wtx.MarkDirty();
             wtx.WriteToDisk(&batch);
             // Iterate over all its outputs, and mark transactions in the wallet that spend them conflicted too
-            TxSpends::const_iterator iter = mapTxSpends.lower_bound(COutPoint(now, 0));
-            while (iter != mapTxSpends.end() && iter->first.hash == now) {
+            const Txid txid{Txid::FromUint256(now)};
+            TxSpends::const_iterator iter = mapTxSpends.lower_bound(COutPoint(txid, 0));
+            while (iter != mapTxSpends.end() && iter->first.hash == txid) {
                  if (!done.count(iter->second)) {
                      todo.insert(iter->second);
                  }
@@ -1826,7 +1833,8 @@ CAmount CWalletTx::GetUnlockedCredit() const
     for (unsigned int i = 0; i < vout.size(); i++) {
         const CTxOut& txout = vout[i];
 
-        if (pwallet->IsSpent(hashTx, i) || pwallet->IsLockedCoin(hashTx, i)) continue;
+        const COutPoint outpoint(Txid::FromUint256(hashTx), i);
+        if (pwallet->IsSpent(outpoint) || pwallet->IsLockedCoin(outpoint)) continue;
         if (fMasterNode && vout[i].nValue == GetMNCollateral() * COIN) continue; // do not count MN-like outputs
 
         nCredit += pwallet->GetCredit(txout, ISMINE_SPENDABLE);
@@ -1852,11 +1860,13 @@ CAmount CWalletTx::GetLockedCredit() const
     for (unsigned int i = 0; i < vout.size(); i++) {
         const CTxOut& txout = vout[i];
 
+        const COutPoint outpoint(Txid::FromUint256(hashTx), i);
+
         // Skip spent coins
-        if (pwallet->IsSpent(hashTx, i)) continue;
+        if (pwallet->IsSpent(outpoint)) continue;
 
         // Add locked coins
-        if (pwallet->IsLockedCoin(hashTx, i)) {
+        if (pwallet->IsLockedCoin(outpoint)) {
             nCredit += pwallet->GetCredit(txout, ISMINE_SPENDABLE_ALL);
         }
 
@@ -1927,11 +1937,13 @@ CAmount CWalletTx::GetLockedWatchOnlyCredit() const
     for (unsigned int i = 0; i < vout.size(); i++) {
         const CTxOut& txout = vout[i];
 
+        const COutPoint outpoint(Txid::FromUint256(hashTx), i);
+
         // Skip spent coins
-        if (pwallet->IsSpent(hashTx, i)) continue;
+        if (pwallet->IsSpent(outpoint)) continue;
 
         // Add locked coins
-        if (pwallet->IsLockedCoin(hashTx, i)) {
+        if (pwallet->IsLockedCoin(outpoint)) {
             nCredit += pwallet->GetCredit(txout, ISMINE_WATCH_ONLY);
         }
 
@@ -2455,7 +2467,7 @@ void CWallet::GetAvailableP2CSCoins(std::vector<COutput>& vCoins) const {
                 for (int i = 0; i < (int) pcoin->vout.size(); i++) {
                     const auto &utxo = pcoin->vout[i];
 
-                    if (IsSpent(wtxid, i))
+                    if (IsSpent(COutPoint(Txid::FromUint256(wtxid), i)))
                         continue;
 
                     if (utxo.scriptPubKey.IsPayToColdStaking()) {
@@ -2495,7 +2507,7 @@ bool CheckTXAvailability(const CWalletTx* pcoin, bool fOnlyConfirmed, bool fUseI
 bool CWallet::GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, std::string strTxHash, std::string strOutputIndex)
 {
     // wait for reindex and/or import to finish
-    if (fImporting || fReindex) return false;
+    if (node::fImporting || node::fReindex) return false;
 
     if (strTxHash.empty() || strOutputIndex.empty()) {
         return error("%s: Invalid masternode hash or output index", __func__);
@@ -2534,7 +2546,7 @@ bool CWallet::GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& 
         return error("%s: tx %s not available", __func__, strTxHash);
     }
     // Skip spent coins
-    if (IsSpent(txHash, nOutputIndex)) return error("%s: tx %s already spent", __func__, strTxHash);
+    if (IsSpent(COutPoint(Txid::FromUint256(txHash), nOutputIndex))) return error("%s: tx %s already spent", __func__, strTxHash);
 
     // Depth must be at least MASTERNODE_MIN_CONFIRMATIONS
     if (nDepth < MASTERNODE_MIN_CONFIRMATIONS) return error("%s: tx %s must be at least %d deep", __func__, strTxHash, MASTERNODE_MIN_CONFIRMATIONS);
@@ -2589,7 +2601,7 @@ bool CWallet::AvailableCoins(std::vector<COutput>* pCoins, bool fOnlyConfirmed, 
                 if (!found) continue;
 
                 if (nCoinType == STAKEABLE_COINS && pcoin->vout[i].IsZerocoinMint()) continue;
-                if (IsSpent(wtxid, i)) continue;
+                if (IsSpent(COutPoint(Txid::FromUint256(wtxid), i))) continue;
 
                 isminetype mine = IsMine(pcoin->vout[i]);
                 if (  (mine == ISMINE_NO) ||
@@ -3598,7 +3610,7 @@ std::map<CTxDestination, CAmount> CWallet::GetAddressBalances()
                         !ExtractDestination(pcoin->vout[i].scriptPubKey, addr, true) )
                     continue;
 
-                CAmount n = IsSpent(walletEntry.first, i) ? 0 : pcoin->vout[i].nValue;
+                CAmount n = IsSpent(COutPoint(Txid::FromUint256(walletEntry.first), i)) ? 0 : pcoin->vout[i].nValue;
 
                 if (!balances.count(addr))
                     balances[addr] = 0;
@@ -3788,12 +3800,11 @@ void CWallet::UnlockAllCoins()
     setLockedCoins.clear();
 }
 
-bool CWallet::IsLockedCoin(const uint256& hash, unsigned int n) const
+bool CWallet::IsLockedCoin(const COutPoint& output) const
 {
     AssertLockHeld(cs_wallet); // setLockedCoins
-    const COutPoint outpt(hash, n);
 
-    return (setLockedCoins.count(outpt) > 0);
+    return (setLockedCoins.count(output) > 0);
 }
 
 void CWallet::ListLockedCoins(std::vector<COutPoint>& vOutpts)
@@ -4177,24 +4188,8 @@ bool CWallet::MultiSend()
 namespace
 {
 
-class WalletVerificationGuard
-{
-public:
-    WalletVerificationGuard()
-    {
-        fVerifyingBlocks = true;
-    }
-
-    ~WalletVerificationGuard()
-    {
-        fVerifyingBlocks = false;
-    }
-};
-
 CWallet* CreateWalletFromFileInternal(const std::string& walletFile, const fs::path& walletPath, const std::vector<std::string>& words, bool restoreFromMnemonic)
 {
-    WalletVerificationGuard verificationGuard;
-
     const auto makeWalletDatabase =
         [&walletPath, &walletFile]() -> std::unique_ptr<WalletDatabase> {
         DatabaseOptions options;

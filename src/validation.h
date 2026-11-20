@@ -72,8 +72,6 @@ class SnapshotMetadata;
 } // namespace node
 namespace chainlock { class Chainlocks; }
 
-enum class MnRewardEra; // defined in masternode/payments.h
-
 /** Maximum number of dedicated script-checking threads allowed */
 static const int MAX_SCRIPTCHECK_THREADS = 15;
 /** -par default (number of script-checking threads, 0 = auto) */
@@ -1287,9 +1285,6 @@ SpecialTxRules GetSpecialTxRules(const CBlockIndex* pindexPrev, const Chainstate
  */
 [[nodiscard]] uint16_t DeploymentToProtxVersion(gsl::not_null<const CBlockIndex*> pindexPrev, const ChainstateManager& chainman,
                                                 std::optional<bool> is_basic_override = std::nullopt);
-
-/** Determine the masternode reward era for the block following pindexPrev. */
-MnRewardEra GetMnRewardEraAfter(const CBlockIndex* pindexPrev, const ChainstateManager& chainman);
 
 /**
  * Return the expected assumeutxo value for a given height, if one exists.

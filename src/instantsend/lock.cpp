@@ -1,4 +1,5 @@
 // Copyright (c) 2019-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -45,9 +46,6 @@ uint256 GenInputLockRequestId(const COutPoint& outpoint)
 
 std::vector<COutPoint> GetLockInputs(const CTransaction& tx)
 {
-    if (IsAssetUnlockPayload(tx)) {
-        return {COutPoint{::SerializeHash(std::make_pair(ASSET_UNLOCK_REQUESTID_PREFIX, GetAssetUnlockIndex(tx))), 0}};
-    }
     std::vector<COutPoint> inputs;
     inputs.reserve(tx.vin.size());
     for (const auto& in : tx.vin) {
@@ -58,6 +56,6 @@ std::vector<COutPoint> GetLockInputs(const CTransaction& tx)
 
 bool HasLockInputs(const CTransaction& tx)
 {
-    return !tx.IsCoinBase() && (!tx.vin.empty() || IsAssetUnlockPayload(tx));
+    return !tx.IsCoinBase() && !tx.vin.empty();
 }
 } // namespace instantsend

@@ -104,8 +104,10 @@ public:
     static constexpr int SHORTTXIDS_LENGTH = 6;
 
     CBlockHeader header;
+    std::vector<unsigned char> vchBlockSig;
 
     // Dummy for deserialization
+
     CBlockHeaderAndShortTxIDs() = default;
 
     /**
@@ -136,6 +138,7 @@ protected:
     const CTxMemPool* pool;
 public:
     CBlockHeader header;
+    std::vector<unsigned char> vchBlockSig;
 
     // Can be overriden for testing
     using IsBlockMutatedFn = std::function<bool(const CBlock&)>;

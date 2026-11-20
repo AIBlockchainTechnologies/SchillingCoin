@@ -153,8 +153,8 @@ public:
      * Write immutable block-derived data, accepting an identical existing value.
      * V must have canonical serialization: its bytes must be a pure function of
      * its logical content. Audited call-site types are CDeterministicMNListDiff,
-     * CDeterministicMNList, AbstractEHFManager::Signals, the mined-commitment
-     * pair, and CCreditPool.
+     * CDeterministicMNList, AbstractEHFManager::Signals, and the mined-commitment
+     * pair.
      * TODO(assumeutxo): WriteDerived spot-checks are not the holistic base-state
      * comparison required at snapshot completion.
      */

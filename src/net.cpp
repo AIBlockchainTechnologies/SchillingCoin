@@ -982,8 +982,7 @@ const std::array<std::string, 41> V2_DASH_IDS = {
     NetMsgType::SENDHEADERS2,
     NetMsgType::HEADERS2,
     NetMsgType::GETQUORUMROTATIONINFO,
-    NetMsgType::QUORUMROTATIONINFO,
-    NetMsgType::PLATFORMBAN
+    NetMsgType::QUORUMROTATIONINFO
 };
 
  /** Explicit version requirements for Dash v2 short IDs added after baseline.
@@ -996,9 +995,7 @@ const std::array<std::string, 41> V2_DASH_IDS = {
  * - Never remove entries (historical compatibility)
  * - Add new messages as they are introduced
  */
-static const std::map<std::string, int> V2_NEW_SHORT_ID_VERSIONS = {
-    {NetMsgType::PLATFORMBAN, PLATFORMBAN_V2_SHORT_ID_VERSION},
-};
+static const std::map<std::string, int> V2_NEW_SHORT_ID_VERSIONS{};
 
 /** Get the minimum protocol version required for a message's short ID.
  *

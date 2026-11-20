@@ -1,8 +1,8 @@
 // Copyright (c) 2018-2025 The Dash Core developers
+// Copyright (c) 2026 The SchillingCoin developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <evo/assetlocktx.h>
 #include <evo/cbtx.h>
 #include <evo/dmn_types.h>
 #include <evo/dmnstate.h>
@@ -94,43 +94,6 @@ int32_t GetPlatformPort(const Obj& obj)
 template int32_t GetPlatformPort<true>(const CDeterministicMNState& obj);
 template int32_t GetPlatformPort<false>(const CDeterministicMNState& obj);
 
-UniValue CAssetLockPayload::ToJson() const
-{
-    UniValue outputs(UniValue::VARR);
-    for (const CTxOut& credit_output : creditOutputs) {
-        UniValue out(UniValue::VOBJ);
-        out.pushKV("value", ValueFromAmount(credit_output.nValue));
-        out.pushKV("valueSat", credit_output.nValue);
-        UniValue spk(UniValue::VOBJ);
-        ScriptToUniv(credit_output.scriptPubKey, spk, /*include_hex=*/true, /*include_address=*/false);
-        out.pushKV("scriptPubKey", spk);
-        if (nVersion >= 2) {
-            if (const PlatformDestination dest = PlatformDestinationFromScript(credit_output.scriptPubKey);
-                IsValidPlatformDestination(dest)) {
-                out.pushKV("address", EncodePlatformDestination(dest));
-            }
-        }
-        outputs.push_back(out);
-    }
-
-    UniValue ret(UniValue::VOBJ);
-    ret.pushKV("version", nVersion);
-    ret.pushKV("creditOutputs", outputs);
-    return ret;
-}
-
-UniValue CAssetUnlockPayload::ToJson() const
-{
-    UniValue ret(UniValue::VOBJ);
-    ret.pushKV("version", nVersion);
-    ret.pushKV("index", index);
-    ret.pushKV("fee", fee);
-    ret.pushKV("requestedHeight", requestedHeight);
-    ret.pushKV("quorumHash", quorumHash.ToString());
-    ret.pushKV("quorumSig", quorumSig.ToString());
-    return ret;
-}
-
 UniValue CCbTx::ToJson() const
 {
     UniValue ret(UniValue::VOBJ);
@@ -139,14 +102,10 @@ UniValue CCbTx::ToJson() const
     ret.pushKV("merkleRootMNList", merkleRootMNList.ToString());
     if (nVersion >= CCbTx::Version::MERKLE_ROOT_QUORUMS) {
         ret.pushKV("merkleRootQuorums", merkleRootQuorums.ToString());
-        if (nVersion >= CCbTx::Version::CLSIG_AND_BALANCE) {
-            ret.pushKV("bestCLHeightDiff", bestCLHeightDiff);
-            ret.pushKV("bestCLSignature", bestCLSignature.ToString());
-            ret.pushKV("creditPoolBalance", ValueFromAmount(creditPoolBalance));
-            if (nVersion >= CCbTx::Version::MERKLE_ROOT_ASSETUNLOCKS) {
-                ret.pushKV("merkleRootAssetUnlocks", merkleRootAssetUnlocks.ToString());
-            }
-        }
+    }
+    if (nVersion >= CCbTx::Version::CLSIG) {
+        ret.pushKV("bestCLHeightDiff", bestCLHeightDiff);
+        ret.pushKV("bestCLSignature", bestCLSignature.ToString());
     }
     return ret;
 }

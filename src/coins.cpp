@@ -325,7 +325,7 @@ static const size_t MAX_OUTPUTS_PER_BLOCK =
         SER_NETWORK,
         PROTOCOL_VERSION);
 
-const Coin& AccessByTxid(const CCoinsViewCache& view, const uint256& txid)
+const Coin& AccessByTxid(const CCoinsViewCache& view, const Txid& txid)
 {
     COutPoint iter(txid, 0);
     while (iter.n < MAX_OUTPUTS_PER_BLOCK) {

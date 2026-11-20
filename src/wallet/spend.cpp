@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <consensus/consensus.h>
 #include <consensus/validation.h>
-#include <evo/assetlocktx.h>
 #include <evo/dmn_types.h>
 #include <evo/specialtx.h>
 #include <interfaces/chain.h>
@@ -752,43 +751,7 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
 {
     AssertLockHeld(wallet.cs_wallet);
 
-    // DIP-27 v2: when platform recipients are present, build asset-lock payload
-    // and replace platform recipients with an OP_RETURN output.
-    std::optional<CAssetLockPayload> opt_assetLockPayload;
-    std::vector<CRecipient> vecSend;
-    const bool has_platform = std::any_of(vecSend_in.cbegin(), vecSend_in.cend(),
-                                           [](const auto& r) { return r.fPlatformTransfer; });
-    if (has_platform) {
-        if (nExtraPayloadSize != 0) {
-            return util::Error{_("Platform recipients cannot be combined with another special transaction payload")};
-        }
-        // The OP_RETURN is prepended below, which would shift a caller-supplied position.
-        if (change_pos != RANDOM_CHANGE_POSITION) {
-            return util::Error{_("Platform recipients cannot be combined with an explicit change position")};
-        }
-
-        std::vector<CTxOut> creditOutputs;
-        CAmount platform_total{0};
-
-        for (const auto& recipient : vecSend_in) {
-            if (recipient.fPlatformTransfer) {
-                creditOutputs.emplace_back(recipient.nAmount, recipient.scriptPubKey);
-                platform_total += recipient.nAmount;
-            } else {
-                vecSend.push_back(recipient);
-            }
-        }
-
-        opt_assetLockPayload.emplace(creditOutputs, CAssetLockPayload::CURRENT_VERSION);
-        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-        ss << *opt_assetLockPayload;
-        nExtraPayloadSize = ss.size();
-
-        vecSend.insert(vecSend.begin(),
-                       {CScript() << OP_RETURN << ParseHex(""), platform_total, /*fSubtractFeeFromAmount=*/false});
-    } else {
-        vecSend = vecSend_in;
-    }
+    const std::vector<CRecipient>& vecSend = vecSend_in;
 
     // Bytes the extra payload adds on top of the size CalculateMaximumSignedTxSize() reports
     const int extra_payload_bytes{
@@ -1070,12 +1033,6 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
         return util::Error{error};
     }
 
-    if (opt_assetLockPayload) {
-        txNew.nVersion = 3;
-        txNew.nType = TRANSACTION_ASSET_LOCK;
-        SetTxPayload(txNew, *opt_assetLockPayload);
-    }
-
     if (sign && !wallet.SignTransaction(txNew)) {
         return util::Error{_("Signing transaction failed")};
     }
@@ -1087,15 +1044,6 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     if ((sign && ::GetSerializeSize(*tx, PROTOCOL_VERSION) > MAX_STANDARD_TX_SIZE) ||
         (!sign && static_cast<size_t>(nBytes) > MAX_STANDARD_TX_SIZE)) {
         return util::Error{_("Transaction too large")};
-    }
-
-    // An asset lock for Platform recipients carries payload version 2, which is
-    // deliberately non-standard until Platform can process it. Returning such a
-    // transaction hands the caller a txid for something the local mempool drops on
-    // submission and that therefore never relays, so fail before it is committed.
-    if (std::string reason; opt_assetLockPayload && wallet.chain().isNonStandardSpecialTx(tx, reason)) {
-        return util::Error{strprintf(_("Transaction is non-standard (%s) and would not relay; sending to Platform "
-                                       "addresses currently requires a node started with -acceptnonstdtxn=1"), reason)};
     }
 
     if (current_fee > wallet.m_default_max_tx_fee) {

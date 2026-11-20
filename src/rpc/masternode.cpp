@@ -11,6 +11,7 @@
 #include "masternode-payments.h"
 #include "netbase.h"
 #include "net_processing.h"
+#include "node/blockstorage.h"
 #include "rpc/server.h"
 #include "script/standard.h"
 #include "utilmoneystr.h"
@@ -817,7 +818,7 @@ UniValue createmasternodebroadcast(const JSONRPCRequest& request)
     if (strCommand == "alias")
     {
         // wait for reindex and/or import to finish
-        if (fImporting || fReindex)
+        if (node::fImporting || node::fReindex)
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Wait for reindex and/or import to finish");
 
         std::string alias = request.params[1].get_str();
@@ -850,7 +851,7 @@ UniValue createmasternodebroadcast(const JSONRPCRequest& request)
     if (strCommand == "all")
     {
         // wait for reindex and/or import to finish
-        if (fImporting || fReindex)
+        if (node::fImporting || node::fReindex)
             throw JSONRPCError(RPC_INTERNAL_ERROR, "Wait for reindex and/or import to finish");
 
         std::vector<CMasternodeConfig::CMasternodeEntry> mnEntries;

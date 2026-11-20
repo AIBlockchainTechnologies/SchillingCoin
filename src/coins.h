@@ -320,7 +320,7 @@ private:
 void AddCoins(CCoinsViewCache& cache, const CTransaction& tx, int nHeight);
 
 //! Utility function to find any unspent output with a given txid.
-const Coin& AccessByTxid(const CCoinsViewCache& cache, const uint256& txid);
+const Coin& AccessByTxid(const CCoinsViewCache& cache, const Txid& txid);
 
 /**
  * This is a minimally invasive approach to shutdown on LevelDB read errors from the

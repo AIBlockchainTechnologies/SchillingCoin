@@ -337,7 +337,6 @@ public:
         return 0;
     }
 
-
     bool WriteStealthKeyMeta(const CKeyID &keyId, const CStealthKeyMetadata &sxKeyMeta);
     bool EraseStealthKeyMeta(const CKeyID &keyId);
 
@@ -345,77 +344,71 @@ public:
     bool ReadStealthAddress(CStealthAddress &sxAddr);
     bool EraseStealthAddress(const CStealthAddress &sxAddr);
 
-
-    bool ReadNamedExtKeyId(const std::string &name, CKeyID &identifier, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadNamedExtKeyId(const std::string &name, CKeyID &identifier);
     bool WriteNamedExtKeyId(const std::string &name, const CKeyID &identifier);
 
-    bool ReadExtKey(const CKeyID &identifier, CStoredExtKey &ek32, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadExtKey(const CKeyID &identifier, CStoredExtKey &ek32);
     bool WriteExtKey(const CKeyID &identifier, const CStoredExtKey &ek32);
 
-    bool ReadExtAccount(const CKeyID &identifier, CExtKeyAccount &ekAcc, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadExtAccount(const CKeyID &identifier, CExtKeyAccount &ekAcc);
     bool WriteExtAccount(const CKeyID &identifier, const CExtKeyAccount &ekAcc);
 
-    bool ReadExtKeyPack(const CKeyID &identifier, const uint32_t nPack, std::vector<CEKAKeyPack> &ekPak, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadExtKeyPack(const CKeyID &identifier, const uint32_t nPack, std::vector<CEKAKeyPack> &ekPak);
     bool WriteExtKeyPack(const CKeyID &identifier, const uint32_t nPack, const std::vector<CEKAKeyPack> &ekPak);
 
-    bool ReadExtStealthKeyPack(const CKeyID &identifier, const uint32_t nPack, std::vector<CEKAStealthKeyPack> &aksPak, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadExtStealthKeyPack(const CKeyID &identifier, const uint32_t nPack, std::vector<CEKAStealthKeyPack> &aksPak);
     bool WriteExtStealthKeyPack(const CKeyID &identifier, const uint32_t nPack, const std::vector<CEKAStealthKeyPack> &aksPak);
 
-    bool ReadExtStealthKeyChildPack(const CKeyID &identifier, const uint32_t nPack, std::vector<CEKASCKeyPack> &asckPak, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadExtStealthKeyChildPack(const CKeyID &identifier, const uint32_t nPack, std::vector<CEKASCKeyPack> &asckPak);
     bool WriteExtStealthKeyChildPack(const CKeyID &identifier, const uint32_t nPack, const std::vector<CEKASCKeyPack> &asckPak);
 
-    bool ReadFlag(const std::string &name, int32_t &nValue, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadFlag(const std::string &name, int32_t &nValue);
     bool WriteFlag(const std::string &name, int32_t nValue);
     bool EraseFlag(const std::string &name);
     bool WriteWalletFlags(const uint64_t flags);
 
-
-    bool ReadExtKeyIndex(uint32_t id, CKeyID &identifier, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadExtKeyIndex(uint32_t id, CKeyID &identifier);
     bool WriteExtKeyIndex(uint32_t id, const CKeyID &identifier);
 
-
-    bool ReadStealthAddressIndex(uint32_t id, CStealthAddressIndexed &sxi, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadStealthAddressIndex(uint32_t id, CStealthAddressIndexed &sxi);
     bool WriteStealthAddressIndex(uint32_t id, const CStealthAddressIndexed &sxi);
 
-    bool ReadStealthAddressIndexReverse(const uint160 &hash, uint32_t &id, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadStealthAddressIndexReverse(const uint160 &hash, uint32_t &id);
     bool WriteStealthAddressIndexReverse(const uint160 &hash, uint32_t id);
 
     //bool GetStealthAddressIndex(const CStealthAddressIndexed &sxi, uint32_t &id); // Get stealth index or create new index if none found
 
-    bool ReadStealthAddressLink(const CKeyID &keyId, uint32_t &id, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadStealthAddressLink(const CKeyID &keyId, uint32_t &id);
     bool WriteStealthAddressLink(const CKeyID &keyId, uint32_t id);
 
     bool WriteAddressBookEntry(const std::string &sKey, const wallet::CAddressBookData &data);
     bool EraseAddressBookEntry(const std::string &sKey);
 
-    bool ReadVoteTokens(std::vector<CVoteToken> &vVoteTokens, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadVoteTokens(std::vector<CVoteToken> &vVoteTokens);
     bool WriteVoteTokens(const std::vector<CVoteToken> &vVoteTokens);
     bool EraseVoteTokens();
 
     bool WriteTxRecord(const uint256 &hash, const CTransactionRecord &rtx);
     bool EraseTxRecord(const uint256 &hash);
 
-
-    bool ReadStoredTx(const uint256 &hash, CStoredTransaction &stx, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadStoredTx(const uint256 &hash, CStoredTransaction &stx);
     bool WriteStoredTx(const uint256 &hash, const CStoredTransaction &stx);
     bool EraseStoredTx(const uint256 &hash);
 
-    bool ReadAnonKeyImage(const CCmpPubKey &ki, COutPoint &op, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadAnonKeyImage(const CCmpPubKey &ki, COutPoint &op);
     bool WriteAnonKeyImage(const CCmpPubKey &ki, const COutPoint &op);
     bool EraseAnonKeyImage(const CCmpPubKey &ki);
 
-
-    bool HaveLockedAnonOut(const COutPoint &op, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool HaveLockedAnonOut(const COutPoint &op);
     bool WriteLockedAnonOut(const COutPoint &op);
     bool EraseLockedAnonOut(const COutPoint &op);
 
-
-    bool ReadWalletSetting(const std::string &setting, std::string &json, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadWalletSetting(const std::string &setting, std::string &json);
     bool WriteWalletSetting(const std::string &setting, const std::string &json);
     bool EraseWalletSetting(const std::string &setting);
 
     /** extkey chain loose child keys */
-    bool ReadEKLKey(const CKeyID &id, CEKLKey &c, uint32_t nFlags=DB_READ_UNCOMMITTED);
+    bool ReadEKLKey(const CKeyID &id, CEKLKey &c);
     bool WriteEKLKey(const CKeyID &id, const CEKLKey &c);
 };
 
